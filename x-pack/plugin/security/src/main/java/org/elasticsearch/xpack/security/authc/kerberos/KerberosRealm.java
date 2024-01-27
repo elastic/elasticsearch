@@ -185,7 +185,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         );
     }
 
-    private String[] splitUserPrincipalName(final String userPrincipalName) {
+    private static String[] splitUserPrincipalName(final String userPrincipalName) {
         return userPrincipalName.split("@");
     }
 

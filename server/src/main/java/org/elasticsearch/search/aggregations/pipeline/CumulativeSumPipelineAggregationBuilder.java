@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -72,13 +73,6 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
         return this;
     }
 
-    /**
-     * Gets the format to use on the output of this aggregation.
-     */
-    public String format() {
-        return format;
-    }
-
     protected DocValueFormat formatter() {
         if (format != null) {
             return new DocValueFormat.Decimal(format);
@@ -129,6 +123,6 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_4_0;
+        return TransportVersions.V_7_4_0;
     }
 }

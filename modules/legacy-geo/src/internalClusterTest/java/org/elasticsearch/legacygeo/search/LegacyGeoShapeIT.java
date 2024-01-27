@@ -8,13 +8,12 @@
 
 package org.elasticsearch.legacygeo.search;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.legacygeo.test.TestLegacyGeoShapeFieldMapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoShapeIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -24,7 +23,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
 
@@ -40,8 +39,8 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
     }
 
     @Override
-    protected Version randomSupportedVersion() {
-        return VersionUtils.randomIndexCompatibleVersion(random());
+    protected IndexVersion randomSupportedVersion() {
+        return IndexVersionUtils.randomCompatibleVersion(random());
     }
 
     @Override
@@ -57,11 +56,10 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
         assertAcked(
             prepareCreate("test").setSettings(settings(randomSupportedVersion()).build())
                 .setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash")
-                .get()
         );
         ensureGreen();
 
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
+        indexRandom(true, prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
             builder.startObject()
                 .field("type", "circle")
                 .startArray("coordinates")
@@ -74,7 +72,6 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
         }));
 
         // test self crossing of circles
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Circle(30, 50, 77000))).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Circle(30, 50, 77000))), 1L);
     }
 }

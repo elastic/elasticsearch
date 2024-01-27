@@ -10,15 +10,15 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -321,10 +321,12 @@ public class ClusterStatsNodesTests extends ESTestCase {
             settings.put(randomFrom(NetworkModule.HTTP_TYPE_KEY, NetworkModule.HTTP_TYPE_DEFAULT_KEY), httpType);
         }
         return new NodeInfo(
-            Version.CURRENT,
-            TransportVersion.CURRENT,
-            Build.CURRENT,
-            TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress()),
+            Build.current().version(),
+            TransportVersion.current(),
+            IndexVersion.current(),
+            Map.of(),
+            Build.current(),
+            DiscoveryNodeUtils.create(nodeId, buildNewFakeTransportAddress()),
             settings.build(),
             null,
             null,

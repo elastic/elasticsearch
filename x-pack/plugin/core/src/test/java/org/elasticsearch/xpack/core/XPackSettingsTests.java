@@ -10,14 +10,17 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.TcpTransport;
 
 import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
+import java.security.Security;
 import java.util.List;
+import java.util.Locale;
 
 import javax.crypto.SecretKeyFactory;
+import javax.net.ssl.SSLContext;
 
-import static org.hamcrest.Matchers.contains;
+import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -70,13 +73,29 @@ public class XPackSettingsTests extends ESTestCase {
         }
     }
 
-    public void testDefaultSupportedProtocols() {
-        if (inFipsJvm()) {
-            assertThat(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS, contains("TLSv1.2", "TLSv1.1"));
-        } else {
-            assertThat(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS, contains("TLSv1.3", "TLSv1.2", "TLSv1.1"));
+    public void testDefaultSupportedProtocols() throws NoSuchAlgorithmException {
+        // TLSv1.3 is recommended but is not required for FIPS-140-3 compliance, government-only applications must use TLS 1.2 or higher
+        // https://www.gsa.gov/system/files?file=SSL-TLS-Implementation-%5BCIO-IT-Security-14-69-Rev-7%5D-06-12-2023.pdf
+        List<String> defaultSupportedProtocols = DEFAULT_SUPPORTED_PROTOCOLS.stream().map(s -> s.toLowerCase(Locale.ROOT)).toList();
+        int i = 0;
+        Provider[] providers = Security.getProviders();
+        for (Provider provider : providers) {
+            for (Provider.Service service : provider.getServices()) {
+                if ("SSLContext".equalsIgnoreCase(service.getType())) {
+                    if (defaultSupportedProtocols.contains(service.getAlgorithm().toLowerCase(Locale.ROOT))) {
+                        i++;
+                        if (inFipsJvm()) {
+                            // ensure bouncy castle is the provider
+                            assertEquals("BCJSSE", provider.getName());
+                        }
+                        SSLContext.getInstance(service.getAlgorithm()); // ensure no exceptions
+                    }
 
+                }
+
+            }
         }
+        assertEquals("did not find all supported TLS protocols", i, defaultSupportedProtocols.size());
     }
 
     public void testServiceTokenHashingAlgorithmSettingValidation() {
@@ -107,20 +126,12 @@ public class XPackSettingsTests extends ESTestCase {
     }
 
     public void testRemoteClusterSslSettings() {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         final List<Setting<?>> allSettings = XPackSettings.getAllSettings();
 
         final List<String> remoteClusterSslSettingKeys = allSettings.stream()
             .map(Setting::getKey)
             .filter(key -> key.startsWith("xpack.security.remote_cluster_"))
             .toList();
-
-        // Ensure client_authentication is only available for server and verification_mode is only available for client
-        assertThat(remoteClusterSslSettingKeys, not(hasItem("xpack.security.remote_cluster_server.ssl.verification_mode")));
-        assertThat(remoteClusterSslSettingKeys, hasItem("xpack.security.remote_cluster_client.ssl.verification_mode"));
-
-        assertThat(remoteClusterSslSettingKeys, hasItem("xpack.security.remote_cluster_server.ssl.client_authentication"));
-        assertThat(remoteClusterSslSettingKeys, not(hasItem("xpack.security.remote_cluster_client.ssl.client_authentication")));
 
         // None of them allow insecure password
         List.of(

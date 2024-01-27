@@ -34,7 +34,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
                 id 'elasticsearch.testclusters'
             }
 
-            class SomeClusterAwareTask extends DefaultTask implements TestClustersAware {
+            abstract class SomeClusterAwareTask extends DefaultTask implements TestClustersAware {
 
                 private Collection<ElasticsearchCluster> clusters = new HashSet<>();
 
@@ -166,7 +166,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.output.contains("Task ':myTask' is not up-to-date because:\n" +
-                "  Input property 'clusters.myCluster\$0.nodes.\$0.$propertyName'")
+                "  Input property 'clusters.myCluster\$0.$propertyName'")
         result.output.contains("elasticsearch-keystore script executed!")
         assertEsOutputContains("myCluster", "Starting Elasticsearch process")
         assertEsOutputContains("myCluster", "Stopping node")

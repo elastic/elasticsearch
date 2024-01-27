@@ -59,6 +59,7 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
             true,
             true,
             true,
+            true,
             Version.CURRENT,
             ".security",
             ClusterHealthStatus.GREEN,

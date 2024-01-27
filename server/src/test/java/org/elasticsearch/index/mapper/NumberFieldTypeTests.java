@@ -32,17 +32,18 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -59,7 +60,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -573,7 +573,6 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         dir.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74057")
     public void testIndexSortIntRange() throws Exception {
         doTestIndexSortRangeQueries(NumberType.INTEGER, random()::nextInt);
     }
@@ -584,7 +583,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void doTestIndexSortRangeQueries(NumberType type, Supplier<Number> valueSupplier) throws IOException {
         // Create index settings with an index sort.
-        Settings settings = indexSettings(Version.CURRENT, 1, 1).put("index.sort.field", "field").build();
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put("index.sort.field", "field").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
 
@@ -610,27 +609,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = newSearcher(reader);
 
-        SearchExecutionContext context = new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            parserConfig(),
-            writableRegistry(),
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
-        );
+        SearchExecutionContext context = SearchExecutionContextHelper.createSimple(indexSettings, parserConfig(), writableRegistry());
 
         final int iters = 10;
         for (int iter = 0; iter < iters; ++iter) {
@@ -831,9 +810,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            Version.CURRENT,
+            IndexVersion.current(),
             null
-        ).build(MapperBuilderContext.root(false)).fieldType();
+        ).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
         assertEquals(List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
@@ -844,9 +823,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            Version.CURRENT,
+            IndexVersion.current(),
             null
-        ).nullValue(2.71f).build(MapperBuilderContext.root(false)).fieldType();
+        ).nullValue(2.71f).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
@@ -858,9 +837,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            Version.CURRENT,
+            IndexVersion.current(),
             null
-        ).build(MapperBuilderContext.root(false)).fieldType();
+        ).build(MapperBuilderContext.root(false, false)).fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but
          * we still do floating point comparisons. The "funny" trailing

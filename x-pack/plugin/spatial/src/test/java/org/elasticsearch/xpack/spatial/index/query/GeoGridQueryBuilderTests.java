@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.index.query;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -34,6 +33,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.stringEncode;
@@ -256,10 +257,8 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
     }
 
     public void testGeohashBoundingBox() {
-        double lat = randomDoubleBetween(-90d, 90d, true);
-        double lon = randomDoubleBetween(-180d, 180d, true);
-        double qLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
-        double qLon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
+        double qLat = decodeLatitude(randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE));
+        double qLon = decodeLongitude(randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE));
         for (int zoom = 1; zoom <= Geohash.PRECISION; zoom++) {
             String hash = Geohash.stringEncode(qLon, qLat, zoom);
             Rectangle qRect = GeoGridQueryBuilder.getQueryHash(hash);
@@ -278,13 +277,10 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92611")
     public void testBoundingBoxQuantize() {
-        double lat = randomDoubleBetween(-GeoTileUtils.LATITUDE_MASK, GeoTileUtils.LATITUDE_MASK, true);
-        double lon = randomDoubleBetween(-180d, 180d, true);
-        double qLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
-        double qLon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
-        for (int zoom = 0; zoom < MAX_ZOOM; zoom++) {
+        double qLat = decodeLatitude(randomIntBetween(GeoTileUtils.ENCODED_LATITUDE_MASK, GeoTileUtils.ENCODED_LATITUDE_MASK));
+        double qLon = decodeLongitude(randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE));
+        for (int zoom = 0; zoom <= MAX_ZOOM; zoom++) {
             long tile = GeoTileUtils.longEncode(qLon, qLat, zoom);
             Rectangle qRect = GeoGridQueryBuilder.getQueryTile(stringEncode(tile));
             assertBoundingBox(tile, zoom, qLon, qLat, qRect);

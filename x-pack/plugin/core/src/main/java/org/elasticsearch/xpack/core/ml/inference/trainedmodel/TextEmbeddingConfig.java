@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
@@ -102,7 +103,7 @@ public class TextEmbeddingConfig implements NlpConfig {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
         resultsField = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             embeddingSize = in.readOptionalVInt();
         } else {
             embeddingSize = null;
@@ -134,7 +135,7 @@ public class TextEmbeddingConfig implements NlpConfig {
         vocabularyConfig.writeTo(out);
         out.writeNamedWriteable(tokenization);
         out.writeOptionalString(resultsField);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalVInt(embeddingSize);
         }
     }
@@ -145,13 +146,30 @@ public class TextEmbeddingConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedNodeVersion() {
-        return Version.V_8_0_0;
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof TextEmbeddingConfigUpdate configUpdate) {
+            return new TextEmbeddingConfig(
+                vocabularyConfig,
+                configUpdate.tokenizationUpdate == null ? tokenization : configUpdate.tokenizationUpdate.apply(tokenization),
+                configUpdate.getResultsField() == null ? resultsField : configUpdate.getResultsField(),
+                embeddingSize
+            );
+        } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
+            var updatedTokenization = getTokenization().updateSpanSettings(tokenizationUpdate.getSpanSettings());
+            return new TextEmbeddingConfig(vocabularyConfig, updatedTokenization, resultsField, embeddingSize);
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
+    @Override
+    public MlConfigVersion getMinimalSupportedMlConfigVersion() {
+        return MlConfigVersion.V_8_0_0;
     }
 
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
-        return TransportVersion.V_8_0_0;
+        return TransportVersions.V_8_0_0;
     }
 
     @Override

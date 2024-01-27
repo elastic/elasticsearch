@@ -33,12 +33,12 @@ public class RatedSearchHit implements Writeable, ToXContentObject {
     private final OptionalInt rating;
 
     public RatedSearchHit(SearchHit searchHit, OptionalInt rating) {
-        this.searchHit = searchHit;
+        this.searchHit = searchHit.asUnpooled();
         this.rating = rating;
     }
 
     RatedSearchHit(StreamInput in) throws IOException {
-        this(new SearchHit(in), in.readBoolean() ? OptionalInt.of(in.readVInt()) : OptionalInt.empty());
+        this(SearchHit.readFrom(in, false), in.readBoolean() ? OptionalInt.of(in.readVInt()) : OptionalInt.empty());
     }
 
     @Override

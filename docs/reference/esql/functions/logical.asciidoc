@@ -1,0 +1,9 @@
+[discrete]
+[[esql-logical-operators]]
+=== Logical operators
+
+The following logical operators are supported:
+
+* `AND`
+* `OR`
+* `NOT`

@@ -10,7 +10,6 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -162,7 +161,7 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testSortingAgainstAliasesPre713() {
         IndexSettings indexSettings = indexSettings(
-            Settings.builder().put("index.version.created", Version.V_7_12_0).put("index.sort.field", "field").build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_7_12_0).put("index.sort.field", "field").build()
         );
         MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType("aliased");
         Sort sort = buildIndexSort(indexSettings, Map.of("field", aliased));

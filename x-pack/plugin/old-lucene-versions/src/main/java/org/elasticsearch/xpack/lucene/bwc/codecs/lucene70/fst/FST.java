@@ -996,7 +996,7 @@ public final class FST<T> implements Accountable {
                 presenceIndex -= Byte.SIZE;
             }
             // Set the bit at presenceIndex to flag that the corresponding arc is present.
-            presenceBits |= 1 << presenceIndex;
+            presenceBits |= (byte) (1 << presenceIndex);
             previousLabel = label;
         }
         assert presenceIndex == (nodeIn.arcs[nodeIn.numArcs - 1].label - nodeIn.arcs[0].label) % 8;

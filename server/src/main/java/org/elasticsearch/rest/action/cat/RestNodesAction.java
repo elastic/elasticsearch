@@ -9,16 +9,18 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -50,14 +52,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -81,49 +82,55 @@ public class RestNodesAction extends AbstractCatAction {
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+
+        final boolean fullId = request.paramAsBoolean("full_id", false);
+
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        final boolean fullId = request.paramAsBoolean("full_id", false);
-        final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
-            @Override
-            public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear()
-                    .addMetrics(
-                        NodesInfoRequest.Metric.JVM.metricName(),
-                        NodesInfoRequest.Metric.OS.metricName(),
-                        NodesInfoRequest.Metric.PROCESS.metricName(),
-                        NodesInfoRequest.Metric.HTTP.metricName()
+
+        final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+        nodesInfoRequest.clear()
+            .addMetrics(
+                NodesInfoMetrics.Metric.JVM.metricName(),
+                NodesInfoMetrics.Metric.OS.metricName(),
+                NodesInfoMetrics.Metric.PROCESS.metricName(),
+                NodesInfoMetrics.Metric.HTTP.metricName()
+            );
+
+        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
+        nodesStatsRequest.setIncludeShardsStats(false);
+        nodesStatsRequest.clear()
+            .indices(true)
+            .addMetrics(
+                NodesStatsRequestParameters.Metric.JVM.metricName(),
+                NodesStatsRequestParameters.Metric.OS.metricName(),
+                NodesStatsRequestParameters.Metric.FS.metricName(),
+                NodesStatsRequestParameters.Metric.PROCESS.metricName(),
+                NodesStatsRequestParameters.Metric.SCRIPT.metricName()
+            );
+        nodesStatsRequest.indices().includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
+
+        return channel -> {
+            final var clusterStateRef = new AtomicReference<ClusterStateResponse>();
+            final var nodesInfoRef = new AtomicReference<NodesInfoResponse>();
+            final var nodesStatsRef = new AtomicReference<NodesStatsResponse>();
+
+            try (var listeners = new RefCountingListener(new RestResponseListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(Void ignored) throws Exception {
+                    return RestTable.buildResponse(
+                        buildTable(fullId, request, clusterStateRef.get(), nodesInfoRef.get(), nodesStatsRef.get()),
+                        channel
                     );
-                client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
-                    @Override
-                    public void processResponse(final NodesInfoResponse nodesInfoResponse) {
-                        NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear()
-                            .indices(true)
-                            .addMetrics(
-                                NodesStatsRequest.Metric.JVM.metricName(),
-                                NodesStatsRequest.Metric.OS.metricName(),
-                                NodesStatsRequest.Metric.FS.metricName(),
-                                NodesStatsRequest.Metric.PROCESS.metricName(),
-                                NodesStatsRequest.Metric.SCRIPT.metricName()
-                            );
-                        nodesStatsRequest.indices().includeUnloadedSegments(includeUnloadedSegments);
-                        client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
-                            @Override
-                            public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
-                                return RestTable.buildResponse(
-                                    buildTable(fullId, request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse),
-                                    channel
-                                );
-                            }
-                        });
-                    }
-                });
+                }
+            })) {
+                final var clusterAdminClient = client.admin().cluster();
+                clusterAdminClient.state(clusterStateRequest, listeners.acquire(clusterStateRef::set));
+                clusterAdminClient.nodesInfo(nodesInfoRequest, listeners.acquire(nodesInfoRef::set));
+                clusterAdminClient.nodesStats(nodesStatsRequest, listeners.acquire(nodesStatsRef::set));
             }
-        });
+        };
     }
 
     @Override
@@ -415,13 +422,7 @@ public class RestNodesAction extends AbstractCatAction {
             );
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
 
-            final String roles;
-            if (node.getRoles().isEmpty()) {
-                roles = "-";
-            } else {
-                roles = node.getRoles().stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
-            }
-            table.addCell(roles);
+            table.addCell(node.getRoleAbbreviationString());
             table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");
             table.addCell(node.getName());
 

@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -379,7 +380,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         createReviewsTransform(transformId, null, null, config);
     }
 
-    private void createReviewsTransform(String transformId, String authHeader, String secondaryAuthHeader, String config)
+    protected void createReviewsTransform(String transformId, String authHeader, String secondaryAuthHeader, String config)
         throws IOException {
         final Request createTransformRequest = createRequestWithSecondaryAuth(
             "PUT",
@@ -398,13 +399,16 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         createPivotReviewsTransform(transformId, transformIndex, query, pipeline, null, null, authHeader, null, REVIEWS_INDEX_NAME);
     }
 
-    protected void updateTransform(String transformId, String update) throws IOException {
+    protected void updateTransform(String transformId, String update, boolean deferValidation) throws IOException {
         final Request updateTransformRequest = createRequestWithSecondaryAuth(
             "POST",
             getTransformEndpoint() + transformId + "/_update",
             null,
             null
         );
+        if (deferValidation) {
+            updateTransformRequest.addParameter("defer_validation", String.valueOf(deferValidation));
+        }
         updateTransformRequest.setJsonEntity(update);
 
         client().performRequest(updateTransformRequest);
@@ -611,12 +615,15 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected static void deleteTransform(String transformId) throws IOException {
-        deleteTransform(transformId, false);
+        // Ignore 404s because they imply someone was racing us to delete this transform.
+        deleteTransform(transformId, true, false);
     }
 
-    protected static void deleteTransform(String transformId, boolean deleteDestIndex) throws IOException {
+    protected static void deleteTransform(String transformId, boolean ignoreNotFound, boolean deleteDestIndex) throws IOException {
         Request request = new Request("DELETE", getTransformEndpoint() + transformId);
-        request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
+        if (ignoreNotFound) {
+            setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND);
+        }
         if (deleteDestIndex) {
             request.addParameter(TransformField.DELETE_DEST_INDEX.getPreferredName(), Boolean.TRUE.toString());
         }

@@ -1,0 +1,33 @@
+[discrete]
+[[esql-acos]]
+=== `ACOS`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/acos.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+Returns the {wikipedia}/Inverse_trigonometric_functions[arccosine] of `n` as an
+angle, expressed in radians.
+
+*Supported types*
+
+include::types/acos.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/floats.csv-spec[tag=acos]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/floats.csv-spec[tag=acos-result]
+|===

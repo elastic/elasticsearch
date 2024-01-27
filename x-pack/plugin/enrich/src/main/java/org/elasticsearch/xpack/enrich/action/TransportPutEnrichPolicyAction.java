@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -56,7 +57,7 @@ public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterN
             actionFilters,
             PutEnrichPolicyAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.settings = settings;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
@@ -87,11 +88,11 @@ public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterN
             privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
             privRequest.indexPrivileges(privileges);
 
-            ActionListener<HasPrivilegesResponse> wrappedListener = ActionListener.wrap(r -> {
+            ActionListener<HasPrivilegesResponse> wrappedListener = listener.delegateFailureAndWrap((delegate, r) -> {
                 if (r.isCompleteMatch()) {
-                    putPolicy(request, listener);
+                    putPolicy(request, delegate);
                 } else {
-                    listener.onFailure(
+                    delegate.onFailure(
                         Exceptions.authorizationError(
                             "unable to store policy because no indices match with the " + "specified index patterns {}",
                             request.getPolicy().getIndices(),
@@ -99,7 +100,7 @@ public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterN
                         )
                     );
                 }
-            }, listener::onFailure);
+            });
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, wrappedListener);
         } else {
             putPolicy(request, listener);

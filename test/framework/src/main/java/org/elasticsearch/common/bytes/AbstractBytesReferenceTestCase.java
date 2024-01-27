@@ -666,4 +666,20 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         final byte missing = randomValueOtherThanMany(map::containsKey, ESTestCase::randomByte);
         assertEquals(-1, bytesReference.indexOf(missing, randomIntBetween(0, Math.max(0, size - 1))));
     }
+
+    public void testWriteWithIterator() throws IOException {
+        final int length = randomIntBetween(1024, 1024 * 1024);
+        final byte[] bytes = new byte[length];
+        random().nextBytes(bytes);
+        final BytesReference bytesReference = newBytesReference(length);
+        final BytesRefIterator iterator = bytesReference.iterator();
+        BytesRef bytesRef;
+        int offset = 0;
+        while ((bytesRef = iterator.next()) != null) {
+            final int len = Math.min(bytesRef.length, length - offset);
+            System.arraycopy(bytes, offset, bytesRef.bytes, bytesRef.offset, len);
+            offset += len;
+        }
+        assertArrayEquals(bytes, BytesReference.toBytes(bytesReference));
+    }
 }

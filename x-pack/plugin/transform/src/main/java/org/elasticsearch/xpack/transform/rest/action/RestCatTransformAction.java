@@ -211,7 +211,7 @@ public class RestCatTransformAction extends AbstractCatAction {
             .endHeaders();
     }
 
-    private Table buildTable(GetTransformAction.Response response, GetTransformStatsAction.Response statsResponse) {
+    private static Table buildTable(GetTransformAction.Response response, GetTransformStatsAction.Response statsResponse) {
         Table table = getTableWithHeader();
         Map<String, TransformStats> statsById = statsResponse.getTransformsStats()
             .stream()

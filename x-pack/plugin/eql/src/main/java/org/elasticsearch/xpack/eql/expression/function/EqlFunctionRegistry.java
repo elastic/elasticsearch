@@ -40,7 +40,7 @@ import java.util.Locale;
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 
-public class EqlFunctionRegistry extends FunctionRegistry {
+public final class EqlFunctionRegistry extends FunctionRegistry {
 
     public EqlFunctionRegistry() {
         register(functions());
@@ -68,7 +68,7 @@ public class EqlFunctionRegistry extends FunctionRegistry {
             // Arithmetic
             new FunctionDefinition[] {
                 def(Add.class, Add::new, "add"),
-                def(Div.class, Div::new, "divide"),
+                def(Div.class, (BinaryBuilder<Div>) Div::new, "divide"),
                 def(Mod.class, Mod::new, "modulo"),
                 def(Mul.class, Mul::new, "multiply"),
                 def(ToNumber.class, ToNumber::new, "number"),

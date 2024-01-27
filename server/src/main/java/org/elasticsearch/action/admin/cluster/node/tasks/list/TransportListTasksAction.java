@@ -8,7 +8,10 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
@@ -17,13 +20,15 @@ import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -37,6 +42,11 @@ import static java.util.Objects.requireNonNullElse;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
+
+    private static final Logger logger = LogManager.getLogger(TransportListTasksAction.class);
+
+    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>("cluster:monitor/tasks/lists");
+
     public static long waitForCompletionTimeout(TimeValue timeout) {
         if (timeout == null) {
             timeout = DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
@@ -49,14 +59,14 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     @Inject
     public TransportListTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
         super(
-            ListTasksAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
             ListTasksRequest::new,
             ListTasksResponse::new,
             TaskInfo::from,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 
@@ -76,12 +86,18 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     }
 
     @Override
-    protected void processTasks(ListTasksRequest request, ActionListener<List<Task>> nodeOperation) {
+    protected void doExecute(Task task, ListTasksRequest request, ActionListener<ListTasksResponse> listener) {
+        assert task instanceof CancellableTask;
+        super.doExecute(task, request, listener);
+    }
+
+    @Override
+    protected void processTasks(CancellableTask nodeTask, ListTasksRequest request, ActionListener<List<Task>> nodeOperation) {
         if (request.getWaitForCompletion()) {
             final ListenableActionFuture<List<Task>> future = new ListenableActionFuture<>();
             final List<Task> processedTasks = new ArrayList<>();
-            final Set<Task> removedTasks = Sets.newConcurrentHashSet();
-            final Set<Task> matchedTasks = Sets.newConcurrentHashSet();
+            final Set<Task> removedTasks = ConcurrentCollections.newConcurrentSet();
+            final Set<Task> matchedTasks = ConcurrentCollections.newConcurrentSet();
             final RefCounted removalRefs = AbstractRefCounted.of(() -> {
                 matchedTasks.removeAll(removedTasks);
                 removedTasks.clear();
@@ -109,13 +125,14 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             );
             try {
                 for (final var task : processTasks(request)) {
-                    if (task.getAction().startsWith(ListTasksAction.NAME) == false) {
+                    if (task.getAction().startsWith(TYPE.name()) == false) {
                         // It doesn't make sense to wait for List Tasks and it can cause an infinite loop of the task waiting
                         // for itself or one of its child tasks
                         matchedTasks.add(task);
                     }
                     processedTasks.add(task);
                 }
+                logger.trace("Matched {} tasks of all running {}", processedTasks, taskManager.getTasks().values());
             } catch (Exception e) {
                 allMatchedTasksRemovedListener.onFailure(e);
                 return;
@@ -135,10 +152,11 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             future.addTimeout(
                 requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
                 threadPool,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
+            nodeTask.addListener(() -> future.onFailure(new TaskCancelledException("task cancelled")));
         } else {
-            super.processTasks(request, nodeOperation);
+            super.processTasks(nodeTask, request, nodeOperation);
         }
     }
 }

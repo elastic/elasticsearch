@@ -27,7 +27,7 @@ final Project hdfsRepoPluginProject = project(':plugins:repository-hdfs')
 
 dependencies {
   javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
-  javaRestTestImplementation hdfsRepoPluginProject
+  javaRestTestImplementation project(':plugins:repository-hdfs')
 }
 
 restResources {

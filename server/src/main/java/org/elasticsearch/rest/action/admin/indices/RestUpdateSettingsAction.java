@@ -46,7 +46,10 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         updateSettingsRequest.setPreserveExisting(request.paramAsBoolean("preserve_existing", updateSettingsRequest.isPreserveExisting()));
         updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
-        updateSettingsRequest.fromXContent(request.contentParser());
+        updateSettingsRequest.reopen(request.paramAsBoolean("reopen", false));
+        try (var parser = request.contentParser()) {
+            updateSettingsRequest.fromXContent(parser);
+        }
 
         return channel -> client.admin().indices().updateSettings(updateSettingsRequest, new RestToXContentListener<>(channel));
     }

@@ -12,7 +12,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -27,6 +26,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -52,9 +52,12 @@ import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -113,59 +116,63 @@ public class InnerHitsIT extends ParentChildTestCase {
         requests.add(createIndexRequest("articles", "comment", "c6", "p2", "message", "elephant scared by mice x y"));
         indexRandom(true, requests);
 
-        SearchResponse response = client().prepareSearch("articles")
-            .setQuery(hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(new InnerHitBuilder()))
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
-        assertSearchHit(response, 1, hasId("p1"));
-        assertThat(response.getHits().getAt(0).getShard(), notNullValue());
+        assertNoFailuresAndResponse(
+            prepareSearch("articles").setQuery(
+                hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(new InnerHitBuilder())
+            ),
+            response -> {
+                assertHitCount(response, 1);
+                assertSearchHit(response, 1, hasId("p1"));
+                assertThat(response.getHits().getAt(0).getShard(), notNullValue());
 
-        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
-        SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+                SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+                assertThat(innerHits.getTotalHits().value, equalTo(2L));
 
-        assertThat(innerHits.getAt(0).getId(), equalTo("c1"));
-        assertThat(innerHits.getAt(1).getId(), equalTo("c2"));
+                assertThat(innerHits.getAt(0).getId(), equalTo("c1"));
+                assertThat(innerHits.getAt(1).getId(), equalTo("c2"));
+            }
+        );
 
         final boolean seqNoAndTerm = randomBoolean();
-        response = client().prepareSearch("articles")
-            .setQuery(
+        assertNoFailuresAndResponse(
+            prepareSearch("articles").setQuery(
                 hasChildQuery("comment", matchQuery("message", "elephant"), ScoreMode.None).innerHit(
                     new InnerHitBuilder().setSeqNoAndPrimaryTerm(seqNoAndTerm)
                 )
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
-        assertSearchHit(response, 1, hasId("p2"));
+            ),
+            response -> {
+                assertHitCount(response, 1);
+                assertSearchHit(response, 1, hasId("p2"));
 
-        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
-        innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits().value, equalTo(3L));
+                assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+                SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+                assertThat(innerHits.getTotalHits().value, equalTo(3L));
 
-        assertThat(innerHits.getAt(0).getId(), equalTo("c4"));
-        assertThat(innerHits.getAt(1).getId(), equalTo("c5"));
-        assertThat(innerHits.getAt(2).getId(), equalTo("c6"));
+                assertThat(innerHits.getAt(0).getId(), equalTo("c4"));
+                assertThat(innerHits.getAt(1).getId(), equalTo("c5"));
+                assertThat(innerHits.getAt(2).getId(), equalTo("c6"));
 
-        if (seqNoAndTerm) {
-            assertThat(innerHits.getAt(0).getPrimaryTerm(), equalTo(1L));
-            assertThat(innerHits.getAt(1).getPrimaryTerm(), equalTo(1L));
-            assertThat(innerHits.getAt(2).getPrimaryTerm(), equalTo(1L));
-            assertThat(innerHits.getAt(0).getSeqNo(), greaterThanOrEqualTo(0L));
-            assertThat(innerHits.getAt(1).getSeqNo(), greaterThanOrEqualTo(0L));
-            assertThat(innerHits.getAt(2).getSeqNo(), greaterThanOrEqualTo(0L));
-        } else {
-            assertThat(innerHits.getAt(0).getPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
-            assertThat(innerHits.getAt(1).getPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
-            assertThat(innerHits.getAt(2).getPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
-            assertThat(innerHits.getAt(0).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
-            assertThat(innerHits.getAt(1).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
-            assertThat(innerHits.getAt(2).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
-        }
+                if (seqNoAndTerm) {
+                    assertThat(innerHits.getAt(0).getPrimaryTerm(), equalTo(1L));
+                    assertThat(innerHits.getAt(1).getPrimaryTerm(), equalTo(1L));
+                    assertThat(innerHits.getAt(2).getPrimaryTerm(), equalTo(1L));
+                    assertThat(innerHits.getAt(0).getSeqNo(), greaterThanOrEqualTo(0L));
+                    assertThat(innerHits.getAt(1).getSeqNo(), greaterThanOrEqualTo(0L));
+                    assertThat(innerHits.getAt(2).getSeqNo(), greaterThanOrEqualTo(0L));
+                } else {
+                    assertThat(innerHits.getAt(0).getPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+                    assertThat(innerHits.getAt(1).getPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+                    assertThat(innerHits.getAt(2).getPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+                    assertThat(innerHits.getAt(0).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+                    assertThat(innerHits.getAt(1).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+                    assertThat(innerHits.getAt(2).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+                }
+            }
+        );
 
-        response = client().prepareSearch("articles")
-            .setQuery(
+        assertNoFailuresAndResponse(
+            prepareSearch("articles").setQuery(
                 hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(
                     new InnerHitBuilder().addFetchField("message")
                         .setHighlightBuilder(new HighlightBuilder().field("message"))
@@ -173,27 +180,30 @@ public class InnerHitsIT extends ParentChildTestCase {
                         .setSize(1)
                         .addScriptField("script", new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
                 )
-            )
-            .get();
-        assertNoFailures(response);
-        innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getHits().length, equalTo(1));
-        assertThat(innerHits.getAt(0).getHighlightFields().get("message").getFragments()[0].string(), equalTo("<em>fox</em> eat quick"));
-        assertThat(innerHits.getAt(0).getExplanation().toString(), containsString("weight(message:fox"));
-        assertThat(innerHits.getAt(0).getFields().get("message").getValue().toString(), equalTo("fox eat quick"));
-        assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("5"));
+            ),
+            response -> {
+                SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+                assertThat(innerHits.getHits().length, equalTo(1));
+                HighlightField highlightField = innerHits.getAt(0).getHighlightFields().get("message");
+                assertThat(highlightField.fragments()[0].string(), equalTo("<em>fox</em> eat quick"));
+                assertThat(innerHits.getAt(0).getExplanation().toString(), containsString("weight(message:fox"));
+                assertThat(innerHits.getAt(0).getFields().get("message").getValue().toString(), equalTo("fox eat quick"));
+                assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("5"));
+            }
+        );
 
-        response = client().prepareSearch("articles")
-            .setQuery(
+        assertNoFailuresAndResponse(
+            prepareSearch("articles").setQuery(
                 hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(
                     new InnerHitBuilder().addDocValueField("message").setSize(1)
                 )
-            )
-            .get();
-        assertNoFailures(response);
-        innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getHits().length, equalTo(1));
-        assertThat(innerHits.getAt(0).getFields().get("message").getValue().toString(), equalTo("eat"));
+            ),
+            response -> {
+                SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+                assertThat(innerHits.getHits().length, equalTo(1));
+                assertThat(innerHits.getAt(0).getFields().get("message").getValue().toString(), equalTo("eat"));
+            }
+        );
     }
 
     public void testRandomParentChild() throws Exception {
@@ -256,43 +266,39 @@ public class InnerHitsIT extends ParentChildTestCase {
                 )
             )
         );
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setSize(numDocs)
-            .addSort("id", SortOrder.ASC)
-            .setQuery(boolQuery)
-            .get();
 
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, numDocs);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(numDocs));
+        assertNoFailuresAndResponse(prepareSearch("idx").setSize(numDocs).addSort("id", SortOrder.ASC).setQuery(boolQuery), response -> {
+            assertHitCount(response, numDocs);
+            assertThat(response.getHits().getHits().length, equalTo(numDocs));
 
-        int offset1 = 0;
-        int offset2 = 0;
-        for (int parent = 0; parent < numDocs; parent++) {
-            SearchHit searchHit = searchResponse.getHits().getAt(parent);
-            assertThat(searchHit.getId(), equalTo(String.format(Locale.ENGLISH, "p_%03d", parent)));
-            assertThat(searchHit.getShard(), notNullValue());
+            int offset1 = 0;
+            int offset2 = 0;
+            for (int parent = 0; parent < numDocs; parent++) {
+                SearchHit searchHit = response.getHits().getAt(parent);
+                assertThat(searchHit.getId(), equalTo(String.format(Locale.ENGLISH, "p_%03d", parent)));
+                assertThat(searchHit.getShard(), notNullValue());
 
-            SearchHits inner = searchHit.getInnerHits().get("a");
-            assertThat(inner.getTotalHits().value, equalTo((long) child1InnerObjects[parent]));
-            for (int child = 0; child < child1InnerObjects[parent] && child < size; child++) {
-                SearchHit innerHit = inner.getAt(child);
-                String childId = String.format(Locale.ENGLISH, "c1_%04d", offset1 + child);
-                assertThat(innerHit.getId(), equalTo(childId));
-                assertThat(innerHit.getNestedIdentity(), nullValue());
+                SearchHits inner = searchHit.getInnerHits().get("a");
+                assertThat(inner.getTotalHits().value, equalTo((long) child1InnerObjects[parent]));
+                for (int child = 0; child < child1InnerObjects[parent] && child < size; child++) {
+                    SearchHit innerHit = inner.getAt(child);
+                    String childId = String.format(Locale.ENGLISH, "c1_%04d", offset1 + child);
+                    assertThat(innerHit.getId(), equalTo(childId));
+                    assertThat(innerHit.getNestedIdentity(), nullValue());
+                }
+                offset1 += child1InnerObjects[parent];
+
+                inner = searchHit.getInnerHits().get("b");
+                assertThat(inner.getTotalHits().value, equalTo((long) child2InnerObjects[parent]));
+                for (int child = 0; child < child2InnerObjects[parent] && child < size; child++) {
+                    SearchHit innerHit = inner.getAt(child);
+                    String childId = String.format(Locale.ENGLISH, "c2_%04d", offset2 + child);
+                    assertThat(innerHit.getId(), equalTo(childId));
+                    assertThat(innerHit.getNestedIdentity(), nullValue());
+                }
+                offset2 += child2InnerObjects[parent];
             }
-            offset1 += child1InnerObjects[parent];
-
-            inner = searchHit.getInnerHits().get("b");
-            assertThat(inner.getTotalHits().value, equalTo((long) child2InnerObjects[parent]));
-            for (int child = 0; child < child2InnerObjects[parent] && child < size; child++) {
-                SearchHit innerHit = inner.getAt(child);
-                String childId = String.format(Locale.ENGLISH, "c2_%04d", offset2 + child);
-                assertThat(innerHit.getId(), equalTo(childId));
-                assertThat(innerHit.getNestedIdentity(), nullValue());
-            }
-            offset2 += child2InnerObjects[parent];
-        }
+        });
     }
 
     public void testInnerHitsOnHasParent() throws Exception {
@@ -329,25 +335,26 @@ public class InnerHitsIT extends ParentChildTestCase {
         );
         indexRandom(true, requests);
 
-        SearchResponse response = client().prepareSearch("stack")
-            .addSort("id", SortOrder.ASC)
-            .setQuery(
-                boolQuery().must(matchQuery("body", "fail2ban"))
-                    .must(hasParentQuery("question", matchAllQuery(), false).innerHit(new InnerHitBuilder()))
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 2);
+        assertNoFailuresAndResponse(
+            prepareSearch("stack").addSort("id", SortOrder.ASC)
+                .setQuery(
+                    boolQuery().must(matchQuery("body", "fail2ban"))
+                        .must(hasParentQuery("question", matchAllQuery(), false).innerHit(new InnerHitBuilder()))
+                ),
+            response -> {
+                assertHitCount(response, 2);
 
-        SearchHit searchHit = response.getHits().getAt(0);
-        assertThat(searchHit.getId(), equalTo("3"));
-        assertThat(searchHit.getInnerHits().get("question").getTotalHits().value, equalTo(1L));
-        assertThat(searchHit.getInnerHits().get("question").getAt(0).getId(), equalTo("1"));
+                SearchHit searchHit = response.getHits().getAt(0);
+                assertThat(searchHit.getId(), equalTo("3"));
+                assertThat(searchHit.getInnerHits().get("question").getTotalHits().value, equalTo(1L));
+                assertThat(searchHit.getInnerHits().get("question").getAt(0).getId(), equalTo("1"));
 
-        searchHit = response.getHits().getAt(1);
-        assertThat(searchHit.getId(), equalTo("4"));
-        assertThat(searchHit.getInnerHits().get("question").getTotalHits().value, equalTo(1L));
-        assertThat(searchHit.getInnerHits().get("question").getAt(0).getId(), equalTo("2"));
+                searchHit = response.getHits().getAt(1);
+                assertThat(searchHit.getId(), equalTo("4"));
+                assertThat(searchHit.getInnerHits().get("question").getTotalHits().value, equalTo(1L));
+                assertThat(searchHit.getInnerHits().get("question").getAt(0).getId(), equalTo("2"));
+            }
+        );
     }
 
     public void testParentChildMultipleLayers() throws Exception {
@@ -372,51 +379,51 @@ public class InnerHitsIT extends ParentChildTestCase {
         requests.add(createIndexRequest("articles", "remark", "6", "4", "message", "bad").setRouting("2"));
         indexRandom(true, requests);
 
-        SearchResponse response = client().prepareSearch("articles")
-            .setQuery(
+        assertNoFailuresAndResponse(
+            prepareSearch("articles").setQuery(
                 hasChildQuery(
                     "comment",
                     hasChildQuery("remark", matchQuery("message", "good"), ScoreMode.None).innerHit(new InnerHitBuilder()),
                     ScoreMode.None
                 ).innerHit(new InnerHitBuilder())
-            )
-            .get();
+            ),
+            response -> {
+                assertHitCount(response, 1);
+                assertSearchHit(response, 1, hasId("1"));
 
-        assertNoFailures(response);
-        assertHitCount(response, 1);
-        assertSearchHit(response, 1, hasId("1"));
+                assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+                SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getAt(0).getId(), equalTo("3"));
 
-        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
-        SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits().value, equalTo(1L));
-        assertThat(innerHits.getAt(0).getId(), equalTo("3"));
+                innerHits = innerHits.getAt(0).getInnerHits().get("remark");
+                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getAt(0).getId(), equalTo("5"));
+            }
+        );
 
-        innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-        assertThat(innerHits.getTotalHits().value, equalTo(1L));
-        assertThat(innerHits.getAt(0).getId(), equalTo("5"));
-
-        response = client().prepareSearch("articles")
-            .setQuery(
+        assertNoFailuresAndResponse(
+            prepareSearch("articles").setQuery(
                 hasChildQuery(
                     "comment",
                     hasChildQuery("remark", matchQuery("message", "bad"), ScoreMode.None).innerHit(new InnerHitBuilder()),
                     ScoreMode.None
                 ).innerHit(new InnerHitBuilder())
-            )
-            .get();
+            ),
+            response -> {
+                assertHitCount(response, 1);
+                assertSearchHit(response, 1, hasId("2"));
 
-        assertNoFailures(response);
-        assertHitCount(response, 1);
-        assertSearchHit(response, 1, hasId("2"));
+                assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+                SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getAt(0).getId(), equalTo("4"));
 
-        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
-        innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits().value, equalTo(1L));
-        assertThat(innerHits.getAt(0).getId(), equalTo("4"));
-
-        innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-        assertThat(innerHits.getTotalHits().value, equalTo(1L));
-        assertThat(innerHits.getAt(0).getId(), equalTo("6"));
+                innerHits = innerHits.getAt(0).getInnerHits().get("remark");
+                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getAt(0).getId(), equalTo("6"));
+            }
+        );
     }
 
     public void testRoyals() throws Exception {
@@ -450,9 +457,8 @@ public class InnerHitsIT extends ParentChildTestCase {
         requests.add(createIndexRequest("royals", "baron", "baron3", "earl3").setRouting("king"));
         requests.add(createIndexRequest("royals", "baron", "baron4", "earl4").setRouting("king"));
         indexRandom(true, requests);
-
-        SearchResponse response = client().prepareSearch("royals")
-            .setQuery(
+        assertResponse(
+            prepareSearch("royals").setQuery(
                 boolQuery().filter(
                     hasParentQuery(
                         "prince",
@@ -469,41 +475,43 @@ public class InnerHitsIT extends ParentChildTestCase {
                             new InnerHitBuilder().addSort(SortBuilders.fieldSort("id").order(SortOrder.ASC)).setName("earls").setSize(4)
                         )
                     )
-            )
-            .get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("duke"));
+            ),
+            response -> {
+                assertHitCount(response, 1);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("duke"));
 
-        SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("earls");
-        assertThat(innerHits.getTotalHits().value, equalTo(4L));
-        assertThat(innerHits.getAt(0).getId(), equalTo("earl1"));
-        assertThat(innerHits.getAt(1).getId(), equalTo("earl2"));
-        assertThat(innerHits.getAt(2).getId(), equalTo("earl3"));
-        assertThat(innerHits.getAt(3).getId(), equalTo("earl4"));
+                SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("earls");
+                assertThat(innerHits.getTotalHits().value, equalTo(4L));
+                assertThat(innerHits.getAt(0).getId(), equalTo("earl1"));
+                assertThat(innerHits.getAt(1).getId(), equalTo("earl2"));
+                assertThat(innerHits.getAt(2).getId(), equalTo("earl3"));
+                assertThat(innerHits.getAt(3).getId(), equalTo("earl4"));
 
-        SearchHits innerInnerHits = innerHits.getAt(0).getInnerHits().get("barons");
-        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
-        assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron1"));
+                SearchHits innerInnerHits = innerHits.getAt(0).getInnerHits().get("barons");
+                assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron1"));
 
-        innerInnerHits = innerHits.getAt(1).getInnerHits().get("barons");
-        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
-        assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron2"));
+                innerInnerHits = innerHits.getAt(1).getInnerHits().get("barons");
+                assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron2"));
 
-        innerInnerHits = innerHits.getAt(2).getInnerHits().get("barons");
-        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
-        assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron3"));
+                innerInnerHits = innerHits.getAt(2).getInnerHits().get("barons");
+                assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron3"));
 
-        innerInnerHits = innerHits.getAt(3).getInnerHits().get("barons");
-        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
-        assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron4"));
+                innerInnerHits = innerHits.getAt(3).getInnerHits().get("barons");
+                assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron4"));
 
-        innerHits = response.getHits().getAt(0).getInnerHits().get("princes");
-        assertThat(innerHits.getTotalHits().value, equalTo(1L));
-        assertThat(innerHits.getAt(0).getId(), equalTo("prince"));
+                innerHits = response.getHits().getAt(0).getInnerHits().get("princes");
+                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getAt(0).getId(), equalTo("prince"));
 
-        innerInnerHits = innerHits.getAt(0).getInnerHits().get("kings");
-        assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
-        assertThat(innerInnerHits.getAt(0).getId(), equalTo("king"));
+                innerInnerHits = innerHits.getAt(0).getInnerHits().get("kings");
+                assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerInnerHits.getAt(0).getId(), equalTo("king"));
+            }
+        );
     }
 
     public void testMatchesQueriesParentChildInnerHits() throws Exception {
@@ -516,32 +524,34 @@ public class InnerHitsIT extends ParentChildTestCase {
         requests.add(createIndexRequest("index", "child", "5", "2", "field", "value1"));
         indexRandom(true, requests);
 
-        SearchResponse response = client().prepareSearch("index")
-            .setQuery(
+        assertResponse(
+            prepareSearch("index").setQuery(
                 hasChildQuery("child", matchQuery("field", "value1").queryName("_name1"), ScoreMode.None).innerHit(new InnerHitBuilder())
-            )
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
+            ).addSort("id", SortOrder.ASC),
+            response -> {
+                assertHitCount(response, 2);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+                assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
+                assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
 
-        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
-        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
+                assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+                assertThat(response.getHits().getAt(1).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
+                assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
+            }
+        );
 
         QueryBuilder query = hasChildQuery("child", matchQuery("field", "value2").queryName("_name2"), ScoreMode.None).innerHit(
             new InnerHitBuilder()
         );
-        response = client().prepareSearch("index").setQuery(query).addSort("id", SortOrder.ASC).get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name2"));
+        assertResponse(prepareSearch("index").setQuery(query).addSort("id", SortOrder.ASC), response -> {
+            assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+            assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
+            assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name2"));
+        });
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
@@ -560,9 +570,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         QueryBuilder query = hasChildQuery("child", matchQuery("field", "value1"), ScoreMode.None).innerHit(
             new InnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1)
         );
-        SearchResponse response = client().prepareSearch("index1").setQuery(query).get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(prepareSearch("index1").setQuery(query), 1L);
     }
 
     public void testNestedInnerHitWrappedInParentChildInnerhit() {
@@ -578,8 +586,8 @@ public class InnerHitsIT extends ParentChildTestCase {
         createIndexRequest("test", "parent_type", "1", null, "key", "value").get();
         createIndexRequest("test", "child_type", "2", "1", "nested_type", Collections.singletonMap("key", "value")).get();
         refresh();
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(
+        assertResponse(
+            prepareSearch("test").setQuery(
                 boolQuery().must(matchQuery("key", "value"))
                     .should(
                         hasChildQuery(
@@ -588,13 +596,21 @@ public class InnerHitsIT extends ParentChildTestCase {
                             ScoreMode.None
                         ).innerHit(new InnerHitBuilder())
                     )
-            )
-            .get();
-        assertHitCount(response, 1);
-        SearchHit hit = response.getHits().getAt(0);
-        String parentId = (String) extractValue("join_field.parent", hit.getInnerHits().get("child_type").getAt(0).getSourceAsMap());
-        assertThat(parentId, equalTo("1"));
-        assertThat(hit.getInnerHits().get("child_type").getAt(0).getInnerHits().get("nested_type").getAt(0).field("_parent"), nullValue());
+            ),
+            response -> {
+                assertHitCount(response, 1);
+                SearchHit hit = response.getHits().getAt(0);
+                String parentId = (String) extractValue(
+                    "join_field.parent",
+                    hit.getInnerHits().get("child_type").getAt(0).getSourceAsMap()
+                );
+                assertThat(parentId, equalTo("1"));
+                assertThat(
+                    hit.getInnerHits().get("child_type").getAt(0).getInnerHits().get("nested_type").getAt(0).field("_parent"),
+                    nullValue()
+                );
+            }
+        );
     }
 
     public void testInnerHitsWithIgnoreUnmapped() {
@@ -610,20 +626,18 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertAcked(prepareCreate("index2"));
         createIndexRequest("index1", "parent_type", "1", null, "nested_type", Collections.singletonMap("key", "value")).get();
         createIndexRequest("index1", "child_type", "2", "1").get();
-        client().prepareIndex("index2").setId("3").setSource("key", "value").get();
+        prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
-
-        SearchResponse response = client().prepareSearch("index1", "index2")
-            .setQuery(
+        assertSearchHitsWithoutFailures(
+            prepareSearch("index1", "index2").setQuery(
                 boolQuery().should(
                     hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
                         .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
                 ).should(termQuery("key", "value"))
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 2);
-        assertSearchHits(response, "1", "3");
+            ),
+            "1",
+            "3"
+        );
     }
 
     public void testTooHighResultWindow() {
@@ -639,24 +653,20 @@ public class InnerHitsIT extends ParentChildTestCase {
         createIndexRequest("index1", "parent_type", "1", null, "nested_type", Collections.singletonMap("key", "value")).get();
         createIndexRequest("index1", "child_type", "2", "1").get();
         refresh();
-
-        SearchResponse response = client().prepareSearch("index1")
-            .setQuery(
+        assertHitCountAndNoFailures(
+            prepareSearch("index1").setQuery(
                 hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
                     .innerHit(new InnerHitBuilder().setFrom(50).setSize(10).setName("_name"))
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
+            ),
+            1
+        );
 
         Exception e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch("index1")
-                .setQuery(
-                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                        .innerHit(new InnerHitBuilder().setFrom(100).setSize(10).setName("_name"))
-                )
-                .get()
+            () -> prepareSearch("index1").setQuery(
+                hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                    .innerHit(new InnerHitBuilder().setFrom(100).setSize(10).setName("_name"))
+            ).get()
         );
         assertThat(
             e.getCause().getMessage(),
@@ -664,31 +674,27 @@ public class InnerHitsIT extends ParentChildTestCase {
         );
         e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch("index1")
-                .setQuery(
-                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                        .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
-                )
-                .get()
+            () -> prepareSearch("index1").setQuery(
+                hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                    .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
+            ).get()
         );
         assertThat(
             e.getCause().getMessage(),
             containsString("the inner hit definition's [_name]'s from + size must be less than or equal to: [100] but was [110]")
         );
         updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "index1");
-        response = client().prepareSearch("index1")
-            .setQuery(
+        assertNoFailures(
+            prepareSearch("index1").setQuery(
                 hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
                     .innerHit(new InnerHitBuilder().setFrom(100).setSize(10).setName("_name"))
             )
-            .get();
-        assertNoFailures(response);
-        response = client().prepareSearch("index1")
-            .setQuery(
+        );
+        assertNoFailures(
+            prepareSearch("index1").setQuery(
                 hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
                     .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
             )
-            .get();
-        assertNoFailures(response);
+        );
     }
 }

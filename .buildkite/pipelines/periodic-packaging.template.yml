@@ -1,0 +1,53 @@
+steps:
+  - group: packaging-tests-unix
+    steps:
+      - label: "{{matrix.image}} / packaging-tests-unix"
+        command: ./.ci/scripts/packaging-test.sh destructivePackagingTest
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - centos-7
+              - debian-10
+              - debian-11
+              - opensuse-leap-15
+              - oraclelinux-7
+              - oraclelinux-8
+              - sles-12
+              - sles-15
+              - ubuntu-1804
+              - ubuntu-2004
+              - ubuntu-2204
+              - rocky-8
+              - rocky-9
+              - rhel-7
+              - rhel-8
+              - rhel-9
+              - almalinux-8
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: custom-16-32768
+        env: {}
+  - group: packaging-tests-upgrade
+    steps: $BWC_STEPS
+  - group: packaging-tests-windows
+    steps:
+      - label: "{{matrix.image}} / packaging-tests-windows"
+        command: |
+          .\.buildkite\scripts\run-script.ps1 .\.ci\scripts\packaging-test.ps1
+        timeout_in_minutes: 180
+        matrix:
+          setup:
+            image:
+              - windows-2016
+              - windows-2019
+              - windows-2022
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-32-98304
+          diskType: pd-ssd
+          diskSizeGb: 350
+        env: {}

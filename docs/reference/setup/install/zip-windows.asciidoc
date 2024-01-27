@@ -29,11 +29,9 @@ see the <<jvm-version, JVM version requirements>>
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of {es} has not yet been released.
+WARNING: Version {version} of {es} has not yet been released.
 
 endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
 
 Download the `.zip` archive for {es} {version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip
 
@@ -45,8 +43,6 @@ window, `cd` to the `%ES_HOME%` directory, for instance:
 ----------------------------
 cd C:\elasticsearch-{version}
 ----------------------------
-
-endif::[]
 
 ifdef::include-xpack[]
 [role="xpack"]

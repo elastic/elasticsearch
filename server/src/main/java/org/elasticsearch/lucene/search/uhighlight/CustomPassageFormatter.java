@@ -48,7 +48,7 @@ public class CustomPassageFormatter extends PassageFormatter {
                 assert end > start;
                 // Look ahead to expand 'end' past all overlapping:
                 while (i + 1 < passage.getNumMatches() && passage.getMatchStarts()[i + 1] < end) {
-                    end = passage.getMatchEnds()[++i];
+                    end = Math.max(passage.getMatchEnds()[++i], end);
                 }
                 end = Math.min(end, passage.getEndOffset()); // in case match straddles past passage
 

@@ -30,12 +30,15 @@ public class AutomatonQueries {
         List<Automaton> list = new ArrayList<>();
         Iterator<Integer> iter = s.codePoints().iterator();
         while (iter.hasNext()) {
-            list.add(toCaseInsensitiveChar(iter.next(), Integer.MAX_VALUE));
+            list.add(toCaseInsensitiveChar(iter.next()));
         }
         list.add(Automata.makeAnyString());
 
         Automaton a = Operations.concatenate(list);
-        a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+        // since all elements in the list should be deterministic already, the concatenation also is, so no need to determinized
+        assert a.isDeterministic();
+        a = MinimizationOperations.minimize(a, 0);
+        assert a.isDeterministic();
         return a;
     }
 
@@ -52,7 +55,7 @@ public class AutomatonQueries {
 
     /** Build an automaton matching a wildcard pattern, ASCII case insensitive. */
     public static AutomatonQuery caseInsensitiveWildcardQuery(Term wildcardquery) {
-        return new AutomatonQuery(wildcardquery, toCaseInsensitiveWildcardAutomaton(wildcardquery, Integer.MAX_VALUE));
+        return new AutomatonQuery(wildcardquery, toCaseInsensitiveWildcardAutomaton(wildcardquery));
     }
 
     /** String equality with support for wildcards */
@@ -68,7 +71,7 @@ public class AutomatonQueries {
      * Convert Lucene wildcard syntax into an automaton.
      */
     @SuppressWarnings("fallthrough")
-    public static Automaton toCaseInsensitiveWildcardAutomaton(Term wildcardquery, int maxDeterminizedStates) {
+    public static Automaton toCaseInsensitiveWildcardAutomaton(Term wildcardquery) {
         List<Automaton> automata = new ArrayList<>();
 
         String wildcardText = wildcardquery.text();
@@ -92,7 +95,7 @@ public class AutomatonQueries {
                         break;
                     } // else fallthru, lenient parsing with a trailing \
                 default:
-                    automata.add(toCaseInsensitiveChar(c, maxDeterminizedStates));
+                    automata.add(toCaseInsensitiveChar(c));
             }
             i += length;
         }
@@ -101,23 +104,24 @@ public class AutomatonQueries {
     }
 
     protected static Automaton toCaseInsensitiveString(BytesRef br) {
-        return toCaseInsensitiveString(br.utf8ToString(), Integer.MAX_VALUE);
+        return toCaseInsensitiveString(br.utf8ToString());
     }
 
-    public static Automaton toCaseInsensitiveString(String s, int maxDeterminizedStates) {
+    public static Automaton toCaseInsensitiveString(String s) {
         List<Automaton> list = new ArrayList<>();
         Iterator<Integer> iter = s.codePoints().iterator();
         while (iter.hasNext()) {
-            list.add(toCaseInsensitiveChar(iter.next(), maxDeterminizedStates));
+            list.add(toCaseInsensitiveChar(iter.next()));
         }
 
         Automaton a = Operations.concatenate(list);
-        a = MinimizationOperations.minimize(a, maxDeterminizedStates);
+        // concatenating deterministic automata should result in a deterministic automaton. No need to determinize here.
+        assert a.isDeterministic();
+        a = MinimizationOperations.minimize(a, 0);
         return a;
-
     }
 
-    public static Automaton toCaseInsensitiveChar(int codepoint, int maxDeterminizedStates) {
+    public static Automaton toCaseInsensitiveChar(int codepoint) {
         Automaton case1 = Automata.makeChar(codepoint);
         // For now we only work with ASCII characters
         if (codepoint > 128) {
@@ -127,7 +131,9 @@ public class AutomatonQueries {
         Automaton result;
         if (altCase != codepoint) {
             result = Operations.union(case1, Automata.makeChar(altCase));
-            result = MinimizationOperations.minimize(result, maxDeterminizedStates);
+            // this automaton should always be deterministic, no need to determinize
+            result = MinimizationOperations.minimize(result, 0);
+            assert result.isDeterministic();
         } else {
             result = case1;
         }

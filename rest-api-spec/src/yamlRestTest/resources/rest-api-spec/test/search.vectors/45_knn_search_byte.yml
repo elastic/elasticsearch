@@ -163,20 +163,6 @@ setup:
   - match: { error.root_cause.0.reason: "failed to create query: field [nonexistent] does not exist in the mapping" }
 
 ---
-"Direct kNN queries are disallowed":
-  - do:
-      catch: bad_request
-      search:
-        index: test
-        body:
-          query:
-            knn:
-              field: vector
-              query_vector: [ -1, 0, 1, 2, 3 ]
-              num_candidates: 1
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "[knn] queries cannot be provided directly, use the [knn] body parameter instead" }
----
 "Vector similarity search only":
   - skip:
       version: ' - 8.7.99'

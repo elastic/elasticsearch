@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -63,39 +62,31 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
      */
     protected InternalMappedTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
-            if (in.readBoolean()) {
-                docCountError = in.readZLong();
-            } else {
-                docCountError = null;
-            }
-        } else {
+        if (in.readBoolean()) {
             docCountError = in.readZLong();
+        } else {
+            docCountError = null;
         }
         format = in.readNamedWriteable(DocValueFormat.class);
         shardSize = readSize(in);
         showTermDocCountError = in.readBoolean();
         otherDocCount = in.readVLong();
-        buckets = in.readList(stream -> bucketReader.read(stream, format, showTermDocCountError));
+        buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, format, showTermDocCountError));
     }
 
     @Override
     protected final void writeTermTypeInfoTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
-            if (docCountError != null) {
-                out.writeBoolean(true);
-                out.writeZLong(docCountError);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (docCountError != null) {
+            out.writeBoolean(true);
+            out.writeZLong(docCountError);
         } else {
-            out.writeZLong(docCountError == null ? 0 : docCountError);
+            out.writeBoolean(false);
         }
         out.writeNamedWriteable(format);
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
         out.writeVLong(otherDocCount);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override

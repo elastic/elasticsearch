@@ -305,7 +305,7 @@ Which responds with:
 
 The `nori_part_of_speech` token filter removes tokens that match a set of
 part-of-speech tags. The list of supported tags and their meanings can be found here:
-{lucene-core-javadoc}/../analyzers-nori/org/apache/lucene/analysis/ko/POS.Tag.html[Part of speech tags]
+{lucene-core-javadoc}/../analysis/nori/org/apache/lucene/analysis/ko/POS.Tag.html[Part of speech tags]
 
 It accepts the following setting:
 

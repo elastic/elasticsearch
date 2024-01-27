@@ -29,7 +29,7 @@ PUT /index_4
 
 PUT _snapshot/my_repository/snapshot_2?wait_for_completion=true
 {
-  "indices": "index_3,index_4",
+  "indices": "index_1,index_2",
   "ignore_unavailable": true,
   "include_global_state": false,
   "metadata": {
@@ -159,6 +159,7 @@ The cluster state includes:
 * <<indices-templates-v1,Legacy index templates>>
 * <<ingest,Ingest pipelines>>
 * <<index-lifecycle-management,{ilm-init} policies>>
+* <<script-stored-scripts,Stored scripts>>
 * For snapshots taken after 7.12.0, <<feature-state,feature states>>
 // end::cluster-state-contents[]
 
@@ -230,6 +231,9 @@ Defines the rename replacement string. See <<restore-snapshot-api-rename-pattern
 [[restore-snapshot-api-example]]
 ==== {api-examples-title}
 
+[[restore-snapshot-api-example-rename]]
+===== Restore renamed
+
 The following request restores `index_1` and `index_2` from `snapshot_2`. The `rename_pattern` and `rename_replacement` parameters indicate any index matching the regular expression `index_(.+)` will be renamed using the pattern `restored_index_$1` when restored.
 
 For example, `index_1` will be renamed to `restored_index_1`. `index_2` will be renamed to `restored_index_2`.
@@ -249,3 +253,23 @@ POST /_snapshot/my_repository/snapshot_2/_restore?wait_for_completion=true
 
 The API returns an acknowledgement if the request succeeds. If the request encounters errors, the response indicates any issues found, such as
 open indices that are blocking the restore operation from completing.
+
+[[restore-snapshot-api-example-inplace]]
+===== Restore in-place
+
+You may want to restore an index in-place, for example when no alternative
+options surface after the <<cluster-allocation-explain>> API reports
+`no_valid_shard_copy`.
+
+The following request <<indices-close,closes>> `index_1` and then restores it
+in-place from the `snapshot_2` snapshot in the `my_repository` repository.
+
+[source,console]
+----
+POST index_1/_close
+
+POST /_snapshot/my_repository/snapshot_2/_restore?wait_for_completion=true
+{
+  "indices": "index_1"
+}
+----

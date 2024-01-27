@@ -16,7 +16,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.io.PrintWriter;
 
-public class NoShardAvailableActionException extends ElasticsearchException {
+public final class NoShardAvailableActionException extends ElasticsearchException {
 
     private static final StackTraceElement[] EMPTY_STACK_TRACE = new StackTraceElement[0];
 

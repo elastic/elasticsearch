@@ -25,7 +25,7 @@ public class CaseProcessor implements Processor {
     }
 
     public CaseProcessor(StreamInput in) throws IOException {
-        processors = in.readNamedWriteableList(Processor.class);
+        processors = in.readNamedWriteableCollectionAsList(Processor.class);
     }
 
     @Override
@@ -35,7 +35,7 @@ public class CaseProcessor implements Processor {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(processors);
+        out.writeNamedWriteableCollection(processors);
     }
 
     @Override

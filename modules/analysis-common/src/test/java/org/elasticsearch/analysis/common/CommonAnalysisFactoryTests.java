@@ -117,6 +117,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("hindinormalization", HindiNormalizationFilterFactory.class);
         filters.put("indicnormalization", IndicNormalizationFilterFactory.class);
         filters.put("persiannormalization", PersianNormalizationFilterFactory.class);
+        filters.put("persianstem", PersianStemTokenFilterFactory.class);
         filters.put("scandinaviannormalization", ScandinavianNormalizationFilterFactory.class);
         filters.put("serbiannormalization", SerbianNormalizationFilterFactory.class);
         filters.put("soraninormalization", SoraniNormalizationFilterFactory.class);
@@ -137,6 +138,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("germanstem", GermanStemTokenFilterFactory.class);
         // this filter is not exposed and should only be used internally
         filters.put("fixedshingle", Void.class);
+        filters.put("word2vecsynonym", Void.class); // not exposed
         return filters;
     }
 

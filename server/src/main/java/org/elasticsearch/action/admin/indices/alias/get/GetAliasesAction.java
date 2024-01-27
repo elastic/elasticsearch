@@ -16,6 +16,6 @@ public class GetAliasesAction extends ActionType<GetAliasesResponse> {
     public static final String NAME = "indices:admin/aliases/get";
 
     private GetAliasesAction() {
-        super(NAME, GetAliasesResponse::new);
+        super(NAME);
     }
 }

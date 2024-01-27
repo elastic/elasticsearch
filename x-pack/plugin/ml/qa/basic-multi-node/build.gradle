@@ -2,6 +2,10 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 
+dependencies {
+  javaRestTestImplementation(project(':modules:lang-mustache'))
+}
+
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 3

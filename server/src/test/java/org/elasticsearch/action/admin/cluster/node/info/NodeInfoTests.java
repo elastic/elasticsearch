@@ -10,14 +10,17 @@ package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
-import static java.util.Collections.emptyMap;
+import java.util.Map;
+
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -35,16 +38,15 @@ public class NodeInfoTests extends ESTestCase {
      */
     public void testGetInfo() {
         NodeInfo nodeInfo = new NodeInfo(
-            Version.CURRENT,
-            TransportVersion.CURRENT,
-            Build.CURRENT,
-            TestDiscoveryNode.create(
-                "test_node",
-                buildNewFakeTransportAddress(),
-                emptyMap(),
-                emptySet(),
-                VersionUtils.randomVersion(random())
-            ),
+            Build.current().version(),
+            TransportVersion.current(),
+            IndexVersion.current(),
+            Map.of(),
+            Build.current(),
+            DiscoveryNodeUtils.builder("test_node")
+                .roles(emptySet())
+                .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomCompatibleVersion(random()))
+                .build(),
             null,
             null,
             null,

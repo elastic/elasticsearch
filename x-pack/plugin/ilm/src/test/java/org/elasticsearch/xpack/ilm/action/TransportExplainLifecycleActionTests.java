@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -72,7 +72,7 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 .setPhaseDefinition(PHASE_DEFINITION);
             String indexInErrorStep = "index_in_error";
             IndexMetadata indexMetadata = IndexMetadata.builder(indexInErrorStep)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "my-policy"))
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, "my-policy"))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .putCustom(ILM_CUSTOM_METADATA_KEY, errorStepState.build().asMap())
@@ -85,7 +85,8 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 true,
                 true,
                 indexLifecycleService,
-                REGISTRY
+                REGISTRY,
+                randomBoolean()
             );
             assertThat(onlyErrorsResponse, notNullValue());
             assertThat(onlyErrorsResponse.getIndex(), is(indexInErrorStep));
@@ -105,7 +106,7 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
 
             String indexInCheckRolloverStep = "index_in_check_rollover";
             IndexMetadata indexMetadata = IndexMetadata.builder(indexInCheckRolloverStep)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "my-policy"))
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, "my-policy"))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .putCustom(ILM_CUSTOM_METADATA_KEY, checkRolloverReadyStepState.build().asMap())
@@ -118,7 +119,8 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 true,
                 true,
                 indexLifecycleService,
-                REGISTRY
+                REGISTRY,
+                randomBoolean()
             );
             assertThat(onlyErrorsResponse, nullValue());
 
@@ -128,7 +130,8 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 false,
                 true,
                 indexLifecycleService,
-                REGISTRY
+                REGISTRY,
+                randomBoolean()
             );
             assertThat(allManagedResponse, notNullValue());
             assertThat(allManagedResponse.getIndex(), is(indexInCheckRolloverStep));
@@ -142,7 +145,7 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
 
             String indexWithMissingPolicy = "index_with_missing_policy";
             IndexMetadata indexMetadata = IndexMetadata.builder(indexWithMissingPolicy)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "random-policy"))
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, "random-policy"))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .build();
@@ -154,10 +157,12 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 true,
                 true,
                 indexLifecycleService,
-                REGISTRY
+                REGISTRY,
+                randomBoolean()
             );
             assertThat(onlyErrorsResponse, notNullValue());
             assertThat(onlyErrorsResponse.getPolicyName(), is("random-policy"));
+            assertThat(onlyErrorsResponse.getStep(), is(ErrorStep.NAME));
         }
 
         {
@@ -166,7 +171,7 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
             when(indexLifecycleService.policyExists(anyString())).thenReturn(true);
 
             IndexMetadata indexMetadata = IndexMetadata.builder("index")
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .build();
@@ -178,9 +183,43 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 false,
                 true,
                 indexLifecycleService,
-                REGISTRY
+                REGISTRY,
+                randomBoolean()
             );
             assertThat(onlyManaged, nullValue());
+        }
+
+        {
+            // validate addition of default condition with `rolloverOnlyIfHasDocuments` true
+            IndexLifecycleService indexLifecycleService = mock(IndexLifecycleService.class);
+            when(indexLifecycleService.policyExists("my-policy")).thenReturn(true);
+
+            LifecycleExecutionState.Builder checkRolloverReadyStepState = LifecycleExecutionState.builder()
+                .setPhase("hot")
+                .setAction("rollover")
+                .setStep(WaitForRolloverReadyStep.NAME)
+                .setPhaseDefinition(PHASE_DEFINITION);
+            String indexInCheckRolloverStep = "index_in_check_rollover";
+            IndexMetadata indexMetadata = IndexMetadata.builder(indexInCheckRolloverStep)
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, "my-policy"))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5))
+                .putCustom(ILM_CUSTOM_METADATA_KEY, checkRolloverReadyStepState.build().asMap())
+                .build();
+            Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
+
+            IndexLifecycleExplainResponse response = getIndexLifecycleExplainResponse(
+                indexInCheckRolloverStep,
+                metadata,
+                false,
+                true,
+                indexLifecycleService,
+                REGISTRY,
+                true
+            );
+            var rolloverAction = ((RolloverAction) response.getPhaseExecutionInfo().getPhase().getActions().get(RolloverAction.NAME));
+            assertThat(rolloverAction, notNullValue());
+            assertThat(rolloverAction.getConditions().getMinDocs(), is(1L));
         }
     }
 }

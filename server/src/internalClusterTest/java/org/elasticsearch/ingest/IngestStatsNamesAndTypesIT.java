@@ -45,11 +45,6 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
         return List.of(CustomIngestTestPlugin.class, CustomScriptPlugin.class);
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     @SuppressWarnings("unchecked")
     public void testIngestStatsNamesAndTypes() throws IOException {
         String pipeline1 = org.elasticsearch.core.Strings.format("""
@@ -97,7 +92,7 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
             }
             """, MockScriptEngine.NAME, MockScriptEngine.NAME);
         BytesReference pipeline1Reference = new BytesArray(pipeline1);
-        client().admin().cluster().putPipeline(new PutPipelineRequest("pipeline1", pipeline1Reference, XContentType.JSON)).actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("pipeline1", pipeline1Reference, XContentType.JSON)).actionGet();
 
         // index a single document through the pipeline
         BulkRequest bulkRequest = new BulkRequest();
@@ -143,12 +138,15 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
         {
             // the bits that we want to read from the cluster stats response aren't visible in java code (no getters,
             // non-public classes and methods), roundtrip through json so that we can read what we want
-            ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+            ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();
             response.toXContent(builder, new ToXContent.MapParams(Map.of()));
             builder.endObject();
-            Map<String, Object> stats = createParser(JsonXContent.jsonXContent, Strings.toString(builder)).map();
+            Map<String, Object> stats;
+            try (var parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+                stats = parser.map();
+            }
 
             int setProcessorCount = path(stats, "nodes.ingest.processor_stats.set.count");
             assertThat(setProcessorCount, equalTo(3));

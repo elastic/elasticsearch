@@ -16,7 +16,7 @@ its value will be replaced with the provided one.
 | `value`     | yes*     | -       | The value to be set for the field. Supports <<template-snippets,template snippets>>. May specify only one of `value` or `copy_from`.
 | `copy_from` | no       | -       | The origin field which will be copied to `field`, cannot set `value` simultaneously. Supported data types are `boolean`, `number`, `array`, `object`, `string`, `date`, etc.
 | `override`  | no       | `true`  | If `true` processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
-| `ignore_empty_value` | no | `false` | If `true` and `value` is a <<template-snippets,template snippet>> that evaluates to `null` or the empty string, the processor quietly exits without modifying the document
+| `ignore_empty_value` | no | `false` | If `true` and used in combination with `value` which is a <<template-snippets,template snippet>> that evaluates to `null` or an empty string, the processor quietly exits without modifying the document. Similarly, if used in combination with `copy_from` it will quietly exit if the field does not exist or its value evaluates to `null` or an empty string.
 | `media_type` | no       | `application/json` | The media type for encoding `value`. Applies only when `value` is a <<template-snippets,template snippet>>. Must be one of `application/json`, `text/plain`, or `application/x-www-form-urlencoded`.
 include::common-options.asciidoc[]
 |======

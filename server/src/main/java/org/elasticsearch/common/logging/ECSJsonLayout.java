@@ -32,7 +32,7 @@ public class ECSJsonLayout {
         return new ECSJsonLayout.Builder().asBuilder();
     }
 
-    public static class Builder extends AbstractStringLayout.Builder<Builder>
+    public static final class Builder extends AbstractStringLayout.Builder<Builder>
         implements
             org.apache.logging.log4j.core.util.Builder<EcsLayout> {
 

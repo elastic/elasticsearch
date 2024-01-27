@@ -64,7 +64,7 @@ public class AggregationCollectorTests extends AggregatorTestCase {
             builder,
             new MatchAllDocsQuery(),
             iw -> {},
-            (indexSearcher, agg) -> assertEquals(expected, agg.scoreMode().needsScores())
+            (indexReader, agg) -> assertEquals(expected, agg.scoreMode().needsScores())
         );
     }
 

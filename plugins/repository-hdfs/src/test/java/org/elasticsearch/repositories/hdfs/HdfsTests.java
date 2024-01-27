@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
@@ -20,11 +19,13 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Collection;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -39,20 +40,20 @@ public class HdfsTests extends ESSingleNodeTestCase {
     public void testSimpleWorkflow() {
         Client client = client();
 
-        AcknowledgedResponse putRepositoryResponse = client.admin()
-            .cluster()
-            .preparePutRepository("test-repo")
-            .setType("hdfs")
-            .setSettings(
-                Settings.builder()
-                    .put("uri", "hdfs:///")
-                    .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
-                    .put("path", "foo")
-                    .put("chunk_size", randomIntBetween(100, 1000) + "k")
-                    .put("compress", randomBoolean())
-            )
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        assertAcked(
+            client.admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(
+                    Settings.builder()
+                        .put("uri", "hdfs:///")
+                        .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
+                        .put("path", "foo")
+                        .put("chunk_size", randomIntBetween(100, 1000) + "k")
+                        .put("compress", randomBoolean())
+                )
+        );
 
         createIndex("test-idx-1");
         createIndex("test-idx-2");
@@ -61,9 +62,9 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test-idx-1").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-2").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-3").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            prepareIndex("test-idx-1").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            prepareIndex("test-idx-2").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            prepareIndex("test-idx-3").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
         }
         client().admin().indices().prepareRefresh().get();
         assertThat(count(client, "test-idx-1"), equalTo(100L));
@@ -111,8 +112,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
             .cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureGreen();
@@ -129,8 +129,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
             .prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true)
             .setIndices("test-idx-*", "-test-idx-2")
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
         assertThat(count(client, "test-idx-1"), equalTo(100L));
@@ -143,7 +142,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testMissingUri() {
         try {
-            client().admin().cluster().preparePutRepository("test-repo").setType("hdfs").setSettings(Settings.EMPTY).get();
+            clusterAdmin().preparePutRepository("test-repo").setType("hdfs").setSettings(Settings.EMPTY).get();
             fail();
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
@@ -153,9 +152,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testEmptyUri() {
         try {
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.builder().put("uri", "/path").build())
                 .get();
@@ -168,9 +165,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testNonHdfsUri() {
         try {
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.builder().put("uri", "file:///").build())
                 .get();
@@ -183,9 +178,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testPathSpecifiedInHdfs() {
         try {
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.builder().put("uri", "hdfs:///some/path").build())
                 .get();
@@ -198,9 +191,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testMissingPath() {
         try {
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.builder().put("uri", "hdfs:///").build())
                 .get();
@@ -211,7 +202,81 @@ public class HdfsTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testReplicationFactorBelowOne() {
+        try {
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(Settings.builder().put("uri", "hdfs:///").put("replication_factor", "0").put("path", "foo").build())
+                .get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof RepositoryException);
+            assertTrue(e.getCause().getMessage().contains("Value of replication_factor [0] must be >= 1"));
+        }
+    }
+
+    public void testReplicationFactorOverMaxShort() {
+        try {
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(Settings.builder().put("uri", "hdfs:///").put("replication_factor", "32768").put("path", "foo").build())
+                .get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof RepositoryException);
+            assertTrue(e.getCause().getMessage().contains("Value of replication_factor [32768] must be <= 32767"));
+        }
+    }
+
+    public void testReplicationFactorBelowReplicationMin() {
+        try {
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(
+                    Settings.builder()
+                        .put("uri", "hdfs:///")
+                        .put("replication_factor", "4")
+                        .put("path", "foo")
+                        .put("conf.dfs.replication.min", "5")
+                        .build()
+                )
+                .get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof RepositoryException);
+            assertTrue(e.getCause().getMessage().contains("Value of replication_factor [4] must be >= dfs.replication.min [5]"));
+        }
+    }
+
+    public void testReplicationFactorOverReplicationMax() {
+        try {
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(
+                    Settings.builder()
+                        .put("uri", "hdfs:///")
+                        .put("replication_factor", "600")
+                        .put("path", "foo")
+                        .put("conf.dfs.replication.max", "512")
+                        .build()
+                )
+                .get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof RepositoryException);
+            assertTrue(e.getCause().getMessage().contains("Value of replication_factor [600] must be <= dfs.replication.max [512]"));
+        }
+    }
+
     private long count(Client client, String index) {
-        return client.prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
+        return SearchResponseUtils.getTotalHitsValue(client.prepareSearch(index).setSize(0));
     }
 }

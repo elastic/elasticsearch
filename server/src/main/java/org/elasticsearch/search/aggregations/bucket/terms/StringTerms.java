@@ -59,6 +59,14 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
             return getKeyAsString();
         }
 
+        public BytesRef getTermBytes() {
+            return termBytes;
+        }
+
+        public void setTermBytes(BytesRef termBytes) {
+            this.termBytes = termBytes;
+        }
+
         // this method is needed for scripted numeric aggs
         @Override
         public Number getKeyAsNumber() {

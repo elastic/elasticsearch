@@ -1,0 +1,32 @@
+[discrete]
+[[esql-sinh]]
+=== `SINH`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/sinh.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+{wikipedia}/Hyperbolic_functions[Sine] hyperbolic function.
+
+*Supported types*
+
+include::types/sinh.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/floats.csv-spec[tag=sinh]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/floats.csv-spec[tag=sinh-result]
+|===

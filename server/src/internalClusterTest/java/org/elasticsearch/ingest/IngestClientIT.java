@@ -230,15 +230,13 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(getResponse.pipelines().size(), equalTo(1));
         assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
 
-        client().prepareIndex("test").setId("1").setPipeline("_id").setSource("field", "value", "fail", false).get();
+        prepareIndex("test").setId("1").setPipeline("_id").setSource("field", "value", "fail", false).get();
 
         Map<String, Object> doc = client().prepareGet("test", "1").get().getSourceAsMap();
         assertThat(doc.get("field"), equalTo("value"));
         assertThat(doc.get("processed"), equalTo(true));
 
-        client().prepareBulk()
-            .add(client().prepareIndex("test").setId("2").setSource("field", "value2", "fail", false).setPipeline("_id"))
-            .get();
+        client().prepareBulk().add(prepareIndex("test").setId("2").setSource("field", "value2", "fail", false).setPipeline("_id")).get();
         doc = client().prepareGet("test", "2").get().getSourceAsMap();
         assertThat(doc.get("field"), equalTo("value2"));
         assertThat(doc.get("processed"), equalTo(true));
@@ -266,7 +264,7 @@ public class IngestClientIT extends ESIntegTestCase {
                 .endObject()
         );
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id2", source, XContentType.JSON);
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> clusterAdmin().putPipeline(putPipelineRequest).actionGet());
+        Exception e = expectThrows(ElasticsearchParseException.class, clusterAdmin().putPipeline(putPipelineRequest));
         assertThat(e.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
 
         GetPipelineResponse response = clusterAdmin().prepareGetPipeline("_id2").get();
@@ -290,7 +288,7 @@ public class IngestClientIT extends ESIntegTestCase {
         clusterAdmin().putPipeline(putPipelineRequest).get();
 
         BulkItemResponse item = client(masterOnlyNode).prepareBulk()
-            .add(client().prepareIndex("test").setSource("field", "value2", "drop", true).setPipeline("_id"))
+            .add(prepareIndex("test").setSource("field", "value2", "drop", true).setPipeline("_id"))
             .get()
             .getItems()[0];
         assertFalse(item.isFailed());
@@ -422,7 +420,7 @@ public class IngestClientIT extends ESIntegTestCase {
             clusterAdmin().putPipeline(putPipelineRequest).get();
         }
 
-        client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setPipeline("1").get();
+        prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setPipeline("1").get();
         Map<String, Object> inserted = client().prepareGet("test", "1").get().getSourceAsMap();
         assertThat(inserted.get("readme"), equalTo("pipeline with id [3] is a bad pipeline"));
     }

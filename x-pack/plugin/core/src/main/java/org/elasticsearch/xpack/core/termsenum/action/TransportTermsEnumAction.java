@@ -10,15 +10,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
@@ -78,6 +79,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -107,7 +109,6 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
     public TransportTermsEnumAction(
         ClusterService clusterService,
         SearchService searchService,
-        SearchTransportService searchTransportService,
         TransportService transportService,
         IndicesService indicesService,
         ScriptService scriptService,
@@ -116,7 +117,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         Settings settings,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(TermsEnumAction.NAME, transportService, actionFilters, TermsEnumRequest::new);
+        super(TermsEnumAction.NAME, transportService, actionFilters, TermsEnumRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.clusterService = clusterService;
         this.searchService = searchService;
@@ -128,12 +129,12 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         this.scriptService = scriptService;
         this.licenseState = licenseState;
         this.settings = settings;
-        this.remoteClusterService = searchTransportService.getRemoteClusterService();
+        this.remoteClusterService = transportService.getRemoteClusterService();
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
 
         transportService.registerRequestHandler(
             transportShardAction,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             NodeTermsEnumRequest::new,
             new NodeTransportHandler()
         );
@@ -145,10 +146,26 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
-        new AsyncBroadcastAction(task, request, listener).start();
+        // log any errors that occur in a successful partial results scenario
+        ActionListener<TermsEnumResponse> loggingListener = listener.delegateFailureAndWrap((l, termsEnumResponse) -> {
+            // Deduplicate failures by exception message and index
+            ShardOperationFailedException[] deduplicated = ExceptionsHelper.groupBy(termsEnumResponse.getShardFailures());
+            for (ShardOperationFailedException e : deduplicated) {
+                boolean causeHas500Status = false;
+                if (e.getCause() != null) {
+                    causeHas500Status = ExceptionsHelper.status(e.getCause()).getStatus() >= 500;
+                }
+                if ((e.status().getStatus() >= 500 || causeHas500Status)
+                    && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e.getCause()) == false) {
+                    logger.warn("TransportTermsEnumAction shard failure (partial results response)", e);
+                }
+            }
+            l.onResponse(termsEnumResponse);
+        });
+        new AsyncBroadcastAction(task, request, loggingListener).start();
     }
 
-    protected NodeTermsEnumRequest newNodeRequest(
+    protected static NodeTermsEnumRequest newNodeRequest(
         final OriginalIndices originalIndices,
         final String nodeId,
         final Set<ShardId> shardIds,
@@ -163,7 +180,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         return new NodeTermsEnumRequest(originalIndices, nodeId, shardIds, request, taskStartMillis);
     }
 
-    private NodeTermsEnumResponse readShardResponse(StreamInput in) throws IOException {
+    private static NodeTermsEnumResponse readShardResponse(StreamInput in) throws IOException {
         return new NodeTermsEnumResponse(in);
     }
 
@@ -205,7 +222,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         return fastNodeBundles;
     }
 
-    private TermsEnumResponse mergeResponses(
+    private static TermsEnumResponse mergeResponses(
         TermsEnumRequest request,
         AtomicReferenceArray<?> atomicResponses,
         boolean complete,
@@ -272,7 +289,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         return new TermsEnumResponse(ans, (failedShards + successfulShards), successfulShards, failedShards, shardFailures, complete);
     }
 
-    private List<String> mergeResponses(List<List<String>> termsList, int size) {
+    private static List<String> mergeResponses(List<List<String>> termsList, int size) {
         final PriorityQueue<TermIterator> pq = new PriorityQueue<>(termsList.size()) {
             @Override
             protected boolean lessThan(TermIterator a, TermIterator b) {
@@ -581,6 +598,11 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                                 }
 
                                 @Override
+                                public Executor executor() {
+                                    return TransportResponseHandler.TRANSPORT_WORKER;
+                                }
+
+                                @Override
                                 public void handleResponse(NodeTermsEnumResponse response) {
                                     onNodeResponse(nodeId, opsIndex, response);
                                 }
@@ -602,8 +624,8 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             try {
                 TermsEnumRequest req = new TermsEnumRequest(request).indices(remoteIndices.indices());
 
-                Client remoteClient = remoteClusterService.getRemoteClusterClient(transportService.getThreadPool(), clusterAlias);
-                remoteClient.execute(TermsEnumAction.INSTANCE, req, new ActionListener<>() {
+                var remoteClient = remoteClusterService.getRemoteClusterClient(clusterAlias, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                remoteClient.execute(TermsEnumAction.REMOTE_TYPE, req, new ActionListener<>() {
                     @Override
                     public void onResponse(TermsEnumResponse termsEnumResponse) {
                         onRemoteClusterResponse(

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.watcher.actions.index;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -16,7 +17,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.Maps;
@@ -186,7 +186,7 @@ public class IndexActionTests extends ESTestCase {
 
         // using doc_id with bulk fails regardless of using ID
         expectThrows(IllegalStateException.class, () -> {
-            final List<Map<?, ?>> idList = Arrays.asList(docWithId, MapBuilder.newMapBuilder().put("foo", "bar1").put("_id", "1").map());
+            final List<Map<?, ?>> idList = Arrays.asList(docWithId, Map.of("foo", "bar1", "_id", "1"));
 
             final Object list = randomFrom(
                 new Map<?, ?>[] { singletonMap("foo", "bar"), singletonMap("foo", "bar1") },
@@ -242,7 +242,7 @@ public class IndexActionTests extends ESTestCase {
         final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", new Payload.Simple(Maps.ofEntries(entries)));
 
         ArgumentCaptor<IndexRequest> captor = ArgumentCaptor.forClass(IndexRequest.class);
-        PlainActionFuture<IndexResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<DocWriteResponse> listener = new PlainActionFuture<>();
         listener.onResponse(new IndexResponse(new ShardId(new Index("foo", "bar"), 0), "whatever", 1, 1, 1, true));
         when(client.index(captor.capture())).thenReturn(listener);
         Action.Result result = executable.execute("_id", ctx, ctx.payload());
@@ -272,7 +272,7 @@ public class IndexActionTests extends ESTestCase {
         );
 
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
-        PlainActionFuture<BulkResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<BulkResponse> listener = new PlainActionFuture<>();
         IndexResponse indexResponse = new IndexResponse(new ShardId(new Index("foo", "bar"), 0), "whatever", 1, 1, 1, true);
         BulkItemResponse response = BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, indexResponse);
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[] { response }, 1);
@@ -340,7 +340,7 @@ public class IndexActionTests extends ESTestCase {
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, payload);
 
         ArgumentCaptor<IndexRequest> captor = ArgumentCaptor.forClass(IndexRequest.class);
-        PlainActionFuture<IndexResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<DocWriteResponse> listener = new PlainActionFuture<>();
         listener.onResponse(new IndexResponse(new ShardId(new Index("test-index", "uuid"), 0), docId, 1, 1, 1, true));
         when(client.index(captor.capture())).thenReturn(listener);
 
@@ -393,7 +393,7 @@ public class IndexActionTests extends ESTestCase {
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", ZonedDateTime.now(ZoneOffset.UTC), payload);
 
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
-        PlainActionFuture<BulkResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<BulkResponse> listener = new PlainActionFuture<>();
         BulkItemResponse.Failure failure = new BulkItemResponse.Failure("test-index", "anything", new ElasticsearchException("anything"));
         BulkItemResponse firstResponse = BulkItemResponse.failure(0, DocWriteRequest.OpType.INDEX, failure);
         BulkItemResponse secondResponse;

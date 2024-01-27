@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.wildcard.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
@@ -55,8 +54,8 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query approxRewrite = approxQuery.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query approxRewrite = approxQuery.rewrite(searcher);
         if (approxQuery != approxRewrite) {
             return new BinaryDvConfirmedAutomatonQuery(approxRewrite, field, matchPattern, bytesMatcher);
         }

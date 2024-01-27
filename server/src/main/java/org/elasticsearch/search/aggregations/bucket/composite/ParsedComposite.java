@@ -32,7 +32,7 @@ public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposit
             new ParseField("after_key"),
             ObjectParser.ValueType.OBJECT
         );
-        declareMultiBucketAggregationFields(PARSER, parser -> ParsedComposite.ParsedBucket.fromXContent(parser), parser -> null);
+        declareMultiBucketAggregationFields(PARSER, ParsedBucket::fromXContent, parser -> null);
     }
 
     private Map<String, Object> afterKey;

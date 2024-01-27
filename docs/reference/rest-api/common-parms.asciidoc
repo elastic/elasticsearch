@@ -438,6 +438,8 @@ tag::ignore_throttled[]
 `ignore_throttled`::
 (Optional, Boolean) If `true`, concrete, expanded or aliased indices are
 ignored when frozen. Defaults to `true`.
++
+deprecated:[7.16.0]
 end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
@@ -609,9 +611,10 @@ The `similarity` parameter is the direct vector similarity calculation.
 
 * `l2_norm`: also known as Euclidean, will include documents where the vector is within
 the `dims` dimensional hypersphere with radius `similarity` with origin at `query_vector`.
-* `cosine` & `dot_product`: Only return vectors where the cosine similarity or dot-product are at least the provided
+* `cosine`, `dot_product`, and `max_inner_product`: Only return vectors where the cosine similarity or dot-product are at least the provided
 `similarity`.
 --
+Read more here: <<knn-similarity-search, knn similarity search>>
 end::knn-similarity[]
 
 tag::lenient[]
@@ -688,6 +691,12 @@ tag::require-alias[]
 (Optional, Boolean) If `true`, the destination must be an <<aliases,index alias>>.
 Defaults to `false`.
 end::require-alias[]
+
+tag::bulk-list-executed-pipelines[]
+`list_executed_pipelines`::
+(Optional, Boolean) If `true`, the response will include the ingest pipelines that
+were executed. Defaults to `false`.
+end::bulk-list-executed-pipelines[]
 
 tag::bulk-dynamic-templates[]
 `dynamic_templates`::
@@ -767,6 +776,7 @@ currently supported:
 +
 --
 * <<search-aggregations-metrics-avg-aggregation,Average>>
+* <<search-aggregations-metrics-boxplot-aggregation,Boxplot>>
 * <<search-aggregations-pipeline-bucket-script-aggregation,Bucket script>>
 * <<search-aggregations-pipeline-bucket-selector-aggregation,Bucket selector>>
 * <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>

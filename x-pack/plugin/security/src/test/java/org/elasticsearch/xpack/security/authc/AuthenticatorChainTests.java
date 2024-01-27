@@ -91,10 +91,6 @@ public class AuthenticatorChainTests extends ESTestCase {
         oAuth2TokenAuthenticator = mock(OAuth2TokenAuthenticator.class);
         apiKeyAuthenticator = mock(ApiKeyAuthenticator.class);
         realmsAuthenticator = mock(RealmsAuthenticator.class);
-        when(serviceAccountAuthenticator.canBeFollowedByNullTokenHandler()).thenReturn(true);
-        when(oAuth2TokenAuthenticator.canBeFollowedByNullTokenHandler()).thenReturn(true);
-        when(apiKeyAuthenticator.canBeFollowedByNullTokenHandler()).thenReturn(true);
-        when(realmsAuthenticator.canBeFollowedByNullTokenHandler()).thenCallRealMethod();
         when(realms.getActiveRealms()).thenReturn(List.of(mock(Realm.class)));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
         final User user = new User(randomAlphaOfLength(8));
@@ -117,7 +113,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         when(authenticationContextSerializer.readFromContext(any())).thenReturn(authentication);
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         assertThat(future.actionGet(), is(authentication));
         verifyNoMoreInteractions(serviceAccountAuthenticator);
         verifyNoMoreInteractions(oAuth2TokenAuthenticator);
@@ -135,13 +131,19 @@ public class AuthenticatorChainTests extends ESTestCase {
         when(authenticationContextSerializer.readFromContext(any())).thenReturn(AuthenticationTestHelper.builder().build());
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
     }
 
     public void testAuthenticateWithServiceAccount() throws IOException {
-        final Authenticator.Context context = createAuthenticatorContext();
-        when(serviceAccountAuthenticator.extractCredentials(context)).thenReturn(mock(ServiceAccountToken.class));
+        final boolean shouldExtractCredentials = randomBoolean();
+        final Authenticator.Context context;
+        if (shouldExtractCredentials) {
+            context = createAuthenticatorContext();
+            when(serviceAccountAuthenticator.extractCredentials(context)).thenReturn(mock(ServiceAccountToken.class));
+        } else {
+            context = createAuthenticatorContext(mock(ServiceAccountToken.class));
+        }
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
@@ -149,10 +151,15 @@ public class AuthenticatorChainTests extends ESTestCase {
             listener.onResponse(AuthenticationResult.success(authentication));
             return null;
         }).when(serviceAccountAuthenticator).authenticate(eq(context), any());
-
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         assertThat(future.actionGet(), is(authentication));
+        if (shouldExtractCredentials) {
+            verify(serviceAccountAuthenticator).extractCredentials(eq(context));
+        } else {
+            verify(serviceAccountAuthenticator, never()).extractCredentials(any());
+        }
+        verify(serviceAccountAuthenticator).authenticate(eq(context), any());
         verifyNoMoreInteractions(oAuth2TokenAuthenticator);
         verifyNoMoreInteractions(apiKeyAuthenticator);
         verifyNoMoreInteractions(realmsAuthenticator);
@@ -161,8 +168,15 @@ public class AuthenticatorChainTests extends ESTestCase {
     }
 
     public void testAuthenticateWithOAuth2Token() throws IOException {
-        final Authenticator.Context context = createAuthenticatorContext();
-        when(oAuth2TokenAuthenticator.extractCredentials(context)).thenReturn(mock(BearerToken.class));
+        final boolean shouldExtractCredentials = randomBoolean();
+        final Authenticator.Context context;
+        if (shouldExtractCredentials) {
+            context = createAuthenticatorContext();
+            when(oAuth2TokenAuthenticator.extractCredentials(context)).thenReturn(mock(BearerToken.class));
+        } else {
+            context = createAuthenticatorContext(mock(BearerToken.class));
+            doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
+        }
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
@@ -170,12 +184,19 @@ public class AuthenticatorChainTests extends ESTestCase {
             listener.onResponse(AuthenticationResult.success(authentication));
             return null;
         }).when(oAuth2TokenAuthenticator).authenticate(eq(context), any());
-
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         assertThat(future.actionGet(), is(authentication));
-        verify(serviceAccountAuthenticator).extractCredentials(eq(context));
-        verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
+        if (shouldExtractCredentials) {
+            verify(serviceAccountAuthenticator).extractCredentials(eq(context));
+            verify(serviceAccountAuthenticator, never()).authenticate(any(), any());
+            verify(oAuth2TokenAuthenticator).extractCredentials(eq(context));
+        } else {
+            verify(serviceAccountAuthenticator, never()).extractCredentials(any());
+            verify(serviceAccountAuthenticator).authenticate(eq(context), any());
+            verify(oAuth2TokenAuthenticator, never()).extractCredentials(any());
+        }
+        verify(oAuth2TokenAuthenticator).authenticate(eq(context), any());
         verifyNoMoreInteractions(apiKeyAuthenticator);
         verifyNoMoreInteractions(realmsAuthenticator);
         verify(authenticationContextSerializer).writeToContext(eq(authentication), any());
@@ -183,16 +204,18 @@ public class AuthenticatorChainTests extends ESTestCase {
     }
 
     public void testAuthenticateWithApiKey() throws IOException {
-        final Authenticator.Context context = createAuthenticatorContext();
-        final String apiKeyId = randomAlphaOfLength(20);
-        final SecureString apiKeySecret = new SecureString(randomAlphaOfLength(22).toCharArray());
         final boolean shouldExtractCredentials = randomBoolean();
+        final Authenticator.Context context;
+        final SecureString apiKeySecret = new SecureString(randomAlphaOfLength(22).toCharArray());
         if (shouldExtractCredentials) {
+            context = createAuthenticatorContext();
             when(apiKeyAuthenticator.extractCredentials(context)).thenReturn(
-                new ApiKeyCredentials(apiKeyId, apiKeySecret, ApiKey.Type.REST)
+                new ApiKeyCredentials(randomAlphaOfLength(20), apiKeySecret, ApiKey.Type.REST)
             );
         } else {
-            context.addAuthenticationToken(new ApiKeyCredentials(apiKeyId, apiKeySecret, randomFrom(ApiKey.Type.values())));
+            context = createAuthenticatorContext(
+                new ApiKeyCredentials(randomAlphaOfLength(20), apiKeySecret, randomFrom(ApiKey.Type.values()))
+            );
             doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
             doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
         }
@@ -203,31 +226,40 @@ public class AuthenticatorChainTests extends ESTestCase {
             listener.onResponse(AuthenticationResult.success(authentication));
             return null;
         }).when(apiKeyAuthenticator).authenticate(eq(context), any());
-
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         assertThat(future.actionGet(), is(authentication));
-
         if (shouldExtractCredentials) {
             verify(serviceAccountAuthenticator).extractCredentials(eq(context));
-            verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
+            verify(serviceAccountAuthenticator, never()).authenticate(any(), any());
             verify(oAuth2TokenAuthenticator).extractCredentials(eq(context));
-            verify(oAuth2TokenAuthenticator, never()).authenticate(eq(context), any());
+            verify(oAuth2TokenAuthenticator, never()).authenticate(any(), any());
+            verify(apiKeyAuthenticator).extractCredentials(eq(context));
         } else {
-            verify(serviceAccountAuthenticator, never()).extractCredentials(eq(context));
+            verify(serviceAccountAuthenticator, never()).extractCredentials(any());
             verify(serviceAccountAuthenticator).authenticate(eq(context), any());
-            verify(oAuth2TokenAuthenticator, never()).extractCredentials(eq(context));
+            verify(oAuth2TokenAuthenticator, never()).extractCredentials(any());
             verify(oAuth2TokenAuthenticator).authenticate(eq(context), any());
+            verify(apiKeyAuthenticator, never()).extractCredentials(any());
         }
-
+        verify(apiKeyAuthenticator).authenticate(eq(context), any());
         verifyNoMoreInteractions(realmsAuthenticator);
         verify(authenticationContextSerializer).writeToContext(eq(authentication), any());
         verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), any());
     }
 
     public void testAuthenticateWithRealms() throws IOException {
-        final Authenticator.Context context = createAuthenticatorContext();
-        when(realmsAuthenticator.extractCredentials(context)).thenReturn(mock(AuthenticationToken.class));
+        final boolean shouldExtractCredentials = randomBoolean();
+        final Authenticator.Context context;
+        if (shouldExtractCredentials) {
+            context = createAuthenticatorContext();
+            when(realmsAuthenticator.extractCredentials(context)).thenReturn(mock(AuthenticationToken.class));
+        } else {
+            context = createAuthenticatorContext(mock(AuthenticationToken.class));
+            doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
+            doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
+            doCallRealMethod().when(apiKeyAuthenticator).authenticate(eq(context), anyActionListener());
+        }
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
@@ -235,16 +267,27 @@ public class AuthenticatorChainTests extends ESTestCase {
             listener.onResponse(AuthenticationResult.success(authentication));
             return null;
         }).when(realmsAuthenticator).authenticate(eq(context), any());
-
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         assertThat(future.actionGet(), is(authentication));
-        verify(serviceAccountAuthenticator).extractCredentials(eq(context));
-        verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
-        verify(oAuth2TokenAuthenticator).extractCredentials(eq(context));
-        verify(oAuth2TokenAuthenticator, never()).authenticate(eq(context), any());
-        verify(apiKeyAuthenticator).extractCredentials(eq(context));
-        verify(apiKeyAuthenticator, never()).authenticate(eq(context), any());
+        if (shouldExtractCredentials) {
+            verify(serviceAccountAuthenticator).extractCredentials(eq(context));
+            verify(serviceAccountAuthenticator, never()).authenticate(any(), any());
+            verify(oAuth2TokenAuthenticator).extractCredentials(eq(context));
+            verify(oAuth2TokenAuthenticator, never()).authenticate(any(), any());
+            verify(apiKeyAuthenticator).extractCredentials(eq(context));
+            verify(apiKeyAuthenticator, never()).authenticate(any(), any());
+            verify(realmsAuthenticator).extractCredentials(eq(context));
+        } else {
+            verify(serviceAccountAuthenticator, never()).extractCredentials(any());
+            verify(serviceAccountAuthenticator).authenticate(eq(context), any());
+            verify(oAuth2TokenAuthenticator, never()).extractCredentials(any());
+            verify(oAuth2TokenAuthenticator).authenticate(eq(context), any());
+            verify(apiKeyAuthenticator, never()).extractCredentials(any());
+            verify(apiKeyAuthenticator).authenticate(eq(context), any());
+            verify(realmsAuthenticator, never()).extractCredentials(any());
+        }
+        verify(realmsAuthenticator).authenticate(eq(context), any());
         verify(authenticationContextSerializer).writeToContext(eq(authentication), any());
         verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), any());
     }
@@ -258,20 +301,89 @@ public class AuthenticatorChainTests extends ESTestCase {
             context = createAuthenticatorContext();
         }
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         final Authentication authentication = future.actionGet();
         assertThat(authentication.getEffectiveSubject().getUser(), is(hasFallbackUser ? fallbackUser : anonymousUser));
         verify(serviceAccountAuthenticator).extractCredentials(eq(context));
-        verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
+        verify(serviceAccountAuthenticator, never()).authenticate(any(), any());
         verify(oAuth2TokenAuthenticator).extractCredentials(eq(context));
-        verify(oAuth2TokenAuthenticator, never()).authenticate(eq(context), any());
+        verify(oAuth2TokenAuthenticator, never()).authenticate(any(), any());
         verify(apiKeyAuthenticator).extractCredentials(eq(context));
-        verify(apiKeyAuthenticator, never()).authenticate(eq(context), any());
+        verify(apiKeyAuthenticator, never()).authenticate(any(), any());
         verify(realmsAuthenticator).extractCredentials(eq(context));
-        verify(realmsAuthenticator, never()).authenticate(eq(context), any());
+        verify(realmsAuthenticator, never()).authenticate(any(), any());
         verify(authenticationContextSerializer).writeToContext(eq(authentication), any());
         verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), any());
+    }
+
+    public void testContextWithDirectWrongTokenFailsAuthn() {
+        final Authenticator.Context context = createAuthenticatorContext(mock(AuthenticationToken.class));
+        doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
+        doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
+        doCallRealMethod().when(apiKeyAuthenticator).authenticate(eq(context), anyActionListener());
+        // 1. realms do not consume the token
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
+                AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
+            listener.onResponse(AuthenticationResult.notHandled());
+            return null;
+        }).when(realmsAuthenticator).authenticate(eq(context), any());
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        authenticatorChain.authenticate(context, future);
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("failed to authenticate"));
+        // no token extraction is attempted
+        verify(serviceAccountAuthenticator, never()).extractCredentials(any());
+        verify(oAuth2TokenAuthenticator, never()).extractCredentials(any());
+        verify(apiKeyAuthenticator, never()).extractCredentials(any());
+        verify(realmsAuthenticator, never()).extractCredentials(any());
+        verifyNoMoreInteractions(authenticationContextSerializer);
+        verifyNoMoreInteractions(operatorPrivilegesService);
+        // OR 2. realms fail the token
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
+                AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
+            listener.onFailure(new ElasticsearchSecurityException("token fails authn"));
+            return null;
+        }).when(realmsAuthenticator).authenticate(eq(context), any());
+        final PlainActionFuture<Authentication> future2 = new PlainActionFuture<>();
+        authenticatorChain.authenticate(context, future2);
+        final ElasticsearchSecurityException e2 = expectThrows(ElasticsearchSecurityException.class, future2::actionGet);
+        assertThat(e2.getMessage(), containsString("token fails authn"));
+        // no token extraction is attempted
+        verify(serviceAccountAuthenticator, never()).extractCredentials(any());
+        verify(oAuth2TokenAuthenticator, never()).extractCredentials(any());
+        verify(apiKeyAuthenticator, never()).extractCredentials(any());
+        verify(realmsAuthenticator, never()).extractCredentials(any());
+        verifyNoMoreInteractions(authenticationContextSerializer);
+        verifyNoMoreInteractions(operatorPrivilegesService);
+        // OR 3. realms do not authenticate the token
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
+                AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
+            if (randomBoolean()) {
+                listener.onResponse(
+                    AuthenticationResult.terminate("not authenticated", new ElasticsearchSecurityException("failed to authenticate"))
+                );
+            } else {
+                listener.onResponse(AuthenticationResult.unsuccessful("not authenticated", null));
+            }
+            return null;
+        }).when(realmsAuthenticator).authenticate(eq(context), any());
+        final PlainActionFuture<Authentication> future3 = new PlainActionFuture<>();
+        authenticatorChain.authenticate(context, future3);
+        final ElasticsearchSecurityException e3 = expectThrows(ElasticsearchSecurityException.class, future3::actionGet);
+        assertThat(e3.getMessage(), containsString("failed to authenticate"));
+        // no token extraction is attempted
+        verify(serviceAccountAuthenticator, never()).extractCredentials(any());
+        verify(oAuth2TokenAuthenticator, never()).extractCredentials(any());
+        verify(apiKeyAuthenticator, never()).extractCredentials(any());
+        verify(realmsAuthenticator, never()).extractCredentials(any());
+        verifyNoMoreInteractions(authenticationContextSerializer);
+        verifyNoMoreInteractions(operatorPrivilegesService);
     }
 
     public void testUnsuccessfulOAuth2TokenOrApiKeyWillNotFallToAnonymousOrReportMissingCredentials() {
@@ -303,7 +415,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         }
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(
             e.getMessage(),
@@ -397,14 +509,14 @@ public class AuthenticatorChainTests extends ESTestCase {
     }
 
     private Authenticator.Context createAuthenticatorContext(AuthenticationService.AuditableRequest request) {
-        return createAuthenticatorContext(request, null);
+        return new Authenticator.Context(threadContext, request, null, true, realms);
     }
 
     private Authenticator.Context createAuthenticatorContext(User fallbackUser) {
         return new Authenticator.Context(threadContext, mock(AuthenticationService.AuditableRequest.class), fallbackUser, true, realms);
     }
 
-    private Authenticator.Context createAuthenticatorContext(AuthenticationService.AuditableRequest request, User fallbackUser) {
-        return new Authenticator.Context(threadContext, request, fallbackUser, true, realms);
+    private Authenticator.Context createAuthenticatorContext(AuthenticationToken token) {
+        return new Authenticator.Context(threadContext, mock(AuthenticationService.AuditableRequest.class), realms, token);
     }
 }

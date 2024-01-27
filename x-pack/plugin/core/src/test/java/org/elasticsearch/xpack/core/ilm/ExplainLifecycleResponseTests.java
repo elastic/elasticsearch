@@ -52,11 +52,6 @@ public class ExplainLifecycleResponseTests extends AbstractXContentSerializingTe
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected boolean assertToXContentEquivalence() {
         return false;
     }

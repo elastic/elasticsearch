@@ -16,20 +16,17 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionService;
-import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAction<
     PutAnalyticsCollectionAction.Request,
     PutAnalyticsCollectionAction.Response> {
 
     private final AnalyticsCollectionService analyticsCollectionService;
-
-    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportPutAnalyticsCollectionAction(
@@ -38,8 +35,7 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        AnalyticsCollectionService analyticsCollectionService,
-        XPackLicenseState licenseState
+        AnalyticsCollectionService analyticsCollectionService
     ) {
         super(
             PutAnalyticsCollectionAction.NAME,
@@ -50,10 +46,9 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
             PutAnalyticsCollectionAction.Request::new,
             indexNameExpressionResolver,
             PutAnalyticsCollectionAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.analyticsCollectionService = analyticsCollectionService;
-        this.licenseState = licenseState;
     }
 
     @Override
@@ -68,11 +63,7 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
         ClusterState state,
         ActionListener<PutAnalyticsCollectionAction.Response> listener
     ) {
-        LicenseUtils.runIfSupportedLicense(
-            licenseState,
-            () -> analyticsCollectionService.putAnalyticsCollection(state, request, listener),
-            listener::onFailure
-        );
+        analyticsCollectionService.putAnalyticsCollection(state, request, listener);
     }
 
 }

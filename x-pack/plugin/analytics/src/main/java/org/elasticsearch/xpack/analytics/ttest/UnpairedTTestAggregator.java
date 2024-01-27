@@ -86,7 +86,7 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
 
         return new LeafBucketCollectorBase(sub, docAValues) {
 
-            private void processValues(
+            private static void processValues(
                 int doc,
                 long bucket,
                 SortedNumericDoubleValues docValues,
@@ -116,7 +116,7 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
         };
     }
 
-    private Bits getBits(LeafReaderContext ctx, Weight weight) throws IOException {
+    private static Bits getBits(LeafReaderContext ctx, Weight weight) throws IOException {
         if (weight == null) {
             return null;
         }

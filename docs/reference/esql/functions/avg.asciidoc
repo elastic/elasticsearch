@@ -1,0 +1,32 @@
+[discrete]
+[[esql-agg-avg]]
+=== `AVG`
+
+*Syntax*
+
+[source,esql]
+----
+AVG(expression)
+----
+
+`expression`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+The average of a numeric expression.
+
+*Supported types*
+
+The result is always a `double` no matter the input type.
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=avg]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=avg-result]
+|===

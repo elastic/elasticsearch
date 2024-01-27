@@ -1,0 +1,17 @@
+config:
+  allow-labels: test-full-bwc
+steps:
+  - group: bwc
+    steps:
+      - label: $BWC_VERSION / bwc
+        key: full-bwc:$BWC_VERSION_SNAKE
+        bwc_template: true
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$BWC_VERSION#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: $BWC_VERSION

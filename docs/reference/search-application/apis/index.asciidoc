@@ -1,7 +1,7 @@
 [[search-application-apis]]
 == Search Application APIs
 
-preview::[]
+beta::[]
 
 ++++
 <titleabbrev>Search Application APIs</titleabbrev>
@@ -16,11 +16,12 @@ Use Search Application APIs to manage tasks and resources related to Search Appl
 * <<list-search-applications>>
 * <<delete-search-application>>
 * <<search-application-search>>
-
+* <<search-application-render-query>>
 
 include::put-search-application.asciidoc[]
 include::get-search-application.asciidoc[]
 include::list-search-applications.asciidoc[]
 include::delete-search-application.asciidoc[]
 include::search-application-search.asciidoc[]
+include::search-application-render-query.asciidoc[]
 

@@ -18,18 +18,20 @@ public class ICUCollationKeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
 
-        ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(MapperBuilderContext.root(false));
+        ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(
+            MapperBuilderContext.root(false, false)
+        );
         assertEquals(List.of("42"), fetchSourceValue(mapper.fieldType(), 42L));
         assertEquals(List.of("true"), fetchSourceValue(mapper.fieldType(), true));
 
         ICUCollationKeywordFieldMapper ignoreAboveMapper = new ICUCollationKeywordFieldMapper.Builder("field").ignoreAbove(4)
-            .build(MapperBuilderContext.root(false));
+            .build(MapperBuilderContext.root(false, false));
         assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper.fieldType(), "value"));
         assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper.fieldType(), 42L));
         assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper.fieldType(), true));
 
         ICUCollationKeywordFieldMapper nullValueMapper = new ICUCollationKeywordFieldMapper.Builder("field").nullValue("NULL")
-            .build(MapperBuilderContext.root(false));
+            .build(MapperBuilderContext.root(false, false));
         assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper.fieldType(), null));
     }
 }

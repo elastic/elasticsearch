@@ -69,14 +69,16 @@ PUT /_data_stream/my-data-stream
 POST /my-data-stream/_rollover/
 
 PUT /_data_stream/new-data-stream
+
+DELETE /_data_stream/*/_lifecycle
 ----
 // TESTSETUP
 
 [source,console]
 ----
-DELETE /_data_stream/*
+DELETE /_data_stream/my-data-stream*,new-data-stream*
 
-DELETE /_index_template/*
+DELETE /_index_template/my-data-stream-template,new-data-stream-template
 
 DELETE /_ilm/policy/my-data-stream-policy
 ----
@@ -571,20 +573,27 @@ stream's oldest backing index.
       "indices": [
         {
           "index_name": ".ds-my-data-stream-2099.03.07-000001", <1>
-          "index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"
+          "index_uuid": "Gpdiyq8sRuK9WuthvAdFbw",
+          "prefer_ilm": true,
+          "managed_by": "Unmanaged"
         },
         {
           "index_name": ".ds-my-data-stream-2099.03.08-000002",
-          "index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"
+          "index_uuid": "_eEfRrFHS9OyhqWntkgHAQ",
+          "prefer_ilm": true,
+          "managed_by": "Unmanaged"
         }
       ],
       "generation": 2,
       "status": "GREEN",
+      "next_generation_managed_by": "Unmanaged",
+      "prefer_ilm": true,
       "template": "my-data-stream-template",
       "hidden": false,
       "system": false,
       "allow_custom_routing": false,
-      "replicated": false
+      "replicated": false,
+      "rollover_on_write": false
     }
   ]
 }
@@ -593,7 +602,7 @@ stream's oldest backing index.
 // TESTRESPONSE[s/"index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
 // TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.07-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
 // TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.08-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
-// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_indices":[],"failure_store":false/]
 
 <1> First item in the `indices` array for `my-data-stream`. This item contains
 information about the stream's oldest backing index,

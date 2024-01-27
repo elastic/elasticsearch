@@ -66,7 +66,7 @@ public abstract class AbstractChunkedSerializingTestCase<T extends ChunkedToXCon
                 builder.endObject();
             }
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         } // closing the builder verifies that the XContent is well-formed
         assertEquals(expectedChunkCount.applyAsInt(instance), chunkCount);
     }

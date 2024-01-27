@@ -74,7 +74,7 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
         super(input);
         try {
             final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-            certificateChain = input.readImmutableList(in -> {
+            certificateChain = input.readCollectionAsImmutableList(in -> {
                 try (ByteArrayInputStream bis = new ByteArrayInputStream(in.readByteArray())) {
                     return (X509Certificate) certificateFactory.generateCertificate(bis);
                 } catch (CertificateException e) {

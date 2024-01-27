@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -29,10 +28,12 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
@@ -433,6 +434,19 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             () -> indexNameExpressionResolver.concreteIndexNames(context2, "-*")
         );
         assertThat(infe.getResourceId().toString(), equalTo("[-*]"));
+
+        infe = expectThrows(
+            IndexNotFoundException.class,
+            // throws error because "-foobar" was not covered by a wildcard that included it
+            () -> indexNameExpressionResolver.concreteIndexNames(context2, "bar", "hidden", "-foobar")
+        );
+        assertThat(
+            infe.getMessage(),
+            containsString(
+                "if you intended to exclude this index, ensure that you use wildcards that include it " + "before explicitly excluding it"
+            )
+        );
+        assertThat(infe.getResourceId().toString(), equalTo("[-foobar]"));
 
         // open and hidden
         options = IndicesOptions.fromOptions(false, true, true, false, true);
@@ -1543,14 +1557,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
     }
 
-    private static Metadata metadataBuilder(String... indices) {
-        Metadata.Builder mdBuilder = Metadata.builder();
-        for (String concreteIndex : indices) {
-            mdBuilder.put(indexBuilder(concreteIndex));
-        }
-        return mdBuilder.build();
-    }
-
     public void testFilterClosedIndicesOnAliases() {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(indexBuilder("test-0").state(State.OPEN).putAlias(AliasMetadata.builder("alias-0")))
@@ -1782,10 +1788,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
             }
 
-            @Override
-            public boolean includeDataStreams() {
-                return false;
-            }
         };
         Index writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
         assertThat(writeIndex.getName(), equalTo("test-0"));
@@ -1820,10 +1822,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
             }
 
-            @Override
-            public boolean includeDataStreams() {
-                return false;
-            }
         };
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -1872,10 +1870,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 return IndicesOptions.strictExpandOpenAndForbidClosed();
             }
 
-            @Override
-            public boolean includeDataStreams() {
-                return false;
-            }
         };
 
         IllegalArgumentException exception = expectThrows(
@@ -2461,19 +2455,26 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new Feature(
                     "ml",
                     "ml indices",
-                    List.of(new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
+                    List.of(
+                        SystemIndexDescriptorUtils.createUnmanaged(".ml-meta*", "ml meta"),
+                        SystemIndexDescriptorUtils.createUnmanaged(".ml-stuff*", "other ml")
+                    )
                 ),
-                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches*", "watches index"))),
+                new Feature(
+                    "watcher",
+                    "watcher indices",
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(".watches*", "watches index"))
+                ),
                 new Feature(
                     "stack-component",
                     "stack component",
                     List.of(
-                        new SystemIndexDescriptor(
-                            ".external-sys-idx*",
-                            "external",
-                            Type.EXTERNAL_UNMANAGED,
-                            List.of("stack-component", "other")
-                        )
+                        SystemIndexDescriptor.builder()
+                            .setIndexPattern(".external-sys-idx*")
+                            .setDescription("external")
+                            .setType(Type.EXTERNAL_UNMANAGED)
+                            .setAllowedElasticProductOrigins(List.of("stack-component", "other"))
+                            .build()
                     )
                 )
             )
@@ -2984,7 +2985,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         IndexMetadata index1 = createBackingIndex(dataStream1, 1, epochMillis).build();
         IndexMetadata index2 = createBackingIndex(dataStream1, 2, epochMillis).build();
         IndexMetadata justAnIndex = IndexMetadata.builder("logs-foobarbaz-0")
-            .settings(ESTestCase.settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putAlias(new AliasMetadata.Builder("logs-foobarbaz"))
@@ -3014,7 +3015,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         IndexMetadata index1 = createBackingIndex(dataStream1, 1, epochMillis).build();
         IndexMetadata index2 = createBackingIndex(dataStream1, 2, epochMillis).build();
         IndexMetadata justAnIndex = IndexMetadata.builder("logs-foobarbaz-0")
-            .settings(ESTestCase.settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
@@ -3054,7 +3055,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         IndexMetadata index1 = createBackingIndex(dataStream1, 1).build();
         IndexMetadata index2 = createBackingIndex(dataStream1, 2).build();
         IndexMetadata justAnIndex = IndexMetadata.builder("logs-foobarbaz-0")
-            .settings(ESTestCase.settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putAlias(new AliasMetadata.Builder("logs-foobarbaz"))
@@ -3268,9 +3269,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new Feature(
                     "ml",
                     "ml indices",
-                    List.of(new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
+                    List.of(
+                        SystemIndexDescriptorUtils.createUnmanaged(".ml-meta*", "ml meta"),
+                        SystemIndexDescriptorUtils.createUnmanaged(".ml-stuff*", "other ml")
+                    )
                 ),
-                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches*", "watches index")))
+                new Feature("watcher", "watcher indices", List.of(SystemIndexDescriptorUtils.createUnmanaged(".watches*", "watches index")))
             )
         );
         indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
@@ -3282,7 +3286,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder indexBuilder(String index, Settings additionalSettings) {
-        return IndexMetadata.builder(index).settings(indexSettings(Version.CURRENT, 1, 0).put(additionalSettings));
+        return IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0).put(additionalSettings));
     }
 
 }

@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -158,7 +156,6 @@ public class WatchTests extends ESTestCase {
     private TextTemplateEngine templateEngine;
     private HtmlSanitizer htmlSanitizer;
     private XPackLicenseState licenseState;
-    private Logger logger;
     private Settings settings = Settings.EMPTY;
     private WatcherSearchTemplateService searchTemplateService;
 
@@ -172,7 +169,6 @@ public class WatchTests extends ESTestCase {
         templateEngine = mock(TextTemplateEngine.class);
         htmlSanitizer = mock(HtmlSanitizer.class);
         licenseState = mock(XPackLicenseState.class);
-        logger = LogManager.getLogger(WatchTests.class);
         searchTemplateService = mock(WatcherSearchTemplateService.class);
     }
 

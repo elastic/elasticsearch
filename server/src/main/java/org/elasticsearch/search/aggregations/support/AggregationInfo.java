@@ -52,11 +52,7 @@ public class AggregationInfo implements ReportingService.Info {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(aggs, StreamOutput::writeString, StreamOutput::writeStringCollection);
-    }
-
-    public Map<String, Set<String>> getAggregations() {
-        return aggs;
+        out.writeMap(aggs, StreamOutput::writeStringCollection);
     }
 
     @Override

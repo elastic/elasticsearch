@@ -73,13 +73,6 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
             cutoffScore = in.readDouble();
         }
 
-        /**
-         * @return cutoff score for suggestions.  input term score * confidence for phrase suggest, 0 otherwise
-         */
-        public double getCutoffScore() {
-            return cutoffScore;
-        }
-
         @Override
         protected void merge(Suggestion.Entry<Option> other) {
             super.merge(other);

@@ -67,7 +67,7 @@ public class IndicesSegmentResponseTests extends ESTestCase {
                 0,
                 Collections.emptyList()
             ),
-            response -> response.getIndices().size() + 4
+            response -> 11 * response.getIndices().size() + 4
         );
     }
 }

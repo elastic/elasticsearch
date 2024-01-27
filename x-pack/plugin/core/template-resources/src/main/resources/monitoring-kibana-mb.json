@@ -1,0 +1,579 @@
+{
+  "index_patterns": [".monitoring-kibana-${xpack.stack.monitoring.template.version}-*"],
+  "version": ${xpack.stack.monitoring.template.release.version},
+  "template": {
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "process": {
+          "properties": {
+            "pid": {
+              "type": "long"
+            }
+          }
+        },
+        "@timestamp": {
+          "type": "date"
+        },
+        "ecs": {
+          "properties": {
+            "version": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "service": {
+          "properties": {
+            "address": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "type": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "version": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "kibana": {
+          "properties": {
+            "elasticsearch": {
+              "properties": {
+                "cluster": {
+                  "properties": {
+                    "id": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            },
+            "stats": {
+              "properties": {
+                "request": {
+                  "properties": {
+                    "total": {
+                      "type": "long"
+                    },
+                    "disconnects": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "process": {
+                  "properties": {
+                    "memory": {
+                      "properties": {
+                        "resident_set_size": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "array_buffers": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "external": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "heap": {
+                          "properties": {
+                            "total": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "used": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "size_limit": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "uptime": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "event_loop_delay": {
+                      "properties": {
+                        "ms": {
+                          "scaling_factor": 1000,
+                          "type": "scaled_float"
+                        }
+                      }
+                    },
+                    "event_loop_utilization": {
+                      "properties": {
+                        "active": {
+                          "scaling_factor": 1000,
+                          "type": "scaled_float"
+                        },
+                        "idle": {
+                          "scaling_factor": 1000,
+                          "type": "scaled_float"
+                        },
+                        "utilization": {
+                          "scaling_factor": 1000,
+                          "type": "scaled_float"
+                        }
+                      }
+                    },
+                    "uptime": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "os": {
+                  "properties": {
+                    "distroRelease": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "distro": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "memory": {
+                      "properties": {
+                        "used_in_bytes": {
+                          "type": "long"
+                        },
+                        "total_in_bytes": {
+                          "type": "long"
+                        },
+                        "free_in_bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "load": {
+                      "properties": {
+                        "5m": {
+                          "type": "half_float"
+                        },
+                        "15m": {
+                          "type": "half_float"
+                        },
+                        "1m": {
+                          "type": "half_float"
+                        }
+                      }
+                    },
+                    "platformRelease": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "platform": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "cpuacct": {
+                      "properties": {
+                        "control_group": {
+                          "type": "keyword"
+                        },
+                        "usage_nanos": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "cgroup_memory": {
+                      "properties": {
+                        "current_in_bytes": {
+                          "type": "long"
+                        },
+                        "swap_current_in_bytes": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "usage": {
+                  "properties": {
+                    "index": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "name": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "host": {
+                  "properties": {
+                    "name": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "index": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "response_time": {
+                  "properties": {
+                    "avg": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "max": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "elasticsearch_client": {
+                  "properties": {
+                    "total_active_sockets": {
+                      "type": "integer"
+                    },
+                    "total_idle_sockets": {
+                      "type": "integer"
+                    },
+                    "total_queued_requests": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "kibana": {
+                  "properties": {
+                    "status": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "concurrent_connections": {
+                  "type": "long"
+                },
+                "snapshot": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                }
+              }
+            },
+            "status": {
+              "properties": {
+                "name": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "metrics": {
+                  "properties": {
+                    "requests": {
+                      "properties": {
+                        "total": {
+                          "type": "long"
+                        },
+                        "disconnects": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "concurrent_connections": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "status": {
+                  "properties": {
+                    "overall": {
+                      "properties": {
+                        "state": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "cluster_rules": {
+              "properties": {
+                "overdue": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "delay": {
+                      "properties": {
+                        "p50": {
+                          "type": "float"
+                        },
+                        "p99": {
+                          "type": "float"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "node_rules": {
+              "properties": {
+                "failures": {
+                  "type": "long"
+                },
+                "executions": {
+                  "type": "long"
+                },
+                "timeouts": {
+                  "type": "long"
+                }
+              }
+            },
+            "cluster_actions": {
+              "properties": {
+                "overdue": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "delay": {
+                      "properties": {
+                        "p50": {
+                          "type": "float"
+                        },
+                        "p99": {
+                          "type": "float"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "node_actions": {
+              "properties": {
+                "failures": {
+                  "type": "long"
+                },
+                "executions": {
+                  "type": "long"
+                },
+                "timeouts": {
+                  "type": "long"
+                }
+              }
+            }
+          }
+        },
+        "kibana_stats": {
+          "properties": {
+            "process": {
+              "properties": {
+                "memory": {
+                  "properties": {
+                    "resident_set_size_in_bytes": {
+                      "path": "kibana.stats.process.memory.resident_set_size.bytes",
+                      "type": "alias"
+                    },
+                    "heap": {
+                      "properties": {
+                        "size_limit": {
+                          "path": "kibana.stats.process.memory.heap.size_limit.bytes",
+                          "type": "alias"
+                        }
+                      }
+                    }
+                  }
+                },
+                "event_loop_delay": {
+                  "path": "kibana.stats.process.event_loop_delay.ms",
+                  "type": "alias"
+                },
+                "uptime_in_millis": {
+                  "path": "kibana.stats.process.uptime.ms",
+                  "type": "alias"
+                }
+              }
+            },
+            "os": {
+              "properties": {
+                "memory": {
+                  "properties": {
+                    "free_in_bytes": {
+                      "path": "kibana.stats.os.memory.free_in_bytes",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "load": {
+                  "properties": {
+                    "5m": {
+                      "path": "kibana.stats.os.load.5m",
+                      "type": "alias"
+                    },
+                    "15m": {
+                      "path": "kibana.stats.os.load.15m",
+                      "type": "alias"
+                    },
+                    "1m": {
+                      "path": "kibana.stats.os.load.1m",
+                      "type": "alias"
+                    }
+                  }
+                }
+              }
+            },
+            "response_times": {
+              "properties": {
+                "average": {
+                  "path": "kibana.stats.response_time.avg.ms",
+                  "type": "alias"
+                },
+                "max": {
+                  "path": "kibana.stats.response_time.max.ms",
+                  "type": "alias"
+                }
+              }
+            },
+            "requests": {
+              "properties": {
+                "total": {
+                  "path": "kibana.stats.request.total",
+                  "type": "alias"
+                },
+                "disconnects": {
+                  "path": "kibana.stats.request.disconnects",
+                  "type": "alias"
+                }
+              }
+            },
+            "kibana": {
+              "properties": {
+                "response_time": {
+                  "properties": {
+                    "max": {
+                      "path": "kibana.stats.response_time.max.ms",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "status": {
+                  "path": "kibana.stats.status",
+                  "type": "alias"
+                },
+                "uuid": {
+                  "type": "alias",
+                  "path": "service.id"
+                },
+                "version": {
+                  "type": "alias",
+                  "path": "service.version"
+                }
+              }
+            },
+            "concurrent_connections": {
+              "path": "kibana.stats.concurrent_connections",
+              "type": "alias"
+            },
+            "timestamp": {
+              "type": "alias",
+              "path": "@timestamp"
+            }
+          }
+        },
+        "timestamp": {
+          "type": "alias",
+          "path": "@timestamp"
+        },
+        "host": {
+          "properties": {
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "metricset": {
+          "properties": {
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "period": {
+              "type": "long"
+            }
+          }
+        },
+        "event": {
+          "properties": {
+            "dataset": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "duration": {
+              "type": "long"
+            },
+            "module": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "cluster_uuid": {
+          "type": "alias",
+          "path": "kibana.elasticsearch.cluster.id"
+        }
+      }
+    },
+    "settings": {
+      "index.auto_expand_replicas": "0-1",
+      "index.mapping.total_fields.limit": 2000,
+      "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
+    }
+  },
+  "data_stream": {}
+}

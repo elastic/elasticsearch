@@ -11,8 +11,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -101,6 +101,6 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
     }
 
     protected static DiscoveryNode localNode(final String uuid) {
-        return TestDiscoveryNode.create(uuid, new TransportAddress(TransportAddress.META_ADDRESS, 9300));
+        return DiscoveryNodeUtils.create(uuid, new TransportAddress(TransportAddress.META_ADDRESS, 9300));
     }
 }

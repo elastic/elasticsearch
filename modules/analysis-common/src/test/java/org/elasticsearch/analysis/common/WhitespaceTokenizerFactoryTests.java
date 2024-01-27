@@ -11,11 +11,11 @@ package org.elasticsearch.analysis.common;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -28,7 +28,7 @@ import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTok
 public class WhitespaceTokenizerFactoryTests extends ESTestCase {
 
     public void testSimpleWhiteSpaceTokenizer() throws IOException {
-        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(new Index("test", "_na_"), indexSettings);
         WhitespaceTokenizer tokenizer = (WhitespaceTokenizer) new WhitespaceTokenizerFactory(
             indexProperties,
@@ -44,7 +44,7 @@ public class WhitespaceTokenizerFactoryTests extends ESTestCase {
     }
 
     public void testMaxTokenLength() throws IOException {
-        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(new Index("test", "_na_"), indexSettings);
         final Settings settings = Settings.builder().put(WhitespaceTokenizerFactory.MAX_TOKEN_LENGTH, 2).build();
         WhitespaceTokenizer tokenizer = (WhitespaceTokenizer) new WhitespaceTokenizerFactory(

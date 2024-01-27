@@ -15,10 +15,10 @@ import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -66,7 +66,7 @@ public class Retry {
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
         BulkRequest bulkRequest
     ) {
-        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         withBackoff(consumer, bulkRequest, future);
         return future;
     }
@@ -136,7 +136,7 @@ public class Retry {
             assert backoff.hasNext();
             TimeValue next = backoff.next();
             logger.trace("Retry of bulk request scheduled in {} ms.", next.millis());
-            retryCancellable = scheduler.schedule(() -> this.execute(bulkRequestForRetry), next, ThreadPool.Names.SAME);
+            retryCancellable = scheduler.schedule(() -> this.execute(bulkRequestForRetry), next, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         private BulkRequest createBulkRequestForRetry(BulkResponse bulkItemResponses) {

@@ -23,8 +23,11 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 tasks.named('forbiddenApisTest').configure {
-  bundledSignatures -= 'jdk-non-portable'
-  bundledSignatures += 'jdk-internal'
+  modifyBundledSignatures { bundledSignatures ->
+    bundledSignatures -= 'jdk-non-portable'
+    bundledSignatures += 'jdk-internal'
+    bundledSignatures
+  }
 }
 
 tasks.named("forbiddenPatterns").configure {

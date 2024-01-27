@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
@@ -37,7 +38,13 @@ public final class TransportSamlPrepareAuthenticationAction extends HandledTrans
 
     @Inject
     public TransportSamlPrepareAuthenticationAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
-        super(SamlPrepareAuthenticationAction.NAME, transportService, actionFilters, SamlPrepareAuthenticationRequest::new);
+        super(
+            SamlPrepareAuthenticationAction.NAME,
+            transportService,
+            actionFilters,
+            SamlPrepareAuthenticationRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.realms = realms;
     }
 
@@ -57,7 +64,11 @@ public final class TransportSamlPrepareAuthenticationAction extends HandledTrans
         }
     }
 
-    private void prepareAuthentication(SamlRealm realm, String relayState, ActionListener<SamlPrepareAuthenticationResponse> listener) {
+    private static void prepareAuthentication(
+        SamlRealm realm,
+        String relayState,
+        ActionListener<SamlPrepareAuthenticationResponse> listener
+    ) {
         final AuthnRequest authnRequest = realm.buildAuthenticationRequest();
         try {
             String redirectUrl = new SamlRedirect(authnRequest, realm.getSigningConfiguration()).getRedirectUrl(relayState);

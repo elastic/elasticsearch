@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,7 +26,6 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -72,6 +73,7 @@ public class PublicationTransportHandler {
     public static final String PUBLISH_STATE_ACTION_NAME = "internal:cluster/coordination/publish_state";
 
     private final TransportService transportService;
+    private final Executor clusterCoordinationExecutor;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest;
 
@@ -87,7 +89,7 @@ public class PublicationTransportHandler {
         TransportRequestOptions.Type.STATE
     );
 
-    public static final TransportVersion INCLUDES_LAST_COMMITTED_DATA_VERSION = TransportVersion.V_8_6_0;
+    public static final TransportVersion INCLUDES_LAST_COMMITTED_DATA_VERSION = TransportVersions.V_8_6_0;
 
     private final SerializationStatsTracker serializationStatsTracker = new SerializationStatsTracker();
 
@@ -97,12 +99,13 @@ public class PublicationTransportHandler {
         Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest
     ) {
         this.transportService = transportService;
+        this.clusterCoordinationExecutor = transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION);
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handlePublishRequest = handlePublishRequest;
 
         transportService.registerRequestHandler(
             PUBLISH_STATE_ACTION_NAME,
-            ThreadPool.Names.CLUSTER_COORDINATION,
+            this.clusterCoordinationExecutor,
             false,
             false,
             BytesTransportRequest::new,
@@ -124,7 +127,7 @@ public class PublicationTransportHandler {
         StreamInput in = request.bytes().streamInput();
         try {
             if (compressor != null) {
-                in = new InputStreamStreamInput(compressor.threadLocalInputStream(in));
+                in = compressor.threadLocalStreamInput(in);
             }
             in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
             in.setTransportVersion(request.version());
@@ -498,7 +501,7 @@ public class PublicationTransportHandler {
                 new BytesTransportRequest(bytes, connection.getTransportVersion()),
                 task,
                 STATE_REQUEST_OPTIONS,
-                new CleanableResponseHandler<>(listener, PublishWithJoinResponse::new, ThreadPool.Names.CLUSTER_COORDINATION, bytes::decRef)
+                new CleanableResponseHandler<>(listener, PublishWithJoinResponse::new, clusterCoordinationExecutor, bytes::decRef)
             );
         }
 

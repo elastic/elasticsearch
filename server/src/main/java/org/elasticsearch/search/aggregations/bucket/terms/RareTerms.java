@@ -18,7 +18,6 @@ public interface RareTerms extends MultiBucketsAggregation {
      */
     interface Bucket extends MultiBucketsAggregation.Bucket {
 
-        Number getKeyAsNumber();
     }
 
     /**
@@ -26,10 +25,5 @@ public interface RareTerms extends MultiBucketsAggregation {
      */
     @Override
     List<? extends Bucket> getBuckets();
-
-    /**
-     * Get the bucket for the given term, or null if there is no such bucket.
-     */
-    Bucket getBucketByKey(String term);
 
 }

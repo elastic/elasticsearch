@@ -11,10 +11,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
@@ -98,7 +98,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
             GetDataFrameAnalyticsStatsAction.Request::new,
             GetDataFrameAnalyticsStatsAction.Response::new,
             in -> new QueryPage<>(in, GetDataFrameAnalyticsStatsAction.Response.Stats::new),
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.client = client;
     }
@@ -129,7 +129,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         DataFrameAnalyticsTask task,
         ActionListener<QueryPage<Stats>> listener
     ) {
-        logger.debug("Get stats for running task [{}]", task.getParams().getId());
+        logger.trace("Get stats for running task [{}]", task.getParams().getId());
 
         ActionListener<Void> updateProgressListener = ActionListener.wrap(aVoid -> {
             StatsHolder statsHolder = task.getStatsHolder();
@@ -160,7 +160,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener
     ) {
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        logger.debug("Get stats for data frame analytics [{}]", request.getId());
+        logger.trace("Get stats for data frame analytics [{}]", request.getId());
 
         ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(getResponse -> {
             List<String> expandedIds = getResponse.getResources()
@@ -249,7 +249,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
     }
 
     private void searchStats(DataFrameAnalyticsConfig config, TaskId parentTaskId, ActionListener<Stats> listener) {
-        logger.debug("[{}] Gathering stats for stopped task", config.getId());
+        logger.trace("[{}] Gathering stats for stopped task", config.getId());
 
         RetrievedStatsHolder retrievedStatsHolder = new RetrievedStatsHolder(
             ProgressTracker.fromZeroes(config.getAnalysis().getProgressPhases(), config.getAnalysis().supportsInference()).report()
@@ -267,7 +267,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            MultiSearchAction.INSTANCE,
+            TransportMultiSearchAction.TYPE,
             multiSearchRequest,
             ActionListener.wrap(multiSearchResponse -> {
                 MultiSearchResponse.Item[] itemResponses = multiSearchResponse.getResponses();
@@ -370,7 +370,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         String failureReason = null;
         if (analyticsState == DataFrameAnalyticsState.FAILED) {
             DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) analyticsTask.getState();
-            failureReason = taskState.getReason();
+            failureReason = taskState != null ? taskState.getReason() : null;
         }
         DiscoveryNode node = null;
         String assignmentExplanation = null;

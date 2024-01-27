@@ -169,7 +169,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 initialGlobalCheckpoint,
                 initialMinTranslogGen
             );
-            writeCheckpoint(checkpointChannel, checkpointFile, checkpoint);
+            Checkpoint.write(checkpointChannel, checkpointFile, checkpoint);
             final LongSupplier writerGlobalCheckpointSupplier;
             if (Assertions.ENABLED) {
                 writerGlobalCheckpointSupplier = () -> {
@@ -507,7 +507,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         if (lastSyncedCheckpoint.offset != checkpointToSync.offset) {
                             channel.force(false);
                         }
-                        writeCheckpoint(checkpointChannel, checkpointPath, checkpointToSync);
+                        Checkpoint.write(checkpointChannel, checkpointPath, checkpointToSync);
                     } catch (final Exception ex) {
                         closeWithTragicEvent(ex);
                         throw ex;
@@ -611,11 +611,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         // we don't have to have a lock here because we only write ahead to the file, so all writes has been complete
         // for the requested location.
         Channels.readFromFileChannelWithEofException(channel, position, targetBuffer);
-    }
-
-    private static void writeCheckpoint(final FileChannel fileChannel, final Path checkpointFile, final Checkpoint checkpoint)
-        throws IOException {
-        Checkpoint.write(fileChannel, checkpointFile, checkpoint);
     }
 
     /**

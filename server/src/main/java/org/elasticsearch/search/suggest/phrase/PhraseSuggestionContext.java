@@ -48,7 +48,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     private BytesRef postTag;
     private TemplateScript.Factory scriptFactory;
     private boolean prune = DEFAULT_COLLATE_PRUNE;
-    private List<DirectCandidateGenerator> generators = new ArrayList<>();
+    private final List<DirectCandidateGenerator> generators = new ArrayList<>();
     private Map<String, Object> collateScriptParams = Maps.newMapWithExpectedSize(1);
     private WordScorer.WordScorerFactory scorer = DEFAULT_SCORER;
 

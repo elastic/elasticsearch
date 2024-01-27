@@ -7,19 +7,19 @@
 
 package org.elasticsearch.xpack.security.action.enrollment;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -101,8 +102,10 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             DiscoveryNode n = node(i);
             nodeInfos.add(
                 new NodeInfo(
-                    Version.CURRENT,
-                    TransportVersion.CURRENT,
+                    Build.current().version(),
+                    TransportVersion.current(),
+                    IndexVersion.current(),
+                    Map.of(),
                     null,
                     n,
                     null,
@@ -126,7 +129,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             ActionListener<NodesInfoResponse> listener = (ActionListener) invocation.getArguments()[2];
             listener.onResponse(new NodesInfoResponse(new ClusterName("cluster"), nodeInfos, List.of()));
             return null;
-        }).when(client).execute(same(NodesInfoAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportNodesInfoAction.TYPE), any(), any());
 
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -171,6 +174,6 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
     }
 
     private DiscoveryNode node(final int id) {
-        return TestDiscoveryNode.create("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of());
+        return DiscoveryNodeUtils.builder(Integer.toString(id)).name("node-" + id).roles(Set.of()).build();
     }
 }

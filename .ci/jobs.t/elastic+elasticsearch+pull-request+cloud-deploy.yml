@@ -15,7 +15,8 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/cloud-deploy.*'
+          only-trigger-phrase: true
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/cloud-deploy.*'
           github-hooks: true
           status-context: elasticsearch-ci/cloud-deploy
           cancel-builds-on-update: true
@@ -23,11 +24,10 @@
             - 6.8
           excluded-regions:
             - ^docs/.*
-          white-list-labels:
-            - 'cloud-deploy'
+            - ^x-pack/docs/.*
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
       - shell: |

@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -41,8 +41,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
@@ -73,7 +73,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             );
         }
 
-        final DiscoveryNode localNode = TestDiscoveryNode.create("local", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local").roles(emptySet()).build();
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
             .build();
@@ -92,6 +92,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     clusterState,
                     emptyList(),
                     emptyList(),
+                    emptySet(),
                     0L,
                     electionStrategy,
                     new StatusInfo(HEALTHY, "healthy-info"),
@@ -178,7 +179,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
     }
 
     public void testDescriptionOnMasterIneligibleNodes() {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("local", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local").roles(emptySet()).build();
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
@@ -190,6 +191,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 15L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -208,6 +210,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 singletonList(otherAddress),
                 emptyList(),
+                emptySet(),
                 16L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -227,6 +230,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 singletonList(otherNode),
+                emptySet(),
                 17L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -242,7 +246,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
     }
 
     public void testDescriptionOnUnhealthyNodes() {
-        final DiscoveryNode dataNode = TestDiscoveryNode.create("local", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode dataNode = DiscoveryNodeUtils.builder("local").roles(emptySet()).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
             .nodes(DiscoveryNodes.builder().add(dataNode).localNodeId(dataNode.getId()))
@@ -254,6 +258,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 15L,
                 electionStrategy,
                 new StatusInfo(UNHEALTHY, "unhealthy-info"),
@@ -262,12 +267,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             is("this node is unhealthy: unhealthy-info")
         );
 
-        final DiscoveryNode masterNode = TestDiscoveryNode.create(
-            "local",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.builder("local").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()))
@@ -279,6 +279,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 15L,
                 electionStrategy,
                 new StatusInfo(UNHEALTHY, "unhealthy-info"),
@@ -302,6 +303,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 1L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -323,6 +325,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 singletonList(otherAddress),
                 emptyList(),
+                emptySet(),
                 2L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -346,6 +349,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 singletonList(otherNode),
+                emptySet(),
                 3L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -368,6 +372,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 4L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -420,6 +425,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -441,6 +447,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 singletonList(otherAddress),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -464,6 +471,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 singletonList(otherNode),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -487,6 +495,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 singletonList(yetAnotherNode),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -516,6 +525,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -537,6 +547,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 singletonList(otherAddress),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -560,6 +571,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 singletonList(otherNode),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -583,6 +595,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 singletonList(yetAnotherNode),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -599,12 +612,39 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             )
         );
 
+        final DiscoveryNode recentMaster = makeDiscoveryNode("recentMaster");
+        assertThat(
+            new ClusterFormationState(
+                Settings.EMPTY,
+                clusterState,
+                emptyList(),
+                singletonList(yetAnotherNode),
+                singleton(recentMaster),
+                0L,
+                electionStrategy,
+                new StatusInfo(HEALTHY, "healthy-info"),
+                emptyList()
+            ).getDescription(),
+            is(
+                "master not discovered or elected yet, an election requires a node with id [otherNode], "
+                    + "have only discovered non-quorum ["
+                    + noAttr(yetAnotherNode)
+                    + "] who claim current master to be ["
+                    + noAttr(recentMaster)
+                    + "]; "
+                    + "discovery will continue using [] from hosts providers and ["
+                    + noAttr(localNode)
+                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+            )
+        );
+
         assertThat(
             new ClusterFormationState(
                 Settings.EMPTY,
                 state(localNode, "n1", "n2"),
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -625,6 +665,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, "n1", "n2", "n3"),
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -645,6 +686,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, "n1", "n2", BOOTSTRAP_PLACEHOLDER_PREFIX + "n3"),
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -665,6 +707,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, "n1", "n2", "n3", "n4"),
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -685,6 +728,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, "n1", "n2", "n3", "n4", "n5"),
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -705,6 +749,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, "n1", "n2", "n3", "n4", BOOTSTRAP_PLACEHOLDER_PREFIX + "n5"),
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -725,6 +770,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, "n1", "n2", "n3", BOOTSTRAP_PLACEHOLDER_PREFIX + "n4", BOOTSTRAP_PLACEHOLDER_PREFIX + "n5"),
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -745,6 +791,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, new String[] { "n1" }, new String[] { "n1" }),
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -765,6 +812,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, new String[] { "n1" }, new String[] { "n2" }),
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -785,6 +833,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, new String[] { "n1" }, new String[] { "n2", "n3" }),
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -805,6 +854,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, new String[] { "n1" }, new String[] { "n2", "n3", "n4" }),
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -821,12 +871,11 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         );
 
         final DiscoveryNode otherMasterNode = makeDiscoveryNode("other-master");
-        final DiscoveryNode otherNonMasterNode = TestDiscoveryNode.create(
-            "other-non-master",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()).stream().filter(r -> r != DiscoveryNodeRole.MASTER_ROLE).toList())
-        );
+        final DiscoveryNode otherNonMasterNode = DiscoveryNodeUtils.builder("other-non-master")
+            .roles(
+                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()).stream().filter(r -> r != DiscoveryNodeRole.MASTER_ROLE).toList())
+            )
+            .build();
 
         String[] configNodeIds = new String[] { "n1", "n2" };
         final ClusterState stateWithOtherNodes = ClusterState.builder(ClusterName.DEFAULT)
@@ -848,6 +897,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 stateWithOtherNodes,
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -882,6 +932,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, GatewayMetaState.STALE_STATE_CONFIG_NODE_ID),
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -917,6 +968,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -931,6 +983,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -977,6 +1030,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
+                emptySet(),
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
@@ -990,13 +1044,17 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final DiscoveryNode localNode = makeDiscoveryNode("local");
         List<TransportAddress> resolvedAddresses = List.of(buildNewFakeTransportAddress(), buildNewFakeTransportAddress());
         List<DiscoveryNode> foundPeers = List.of(
-            TestDiscoveryNode.create(UUID.randomUUID().toString()),
-            TestDiscoveryNode.create(UUID.randomUUID().toString()),
-            TestDiscoveryNode.create(UUID.randomUUID().toString())
+            DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
+            DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
+            DiscoveryNodeUtils.create(UUID.randomUUID().toString())
+        );
+        Set<DiscoveryNode> mastersOfPeers = Set.of(
+            DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
+            DiscoveryNodeUtils.create(UUID.randomUUID().toString())
         );
         List<JoinStatus> joinStatuses = List.of(
             new JoinStatus(
-                TestDiscoveryNode.create(UUID.randomUUID().toString()),
+                DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
                 1,
                 "join status message",
                 new TimeValue(500, TimeUnit.SECONDS)
@@ -1008,6 +1066,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             state(localNode, new String[] { "n1" }, new String[] { "n2", "n3", "n4" }),
             resolvedAddresses,
             foundPeers,
+            mastersOfPeers,
             0L,
             electionStrategy,
             new StatusInfo(HEALTHY, "healthy-info"),
@@ -1042,6 +1101,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final DiscoveryNode localNode = originalClusterFormationState.localNode();
         List<TransportAddress> resolvedAddresses = originalClusterFormationState.resolvedAddresses();
         List<DiscoveryNode> foundPeers = originalClusterFormationState.foundPeers();
+        Set<DiscoveryNode> mastersOfPeers = originalClusterFormationState.mastersOfPeers();
         long currentTerm = originalClusterFormationState.currentTerm();
         StatusInfo statusInfo = originalClusterFormationState.statusInfo();
         List<JoinStatus> joinStatuses = originalClusterFormationState.inFlightJoinStatuses();
@@ -1050,13 +1110,14 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             originalClusterFormationState.lastAcceptedConfiguration(),
             originalClusterFormationState.lastCommittedConfiguration()
         );
-        switch (randomIntBetween(1, 5)) {
+        switch (randomIntBetween(1, 6)) {
             case 1 -> {
                 return new ClusterFormationState(
                     settings,
                     clusterState,
                     resolvedAddresses,
                     foundPeers,
+                    mastersOfPeers,
                     currentTerm + 1,
                     electionStrategy,
                     statusInfo,
@@ -1065,12 +1126,13 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             }
             case 2 -> {
                 List<DiscoveryNode> newFoundPeers = new ArrayList<>(foundPeers);
-                newFoundPeers.add(TestDiscoveryNode.create(UUID.randomUUID().toString()));
+                newFoundPeers.add(DiscoveryNodeUtils.create(UUID.randomUUID().toString()));
                 return new ClusterFormationState(
                     settings,
                     clusterState,
                     resolvedAddresses,
                     newFoundPeers,
+                    mastersOfPeers,
                     currentTerm,
                     electionStrategy,
                     statusInfo,
@@ -1081,7 +1143,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 List<JoinStatus> newJoinStatuses = new ArrayList<>(joinStatuses);
                 newJoinStatuses.add(
                     new JoinStatus(
-                        TestDiscoveryNode.create(UUID.randomUUID().toString()),
+                        DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
                         1,
                         "join status message",
                         new TimeValue(500, TimeUnit.SECONDS)
@@ -1092,6 +1154,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     clusterState,
                     resolvedAddresses,
                     foundPeers,
+                    mastersOfPeers,
                     currentTerm,
                     electionStrategy,
                     statusInfo,
@@ -1105,6 +1168,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     clusterState,
                     resolvedAddresses,
                     foundPeers,
+                    mastersOfPeers,
                     currentTerm,
                     electionStrategy,
                     newStatusInfo,
@@ -1117,6 +1181,26 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     clusterState,
                     resolvedAddresses,
                     foundPeers,
+                    mastersOfPeers,
+                    currentTerm,
+                    electionStrategy,
+                    statusInfo,
+                    joinStatuses
+                );
+            }
+            case 6 -> {
+                List<DiscoveryNode> newMastersOfPeers = new ArrayList<>(mastersOfPeers);
+                if (mastersOfPeers.isEmpty() || randomBoolean()) {
+                    newMastersOfPeers.add(DiscoveryNodeUtils.create(UUID.randomUUID().toString()));
+                } else {
+                    newMastersOfPeers.remove(0);
+                }
+                return new ClusterFormationState(
+                    settings,
+                    clusterState,
+                    resolvedAddresses,
+                    foundPeers,
+                    Set.copyOf(newMastersOfPeers),
                     currentTerm,
                     electionStrategy,
                     statusInfo,
@@ -1132,7 +1216,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         if (randomBoolean()) {
             attributes.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), attributes, DiscoveryNodeRole.roles());
+        return DiscoveryNodeUtils.create(nodeId, buildNewFakeTransportAddress(), attributes, DiscoveryNodeRole.roles());
     }
 
     private static String noAttr(DiscoveryNode discoveryNode) {

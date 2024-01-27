@@ -9,15 +9,14 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -82,9 +81,9 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         state.metadata(Metadata.builder().generateClusterUuidIfNeeded());
         state.routingTable(RoutingTable.builder().build());
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        nodes.add(DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), "this_node"));
+        nodes.add(DiscoveryNodeUtils.builder("this_node").applySettings(settings).build());
         for (int i = 0; i < nonLocalNodesCount; i++) {
-            nodes.add(TestDiscoveryNode.create("other_node_" + i));
+            nodes.add(DiscoveryNodeUtils.create("other_node_" + i));
         }
         nodes.localNodeId("this_node");
         state.nodes(nodes);
@@ -254,12 +253,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
     public void testTaskCancellation() {
         AtomicLong capturedTaskId = new AtomicLong();
-        AtomicReference<ActionListener<CancelTasksResponse>> capturedListener = new AtomicReference<>();
+        AtomicReference<ActionListener<ListTasksResponse>> capturedListener = new AtomicReference<>();
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
-            void sendCancelRequest(final long taskId, final String reason, final ActionListener<CancelTasksResponse> listener) {
+            void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
                 capturedTaskId.set(taskId);
                 capturedListener.set(listener);
             }
@@ -328,8 +327,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         // That should trigger cancellation request
         assertThat(capturedTaskId.get(), equalTo(localId));
         // Notify successful cancellation
-        capturedListener.get()
-            .onResponse(new CancelTasksResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
+        capturedListener.get().onResponse(new ListTasksResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
 
         // finish or fail task
         if (randomBoolean()) {
@@ -350,7 +348,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
-            void sendCancelRequest(final long taskId, final String reason, final ActionListener<CancelTasksResponse> listener) {
+            void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
                 fail("Shouldn't be called during local abort");
             }
 

@@ -17,27 +17,26 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
@@ -47,7 +46,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getModelAliases;
 import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getReferencedModelKeys;
 
@@ -65,7 +63,6 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
 
     private static final Logger logger = LogManager.getLogger(TransportStopTrainedModelDeploymentAction.class);
 
-    private final Client client;
     private final IngestService ingestService;
     private final TrainedModelAssignmentClusterService trainedModelAssignmentClusterService;
     private final InferenceAuditor auditor;
@@ -75,7 +72,6 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        Client client,
         IngestService ingestService,
         TrainedModelAssignmentClusterService trainedModelAssignmentClusterService,
         InferenceAuditor auditor
@@ -88,9 +84,8 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             StopTrainedModelDeploymentAction.Request::new,
             StopTrainedModelDeploymentAction.Response::new,
             StopTrainedModelDeploymentAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.ingestService = ingestService;
         this.trainedModelAssignmentClusterService = trainedModelAssignmentClusterService;
         this.auditor = Objects.requireNonNull(auditor);
@@ -187,7 +182,11 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                 masterNode,
                 actionName,
                 request,
-                new ActionListenerResponseHandler<>(listener, StopTrainedModelDeploymentAction.Response::new)
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    StopTrainedModelDeploymentAction.Response::new,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
             );
         }
     }
@@ -257,6 +256,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
     ) {
         task.stop(
             "undeploy_trained_model (api)",
+            request.shouldFinishPendingWork(),
             ActionListener.wrap(r -> listener.onResponse(new StopTrainedModelDeploymentAction.Response(true)), listener::onFailure)
         );
     }

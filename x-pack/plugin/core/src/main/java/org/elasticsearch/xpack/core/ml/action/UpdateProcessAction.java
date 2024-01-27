@@ -11,8 +11,7 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
@@ -29,10 +28,10 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
     public static final String NAME = "cluster:internal/xpack/ml/job/update/process";
 
     private UpdateProcessAction() {
-        super(NAME, UpdateProcessAction.Response::new);
+        super(NAME);
     }
 
-    public static class Response extends BaseTasksResponse implements StatusToXContentObject, Writeable {
+    public static class Response extends BaseTasksResponse implements ToXContentObject, Writeable {
 
         private final boolean isUpdated;
 
@@ -54,11 +53,6 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
 
         public boolean isUpdated() {
             return isUpdated;
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.ACCEPTED;
         }
 
         @Override
@@ -90,18 +84,18 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
 
     public static class Request extends JobTaskRequest<Request> {
 
-        private ModelPlotConfig modelPlotConfig;
-        private PerPartitionCategorizationConfig perPartitionCategorizationConfig;
+        private final ModelPlotConfig modelPlotConfig;
+        private final PerPartitionCategorizationConfig perPartitionCategorizationConfig;
         private List<JobUpdate.DetectorUpdate> detectorUpdates;
-        private MlFilter filter;
-        private boolean updateScheduledEvents = false;
+        private final MlFilter filter;
+        private final boolean updateScheduledEvents;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
             perPartitionCategorizationConfig = in.readOptionalWriteable(PerPartitionCategorizationConfig::new);
             if (in.readBoolean()) {
-                detectorUpdates = in.readList(JobUpdate.DetectorUpdate::new);
+                detectorUpdates = in.readCollectionAsList(JobUpdate.DetectorUpdate::new);
             }
             filter = in.readOptionalWriteable(MlFilter::new);
             updateScheduledEvents = in.readBoolean();
@@ -115,7 +109,7 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
             boolean hasDetectorUpdates = detectorUpdates != null;
             out.writeBoolean(hasDetectorUpdates);
             if (hasDetectorUpdates) {
-                out.writeList(detectorUpdates);
+                out.writeCollection(detectorUpdates);
             }
             out.writeOptionalWriteable(filter);
             out.writeBoolean(updateScheduledEvents);

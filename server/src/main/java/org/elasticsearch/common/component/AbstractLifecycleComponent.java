@@ -13,12 +13,19 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+/**
+ * A component with a {@link Lifecycle} which is used to link its start and stop activities to those of the Elasticsearch node which
+ * contains it.
+ */
 public abstract class AbstractLifecycleComponent implements LifecycleComponent {
 
     protected final Lifecycle lifecycle = new Lifecycle();
 
     private final List<LifecycleListener> listeners = new CopyOnWriteArrayList<>();
 
+    /**
+     * Initialize this component. Other components may not yet exist when this constructor is called.
+     */
     protected AbstractLifecycleComponent() {}
 
     @Override
@@ -32,7 +39,7 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
     }
 
     @Override
-    public void start() {
+    public final void start() {
         synchronized (lifecycle) {
             if (lifecycle.canMoveToStarted() == false) {
                 return;
@@ -48,10 +55,20 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
         }
     }
 
+    /**
+     * Start this component. Typically that means doing things like launching background processes and registering listeners on other
+     * components. Other components have been initialized by this point, but may not yet be started.
+     * <p>
+     * If this method throws an exception then the startup process will fail, but this component will not be stopped before it is closed.
+     * <p>
+     * This method is called while synchronized on {@link #lifecycle}. It is only called once in the lifetime of a component, although it
+     * may not be called at all if the startup process encountered some kind of fatal error, such as the failure of some other component to
+     * initialize or start.
+     */
     protected abstract void doStart();
 
     @Override
-    public void stop() {
+    public final void stop() {
         synchronized (lifecycle) {
             if (lifecycle.canMoveToStopped() == false) {
                 return;
@@ -67,10 +84,16 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
         }
     }
 
+    /**
+     * Stop this component. Typically that means doing the reverse of whatever {@link #doStart} does.
+     * <p>
+     * This method is called while synchronized on {@link #lifecycle}. It is only called once in the lifetime of a component, after calling
+     * {@link #doStart}, although it will not be called at all if this component did not successfully start.
+     */
     protected abstract void doStop();
 
     @Override
-    public void close() {
+    public final void close() {
         synchronized (lifecycle) {
             if (lifecycle.started()) {
                 stop();
@@ -94,5 +117,12 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
         }
     }
 
+    /**
+     * Close this component. Typically that means doing the reverse of whatever happened during initialization, such as releasing resources
+     * acquired there.
+     * <p>
+     * This method is called while synchronized on {@link #lifecycle}. It is called once in the lifetime of a component. If the component
+     * was started then it will be stopped before it is closed, and once it is closed it will not be started or stopped.
+     */
     protected abstract void doClose() throws IOException;
 }

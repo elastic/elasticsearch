@@ -12,11 +12,10 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.Set;
 
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
@@ -26,18 +25,12 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class HealthNodeTests extends ESTestCase {
 
-    private final DiscoveryNode node1 = TestDiscoveryNode.create(
-        "node_1",
-        buildNewFakeTransportAddress(),
-        Collections.emptyMap(),
-        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-    );
-    private final DiscoveryNode node2 = TestDiscoveryNode.create(
-        "node_2",
-        buildNewFakeTransportAddress(),
-        Collections.emptyMap(),
-        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-    );
+    private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1")
+        .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        .build();
+    private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
+        .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        .build();
     private final DiscoveryNode[] allNodes = new DiscoveryNode[] { node1, node2 };
 
     public void testFindTask() {

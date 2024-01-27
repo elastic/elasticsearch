@@ -19,7 +19,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
@@ -392,8 +391,8 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name").value(valueConfig)
             .weight(weightConfig);
 
-        AggregationExecutionException e = expectThrows(
-            AggregationExecutionException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
                 iw.addDocument(
                     Arrays.asList(

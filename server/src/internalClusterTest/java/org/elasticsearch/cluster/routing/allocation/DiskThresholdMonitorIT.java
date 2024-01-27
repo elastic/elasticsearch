@@ -55,15 +55,12 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
                 .build()
         );
         // ensure we have a system index on the data node too.
-        assertAcked(client().admin().indices().prepareCreate(TaskResultsService.TASK_INDEX));
+        assertAcked(indicesAdmin().prepareCreate(TaskResultsService.TASK_INDEX));
 
         getTestFileStore(dataNodeName).setTotalSpace(1L);
         refreshClusterInfo();
         assertBusy(() -> {
-            assertBlocked(
-                client().prepareIndex().setIndex(indexName).setId("1").setSource("f", "g"),
-                IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
-            );
+            assertBlocked(prepareIndex(indexName).setId("1").setSource("f", "g"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
             assertThat(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
         });
 
@@ -110,15 +107,12 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
                 .build()
         );
         // ensure we have a system index on the data node too.
-        assertAcked(client().admin().indices().prepareCreate(TaskResultsService.TASK_INDEX));
+        assertAcked(indicesAdmin().prepareCreate(TaskResultsService.TASK_INDEX));
 
         getTestFileStore(dataNodeName).setTotalSpace(1L);
         refreshClusterInfo();
         assertBusy(() -> {
-            assertBlocked(
-                client().prepareIndex().setIndex(indexName).setId("1").setSource("f", "g"),
-                IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
-            );
+            assertBlocked(prepareIndex(indexName).setId("1").setSource("f", "g"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
             assertThat(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
         });
 
@@ -143,7 +137,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
 
     // Retrieves the value of the given block on an index.
     private static String getIndexBlock(String indexName, String blockName) {
-        return client().admin().indices().prepareGetSettings(indexName).setNames(blockName).get().getSetting(indexName, blockName);
+        return indicesAdmin().prepareGetSettings(indexName).setNames(blockName).get().getSetting(indexName, blockName);
     }
 
 }

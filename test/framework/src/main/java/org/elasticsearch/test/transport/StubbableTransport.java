@@ -9,7 +9,6 @@
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
@@ -173,9 +172,7 @@ public class StubbableTransport implements Transport {
         TransportAddress address = node.getAddress();
         OpenConnectionBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
 
-        ActionListener<Connection> wrappedListener = listener.delegateFailure(
-            (delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection))
-        );
+        ActionListener<Connection> wrappedListener = listener.safeMap(WrappedConnection::new);
 
         if (behavior == null) {
             delegate.openConnection(node, profile, wrappedListener);
@@ -267,11 +264,6 @@ public class StubbableTransport implements Transport {
         @Override
         public boolean isClosed() {
             return connection.isClosed();
-        }
-
-        @Override
-        public Version getVersion() {
-            return connection.getVersion();
         }
 
         @Override

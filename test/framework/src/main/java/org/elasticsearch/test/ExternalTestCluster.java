@@ -51,7 +51,11 @@ import static org.junit.Assert.assertThat;
  * External cluster to run the tests against.
  * It is a pure immutable test cluster that allows to send requests to a pre-existing cluster
  * and supports by nature all the needed test operations like wipeIndices etc.
+ *
+ * @deprecated not a realistic test setup since the removal of the transport client, use {@link ESIntegTestCase} for internal-cluster tests
+ *             or {@link org.elasticsearch.test.rest.ESRestTestCase} otherwise.
  */
+@Deprecated(forRemoval = true)
 public final class ExternalTestCluster extends TestCluster {
 
     private static final Logger logger = LogManager.getLogger(ExternalTestCluster.class);
@@ -131,14 +135,14 @@ public final class ExternalTestCluster extends TestCluster {
             logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
         } catch (NodeValidationException e) {
             try {
-                IOUtils.close(wrappedClient, mockNode);
+                IOUtils.close(mockNode);
             } catch (IOException e1) {
                 e.addSuppressed(e1);
             }
             throw new ElasticsearchException(e);
         } catch (Exception e) {
             try {
-                IOUtils.close(wrappedClient, mockNode);
+                IOUtils.close(mockNode);
             } catch (IOException e1) {
                 e.addSuppressed(e1);
             }
@@ -178,20 +182,13 @@ public final class ExternalTestCluster extends TestCluster {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(client, node);
+        IOUtils.close(node);
     }
 
     @Override
     public void ensureEstimatedStats() {
         if (size() > 0) {
-            NodesStatsResponse nodeStats = client().admin()
-                .cluster()
-                .prepareNodesStats()
-                .clear()
-                .setBreaker(true)
-                .setIndices(true)
-                .execute()
-                .actionGet();
+            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().clear().setBreaker(true).setIndices(true).get();
             for (NodeStats stats : nodeStats.getNodes()) {
                 assertThat(
                     "Fielddata breaker not reset to 0 on node: " + stats.getNode(),

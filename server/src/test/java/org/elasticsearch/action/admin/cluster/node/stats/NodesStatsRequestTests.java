@@ -11,11 +11,15 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
@@ -30,7 +34,7 @@ public class NodesStatsRequestTests extends ESTestCase {
     public void testAddMetrics() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest(randomAlphaOfLength(8));
         request.indices(randomFrom(CommonStatsFlags.ALL));
-        String[] metrics = randomSubsetOf(NodesStatsRequest.Metric.allMetrics()).toArray(String[]::new);
+        String[] metrics = randomSubsetOf(NodesStatsRequestParameters.Metric.allMetrics()).toArray(String[]::new);
         request.addMetrics(metrics);
         NodesStatsRequest deserializedRequest = roundTripRequest(request);
         assertRequestsEqual(request, deserializedRequest);
@@ -41,7 +45,7 @@ public class NodesStatsRequestTests extends ESTestCase {
      */
     public void testAddSingleMetric() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest();
-        request.addMetric(randomFrom(NodesStatsRequest.Metric.allMetrics()));
+        request.addMetric(randomFrom(NodesStatsRequestParameters.Metric.allMetrics()));
         NodesStatsRequest deserializedRequest = roundTripRequest(request);
         assertRequestsEqual(request, deserializedRequest);
     }
@@ -52,7 +56,7 @@ public class NodesStatsRequestTests extends ESTestCase {
     public void testRemoveSingleMetric() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest();
         request.all();
-        String metric = randomFrom(NodesStatsRequest.Metric.allMetrics());
+        String metric = randomFrom(NodesStatsRequestParameters.Metric.allMetrics());
         request.removeMetric(metric);
         NodesStatsRequest deserializedRequest = roundTripRequest(request);
         assertThat(request.requestedMetrics(), equalTo(deserializedRequest.requestedMetrics()));
@@ -79,7 +83,7 @@ public class NodesStatsRequestTests extends ESTestCase {
         request.all();
 
         assertThat(request.indices().getFlags(), equalTo(CommonStatsFlags.ALL.getFlags()));
-        assertThat(request.requestedMetrics(), equalTo(NodesStatsRequest.Metric.allMetrics()));
+        assertThat(request.requestedMetrics(), equalTo(NodesStatsRequestParameters.Metric.allMetrics()));
     }
 
     /**
@@ -101,7 +105,7 @@ public class NodesStatsRequestTests extends ESTestCase {
         String unknownMetric2 = "unknown_metric2";
         Set<String> unknownMetrics = new HashSet<>();
         unknownMetrics.add(unknownMetric1);
-        unknownMetrics.addAll(randomSubsetOf(NodesStatsRequest.Metric.allMetrics()));
+        unknownMetrics.addAll(randomSubsetOf(NodesStatsRequestParameters.Metric.allMetrics()));
 
         NodesStatsRequest request = new NodesStatsRequest();
 
@@ -136,5 +140,29 @@ public class NodesStatsRequestTests extends ESTestCase {
     private static void assertRequestsEqual(NodesStatsRequest request1, NodesStatsRequest request2) {
         assertThat(request1.indices().getFlags(), equalTo(request2.indices().getFlags()));
         assertThat(request1.requestedMetrics(), equalTo(request2.requestedMetrics()));
+    }
+
+    public void testGetDescription() {
+        final var request = new NodesStatsRequest("nodeid1", "nodeid2");
+        request.clear();
+        request.addMetrics(NodesStatsRequestParameters.Metric.OS.metricName(), NodesStatsRequestParameters.Metric.TRANSPORT.metricName());
+        request.indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store, CommonStatsFlags.Flag.Flush));
+        final var description = request.getDescription();
+
+        assertThat(
+            description,
+            allOf(
+                containsString("nodeid1"),
+                containsString("nodeid2"),
+                containsString(NodesStatsRequestParameters.Metric.OS.metricName()),
+                containsString(NodesStatsRequestParameters.Metric.TRANSPORT.metricName()),
+                not(containsString(NodesStatsRequestParameters.Metric.SCRIPT.metricName())),
+                containsString(CommonStatsFlags.Flag.Store.toString()),
+                containsString(CommonStatsFlags.Flag.Flush.toString()),
+                not(containsString(CommonStatsFlags.Flag.FieldData.toString()))
+            )
+        );
+
+        assertEquals(description, request.createTask(1, "", "", TaskId.EMPTY_TASK_ID, Map.of()).getDescription());
     }
 }

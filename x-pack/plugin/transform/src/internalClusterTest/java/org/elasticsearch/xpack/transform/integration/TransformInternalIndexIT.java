@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.settings.Settings;
@@ -58,10 +57,7 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
             TransformInternalIndex.addTransformsConfigMappings(builder);
             builder.endObject();
             builder.endObject();
-            client().admin()
-                .indices()
-                .create(new CreateIndexRequest(OLD_INDEX).mapping(builder).origin(ClientHelper.TRANSFORM_ORIGIN))
-                .actionGet();
+            indicesAdmin().create(new CreateIndexRequest(OLD_INDEX).mapping(builder).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
         }
         String transformIndex = "transform-index-deletes-old";
         createSourceIndex(transformIndex);
@@ -100,7 +96,7 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
         IndexRequest indexRequest = new IndexRequest(OLD_INDEX).id(TransformConfig.documentId(transformId))
             .source(config, XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        IndexResponse indexResponse = client().index(indexRequest).actionGet();
+        DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getResult(), is(DocWriteResponse.Result.CREATED));
 
         GetTransformAction.Request getTransformRequest = new GetTransformAction.Request(transformId);
@@ -136,6 +132,6 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
     }
 
     private void createSourceIndex(String index) {
-        client().admin().indices().create(new CreateIndexRequest(index)).actionGet();
+        indicesAdmin().create(new CreateIndexRequest(index)).actionGet();
     }
 }

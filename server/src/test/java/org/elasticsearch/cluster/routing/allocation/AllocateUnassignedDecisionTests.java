@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -31,8 +30,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class AllocateUnassignedDecisionTests extends ESTestCase {
 
-    private final DiscoveryNode node1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
-    private final DiscoveryNode node2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+    private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+    private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
 
     public void testDecisionNotTaken() {
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
@@ -156,8 +155,8 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        DiscoveryNode node1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
-        DiscoveryNode node2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         Decision.Type finalDecision = randomFrom(Decision.Type.values());
         DiscoveryNode assignedNode = finalDecision == Decision.Type.YES ? node1 : null;
         List<NodeAllocationResult> nodeDecisions = new ArrayList<>();

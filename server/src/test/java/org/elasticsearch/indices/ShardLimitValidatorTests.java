@@ -8,13 +8,12 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.shards.ShardCounts;
@@ -23,10 +22,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateServiceTests.addClosedIndex;
@@ -209,7 +207,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
     ) {
         DiscoveryNodes nodes = createDiscoveryNodes(nodesInCluster, group);
 
-        Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         if (ShardLimitValidator.FROZEN_GROUP.equals(group) || randomBoolean()) {
             settings.put(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), group);
         }
@@ -260,22 +258,13 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     public static DiscoveryNodes createDiscoveryNodes(int nodesInCluster, String group) {
-        Map<String, DiscoveryNode> dataNodes = new HashMap<>();
+        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (int i = 0; i < nodesInCluster; i++) {
-            dataNodes.put(randomAlphaOfLengthBetween(5, 15), createNode(group));
-        }
-        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getDataNodes()).thenReturn(dataNodes);
-        return nodes;
-    }
-
-    private static DiscoveryNode createNode(String group) {
-        DiscoveryNode mock = mock(DiscoveryNode.class);
-        if (ShardLimitValidator.FROZEN_GROUP.equals(group)) {
-            when(mock.getRoles()).thenReturn(randomBoolean() ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE));
-        } else {
-            when(mock.getRoles()).thenReturn(
-                randomBoolean()
+            Set<DiscoveryNodeRole> roles;
+            if (ShardLimitValidator.FROZEN_GROUP.equals(group)) {
+                roles = randomBoolean() ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
+            } else {
+                roles = randomBoolean()
                     ? DiscoveryNodeRole.roles()
                     : Set.of(
                         randomFrom(
@@ -284,10 +273,12 @@ public class ShardLimitValidatorTests extends ESTestCase {
                             DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
                             DiscoveryNodeRole.DATA_COLD_NODE_ROLE
                         )
-                    )
-            );
+                    );
+            }
+
+            builder.add(DiscoveryNodeUtils.builder(randomAlphaOfLengthBetween(5, 15)).roles(roles).build());
         }
-        return mock;
+        return builder.build();
     }
 
     private static Metadata.Builder freezeMetadata(Metadata.Builder builder, Metadata metadata) {

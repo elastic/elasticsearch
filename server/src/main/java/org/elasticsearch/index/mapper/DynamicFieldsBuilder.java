@@ -208,7 +208,9 @@ final class DynamicFieldsBuilder {
         DateFormatter dateFormatter,
         CheckedRunnable<IOException> dynamicFieldStrategy
     ) throws IOException {
-        if (applyMatchingTemplate(context, name, matchType, dateFormatter) == false) {
+        if (applyMatchingTemplate(context, name, matchType, dateFormatter)) {
+            context.markFieldAsAppliedFromTemplate(name);
+        } else {
             dynamicFieldStrategy.run();
         }
     }

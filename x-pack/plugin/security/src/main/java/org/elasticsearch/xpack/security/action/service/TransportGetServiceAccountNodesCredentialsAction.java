@@ -49,14 +49,11 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
     ) {
         super(
             GetServiceAccountNodesCredentialsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            GetServiceAccountCredentialsNodesRequest::new,
             GetServiceAccountCredentialsNodesRequest.Node::new,
-            ThreadPool.Names.SAME,
-            GetServiceAccountCredentialsNodesResponse.Node.class
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.fileServiceAccountTokenStore = fileServiceAccountTokenStore;
     }

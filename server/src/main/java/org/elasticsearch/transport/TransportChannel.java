@@ -19,8 +19,6 @@ public interface TransportChannel {
 
     String getProfileName();
 
-    String getChannelType();
-
     void sendResponse(TransportResponse response) throws IOException;
 
     void sendResponse(Exception exception) throws IOException;
@@ -29,6 +27,6 @@ public interface TransportChannel {
      * Returns the version of the data to communicate in this channel.
      */
     default TransportVersion getVersion() {
-        return TransportVersion.CURRENT;
+        return TransportVersion.current();
     }
 }

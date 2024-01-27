@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -47,7 +47,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/preview";
 
     private PreviewDatafeedAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -85,7 +85,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             datafeedId = in.readString();
             datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
             jobConfig = in.readOptionalWriteable(Job.Builder::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                 this.startTime = in.readOptionalLong();
                 this.endTime = in.readOptionalLong();
             } else {
@@ -163,7 +163,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             out.writeString(datafeedId);
             out.writeOptionalWriteable(datafeedConfig);
             out.writeOptionalWriteable(jobConfig);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                 out.writeOptionalLong(startTime);
                 out.writeOptionalLong(endTime);
             }

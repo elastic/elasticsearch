@@ -41,6 +41,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
             super(name);
         }
 
+        @SuppressWarnings("this-escape")
         protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
@@ -109,7 +110,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         fields = (ArrayList<String>) in.readGenericValue();
         userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
         format = in.readOptionalString();
-        missingMap = in.readMap();
+        missingMap = in.readGenericMap();
     }
 
     @Override

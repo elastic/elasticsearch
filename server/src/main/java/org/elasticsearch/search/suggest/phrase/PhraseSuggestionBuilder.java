@@ -10,6 +10,7 @@ package org.elasticsearch.search.suggest.phrase;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -126,7 +127,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         if (in.readBoolean()) {
             collateQuery = new Script(in);
         }
-        collateParams = in.readMap();
+        collateParams = in.readGenericMap();
         collatePrune = in.readOptionalBoolean();
         int generatorsEntries = in.readVInt();
         for (int i = 0; i < generatorsEntries; i++) {
@@ -161,7 +162,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
         out.writeMapWithConsistentOrder(collateParams);
         out.writeOptionalBoolean(collatePrune);
-        out.writeMap(this.generators, StreamOutput::writeString, StreamOutput::writeList);
+        out.writeMap(this.generators, StreamOutput::writeCollection);
     }
 
     /**
@@ -275,12 +276,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      * phrase term before the candidates are scored.
      */
     public PhraseSuggestionBuilder addCandidateGenerator(CandidateGenerator generator) {
-        List<CandidateGenerator> list = this.generators.get(generator.getType());
-        if (list == null) {
-            list = new ArrayList<>();
-            this.generators.put(generator.getType(), list);
-        }
-        list.add(generator);
+        this.generators.computeIfAbsent(generator.getType(), k -> new ArrayList<>()).add(generator);
         return this;
     }
 
@@ -512,7 +508,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
             } else if (token == Token.START_ARRAY) {
                 if (DirectCandidateGeneratorBuilder.DIRECT_GENERATOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     // for now we only have a single type of generators
-                    while ((token = parser.nextToken()) == Token.START_OBJECT) {
+                    while (parser.nextToken() == Token.START_OBJECT) {
                         tmpSuggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
                     }
                 } else {
@@ -699,7 +695,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 
     @Override

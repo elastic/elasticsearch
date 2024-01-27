@@ -10,7 +10,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -227,17 +226,17 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         final int numDocs = 10;
         for (int i = 0; i < numDocs; i++) {
-            for (int j = 0; j < 4; j++)
+            for (int j = 0; j < 4; j++) {
                 indexWriter.addDocument(
                     List.of(new NumericDocValuesField("value", i + 1), new TextField("text", "test" + j, Field.Store.NO))
                 );
+            }
         }
         indexWriter.close();
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        Terms terms = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, numericFieldType, textFieldType));
+        Terms terms = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, numericFieldType, textFieldType));
         assertNotNull(terms);
         List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertNotNull(buckets);

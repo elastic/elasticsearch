@@ -34,6 +34,7 @@ public class RealmConfig {
     private final Settings settings;
     private final ThreadContext threadContext;
 
+    @SuppressWarnings("this-escape")
     public RealmConfig(RealmIdentifier identifier, Settings settings, Environment env, ThreadContext threadContext) {
         this.identifier = identifier;
         this.settings = settings;

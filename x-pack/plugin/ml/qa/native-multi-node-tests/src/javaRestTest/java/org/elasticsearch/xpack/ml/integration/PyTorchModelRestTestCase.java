@@ -191,11 +191,26 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     }
 
     protected void createPassThroughModel(String modelId) throws IOException {
+        createPassThroughModel(modelId, 0, 0);
+    }
+
+    protected void createPassThroughModel(String modelId, long perDeploymentMemoryBytes, long perAllocationMemoryBytes) throws IOException {
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        request.setJsonEntity("""
+        String metadata;
+        if (perDeploymentMemoryBytes > 0 && perAllocationMemoryBytes > 0) {
+            metadata = Strings.format("""
+                "metadata": {
+                  "per_deployment_memory_bytes": %d,
+                  "per_allocation_memory_bytes": %d
+                },""", perDeploymentMemoryBytes, perAllocationMemoryBytes);
+        } else {
+            metadata = "";
+        }
+        request.setJsonEntity(Strings.format("""
             {
                "description": "simple model for testing",
                "model_type": "pytorch",
+                %s
                "inference_config": {
                  "pass_through": {
                    "tokenization": {
@@ -205,7 +220,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
                    }
                  }
                }
-             }""");
+             }""", metadata));
         client().performRequest(request);
     }
 
@@ -268,15 +283,21 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     }
 
     protected void stopDeployment(String modelId) throws IOException {
-        stopDeployment(modelId, false);
+        stopDeployment(modelId, false, false);
     }
 
-    protected void stopDeployment(String modelId, boolean force) throws IOException {
+    protected void stopDeployment(String modelId, boolean force, boolean finishPendingWork) throws IOException {
         String endpoint = "/_ml/trained_models/" + modelId + "/deployment/_stop";
-        if (force) {
-            endpoint += "?force=true";
-        }
+
         Request request = new Request("POST", endpoint);
+        if (force) {
+            request.addParameter("force", "true");
+        }
+
+        if (finishPendingWork) {
+            request.addParameter("finish_pending_work", "true");
+        }
+
         client().performRequest(request);
     }
 
@@ -288,6 +309,11 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
 
     protected Response getTrainedModelStats(String modelId) throws IOException {
         Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
+        return client().performRequest(request);
+    }
+
+    protected Response getTrainedModelConfigs(String modelId) throws IOException {
+        Request request = new Request("GET", "/_ml/trained_models/" + modelId);
         return client().performRequest(request);
     }
 
@@ -329,6 +355,24 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     protected void forceMergeIndex(String index) throws IOException {
         Request request = new Request("POST", "/" + index + "/_forcemerge?max_num_segments=1");
         assertOkWithErrorMessage(client().performRequest(request));
+    }
+
+    protected void putPipeline(String pipelineId, String pipelineDefinition) throws IOException {
+        Request request = new Request("PUT", "_ingest/pipeline/" + pipelineId);
+        request.setJsonEntity(pipelineDefinition);
+        assertOkWithErrorMessage(client().performRequest(request));
+    }
+
+    protected Response simulatePipeline(String pipelineDef, String docs) throws IOException {
+        String simulate = Strings.format("""
+            {
+              "pipeline": %s,
+              "docs": %s
+            }""", pipelineDef, docs);
+
+        Request request = new Request("POST", "_ingest/pipeline/_simulate?error_trace=true");
+        request.setJsonEntity(simulate);
+        return client().performRequest(request);
     }
 
     @SuppressWarnings("unchecked")

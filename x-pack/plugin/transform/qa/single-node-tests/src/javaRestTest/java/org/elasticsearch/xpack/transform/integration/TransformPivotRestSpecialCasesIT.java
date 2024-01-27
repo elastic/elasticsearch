@@ -226,7 +226,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         )).get(0);
 
         assertEquals(28.0, (double) percentiles.get("50"), 0.000001);
-        assertEquals(77.0, (double) percentiles.get("99"), 0.000001);
+        assertEquals(76.12, (double) percentiles.get("99"), 0.000001);
 
         searchResult = getAsMap(transformIndex + "/_search?q=host:host-3");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));

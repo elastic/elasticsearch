@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
@@ -47,7 +47,7 @@ public class GetJobStatsActionResponseTests extends AbstractWireSerializingTestC
             JobState jobState = randomFrom(EnumSet.allOf(JobState.class));
             DiscoveryNode node = randomBoolean()
                 ? null
-                : TestDiscoveryNode.create("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300));
+                : DiscoveryNodeUtils.create("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300));
             String explanation = randomBoolean() ? null : randomAlphaOfLength(3);
             TimeValue openTime = randomBoolean() ? null : parseTimeValue(randomPositiveTimeValue(), "open_time-Test");
             TimingStats timingStats = randomBoolean() ? null : TimingStatsTests.createTestInstance("foo");

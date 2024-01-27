@@ -15,6 +15,7 @@ setup:
             properties:
               vector:
                 type: dense_vector
+                index: false
                 element_type: byte
                 dims: 3
               indexed_vector:

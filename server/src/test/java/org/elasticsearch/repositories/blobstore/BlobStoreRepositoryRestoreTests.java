@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexShard;
@@ -191,7 +191,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                             0L,
                             Collections.emptyMap()
                         ),
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         f,
                         info -> {}
                     )

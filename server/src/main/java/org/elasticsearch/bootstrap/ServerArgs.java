@@ -29,10 +29,17 @@ import java.nio.file.Path;
  * @param secrets the provided secure settings implementation
  * @param nodeSettings the node settings read from {@code elasticsearch.yml}, the cli and the process environment
  * @param configDir the directory where {@code elasticsearch.yml} and other config exists
+ * @param logsDir the directory where log files should be written
  */
-public record ServerArgs(boolean daemonize, boolean quiet, Path pidFile, SecureSettings secrets, Settings nodeSettings, Path configDir)
-    implements
-        Writeable {
+public record ServerArgs(
+    boolean daemonize,
+    boolean quiet,
+    Path pidFile,
+    SecureSettings secrets,
+    Settings nodeSettings,
+    Path configDir,
+    Path logsDir
+) implements Writeable {
 
     /**
      * Arguments for running Elasticsearch.
@@ -59,6 +66,7 @@ public record ServerArgs(boolean daemonize, boolean quiet, Path pidFile, SecureS
             readPidFile(in),
             readSecureSettingsFromStream(in),
             Settings.readSettingsFromStream(in),
+            resolvePath(in.readString()),
             resolvePath(in.readString())
         );
     }
@@ -82,6 +90,7 @@ public record ServerArgs(boolean daemonize, boolean quiet, Path pidFile, SecureS
         secrets.writeTo(out);
         nodeSettings.writeTo(out);
         out.writeString(configDir.toString());
+        out.writeString(logsDir.toString());
     }
 
     private static SecureSettings readSecureSettingsFromStream(StreamInput in) throws IOException {

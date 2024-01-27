@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.core.ml.annotations;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -28,9 +27,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 
 import static java.lang.Thread.currentThread;
@@ -56,6 +57,7 @@ public class AnnotationIndex {
     public static final List<String> OLD_INDEX_NAMES = List.of(".ml-annotations-6");
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
+    public static final int ANNOTATION_INDEX_MAPPINGS_VERSION = 1;
 
     /**
      * Create the .ml-annotations-6 index with correct mappings if it does not already exist. This index is read and written by the UI
@@ -69,17 +71,17 @@ public class AnnotationIndex {
         final ActionListener<Boolean> finalListener
     ) {
 
-        final ActionListener<Boolean> annotationsIndexCreatedListener = ActionListener.wrap(success -> {
+        final ActionListener<Boolean> annotationsIndexCreatedListener = finalListener.delegateFailureAndWrap((delegate, success) -> {
             final ClusterHealthRequest request = new ClusterHealthRequest(READ_ALIAS_NAME).waitForYellowStatus()
                 .masterNodeTimeout(masterNodeTimeout);
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                ClusterHealthAction.INSTANCE,
+                TransportClusterHealthAction.TYPE,
                 request,
-                ActionListener.wrap(r -> finalListener.onResponse(r.isTimedOut() == false), finalListener::onFailure)
+                delegate.delegateFailureAndWrap((l, r) -> l.onResponse(r.isTimedOut() == false))
             );
-        }, finalListener::onFailure);
+        });
 
         createAnnotationsIndexIfNecessary(client, state, masterNodeTimeout, annotationsIndexCreatedListener);
     }
@@ -95,19 +97,19 @@ public class AnnotationIndex {
         final ActionListener<Boolean> finalListener
     ) {
 
-        final ActionListener<Boolean> checkMappingsListener = ActionListener.wrap(
-            success -> ElasticsearchMappings.addDocMappingIfMissing(
+        final ActionListener<Boolean> checkMappingsListener = finalListener.delegateFailureAndWrap(
+            (delegate, success) -> ElasticsearchMappings.addDocMappingIfMissing(
                 WRITE_ALIAS_NAME,
                 AnnotationIndex::annotationsMapping,
                 client,
                 state,
                 masterNodeTimeout,
-                finalListener
-            ),
-            finalListener::onFailure
+                delegate,
+                ANNOTATION_INDEX_MAPPINGS_VERSION
+            )
         );
 
-        final ActionListener<String> createAliasListener = ActionListener.wrap(currentIndexName -> {
+        final ActionListener<String> createAliasListener = finalListener.delegateFailureAndWrap((finalDelegate, currentIndexName) -> {
             final IndicesAliasesRequestBuilder requestBuilder = client.admin()
                 .indices()
                 .prepareAliases()
@@ -128,13 +130,10 @@ public class AnnotationIndex {
                 client.threadPool().getThreadContext(),
                 ML_ORIGIN,
                 requestBuilder.request(),
-                ActionListener.<AcknowledgedResponse>wrap(
-                    r -> checkMappingsListener.onResponse(r.isAcknowledged()),
-                    finalListener::onFailure
-                ),
+                finalDelegate.<AcknowledgedResponse>delegateFailureAndWrap((l, r) -> checkMappingsListener.onResponse(r.isAcknowledged())),
                 client.admin().indices()::aliases
             );
-        }, finalListener::onFailure);
+        });
 
         // Only create the index or aliases if some other ML index exists - saves clutter if ML is never used.
         // Also, don't do this if there's a reset in progress or if ML upgrade mode is enabled.
@@ -212,9 +211,10 @@ public class AnnotationIndex {
 
     public static String annotationsMapping() {
         return TemplateUtils.loadTemplate(
-            "/org/elasticsearch/xpack/core/ml/annotations_index_mappings.json",
-            Version.CURRENT.toString(),
-            MAPPINGS_VERSION_VARIABLE
+            "/ml/annotations_index_mappings.json",
+            MlIndexAndAlias.BWC_MAPPINGS_VERSION, // Only needed for BWC with pre-8.10.0 nodes
+            MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.managed.index.version", Integer.toString(ANNOTATION_INDEX_MAPPINGS_VERSION))
         );
     }
 }

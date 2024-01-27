@@ -55,8 +55,8 @@ import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.NetUtils;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -419,8 +419,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     protected boolean isContentAlwaysEmpty(HttpResponse msg) {
                         // non-chunked responses (Netty4HttpResponse extends Netty's DefaultFullHttpResponse) with chunked transfer
                         // encoding are only sent by us in response to HEAD requests and must always have an empty body
-                        if (msg instanceof Netty4HttpResponse netty4HttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
-                            assert netty4HttpResponse.content().isReadable() == false;
+                        if (msg instanceof Netty4FullHttpResponse netty4FullHttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
+                            assert netty4FullHttpResponse.content().isReadable() == false;
                             return true;
                         }
                         return super.isContentAlwaysEmpty(msg);
@@ -430,7 +430,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));
             }
-            ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents, transport));
+            ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport));
             transport.serverAcceptedChannel(nettyHttpChannel);
         }
 

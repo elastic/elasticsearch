@@ -1,0 +1,5 @@
+pr: 103232
+summary: "Remove leniency in msearch parsing"
+area: Search
+type: enhancement
+issues: []

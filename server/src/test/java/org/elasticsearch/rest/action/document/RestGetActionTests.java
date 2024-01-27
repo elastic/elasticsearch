@@ -23,7 +23,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RestGetActionTests extends RestActionTestCase {
+public final class RestGetActionTests extends RestActionTestCase {
     final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
     @Before

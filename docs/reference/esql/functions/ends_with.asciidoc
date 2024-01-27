@@ -1,0 +1,36 @@
+[discrete]
+[[esql-ends_with]]
+=== `ENDS_WITH`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/ends_with.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`str`::
+String expression. If `null`, the function returns `null`.
+
+`suffix`::
+String expression. If `null`, the function returns `null`.
+
+*Description*
+
+Returns a boolean that indicates whether a keyword string ends with another
+string.
+
+*Supported types*
+
+include::types/ends_with.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=endsWith]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=endsWith-result]
+|===

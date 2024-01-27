@@ -11,16 +11,15 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -86,10 +85,12 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
     }
 
     public CreateApiKeyRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
-        final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
         try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = xContentType.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                source,
+                xContentType
+            )
         ) {
             CreateApiKeyRequest createApiKeyRequest = parse(parser);
             setName(createApiKeyRequest.getName());

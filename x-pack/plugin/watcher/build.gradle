@@ -9,7 +9,9 @@ esplugin {
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 
-archivesBaseName = 'x-pack-watcher'
+base {
+  archivesName = 'x-pack-watcher'
+}
 
 ext.compactProfile = 'full'
 
@@ -30,7 +32,7 @@ dependencies {
 
   // watcher deps
   api 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20211018.2'
-  runtimeOnly 'com.google.guava:guava:30.1-jre' // needed by watcher for the html sanitizer
+  runtimeOnly 'com.google.guava:guava:32.0.1-jre' // needed by watcher for the html sanitizer
   runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   api 'com.sun.mail:jakarta.mail:1.6.4'
   api 'com.sun.activation:jakarta.activation:1.2.1'
@@ -54,7 +56,6 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
     'com.google.common.hash.Striped64',
     'com.google.common.hash.Striped64$1',
     'com.google.common.hash.Striped64$Cell',

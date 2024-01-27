@@ -30,7 +30,7 @@ public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
     // client used for loading data on a remote cluster only.
     private static RestClient remoteClient;
 
-    // gradle defines
+    // gradle defines when using legacy-java-rest-test
     public static final String AUTH_USER = System.getProperty("tests.rest.cluster.multi.user");
     public static final String AUTH_PASS = System.getProperty("tests.rest.cluster.multi.password");
 
@@ -59,9 +59,9 @@ public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
         }
     }
 
-    protected static RestClient clientBuilder(Settings settings, HttpHost[] hosts) throws IOException {
+    public static RestClient clientBuilder(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
-        configureClient(builder, settings);
+        doConfigureClient(builder, settings);
 
         int timeout = Math.toIntExact(timeout().millis());
         builder.setRequestConfigCallback(
@@ -77,10 +77,20 @@ public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
         return TimeValue.timeValueSeconds(CLIENT_TIMEOUT);
     }
 
-    // returned client is used to load the test data, either in the local cluster (for rest/javaRestTests) or a remote one (for
-    // multi-cluster). note: the client()/adminClient() will always connect to the local cluster.
-    protected static RestClient provisioningClient() {
+    /**
+     * Use this when using the {@code legacy-java-rest-test} plugin.
+     * @return a client to the remote cluster if it exists, otherwise a client to the local cluster
+     */
+    public static RestClient defaultProvisioningClient() {
         return remoteClient == null ? client() : remoteClient;
+    }
+
+    /**
+     * Override if the test data must be provisioned on a remote cluster while not using the {@code legacy-java-rest-test} plugin.
+     * @return client to use for loading test data
+     */
+    protected RestClient provisioningClient() {
+        return defaultProvisioningClient();
     }
 
     @Override

@@ -9,6 +9,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -90,7 +91,7 @@ public class DelayableWriteableTests extends ESTestCase {
         private final TransportVersion version;
 
         SneakOtherSideVersionOnWire() {
-            version = TransportVersion.CURRENT;
+            version = TransportVersion.current();
         }
 
         SneakOtherSideVersionOnWire(StreamInput in) throws IOException {
@@ -157,7 +158,7 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     private <T extends Writeable> void roundTripTestCase(DelayableWriteable<T> original, Writeable.Reader<T> reader) throws IOException {
-        DelayableWriteable<T> roundTripped = roundTrip(original, reader, TransportVersion.CURRENT);
+        DelayableWriteable<T> roundTripped = roundTrip(original, reader, TransportVersion.current());
         assertThat(roundTripped.expand(), equalTo(original.expand()));
     }
 
@@ -169,7 +170,7 @@ public class DelayableWriteableTests extends ESTestCase {
         DelayableWriteable<T> delayed = copyInstance(
             original,
             writableRegistry(),
-            (out, d) -> d.writeTo(out),
+            StreamOutput::writeWriteable,
             in -> DelayableWriteable.delayed(reader, in),
             version
         );
@@ -178,7 +179,7 @@ public class DelayableWriteableTests extends ESTestCase {
         DelayableWriteable<T> referencing = copyInstance(
             original,
             writableRegistry(),
-            (out, d) -> d.writeTo(out),
+            StreamOutput::writeWriteable,
             in -> DelayableWriteable.referencing(reader, in),
             version
         );
@@ -195,8 +196,8 @@ public class DelayableWriteableTests extends ESTestCase {
     private static TransportVersion randomOldVersion() {
         return TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.CURRENT)
+            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );
     }
 }

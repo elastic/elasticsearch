@@ -2,10 +2,10 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+branch-protection
     display-name: "elastic / elasticsearch # %BRANCH% - branch protection"
-    description: Elasticsearch %BRANCH% branch protection.
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     node: master
-    triggers:
-      - timed: "H 7 * * *"
+    triggers: []
     scm: []
     parameters: []
     builders:

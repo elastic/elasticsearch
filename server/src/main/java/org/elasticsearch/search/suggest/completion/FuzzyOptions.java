@@ -62,12 +62,12 @@ public class FuzzyOptions implements ToXContentFragment, Writeable {
         return new Builder();
     }
 
-    private int editDistance;
-    private boolean transpositions;
-    private int fuzzyMinLength;
-    private int fuzzyPrefixLength;
-    private boolean unicodeAware;
-    private int maxDeterminizedStates;
+    private final int editDistance;
+    private final boolean transpositions;
+    private final int fuzzyMinLength;
+    private final int fuzzyPrefixLength;
+    private final boolean unicodeAware;
+    private final int maxDeterminizedStates;
 
     private FuzzyOptions(
         int editDistance,

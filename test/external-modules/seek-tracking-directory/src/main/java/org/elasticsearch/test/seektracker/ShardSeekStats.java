@@ -20,13 +20,13 @@ import java.util.Map;
 public record ShardSeekStats(String shard, Map<String, Long> seeksPerFile) implements Writeable, ToXContentObject {
 
     public ShardSeekStats(StreamInput in) throws IOException {
-        this(in.readString(), in.readMap(StreamInput::readString, StreamInput::readLong));
+        this(in.readString(), in.readMap(StreamInput::readLong));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(this.shard);
-        out.writeMap(this.seeksPerFile, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(this.seeksPerFile, StreamOutput::writeLong);
     }
 
     @Override

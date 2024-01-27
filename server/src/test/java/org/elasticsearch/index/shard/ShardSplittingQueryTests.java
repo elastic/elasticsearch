@@ -22,12 +22,13 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
@@ -46,10 +47,10 @@ public class ShardSplittingQueryTests extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        RandomIndexWriter writer = createIndexWriter(dir);
         int numShards = randomIntBetween(2, 10);
         IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0)
@@ -72,10 +73,10 @@ public class ShardSplittingQueryTests extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        RandomIndexWriter writer = createIndexWriter(dir);
         int numShards = randomIntBetween(2, 10);
         IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0)
@@ -97,10 +98,10 @@ public class ShardSplittingQueryTests extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        RandomIndexWriter writer = createIndexWriter(dir);
         int numShards = randomIntBetween(2, 10);
         IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0)
@@ -124,10 +125,10 @@ public class ShardSplittingQueryTests extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        RandomIndexWriter writer = createIndexWriter(dir);
         int numShards = randomIntBetween(2, 10);
         IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .routingPartitionSize(randomIntBetween(1, 10))
@@ -148,14 +149,14 @@ public class ShardSplittingQueryTests extends ESTestCase {
 
     void assertSplit(Directory dir, IndexMetadata metadata, int targetShardId, boolean hasNested) throws IOException {
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            IndexSearcher searcher = new IndexSearcher(reader);
+            IndexSearcher searcher = newSearcher(reader);
             searcher.setQueryCache(null);
             final Weight splitWeight = searcher.createWeight(
                 searcher.rewrite(new ShardSplittingQuery(metadata, targetShardId, hasNested)),
                 ScoreMode.COMPLETE_NO_SCORES,
                 1f
             );
-            final List<LeafReaderContext> leaves = reader.leaves();
+            final List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
             for (final LeafReaderContext ctx : leaves) {
                 Scorer scorer = splitWeight.scorer(ctx);
                 DocIdSetIterator iterator = scorer.iterator();
@@ -235,5 +236,13 @@ public class ShardSplittingQueryTests extends ESTestCase {
 
     private int shardId(IndexRouting indexRouting, int id, @Nullable String routing) {
         return indexRouting.getShard(Integer.toString(id), routing);
+    }
+
+    private static RandomIndexWriter createIndexWriter(Directory dir) throws IOException {
+        return new RandomIndexWriter(
+            random(),
+            dir,
+            LuceneTestCase.newIndexWriterConfig().setMergePolicy(LuceneTestCase.newMergePolicy(random(), false))
+        );
     }
 }

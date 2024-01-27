@@ -17,7 +17,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -86,11 +85,9 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = newIndexSearcher(reader);
-
                 // Search "odd" which should have no duplication
                 InternalSampler sampler = searchAndReduce(
-                    searcher,
+                    reader,
                     new AggTestConfig(aggBuilder, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
                 );
                 SignificantTerms terms = sampler.getAggregations().get("sig_text");
@@ -102,7 +99,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
                 // Search "even" which will have duplication
                 sampler = searchAndReduce(
-                    searcher,
+                    reader,
                     new AggTestConfig(aggBuilder, textFieldType).withQuery(new TermQuery(new Term("text", "even")))
                 );
                 terms = sampler.getAggregations().get("sig_text");
@@ -137,8 +134,6 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = newIndexSearcher(reader);
-
                 // Inclusive of values
                 {
                     SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").includeExclude(
@@ -150,7 +145,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                     }
                     // Search "even" which should have duplication
                     InternalSampler sampler = searchAndReduce(
-                        searcher,
+                        reader,
                         new AggTestConfig(aggBuilder, textFieldType).withQuery(new TermQuery(new Term("text", "even")))
                     );
                     SignificantTerms terms = sampler.getAggregations().get("sig_text");
@@ -171,7 +166,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                     }
                     // Search "even" which should have duplication
                     InternalSampler sampler = searchAndReduce(
-                        searcher,
+                        reader,
                         new AggTestConfig(aggBuilder, textFieldType).withQuery(new TermQuery(new Term("text", "even")))
                     );
                     SignificantTerms terms = sampler.getAggregations().get("sig_text");
@@ -202,9 +197,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").subAggregation(sigAgg);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
                 InternalSampler sampler = searchAndReduce(
-                    searcher,
+                    reader,
                     new AggTestConfig(aggBuilder, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
                 );
                 SignificantTerms terms = sampler.getAggregations().get("sig_text");
@@ -233,17 +227,16 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = newIndexSearcher(reader);
 
                 SamplerAggregationBuilder samplerAgg = sampler("sampler").subAggregation(agg);
                 SamplerAggregationBuilder aliasSamplerAgg = sampler("sampler").subAggregation(aliasAgg);
 
                 InternalSampler sampler = searchAndReduce(
-                    searcher,
+                    reader,
                     new AggTestConfig(samplerAgg, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
                 );
                 InternalSampler aliasSampler = searchAndReduce(
-                    searcher,
+                    reader,
                     new AggTestConfig(aliasSamplerAgg, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
                 );
 
@@ -253,11 +246,11 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 assertEquals(terms, aliasTerms);
 
                 sampler = searchAndReduce(
-                    searcher,
+                    reader,
                     new AggTestConfig(samplerAgg, textFieldType).withQuery(new TermQuery(new Term("text", "even")))
                 );
                 aliasSampler = searchAndReduce(
-                    searcher,
+                    reader,
                     new AggTestConfig(aliasSamplerAgg, textFieldType).withQuery(new TermQuery(new Term("text", "even")))
                 );
 
@@ -286,9 +279,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
 
-                StringTerms terms = searchAndReduce(searcher, new AggTestConfig(aggBuilder, textFieldType, keywordField("kwd")));
+                StringTerms terms = searchAndReduce(reader, new AggTestConfig(aggBuilder, textFieldType, keywordField("kwd")));
                 SignificantTerms sigOdd = terms.getBucketByKey("odd").getAggregations().get("sig_text");
                 assertNull(sigOdd.getBucketByKey("even"));
                 assertNull(sigOdd.getBucketByKey("duplicate"));
@@ -348,8 +340,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             sigAgg.sourceFieldNames(Arrays.asList(new String[] { "title", "text" }));
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
-                searchAndReduce(searcher, new AggTestConfig(sigAgg, textFieldType).withQuery(new TermQuery(new Term("text", "foo"))));
+                searchAndReduce(reader, new AggTestConfig(sigAgg, textFieldType).withQuery(new TermQuery(new Term("text", "foo"))));
                 // No significant results to be found in this test - only checking we don't end up
                 // with the internal exception discovered in issue https://github.com/elastic/elasticsearch/issues/25029
             }

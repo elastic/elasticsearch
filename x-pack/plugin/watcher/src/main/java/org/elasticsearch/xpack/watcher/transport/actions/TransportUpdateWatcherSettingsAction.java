@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.watcher.transport.actions;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -23,7 +24,7 @@ import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -36,7 +37,19 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
     UpdateWatcherSettingsAction.Request,
     AcknowledgedResponse> {
 
-    public static final String WATCHER_INDEX_NAME = ".watches";
+    static final String WATCHER_INDEX_NAME = ".watches";
+
+    static final IndicesRequest WATCHER_INDEX_REQUEST = new IndicesRequest() {
+        @Override
+        public String[] indices() {
+            return new String[] { WATCHER_INDEX_NAME };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.LENIENT_EXPAND_OPEN;
+        }
+    };
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateWatcherSettingsAction.class);
     private final MetadataUpdateSettingsService updateSettingsService;
@@ -59,7 +72,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
             UpdateWatcherSettingsAction.Request::new,
             indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.updateSettingsService = updateSettingsService;
     }
@@ -82,27 +95,23 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
             new Index[] { watcherIndexMd.getIndex() }
         ).settings(newSettings).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
 
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        // Stashing and un-stashing the context allows warning headers about accessing a system index to be ignored.
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    if (acknowledgedResponse.isAcknowledged()) {
-                        logger.info("successfully updated Watcher service settings to {}", request.settings());
-                    } else {
-                        logger.warn("updating Watcher service settings to {} was not acknowledged", request.settings());
-                    }
-                    listener.onResponse(acknowledgedResponse);
+        updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                if (acknowledgedResponse.isAcknowledged()) {
+                    logger.info("successfully updated Watcher service settings to {}", request.settings());
+                } else {
+                    logger.warn("updating Watcher service settings to {} was not acknowledged", request.settings());
                 }
+                listener.onResponse(acknowledgedResponse);
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(() -> "failed to update settings for Watcher service", e);
-                    listener.onFailure(e);
-                }
-            });
-        }
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug(() -> "failed to update settings for Watcher service", e);
+                listener.onFailure(e);
+            }
+        });
     }
 
     @Override
@@ -114,7 +123,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
         return state.blocks()
             .indicesBlockedException(
                 ClusterBlockLevel.METADATA_WRITE,
-                indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.LENIENT_EXPAND_OPEN, WATCHER_INDEX_NAME)
+                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, WATCHER_INDEX_REQUEST)
             );
     }
 }

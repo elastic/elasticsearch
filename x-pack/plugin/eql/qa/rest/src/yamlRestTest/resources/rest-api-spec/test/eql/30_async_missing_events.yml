@@ -1,0 +1,61 @@
+---
+setup:
+  - do:
+      indices.create:
+          index:  eql_test
+          body:
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                event.category:
+                  type: keyword
+                user:
+                  type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: eql_test
+              _id:    "1"
+          - event:
+              - category: process
+            "@timestamp": 2023-07-11T11:09:05.529Z
+            user: foo
+          - index:
+              _index: eql_test
+              _id:    "2"
+          - event:
+              - category: process
+            "@timestamp": 2023-07-11T11:09:06.529Z
+            user: bar
+
+---
+
+"Execute async EQL with missing events":
+  - do:
+      eql.search:
+        index: eql_test
+        wait_for_completion_timeout: "0ms"
+        keep_on_completion: true
+        body:
+          query: 'sequence with maxspan=24h [ process where true ] ![ process where true ]'
+
+  - is_true: id
+  - set: {id: id}
+  - gte: {took: 0}
+
+  - do:
+      eql.get:
+        id: $id
+        wait_for_completion_timeout: "10s"
+
+  - match: {is_running: false}
+  - match: {is_partial: false}
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.events.0._source.user: "bar"}
+  - match: {hits.sequences.0.events.1.missing: true}

@@ -26,12 +26,12 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     implements
         WriteRequestBuilder<UpdateRequestBuilder> {
 
-    public UpdateRequestBuilder(ElasticsearchClient client, UpdateAction action) {
-        super(client, action, new UpdateRequest());
+    public UpdateRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportUpdateAction.TYPE, new UpdateRequest());
     }
 
-    public UpdateRequestBuilder(ElasticsearchClient client, UpdateAction action, String index, String id) {
-        super(client, action, new UpdateRequest(index, id));
+    public UpdateRequestBuilder(ElasticsearchClient client, String index, String id) {
+        super(client, TransportUpdateAction.TYPE, new UpdateRequest(index, id));
     }
 
     /**
@@ -348,4 +348,11 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
+    /**
+     * Sets the require_alias flag
+     */
+    public UpdateRequestBuilder setRequireAlias(boolean requireAlias) {
+        request.setRequireAlias(requireAlias);
+        return this;
+    }
 }

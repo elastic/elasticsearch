@@ -9,13 +9,13 @@ package org.elasticsearch.license;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.license.internal.TrialLicenseVersion;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
@@ -87,7 +87,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
             .type(type)
             .expiryDate(expiryDate);
         License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentState.nodes());
-        Version trialVersion = currentLicenseMetadata.getMostRecentTrialVersion();
+        TrialLicenseVersion trialVersion = currentLicenseMetadata.getMostRecentTrialVersion();
         LicensesMetadata newLicenseMetadata = new LicensesMetadata(selfGeneratedLicense, trialVersion);
         mdBuilder.putCustom(LicensesMetadata.TYPE, newLicenseMetadata);
         logger.info(
@@ -129,7 +129,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
             .type(License.LicenseType.BASIC)
             .expiryDate(LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
         License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentLicense.version());
-        Version trialVersion = currentLicenseMetadata.getMostRecentTrialVersion();
+        TrialLicenseVersion trialVersion = currentLicenseMetadata.getMostRecentTrialVersion();
         return new LicensesMetadata(selfGeneratedLicense, trialVersion);
     }
 
@@ -152,7 +152,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
         License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentState.nodes());
         LicensesMetadata licensesMetadata;
         if (License.LicenseType.TRIAL.equals(type)) {
-            licensesMetadata = new LicensesMetadata(selfGeneratedLicense, Version.CURRENT);
+            licensesMetadata = new LicensesMetadata(selfGeneratedLicense, TrialLicenseVersion.CURRENT);
         } else {
             licensesMetadata = new LicensesMetadata(selfGeneratedLicense, null);
         }

@@ -9,6 +9,7 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -17,22 +18,17 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 /**
  * Holds the results of the most recent attempt to migrate system indices. Updated by {@link SystemIndexMigrator} as it finishes each
@@ -40,27 +36,9 @@ import java.util.stream.Collectors;
  */
 public class FeatureMigrationResults implements Metadata.Custom {
     public static final String TYPE = "system_index_migration";
-    public static final TransportVersion MIGRATION_ADDED_VERSION = TransportVersion.V_8_0_0;
+    public static final TransportVersion MIGRATION_ADDED_VERSION = TransportVersions.V_8_0_0;
 
-    private static final ParseField RESULTS_FIELD = new ParseField("results");
-
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<FeatureMigrationResults, Void> PARSER = new ConstructingObjectParser<>(TYPE, a -> {
-        final Map<String, SingleFeatureMigrationResult> statuses = ((List<Tuple<String, SingleFeatureMigrationResult>>) a[0]).stream()
-            .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-        return new FeatureMigrationResults(statuses);
-    });
-
-    static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> new Tuple<>(n, SingleFeatureMigrationResult.fromXContent(p)),
-            v -> {
-                throw new IllegalArgumentException("ordered " + RESULTS_FIELD.getPreferredName() + " are not supported");
-            },
-            RESULTS_FIELD
-        );
-    }
+    static final ParseField RESULTS_FIELD = new ParseField("results");
 
     private final Map<String, SingleFeatureMigrationResult> featureStatuses;
 
@@ -69,25 +47,17 @@ public class FeatureMigrationResults implements Metadata.Custom {
     }
 
     public FeatureMigrationResults(StreamInput in) throws IOException {
-        this.featureStatuses = in.readMap(StreamInput::readString, SingleFeatureMigrationResult::new);
+        this.featureStatuses = in.readMap(SingleFeatureMigrationResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(
-            featureStatuses,
-            (StreamOutput outStream, String featureName) -> outStream.writeString(featureName),
-            (StreamOutput outStream, SingleFeatureMigrationResult featureStatus) -> featureStatus.writeTo(outStream)
-        );
+        out.writeMap(featureStatuses, StreamOutput::writeWriteable);
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return ChunkedToXContentHelper.xContentValuesMap(RESULTS_FIELD.getPreferredName(), featureStatuses);
-    }
-
-    public static FeatureMigrationResults fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     /**

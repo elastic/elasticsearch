@@ -131,13 +131,13 @@ public abstract class ExportBulk {
             SetOnce<ExportException> exceptionRef,
             ActionListener<Void> listener
         ) {
-            return ActionListener.wrap(r -> {
+            return listener.delegateFailureAndWrap((l, r) -> {
                 if (exceptionRef.get() == null) {
-                    listener.onResponse(null);
+                    l.onResponse(null);
                 } else {
-                    listener.onFailure(exceptionRef.get());
+                    l.onFailure(exceptionRef.get());
                 }
-            }, listener::onFailure);
+            });
         }
     }
 

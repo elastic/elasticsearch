@@ -11,6 +11,7 @@ package org.elasticsearch.test;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -28,6 +30,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -115,12 +118,12 @@ import org.elasticsearch.search.aggregations.metrics.ParsedStats;
 import org.elasticsearch.search.aggregations.metrics.ParsedSum;
 import org.elasticsearch.search.aggregations.metrics.ParsedTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.ParsedTDigestPercentiles;
-import org.elasticsearch.search.aggregations.metrics.ParsedTopHits;
 import org.elasticsearch.search.aggregations.metrics.ParsedValueCount;
 import org.elasticsearch.search.aggregations.metrics.ParsedWeightedAvg;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
@@ -139,6 +142,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -237,8 +241,10 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         }
     };
 
+    @SuppressWarnings("this-escape")
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(getNamedWriteables());
 
+    @SuppressWarnings("this-escape")
     private final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(getNamedXContents());
 
     private static final List<NamedXContentRegistry.Entry> namedXContents;
@@ -389,7 +395,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return b;
     }
 
-    private void collectSubBuilderNames(Map<String, Object> names, InternalAggregation result) {
+    private static void collectSubBuilderNames(Map<String, Object> names, InternalAggregation result) {
         result.forEachBucket(ia -> {
             for (InternalAggregation a : ia.copyResults()) {
                 @SuppressWarnings("unchecked")
@@ -731,7 +737,48 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
+        }
+    }
+
+    protected static class ParsedTopHits extends ParsedAggregation implements TopHits {
+
+        private SearchHits searchHits;
+
+        @Override
+        public String getType() {
+            return TopHitsAggregationBuilder.NAME;
+        }
+
+        @Override
+        public SearchHits getHits() {
+            return searchHits;
+        }
+
+        @Override
+        protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            return ChunkedToXContent.wrapAsToXContent(searchHits).toXContent(builder, params);
+        }
+
+        private static final ObjectParser<ParsedTopHits, Void> PARSER = new ObjectParser<>(
+            ParsedTopHits.class.getSimpleName(),
+            true,
+            ParsedTopHits::new
+        );
+
+        static {
+            declareAggregationFields(PARSER);
+            PARSER.declareObject(
+                (topHit, searchHits) -> topHit.searchHits = searchHits,
+                (parser, context) -> SearchHits.fromXContent(parser),
+                new ParseField(SearchHits.Fields.HITS)
+            );
+        }
+
+        public static ParsedTopHits fromXContent(XContentParser parser, String name) throws IOException {
+            ParsedTopHits aggregation = PARSER.parse(parser, null);
+            aggregation.setName(name);
+            return aggregation;
         }
     }
 }

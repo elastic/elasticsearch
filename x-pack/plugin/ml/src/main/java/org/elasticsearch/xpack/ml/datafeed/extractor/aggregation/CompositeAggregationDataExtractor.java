@@ -17,11 +17,12 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -70,7 +71,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
         this.requestBuilder = Objects.requireNonNull(requestBuilder);
-        this.interval = ExtractorUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
+        this.interval = DatafeedConfigUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
         this.hasNext = true;
     }
 
@@ -88,6 +89,11 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     public void cancel() {
         LOGGER.debug(() -> "[" + context.jobId + "] Data extractor received cancel request");
         isCancelled = true;
+    }
+
+    @Override
+    public void destroy() {
+        cancel();
     }
 
     @Override
@@ -122,7 +128,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             () -> format("[%s] Executing composite aggregated search from [%s] to [%s]", context.jobId, context.start, context.end)
         );
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
-            .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end));
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end));
 
         if (context.runtimeMappings.isEmpty() == false) {
             searchSourceBuilder.runtimeMappings(context.runtimeMappings);
@@ -133,17 +139,21 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         searchSourceBuilder.aggregation(compositeAggregationBuilder);
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(searchSourceBuilder);
         SearchResponse searchResponse = executeSearchRequest(searchRequest);
-        LOGGER.trace(() -> "[" + context.jobId + "] Search composite response was obtained");
-        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        Aggregations aggregations = searchResponse.getAggregations();
-        if (aggregations == null) {
-            return null;
+        try {
+            LOGGER.trace(() -> "[" + context.jobId + "] Search composite response was obtained");
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            Aggregations aggregations = searchResponse.getAggregations();
+            if (aggregations == null) {
+                return null;
+            }
+            CompositeAggregation compositeAgg = aggregations.get(compositeAggregationBuilder.getName());
+            if (compositeAgg == null || compositeAgg.getBuckets().isEmpty()) {
+                return null;
+            }
+            return aggregations;
+        } finally {
+            searchResponse.decRef();
         }
-        CompositeAggregation compositeAgg = aggregations.get(compositeAggregationBuilder.getName());
-        if (compositeAgg == null || compositeAgg.getBuckets().isEmpty()) {
-            return null;
-        }
-        return aggregations;
     }
 
     protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
@@ -153,7 +163,15 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             client,
             searchRequestBuilder::get
         );
-        checkForSkippedClusters(searchResponse);
+        boolean success = false;
+        try {
+            checkForSkippedClusters(searchResponse);
+            success = true;
+        } finally {
+            if (success == false) {
+                searchResponse.decRef();
+            }
+        }
         return searchResponse;
     }
 

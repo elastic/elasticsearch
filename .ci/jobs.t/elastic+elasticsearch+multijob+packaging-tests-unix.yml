@@ -31,9 +31,9 @@
             - almalinux-8-packaging
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructivePackagingTest
+          ./.ci/scripts/packaging-test.sh destructivePackagingTest

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -192,6 +191,9 @@ public final class ClientHelper {
     public static final String LOGSTASH_MANAGEMENT_ORIGIN = "logstash_management";
     public static final String FLEET_ORIGIN = "fleet";
     public static final String ENT_SEARCH_ORIGIN = "enterprise_search";
+    public static final String CONNECTORS_ORIGIN = "connectors";
+    public static final String INFERENCE_ORIGIN = "inference";
+    public static final String APM_ORIGIN = "apm";
 
     private ClientHelper() {}
 
@@ -207,7 +209,7 @@ public final class ClientHelper {
     /**
      * Executes a consumer after setting the origin and wrapping the listener so that the proper context is restored
      */
-    public static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithOrigin(
+    public static <Request, Response> void executeAsyncWithOrigin(
         ThreadContext threadContext,
         String origin,
         Request request,
@@ -224,21 +226,14 @@ public final class ClientHelper {
      * Executes an asynchronous action using the provided client. The origin is set in the context and the listener
      * is wrapped to ensure the proper context is restored
      */
-    public static <
-        Request extends ActionRequest,
-        Response extends ActionResponse,
-        RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeAsyncWithOrigin(
-            Client client,
-            String origin,
-            ActionType<Response> action,
-            Request request,
-            ActionListener<Response> listener
-        ) {
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-        try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(origin)) {
-            client.execute(action, request, new ContextPreservingActionListener<>(supplier, listener));
-        }
+    public static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithOrigin(
+        Client client,
+        String origin,
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), origin, request, listener, (r, l) -> client.execute(action, r, l));
     }
 
     /**
@@ -301,17 +296,34 @@ public final class ClientHelper {
         Request request,
         ActionListener<Response> listener
     ) {
+        executeWithHeadersAsync(
+            client.threadPool().getThreadContext(),
+            headers,
+            origin,
+            request,
+            listener,
+            (r, l) -> client.execute(action, r, l)
+        );
+    }
+
+    public static <Request, Response> void executeWithHeadersAsync(
+        ThreadContext threadContext,
+        Map<String, String> headers,
+        String origin,
+        Request request,
+        ActionListener<Response> listener,
+        BiConsumer<Request, ActionListener<Response>> consumer
+    ) {
         // No need to rewrite authentication header because it will be handled by Security Interceptor
         final Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
         // No headers (e.g. security not installed/in use) so execute as origin
         if (filteredHeaders.isEmpty()) {
-            ClientHelper.executeAsyncWithOrigin(client, origin, action, request, listener);
+            executeAsyncWithOrigin(threadContext, origin, request, listener, consumer);
         } else {
             // Otherwise stash the context and copy in the saved headers before executing
             final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
             try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
-                client.execute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+                consumer.accept(request, new ContextPreservingActionListener<>(supplier, listener));
             }
         }
     }

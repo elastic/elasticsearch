@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -126,12 +130,12 @@ public class InternalUsers {
     );
 
     /**
-     * Internal user that manages DLM. Has all indices permissions to perform DLM runtime tasks.
+     * Internal user that manages the data stream lifecycle. Has all indices permissions to perform data stream lifecycle runtime tasks.
      */
-    public static final InternalUser DLM_USER = new InternalUser(
-        UsernamesField.DLM_NAME,
+    public static final InternalUser DATA_STREAM_LIFECYCLE_USER = new InternalUser(
+        UsernamesField.DATA_STREAM_LIFECYCLE_NAME,
         new RoleDescriptor(
-            UsernamesField.DLM_ROLE,
+            UsernamesField.DATA_STREAM_LIFECYCLE_ROLE,
             new String[] {},
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -141,21 +145,29 @@ public class InternalUsers {
                         RolloverAction.NAME,
                         ForceMergeAction.NAME + "*",
                         // indices stats is used by rollover, so we need to grant it here
-                        IndicesStatsAction.NAME + "*"
+                        IndicesStatsAction.NAME + "*",
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        DownsampleAction.NAME,
+                        AddIndexBlockAction.NAME
                     )
                     .allowRestrictedIndices(false)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
-                        ".fleet-actions-results"
+                        ".fleet-actions-results",
+                        // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
+                        ".fleet-fileds*"
                     )
                     .privileges(
                         "delete_index",
                         RolloverAction.NAME,
                         ForceMergeAction.NAME + "*",
                         // indices stats is used by rollover, so we need to grant it here
-                        IndicesStatsAction.NAME + "*"
+                        IndicesStatsAction.NAME + "*",
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        DownsampleAction.NAME,
+                        AddIndexBlockAction.NAME
                     )
                     .allowRestrictedIndices(true)
                     .build() },
@@ -167,8 +179,26 @@ public class InternalUsers {
         )
     );
 
+    /**
+     * internal user that manages synonyms via the Synonyms API. Operates on the synonyms system index
+     */
+    public static final InternalUser SYNONYMS_USER = new InternalUser(
+        UsernamesField.SYNONYMS_USER_NAME,
+        new RoleDescriptor(
+            UsernamesField.SYNONYMS_ROLE_NAME,
+            null,
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges(TransportReloadAnalyzersAction.TYPE.name()).build(), },
+            null,
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
     public static final SystemUser SYSTEM_USER = SystemUser.INSTANCE;
-    public static final InternalUser CROSS_CLUSTER_ACCESS_USER = CrossClusterAccessUser.INSTANCE;
 
     private static final Map<String, InternalUser> INTERNAL_USERS;
 
@@ -179,9 +209,9 @@ public class InternalUsers {
             XPACK_SECURITY_USER,
             SECURITY_PROFILE_USER,
             ASYNC_SEARCH_USER,
-            CROSS_CLUSTER_ACCESS_USER,
             STORAGE_USER,
-            DLM_USER
+            DATA_STREAM_LIFECYCLE_USER,
+            SYNONYMS_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }
 

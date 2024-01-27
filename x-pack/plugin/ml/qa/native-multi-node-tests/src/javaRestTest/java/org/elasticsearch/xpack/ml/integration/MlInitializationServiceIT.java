@@ -199,9 +199,7 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private static Map<String, Settings> getIndexToSettingsMap(List<String> indexNames) {
-        GetSettingsResponse getSettingsResponse = client().admin()
-            .indices()
-            .prepareGetSettings()
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings()
             .setIndices(indexNames.toArray(String[]::new))
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get();
@@ -210,9 +208,7 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private static Map<String, List<AliasMetadata>> getIndexToAliasesMap(List<String> indexNames) {
-        GetAliasesResponse getAliasesResponse = client().admin()
-            .indices()
-            .prepareGetAliases()
+        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases()
             .setIndices(indexNames.toArray(String[]::new))
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get();

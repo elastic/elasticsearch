@@ -13,8 +13,10 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -29,6 +31,7 @@ import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_NAMES_XCONTENT_PARA
 /**
  * Returns information about snapshot
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetSnapshotsAction extends BaseRestHandler {
 
     public RestGetSnapshotsAction() {}
@@ -79,6 +82,6 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
-            .getSnapshots(getSnapshotsRequest, new RestChunkedToXContentListener<>(channel));
+            .getSnapshots(getSnapshotsRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 }

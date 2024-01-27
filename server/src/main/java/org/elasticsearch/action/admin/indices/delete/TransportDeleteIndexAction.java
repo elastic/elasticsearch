@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.delete;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,6 +37,7 @@ import java.util.Set;
  */
 public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeAction<DeleteIndexRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/delete");
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexAction.class);
 
     private final MetadataDeleteIndexService deleteIndexService;
@@ -51,14 +54,14 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
         DestructiveOperations destructiveOperations
     ) {
         super(
-            DeleteIndexAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             DeleteIndexRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.deleteIndexService = deleteIndexService;
         this.destructiveOperations = destructiveOperations;

@@ -1,0 +1,33 @@
+[discrete]
+[[esql-sin]]
+=== `SIN`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/sin.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+{wikipedia}/Sine_and_cosine[Sine] trigonometric function. Input expected in
+radians.
+
+*Supported types*
+
+include::types/sin.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/floats.csv-spec[tag=sin]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/floats.csv-spec[tag=sin-result]
+|===

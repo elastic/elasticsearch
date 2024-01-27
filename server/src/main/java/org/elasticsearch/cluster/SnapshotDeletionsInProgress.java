@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.ToXContent;
@@ -27,7 +29,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -56,7 +57,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     public SnapshotDeletionsInProgress(StreamInput in) throws IOException {
-        this(in.readImmutableList(Entry::new));
+        this(in.readCollectionAsImmutableList(Entry::readFrom));
     }
 
     private static boolean assertNoConcurrentDeletionsForSameRepository(List<Entry> entries) {
@@ -68,6 +69,10 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             }
         }
         return true;
+    }
+
+    public static SnapshotDeletionsInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
     }
 
     /**
@@ -149,7 +154,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(entries);
+        out.writeCollection(entries);
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -158,14 +163,14 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.MINIMUM_COMPATIBLE;
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
             Iterators.single((builder, params) -> builder.startArray(TYPE)),
-            entries.stream().<ToXContent>map(entry -> (builder, params) -> {
+            Iterators.map(entries.iterator(), entry -> (builder, params) -> {
                 builder.startObject();
                 {
                     builder.field("repository", entry.repository());
@@ -180,7 +185,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 }
                 builder.endObject();
                 return builder;
-            }).iterator(),
+            }),
             Iterators.single((builder, params) -> builder.endArray())
         );
     }
@@ -189,7 +194,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public String toString() {
         StringBuilder builder = new StringBuilder("SnapshotDeletionsInProgress[");
         for (int i = 0; i < entries.size(); i++) {
-            builder.append(entries.get(i).getSnapshots());
+            builder.append(entries.get(i).snapshots());
             if (i + 1 < entries.size()) {
                 builder.append(",");
             }
@@ -200,98 +205,56 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     /**
      * A class representing a snapshot deletion request entry in the cluster state.
      */
-    public static final class Entry implements Writeable, RepositoryOperation {
-        private final List<SnapshotId> snapshots;
-        private final String repoName;
-        private final State state;
-        private final long startTime;
-        private final long repositoryStateId;
-        private final String uuid;
+    public record Entry(String repoName, List<SnapshotId> snapshots, long startTime, long repositoryStateId, State state, String uuid)
+        implements
+            Writeable,
+            RepositoryOperation {
 
-        public Entry(List<SnapshotId> snapshots, String repoName, long startTime, long repositoryStateId, State state) {
-            this(snapshots, repoName, startTime, repositoryStateId, state, UUIDs.randomBase64UUID());
+        @SuppressForbidden(reason = "using a private constructor within the same file")
+        public Entry(String repoName, List<SnapshotId> snapshots, long startTime, long repositoryStateId, State state) {
+            this(repoName, snapshots, startTime, repositoryStateId, state, UUIDs.randomBase64UUID());
         }
 
-        private Entry(List<SnapshotId> snapshots, String repoName, long startTime, long repositoryStateId, State state, String uuid) {
-            this.snapshots = snapshots;
+        public Entry {
             assert snapshots.size() == new HashSet<>(snapshots).size() : "Duplicate snapshot ids in " + snapshots;
-            this.repoName = repoName;
-            this.startTime = startTime;
-            this.repositoryStateId = repositoryStateId;
-            this.state = state;
-            this.uuid = uuid;
         }
 
-        public Entry(StreamInput in) throws IOException {
-            this.repoName = in.readString();
-            this.snapshots = in.readImmutableList(SnapshotId::new);
-            this.startTime = in.readVLong();
-            this.repositoryStateId = in.readLong();
-            this.state = State.readFrom(in);
-            this.uuid = in.readString();
+        @SuppressForbidden(reason = "using a private constructor within the same file")
+        public static Entry readFrom(StreamInput in) throws IOException {
+            return new Entry(
+                in.readString(),
+                in.readCollectionAsImmutableList(SnapshotId::new),
+                in.readVLong(),
+                in.readLong(),
+                State.readFrom(in),
+                in.readString()
+            );
         }
 
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public Entry started() {
             assert state == State.WAITING;
-            return new Entry(snapshots, repository(), startTime, repositoryStateId, State.STARTED, uuid);
+            return new Entry(repository(), snapshots, startTime, repositoryStateId, State.STARTED, uuid);
         }
 
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public Entry withAddedSnapshots(Collection<SnapshotId> newSnapshots) {
             assert state == State.WAITING;
             final Collection<SnapshotId> updatedSnapshots = new HashSet<>(snapshots);
             if (updatedSnapshots.addAll(newSnapshots) == false) {
                 return this;
             }
-            return new Entry(List.copyOf(updatedSnapshots), repository(), startTime, repositoryStateId, State.WAITING, uuid);
+            return new Entry(repository(), List.copyOf(updatedSnapshots), startTime, repositoryStateId, State.WAITING, uuid);
         }
 
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public Entry withSnapshots(Collection<SnapshotId> snapshots) {
-            return new Entry(List.copyOf(snapshots), repository(), startTime, repositoryStateId, state, uuid);
+            return new Entry(repository(), List.copyOf(snapshots), startTime, repositoryStateId, state, uuid);
         }
 
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public Entry withRepoGen(long repoGen) {
-            return new Entry(snapshots, repository(), startTime, repoGen, state, uuid);
-        }
-
-        public State state() {
-            return state;
-        }
-
-        public String uuid() {
-            return uuid;
-        }
-
-        public List<SnapshotId> getSnapshots() {
-            return snapshots;
-        }
-
-        /**
-         * The start time in milliseconds for deleting the snapshots.
-         */
-        public long getStartTime() {
-            return startTime;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Entry that = (Entry) o;
-            return repoName.equals(that.repoName)
-                && snapshots.equals(that.snapshots)
-                && startTime == that.startTime
-                && repositoryStateId == that.repositoryStateId
-                && state == that.state
-                && uuid.equals(that.uuid);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(snapshots, repoName, startTime, repositoryStateId, state, uuid);
+            return new Entry(repository(), snapshots, startTime, repoGen, state, uuid);
         }
 
         @Override
@@ -312,11 +275,6 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         @Override
         public long repositoryStateId() {
             return repositoryStateId;
-        }
-
-        @Override
-        public String toString() {
-            return "SnapshotDeletionsInProgress.Entry[[" + uuid + "][" + state + "]" + snapshots + "]";
         }
     }
 

@@ -19,8 +19,6 @@ import static org.hamcrest.Matchers.containsString;
 public class RemoteClusterPortSettingsIT extends ESIntegTestCase {
 
     public void testDirectlyConfiguringTransportProfileForRemoteClusterWillFailToStartTheNode() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         internalCluster().setBootstrapMasterNodeIndex(0);
 
         final Settings.Builder builder = Settings.builder()

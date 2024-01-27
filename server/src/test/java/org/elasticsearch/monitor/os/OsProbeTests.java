@@ -185,20 +185,34 @@ public class OsProbeTests extends ESTestCase {
 
         final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
 
-        if (availableCgroupsVersion > 0) {
-            assertNotNull(cgroup);
-            assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
-            assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(364869866063112L));
-            assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
-            assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
-            assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
-            assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
-            assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
-            assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645489L));
-            assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
-            assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
-        } else {
-            assertNull(cgroup);
+        switch (availableCgroupsVersion) {
+            case 0 -> assertNull(cgroup);
+            case 1 -> {
+                assertNotNull(cgroup);
+                assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
+                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(364869866063112L));
+                assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
+                assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
+                assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
+                assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
+                assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
+                assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645489L));
+                assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
+                assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
+            }
+            case 2 -> {
+                assertNotNull(cgroup);
+                assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
+                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(364869866063000L));
+                assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
+                assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
+                assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
+                assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
+                assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
+                assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645000L));
+                assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
+                assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
+            }
         }
     }
 
@@ -447,12 +461,12 @@ public class OsProbeTests extends ESTestCase {
             List<String> readCgroupV2CpuStats(String controlGroup) {
                 assertThat(controlGroup, equalTo("/" + hierarchy));
                 return List.of(
-                    "usage_usec 364869866063112",
+                    "usage_usec 364869866063",
                     "user_usec 34636",
                     "system_usec 9896",
                     "nr_periods 17992",
                     "nr_throttled 1311",
-                    "throttled_usec 139298645489"
+                    "throttled_usec 139298645"
                 );
             }
 

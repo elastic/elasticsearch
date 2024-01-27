@@ -59,7 +59,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader);
 
         TermQuery termQuery = new TermQuery(new Term("field", String.valueOf(randomInt(maxNumValues))));
         Query rewrittenQuery = indexSearcher.rewrite(termQuery);
@@ -193,7 +193,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+                IndexSearcher indexSearcher = newSearcher(indexReader);
 
                 Query query = new MatchAllDocsQuery();
                 BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(query, indexSearcher, false);

@@ -3,8 +3,6 @@ setup:
       indices.create:
           index: test_1
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 int_field:
@@ -395,7 +393,6 @@ null meta:
   - skip:
       version: " - 7.10.99"
       reason:  cache fixed in 7.11.0
-      features: node_selector
 
   - do:
       bulk:
@@ -409,8 +406,6 @@ null meta:
             string_field: foo bar
 
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         index: test_1
         body:
@@ -442,8 +437,6 @@ null meta:
 
   # This should be entirely fresh because updating the mapping busted the cache.
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         index: test_1
         body:
@@ -475,8 +468,6 @@ nested:
       indices.create:
           index: test_nested
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 i:
@@ -516,16 +507,12 @@ nested:
 
 ---
 "cache hits":
-  - skip:
-      features: node_selector
-
   - do:
       indices.create:
           index: test
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 mentions:
@@ -544,12 +531,11 @@ nested:
           {"mentions" : ["abc"]}
 
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         index: test
         body:
           aggs:
@@ -578,17 +564,16 @@ nested:
   # The first request will miss the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 0 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
 
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         index: test
         body:
           aggs:
@@ -617,6 +602,6 @@ nested:
   # The second result with hit the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 1 }
   - match: { indices.test.total.request_cache.miss_count: 1 }

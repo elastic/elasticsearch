@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -58,6 +59,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
 
     public static final String LOGSTASH_CONCRETE_INDEX_NAME = ".logstash";
     public static final String LOGSTASH_INDEX_NAME_PATTERN = LOGSTASH_CONCRETE_INDEX_NAME + "*";
+    public static final int LOGSTASH_INDEX_MAPPINGS_VERSION = 1;
 
     static final LicensedFeature.Momentary LOGSTASH_FEATURE = LicensedFeature.momentary(null, "logstash", License.OperationMode.STANDARD);
 
@@ -77,6 +79,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -102,7 +105,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
         );
     }
 
-    private Settings getIndexSettings() {
+    private static Settings getIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
@@ -110,7 +113,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private XContentBuilder getIndexMappings() {
+    private static XContentBuilder getIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
             {
@@ -121,6 +124,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
                     {
                         builder.startObject("_meta");
                         builder.field("logstash-version", Version.CURRENT);
+                        builder.field(SystemIndexDescriptor.VERSION_META_KEY, LOGSTASH_INDEX_MAPPINGS_VERSION);
                         builder.endObject();
                     }
                     {

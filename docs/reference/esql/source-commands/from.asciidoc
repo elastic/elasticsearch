@@ -1,0 +1,74 @@
+[discrete]
+[[esql-from]]
+=== `FROM`
+
+**Syntax**
+
+[source,esql]
+----
+FROM index_pattern [METADATA fields]
+----
+
+*Parameters*
+
+`index_pattern`::
+A list of indices, data streams or aliases. Supports wildcards and date math.
+
+`fields`::
+A comma-separated list of <<esql-metadata-fields,metadata fields>> to retrieve.
+
+*Description*
+
+The `FROM` source command returns a table with data from a data stream, index,
+or alias. Each row in the resulting table represents a document. Each column
+corresponds to a field, and can be accessed by the name of that field.
+
+[NOTE]
+====
+By default, an {esql} query without an explicit <<esql-limit>> uses an implicit
+limit of 500. This applies to `FROM` too. A `FROM` command without `LIMIT`:
+
+[source,esql]
+----
+FROM employees
+----
+
+is executed as:
+
+[source,esql]
+----
+FROM employees
+| LIMIT 500
+----
+====
+
+*Examples*
+
+[source,esql]
+----
+FROM employees
+----
+
+You can use <<api-date-math-index-names,date math>> to refer to indices, aliases
+and data streams. This can be useful for time series data, for example to access
+today's index:
+
+[source,esql]
+----
+FROM <logs-{now/d}>
+----
+
+Use comma-separated lists or wildcards to query multiple data streams, indices,
+or aliases:
+
+[source,esql]
+----
+FROM employees-00001,other-employees-*
+----
+
+Use the `METADATA` directive to enable <<esql-metadata-fields,metadata fields>>:
+
+[source,esql]
+----
+FROM employees [METADATA _id]
+----

@@ -1,0 +1,41 @@
+---
+"Test get missing model":
+  - do:
+      catch: missing
+      inference.get_model:
+        task_type: sparse_embedding
+        model_id: model_to_get
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "Model not found [model_to_get]" }
+
+---
+"Test put model with bad task type":
+  - do:
+      catch: bad_request
+      inference.put_model:
+        task_type: bad
+        model_id: elser_model
+        body: >
+          {
+            "service": "elser",
+            "service_settings": {
+              "num_allocations": 1,
+              "num_threads": 1
+            },
+            "task_settings": {
+            }
+          }
+  - match: { error.reason: "Unknown task_type [bad]" }
+
+---
+"Test inference with bad task type":
+  - do:
+      catch: bad_request
+      inference.inference:
+        task_type: bad
+        model_id: elser_model
+        body: >
+          {
+            "input": "important text"
+          }
+  - match: { error.reason: "Unknown task_type [bad]" }

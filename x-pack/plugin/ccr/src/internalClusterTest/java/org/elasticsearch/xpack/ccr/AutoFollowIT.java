@@ -11,7 +11,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.client.internal.Client;
@@ -31,6 +31,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -87,7 +88,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "test index"));
+            return Collections.singletonList(SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "test index"));
         }
 
         @Override
@@ -136,7 +137,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         putAutoFollowPatterns("my-pattern", new String[] { ".*", "logs-*" });
 
         // Trigger system index creation
-        leaderClient().prepareIndex(FakeSystemIndex.SYSTEM_INDEX_NAME).setSource(Map.of("a", "b")).execute().actionGet();
+        leaderClient().prepareIndex(FakeSystemIndex.SYSTEM_INDEX_NAME).setSource(Map.of("a", "b")).get();
 
         Settings leaderIndexSettings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -635,33 +636,30 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollowDatastreamWithClosingFollowerIndex() throws Exception {
         final String datastream = "logs-1";
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("template-id");
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request("template-id");
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("logs-*"),
-                new Template(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .build(),
-                    null,
-                    null
-                ),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("logs-*"))
+                .template(
+                    new Template(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .build(),
+                        null,
+                        null
+                    )
+                )
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
-        assertAcked(leaderClient().execute(PutComposableIndexTemplateAction.INSTANCE, request).get());
+        assertAcked(leaderClient().execute(TransportPutComposableIndexTemplateAction.TYPE, request).get());
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(datastream);
         assertAcked(leaderClient().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
         leaderClient().prepareIndex(datastream)
             .setCreate(true)
-            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD.getName(), randomNonNegativeLong())
+            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD_NAME, randomNonNegativeLong())
             .get();
 
         PutAutoFollowPatternAction.Request followRequest = new PutAutoFollowPatternAction.Request();
@@ -692,12 +690,11 @@ public class AutoFollowIT extends CcrIntegTestCase {
             leaderClient().admin()
                 .indices()
                 .prepareCreate(indexInDatastream)
-                .setMapping(MetadataIndexTemplateService.DEFAULT_TIMESTAMP_MAPPING.toString())
-                .get()
+                .setMapping(MetadataIndexTemplateService.DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING.toString())
         );
         leaderClient().prepareIndex(indexInDatastream)
             .setCreate(true)
-            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD.getName(), randomNonNegativeLong())
+            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD_NAME, randomNonNegativeLong())
             .get();
         leaderClient().execute(
             ModifyDataStreamsAction.INSTANCE,

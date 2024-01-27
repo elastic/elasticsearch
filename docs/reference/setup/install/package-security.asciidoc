@@ -10,31 +10,13 @@ the `elastic` built-in superuser.
 * Certificates and keys for TLS are generated for the transport and HTTP layer,
 and TLS is enabled and configured with these keys and certificates.
 
-The password and certificate and keys are output to your terminal. For example:
+The password and certificate and keys are output to your terminal.
+
+We recommend storing the `elastic` password as an environment variable in your shell. Example:
 
 [source,sh]
 ----
-            -------Security autoconfiguration information-------
-
-Authentication and authorization are enabled.
-TLS for the transport and HTTP layers is enabled and configured.
-
-The generated password for the elastic built-in superuser is : <password>
-
-If this node should join an existing cluster, you can reconfigure this with
-'/usr/share/elasticsearch/bin/elasticsearch-reconfigure-node --enrollment-token <token-here>'
-after creating an enrollment token on your existing cluster.
-
-You can complete the following actions at any time:
-
-Reset the password of the elastic built-in superuser with
-'/usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic'.
-
-Generate an enrollment token for Kibana instances with
- '/usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana'.
-
-Generate an enrollment token for Elasticsearch nodes with
-'/usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s node'.
+export ELASTIC_PASSWORD="your_password"
 ----
 
 ===== Reconfigure a node to join an existing cluster

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.action.repositories;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,13 +38,21 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
     public static final String INTERNAL_NAME = "internal:admin/ccr/restore/session/put";
     public static final String NAME = "indices:internal/admin/ccr/restore/session/put";
     public static final PutCcrRestoreSessionAction INSTANCE = new PutCcrRestoreSessionAction(NAME);
+    public static final RemoteClusterActionType<PutCcrRestoreSessionResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        NAME,
+        PutCcrRestoreSessionResponse::new
+    );
+    public static final RemoteClusterActionType<PutCcrRestoreSessionResponse> REMOTE_INTERNAL_TYPE = new RemoteClusterActionType<>(
+        INTERNAL_NAME,
+        PutCcrRestoreSessionResponse::new
+    );
 
     private PutCcrRestoreSessionAction() {
-        super(INTERNAL_NAME, PutCcrRestoreSessionResponse::new);
+        super(INTERNAL_NAME);
     }
 
     private PutCcrRestoreSessionAction(String name) {
-        super(name, PutCcrRestoreSessionResponse::new);
+        super(name);
     }
 
     abstract static class TransportPutCcrRestoreSessionAction extends TransportSingleShardAction<
@@ -71,7 +80,7 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
                 actionFilters,
                 resolver,
                 PutCcrRestoreSessionRequest::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.indicesService = indicesService;
             this.ccrRestoreService = ccrRestoreService;

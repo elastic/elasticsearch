@@ -16,10 +16,10 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
@@ -136,7 +136,10 @@ public class NodeLoadDetector {
         }
     }
 
-    private void updateLoadGivenModelAssignments(NodeLoad.Builder nodeLoad, TrainedModelAssignmentMetadata trainedModelAssignmentMetadata) {
+    private static void updateLoadGivenModelAssignments(
+        NodeLoad.Builder nodeLoad,
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata
+    ) {
         if (trainedModelAssignmentMetadata != null && trainedModelAssignmentMetadata.allAssignments().isEmpty() == false) {
             for (TrainedModelAssignment assignment : trainedModelAssignmentMetadata.allAssignments().values()) {
                 if (Optional.ofNullable(assignment.getNodeRoutingTable().get(nodeLoad.getNodeId()))

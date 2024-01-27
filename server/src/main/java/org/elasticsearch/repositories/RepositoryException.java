@@ -20,12 +20,34 @@ import java.io.IOException;
 public class RepositoryException extends ElasticsearchException {
     private final String repository;
 
-    public RepositoryException(String repository, String msg) {
-        this(repository, msg, null);
+    /**
+     * Construct a <code>RepositoryException</code> with the specified detail message.
+     *
+     * The message can be parameterized using <code>{}</code> as placeholders for the given
+     * arguments.
+     *
+     * @param repository the repository name
+     * @param msg        the detail message
+     * @param args       the arguments for the message
+     */
+    public RepositoryException(String repository, String msg, Object... args) {
+        this(repository, msg, (Throwable) null, args);
     }
 
-    public RepositoryException(String repository, String msg, Throwable cause) {
-        super("[" + (repository == null ? "_na" : repository) + "] " + msg, cause);
+    /**
+     * Construct a <code>RepositoryException</code> with the specified detail message
+     * and nested exception.
+     *
+     * The message can be parameterized using <code>{}</code> as placeholders for the given
+     * arguments.
+     *
+     * @param repository the repository name
+     * @param msg        the detail message
+     * @param cause      the nested exception
+     * @param args       the arguments for the message
+     */
+    public RepositoryException(String repository, String msg, Throwable cause, Object... args) {
+        super("[" + (repository == null ? "_na" : repository) + "] " + msg, cause, args);
         this.repository = repository;
     }
 

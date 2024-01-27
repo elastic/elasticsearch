@@ -20,13 +20,13 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -50,6 +50,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -602,7 +603,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testDimensionInRoutingPath() throws IOException {
         MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("time_series_dimension", true)));
         IndexSettings settings = createIndexSettings(
-            Version.CURRENT,
+            IndexVersion.current(),
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
@@ -649,29 +650,51 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> ((BytesRef) v).utf8ToString();
+    }
+
+    @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("keyword doesn't support ignore_malformed", ignoreMalformed);
-        return new KeywordSyntheticSourceSupport(randomBoolean(), usually() ? null : randomAlphaOfLength(2), true);
+        return new KeywordSyntheticSourceSupport(
+            randomBoolean() ? null : between(10, 100),
+            randomBoolean(),
+            usually() ? null : randomAlphaOfLength(2),
+            true
+        );
     }
 
     static class KeywordSyntheticSourceSupport implements SyntheticSourceSupport {
-        private final Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
-        private final boolean allIgnored = ignoreAbove != null && rarely();
+        private final Integer ignoreAbove;
+        private final boolean allIgnored;
         private final boolean store;
+        private final boolean docValues;
         private final String nullValue;
         private final boolean exampleSortsUsingIgnoreAbove;
 
-        KeywordSyntheticSourceSupport(boolean store, String nullValue, boolean exampleSortsUsingIgnoreAbove) {
+        KeywordSyntheticSourceSupport(Integer ignoreAbove, boolean store, String nullValue, boolean exampleSortsUsingIgnoreAbove) {
+            this.ignoreAbove = ignoreAbove;
+            this.allIgnored = ignoreAbove != null && rarely();
             this.store = store;
             this.nullValue = nullValue;
             this.exampleSortsUsingIgnoreAbove = exampleSortsUsingIgnoreAbove;
+            this.docValues = store ? randomBoolean() : true;
         }
 
         @Override
         public SyntheticSourceExample example(int maxValues) {
+            return example(maxValues, false);
+        }
+
+        public SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource) {
             if (randomBoolean()) {
                 Tuple<String, String> v = generateValue();
-                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+                Object loadBlock = v.v2();
+                if (loadBlockFromSource == false && ignoreAbove != null && v.v2().length() > ignoreAbove) {
+                    loadBlock = null;
+                }
+                return new SyntheticSourceExample(v.v1(), v.v2(), loadBlock, this::mapping);
             }
             List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
             List<String> in = values.stream().map(Tuple::v1).toList();
@@ -685,9 +708,19 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 }
             });
             List<String> outList = store ? outPrimary : new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
+            List<String> loadBlock;
+            if (loadBlockFromSource) {
+                // The block loader infrastructure will never return nulls. Just zap them all.
+                loadBlock = in.stream().filter(m -> m != null).toList();
+            } else if (docValues) {
+                loadBlock = new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
+            } else {
+                loadBlock = List.copyOf(outList);
+            }
+            Object loadBlockResult = loadBlock.size() == 1 ? loadBlock.get(0) : loadBlock;
             outList.addAll(outExtraValues);
             Object out = outList.size() == 1 ? outList.get(0) : outList;
-            return new SyntheticSourceExample(in, out, this::mapping);
+            return new SyntheticSourceExample(in, out, loadBlockResult, this::mapping);
         }
 
         private Tuple<String, String> generateValue() {
@@ -712,9 +745,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             }
             if (store) {
                 b.field("store", true);
-                if (randomBoolean()) {
-                    b.field("doc_values", false);
-                }
+            }
+            if (docValues == false) {
+                b.field("doc_values", false);
             }
         }
 
@@ -773,7 +806,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     public void testLegacyField() throws Exception {
         // check that unknown normalizers are treated leniently on old indices
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("mykeyw");
             b.field("type", "keyword");
             b.field("normalizer", "unknown-normalizer");

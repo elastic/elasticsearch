@@ -9,7 +9,7 @@
 package org.elasticsearch.indices.store;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 public class IndicesStoreTests extends ESTestCase {
@@ -39,7 +38,7 @@ public class IndicesStoreTests extends ESTestCase {
 
     @Before
     public void createLocalNode() {
-        localNode = TestDiscoveryNode.create("abc", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        localNode = DiscoveryNodeUtils.builder("abc").roles(emptySet()).build();
     }
 
     public void testShardCanBeDeletedNoShardStarted() {

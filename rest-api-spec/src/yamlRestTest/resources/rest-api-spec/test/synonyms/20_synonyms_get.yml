@@ -1,0 +1,117 @@
+setup:
+  - skip:
+      version: " - 8.9.99"
+      reason: Introduced in 8.10.0
+  - do:
+      synonyms.put_synonym:
+        id: test-get-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "test-id-1"
+            - synonyms: "bye => goodbye"
+              id: "test-id-2"
+            - synonyms: "test => check"
+              id: "test-id-3"
+
+
+---
+"Get synonyms set":
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+
+  - match:
+      count: 3
+  - match:
+      synonyms_set:
+        - synonyms: "hello, hi"
+          id: "test-id-1"
+        - synonyms: "bye => goodbye"
+          id: "test-id-2"
+        - synonyms: "test => check"
+          id: "test-id-3"
+
+---
+"Get synonyms set - not found":
+  - do:
+      catch: missing
+      synonyms.get_synonym:
+        id: unknown-synonym-set
+
+---
+"Pagination - size":
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        size: 2
+
+  - match:
+      count: 3
+  - match:
+      synonyms_set:
+        - synonyms: "hello, hi"
+          id: "test-id-1"
+        - synonyms: "bye => goodbye"
+          id: "test-id-2"
+
+---
+"Pagination - from":
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        from: 1
+
+  - match:
+      count: 3
+  - match:
+      synonyms_set:
+        - synonyms: "bye => goodbye"
+          id: "test-id-2"
+        - synonyms: "test => check"
+          id: "test-id-3"
+
+
+---
+"Synonyms set with same IDs":
+  - do:
+      synonyms.put_synonym:
+        id: test-get-synonyms-same-ids
+        body:
+          synonyms_set:
+            - synonyms: "another, different"
+              id: "test-id-1"
+            - synonyms: "same => equal"
+              id: "test-id-2"
+            - synonyms: "work, hard"
+              id: "test-id-3"
+
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+
+  - match:
+      count: 3
+  - match:
+      synonyms_set:
+        - synonyms: "hello, hi"
+          id: "test-id-1"
+        - synonyms: "bye => goodbye"
+          id: "test-id-2"
+        - synonyms: "test => check"
+          id: "test-id-3"
+
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms-same-ids
+
+  - match:
+      count: 3
+  - match:
+      synonyms_set:
+        - synonyms: "another, different"
+          id: "test-id-1"
+        - synonyms: "same => equal"
+          id: "test-id-2"
+        - synonyms: "work, hard"
+          id: "test-id-3"

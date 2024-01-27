@@ -30,23 +30,12 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class HighlightField implements ToXContentFragment, Writeable {
 
-    private String name;
+    private final String name;
 
-    private Text[] fragments;
+    private final Text[] fragments;
 
     public HighlightField(StreamInput in) throws IOException {
-        name = in.readString();
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            if (size == 0) {
-                fragments = Text.EMPTY_ARRAY;
-            } else {
-                fragments = new Text[size];
-                for (int i = 0; i < size; i++) {
-                    fragments[i] = in.readText();
-                }
-            }
-        }
+        this(in.readString(), in.readOptionalArray(StreamInput::readText, Text[]::new));
     }
 
     public HighlightField(String name, Text[] fragments) {
@@ -62,24 +51,10 @@ public class HighlightField implements ToXContentFragment, Writeable {
     }
 
     /**
-     * The name of the field highlighted.
-     */
-    public String getName() {
-        return name();
-    }
-
-    /**
      * The highlighted fragments. {@code null} if failed to highlight (for example, the field is not stored).
      */
     public Text[] fragments() {
         return fragments;
-    }
-
-    /**
-     * The highlighted fragments. {@code null} if failed to highlight (for example, the field is not stored).
-     */
-    public Text[] getFragments() {
-        return fragments();
     }
 
     @Override
@@ -101,14 +76,14 @@ public class HighlightField implements ToXContentFragment, Writeable {
     public static HighlightField fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         String fieldName = parser.currentName();
-        Text[] fragments = null;
+        Text[] fragments;
         XContentParser.Token token = parser.nextToken();
         if (token == XContentParser.Token.START_ARRAY) {
             List<Text> values = new ArrayList<>();
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 values.add(new Text(parser.text()));
             }
-            fragments = values.toArray(new Text[values.size()]);
+            fragments = values.toArray(Text.EMPTY_ARRAY);
         } else if (token == XContentParser.Token.VALUE_NULL) {
             fragments = null;
         } else {

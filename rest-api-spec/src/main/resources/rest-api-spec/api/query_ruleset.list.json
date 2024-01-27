@@ -1,0 +1,37 @@
+{
+  "query_ruleset.list": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/list-query-rulesets.html",
+      "description": "Lists query rulesets."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_rules",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "from": {
+        "type": "int",
+        "default": 0,
+        "description": "Starting offset (default: 0)"
+      },
+      "size": {
+        "type": "int",
+        "default": 100,
+        "description": "specifies a max number of results to get (default: 100)"
+      }
+    }
+  }
+}

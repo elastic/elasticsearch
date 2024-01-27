@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -22,6 +21,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
@@ -112,7 +112,7 @@ public class TransformIT extends TransformRestTestCase {
         assertBusy(() -> { assertEquals("stopped", getTransformStats(config.getId()).get("state")); });
 
         var storedConfig = getTransform(config.getId());
-        assertThat(storedConfig.get("version"), equalTo(Version.CURRENT.toString()));
+        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));
@@ -153,7 +153,7 @@ public class TransformIT extends TransformRestTestCase {
         int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", transformStats);
 
         var storedConfig = getTransform(config.getId());
-        assertThat(storedConfig.get("version"), equalTo(Version.CURRENT.toString()));
+        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));
@@ -201,7 +201,7 @@ public class TransformIT extends TransformRestTestCase {
         int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", getTransformStats(config.getId()));
 
         var storedConfig = getTransform(config.getId());
-        assertThat(storedConfig.get("version"), equalTo(Version.CURRENT.toString()));
+        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));
@@ -427,7 +427,7 @@ public class TransformIT extends TransformRestTestCase {
         int pagesProcessed = (Integer) XContentMapValues.extractValue("stats.pages_processed", transformStats);
 
         var storedConfig = getTransform(config.getId());
-        assertThat(storedConfig.get("version"), equalTo(Version.CURRENT.toString()));
+        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));

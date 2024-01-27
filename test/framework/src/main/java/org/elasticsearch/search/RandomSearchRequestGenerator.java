@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
@@ -20,6 +21,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -244,6 +246,17 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.query(QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
+        } else if (randomBoolean()) {
+            builder.subSearches(
+                List.of(
+                    new SubSearchSourceBuilder(
+                        QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
+                    ),
+                    new SubSearchSourceBuilder(
+                        QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
+                    )
+                )
+            );
         }
         if (randomBoolean()) {
             builder.postFilter(QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
@@ -315,12 +328,18 @@ public class RandomSearchRequestGenerator {
                 }
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(jsonBuilder).streamInput());
-                parser.nextToken();
-                parser.nextToken();
-                parser.nextToken();
-                builder.searchAfter(SearchAfterBuilder.fromXContent(parser).getSortValues());
+                try (
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY,
+                        BytesReference.bytes(jsonBuilder),
+                        XContentType.JSON
+                    )
+                ) {
+                    parser.nextToken();
+                    parser.nextToken();
+                    parser.nextToken();
+                    builder.searchAfter(SearchAfterBuilder.fromXContent(parser).getSortValues());
+                }
             } catch (IOException e) {
                 throw new RuntimeException("Error building search_from", e);
             }

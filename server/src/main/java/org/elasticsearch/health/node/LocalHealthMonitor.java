@@ -10,7 +10,6 @@ package org.elasticsearch.health.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,6 +32,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
@@ -43,6 +45,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeNotConnectedException;
 
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -69,6 +73,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private final ThreadPool threadPool;
     private final DiskCheck diskCheck;
     private final Client client;
+    private final FeatureService featureService;
 
     private volatile TimeValue monitorInterval;
     private volatile boolean enabled;
@@ -90,7 +95,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
         ClusterService clusterService,
         NodeService nodeService,
         ThreadPool threadPool,
-        Client client
+        Client client,
+        FeatureService featureService
     ) {
         this.threadPool = threadPool;
         this.monitorInterval = POLL_INTERVAL_SETTING.get(settings);
@@ -98,6 +104,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         this.clusterService = clusterService;
         this.client = client;
         this.diskCheck = new DiskCheck(nodeService);
+        this.featureService = featureService;
     }
 
     public static LocalHealthMonitor create(
@@ -105,9 +112,17 @@ public class LocalHealthMonitor implements ClusterStateListener {
         ClusterService clusterService,
         NodeService nodeService,
         ThreadPool threadPool,
-        Client client
+        Client client,
+        FeatureService featureService
     ) {
-        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(settings, clusterService, nodeService, threadPool, client);
+        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(
+            settings,
+            clusterService,
+            nodeService,
+            threadPool,
+            client,
+            featureService
+        );
         localHealthMonitor.registerListeners();
         return localHealthMonitor;
     }
@@ -197,7 +212,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 );
             }
         }
-        prerequisitesFulfilled = event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)
+        prerequisitesFulfilled = event.state().clusterRecovered()
+            && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)
             && HealthMetadata.getFromClusterState(event.state()) != null
             && currentHealthNode != null
             && currentMasterNode != null;
@@ -209,7 +225,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         }
     }
 
-    private boolean hasMasterNodeChanged(DiscoveryNode currentMasterNode, ClusterChangedEvent event) {
+    private static boolean hasMasterNodeChanged(DiscoveryNode currentMasterNode, ClusterChangedEvent event) {
         DiscoveryNode previousMasterNode = event.previousState().nodes().getMasterNode();
         if (currentMasterNode == null || previousMasterNode == null) {
             return currentMasterNode != previousMasterNode;
@@ -239,7 +255,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     static class Monitoring implements Runnable, Scheduler.Cancellable {
 
         private final TimeValue interval;
-        private final String executor;
+        private final Executor executor;
         private final Scheduler scheduler;
         private final ClusterService clusterService;
         private final DiskCheck diskCheck;
@@ -254,7 +270,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         private Monitoring(
             TimeValue interval,
             Scheduler scheduler,
-            String executor,
+            Executor executor,
             AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo,
             AtomicReference<String> lastSeenHealthNode,
             DiskCheck diskCheck,
@@ -276,7 +292,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
          */
         static Monitoring start(
             TimeValue interval,
-            Scheduler scheduler,
+            ThreadPool threadPool,
             AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo,
             AtomicReference<String> lastSeenHealthNode,
             DiskCheck diskCheck,
@@ -285,15 +301,15 @@ public class LocalHealthMonitor implements ClusterStateListener {
         ) {
             Monitoring monitoring = new Monitoring(
                 interval,
-                scheduler,
-                ThreadPool.Names.MANAGEMENT,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.MANAGEMENT),
                 lastReportedDiskHealthInfo,
                 lastSeenHealthNode,
                 diskCheck,
                 clusterService,
                 client
             );
-            monitoring.scheduledRun = scheduler.schedule(monitoring, TimeValue.ZERO, monitoring.executor);
+            monitoring.scheduledRun = threadPool.schedule(monitoring, TimeValue.ZERO, monitoring.executor);
             return monitoring;
         }
 
@@ -416,25 +432,24 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 return new DiskHealthInfo(HealthStatus.UNKNOWN, DiskHealthInfo.Cause.NODE_HAS_NO_DISK_STATS);
             }
 
-            ByteSizeValue totalBytes = ByteSizeValue.ofBytes(usage.getTotalBytes());
+            ByteSizeValue totalBytes = ByteSizeValue.ofBytes(usage.totalBytes());
 
-            if (node.isDedicatedFrozenNode()) {
+            if (node.isDedicatedFrozenNode() || isDedicatedSearchNode(node)) {
                 long frozenFloodStageThreshold = diskMetadata.getFreeBytesFrozenFloodStageWatermark(totalBytes).getBytes();
-                if (usage.getFreeBytes() < frozenFloodStageThreshold) {
+                if (usage.freeBytes() < frozenFloodStageThreshold) {
                     logger.debug("Flood stage disk watermark [{}] exceeded on {}", frozenFloodStageThreshold, usage);
                     return new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD);
                 }
                 return new DiskHealthInfo(HealthStatus.GREEN);
             }
-
             long floodStageThreshold = diskMetadata.getFreeBytesFloodStageWatermark(totalBytes).getBytes();
-            if (usage.getFreeBytes() < floodStageThreshold) {
+            if (usage.freeBytes() < floodStageThreshold) {
                 logger.debug("Flood stage disk watermark [{}] exceeded on {}", floodStageThreshold, usage);
                 return new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD);
             }
 
             long highThreshold = diskMetadata.getFreeBytesHighWatermark(totalBytes).getBytes();
-            if (usage.getFreeBytes() < highThreshold) {
+            if (usage.freeBytes() < highThreshold) {
                 if (node.canContainData()) {
                     // for data nodes only report YELLOW if shards can't move away from the node
                     if (DiskCheck.hasRelocatingShards(clusterState, node) == false) {
@@ -450,6 +465,12 @@ public class LocalHealthMonitor implements ClusterStateListener {
             return new DiskHealthInfo(HealthStatus.GREEN);
         }
 
+        private static boolean isDedicatedSearchNode(DiscoveryNode node) {
+            Set<DiscoveryNodeRole> roles = node.getRoles();
+            return roles.contains(DiscoveryNodeRole.SEARCH_ROLE)
+                && roles.stream().filter(DiscoveryNodeRole::canContainData).anyMatch(r -> r != DiscoveryNodeRole.SEARCH_ROLE) == false;
+        }
+
         private DiskUsage getDiskUsage() {
             NodeStats nodeStats = nodeService.stats(
                 CommonStatsFlags.NONE,
@@ -457,7 +478,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 false,
                 false,
                 false,
+                false,
                 true,
+                false,
                 false,
                 false,
                 false,

@@ -62,7 +62,7 @@ public class WaitForSnapshotAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey waitForSnapshotKey = new StepKey(phase, NAME, WaitForSnapshotStep.NAME);
-        return Collections.singletonList(new WaitForSnapshotStep(waitForSnapshotKey, nextStepKey, policy));
+        return Collections.singletonList(new WaitForSnapshotStep(waitForSnapshotKey, nextStepKey, client, policy));
     }
 
     @Override

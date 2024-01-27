@@ -53,11 +53,11 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var masterService = clusterService.getMasterService();
 
         // create some indices, and randomly close some of them
-        createIndex("test-1", client().admin().indices().prepareCreate("test-1"));
-        createIndex("test-2", client().admin().indices().prepareCreate("test-2"));
-        createIndex("test-3", client().admin().indices().prepareCreate("test-3"));
+        createIndex("test-1", indicesAdmin().prepareCreate("test-1"));
+        createIndex("test-2", indicesAdmin().prepareCreate("test-2"));
+        createIndex("test-3", indicesAdmin().prepareCreate("test-3"));
         String[] closedIndices = randomSubsetOf(between(1, 3), "test-1", "test-2", "test-3").toArray(Strings.EMPTY_ARRAY);
-        assertAcked(client().admin().indices().prepareClose(closedIndices));
+        assertAcked(indicesAdmin().prepareClose(closedIndices));
         ensureGreen("test-1", "test-2", "test-3");
 
         final var assertingListener = closedIndexCountListener(closedIndices.length);
@@ -67,8 +67,8 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block1.run(); // wait for block
 
         // fire off some opens
-        final var future1 = client().admin().indices().prepareOpen("test-1").execute();
-        final var future2 = client().admin().indices().prepareOpen("test-2", "test-3").execute();
+        final var future1 = indicesAdmin().prepareOpen("test-1").execute();
+        final var future2 = indicesAdmin().prepareOpen("test-2", "test-3").execute();
 
         // check the queue for the open-indices tasks
         assertThat(findPendingTasks(masterService, "open-indices"), hasSize(2));
@@ -93,9 +93,9 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var masterService = clusterService.getMasterService();
 
         // create some indices
-        createIndex("test-1", client().admin().indices().prepareCreate("test-1"));
-        createIndex("test-2", client().admin().indices().prepareCreate("test-2"));
-        createIndex("test-3", client().admin().indices().prepareCreate("test-3"));
+        createIndex("test-1", indicesAdmin().prepareCreate("test-1"));
+        createIndex("test-2", indicesAdmin().prepareCreate("test-2"));
+        createIndex("test-3", indicesAdmin().prepareCreate("test-3"));
         ensureGreen("test-1", "test-2", "test-3");
 
         final var assertingListener = closedIndexCountListener(3);
@@ -105,8 +105,8 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block1.run(); // wait for block
 
         // fire off some closes
-        final var future1 = client().admin().indices().prepareClose("test-1").execute();
-        final var future2 = client().admin().indices().prepareClose("test-2", "test-3").execute();
+        final var future1 = indicesAdmin().prepareClose("test-1").execute();
+        final var future2 = indicesAdmin().prepareClose("test-2", "test-3").execute();
 
         // check the queue for the first close tasks (the add-block-index-to-close tasks)
         assertThat(findPendingTasks(masterService, "add-block-index-to-close"), hasSize(2));
@@ -147,9 +147,9 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var masterService = clusterService.getMasterService();
 
         // create some indices
-        createIndex("test-1", client().admin().indices().prepareCreate("test-1"));
-        createIndex("test-2", client().admin().indices().prepareCreate("test-2"));
-        createIndex("test-3", client().admin().indices().prepareCreate("test-3"));
+        createIndex("test-1", indicesAdmin().prepareCreate("test-1"));
+        createIndex("test-2", indicesAdmin().prepareCreate("test-2"));
+        createIndex("test-3", indicesAdmin().prepareCreate("test-3"));
         ensureGreen("test-1", "test-2", "test-3");
 
         final var assertingListener = blockedIndexCountListener();
@@ -159,8 +159,8 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block1.run(); // wait for block
 
         // fire off some closes
-        final var future1 = client().admin().indices().prepareAddBlock(APIBlock.WRITE, "test-1").execute();
-        final var future2 = client().admin().indices().prepareAddBlock(APIBlock.WRITE, "test-2", "test-3").execute();
+        final var future1 = indicesAdmin().prepareAddBlock(APIBlock.WRITE, "test-1").execute();
+        final var future2 = indicesAdmin().prepareAddBlock(APIBlock.WRITE, "test-2", "test-3").execute();
 
         // check the queue for the first add-block tasks (the add-index-block tasks)
         assertThat(findPendingTasks(masterService, "add-index-block-[write]"), hasSize(2));

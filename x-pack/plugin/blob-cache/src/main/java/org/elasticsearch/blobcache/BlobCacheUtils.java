@@ -31,8 +31,8 @@ public class BlobCacheUtils {
         return ByteSizeUnit.BYTES.toIntBytes(l);
     }
 
-    public static void throwEOF(long channelPos, long len, Object file) throws EOFException {
-        throw new EOFException(format("unexpected EOF reading [%d-%d] from %s", channelPos, channelPos + len, file));
+    public static void throwEOF(long channelPos, long len) throws EOFException {
+        throw new EOFException(format("unexpected EOF reading [%d-%d]", channelPos, channelPos + len));
     }
 
     public static void ensureSeek(long pos, IndexInput input) throws IOException {
@@ -74,12 +74,11 @@ public class BlobCacheUtils {
      *
      * Most of its arguments are there simply to make the message of the {@link EOFException} more informative.
      */
-    public static int readSafe(InputStream inputStream, ByteBuffer copyBuffer, long rangeStart, long remaining, Object cacheFileReference)
-        throws IOException {
+    public static int readSafe(InputStream inputStream, ByteBuffer copyBuffer, long rangeStart, long remaining) throws IOException {
         final int len = (remaining < copyBuffer.remaining()) ? toIntBytes(remaining) : copyBuffer.remaining();
         final int bytesRead = Streams.read(inputStream, copyBuffer, len);
         if (bytesRead <= 0) {
-            throwEOF(rangeStart, remaining, cacheFileReference);
+            throwEOF(rangeStart, remaining);
         }
         return bytesRead;
     }

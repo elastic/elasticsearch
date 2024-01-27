@@ -6,10 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -28,7 +28,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public final class AnomalyDetectorsIndex {
 
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
-    private static final String RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/anomalydetection/";
+    private static final String RESOURCE_PATH = "/ml/anomalydetection/";
+    public static final int RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     private AnomalyDetectorsIndex() {}
 
@@ -101,18 +102,18 @@ public final class AnomalyDetectorsIndex {
         TimeValue masterNodeTimeout,
         final ActionListener<Boolean> finalListener
     ) {
-        final ActionListener<Boolean> stateIndexAndAliasCreated = ActionListener.wrap(success -> {
+        final ActionListener<Boolean> stateIndexAndAliasCreated = finalListener.delegateFailureAndWrap((delegate, success) -> {
             final ClusterHealthRequest request = new ClusterHealthRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
                 .waitForYellowStatus()
                 .masterNodeTimeout(masterNodeTimeout);
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                ClusterHealthAction.INSTANCE,
+                TransportClusterHealthAction.TYPE,
                 request,
-                ActionListener.wrap(r -> finalListener.onResponse(r.isTimedOut() == false), finalListener::onFailure)
+                delegate.delegateFailureAndWrap((l, r) -> l.onResponse(r.isTimedOut() == false))
             );
-        }, finalListener::onFailure);
+        });
 
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
@@ -135,8 +136,9 @@ public final class AnomalyDetectorsIndex {
     public static String resultsMapping() {
         return TemplateUtils.loadTemplate(
             RESOURCE_PATH + "results_index_mappings.json",
-            Version.CURRENT.toString(),
-            RESULTS_MAPPINGS_VERSION_VARIABLE
+            MlIndexAndAlias.BWC_MAPPINGS_VERSION, // Only needed for BWC with pre-8.10.0 nodes
+            RESULTS_MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.managed.index.version", Integer.toString(RESULTS_INDEX_MAPPINGS_VERSION))
         );
     }
 }

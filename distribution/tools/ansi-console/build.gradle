@@ -8,7 +8,9 @@
 
 apply plugin: 'elasticsearch.build'
 
-archivesBaseName = 'elasticsearch-ansi-console'
+base {
+  archivesName = 'elasticsearch-ansi-console'
+}
 
 dependencies {
   compileOnly project(":server")

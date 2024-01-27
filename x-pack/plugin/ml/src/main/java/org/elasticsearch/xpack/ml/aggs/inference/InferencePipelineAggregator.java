@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.inference;
 
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -18,7 +18,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
@@ -132,7 +131,7 @@ public class InferencePipelineAggregator extends PipelineAggregator {
         return bucket.getProperty(agg.getName(), aggPathsList);
     }
 
-    private static AggregationExecutionException invalidAggTypeError(String aggPath, Object propertyValue) {
+    private static IllegalArgumentException invalidAggTypeError(String aggPath, Object propertyValue) {
 
         String msg = AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
             + " must reference either a number value, a single value numeric metric aggregation or a string: got ["
@@ -143,6 +142,6 @@ public class InferencePipelineAggregator extends PipelineAggregator {
             + "] at aggregation ["
             + aggPath
             + "]";
-        return new AggregationExecutionException(msg);
+        return new IllegalArgumentException(msg);
     }
 }

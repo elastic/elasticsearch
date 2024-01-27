@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.vectortile;
 
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -17,12 +18,9 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.vectortile.rest.RestVectorTileAction;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -36,6 +34,7 @@ public class VectorTilePlugin extends Plugin implements ActionPlugin {
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -44,18 +43,5 @@ public class VectorTilePlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(new RestVectorTileAction());
-    }
-
-    @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(
-            settings,
-            "vector_tile_generation",
-            1,
-            -1,
-            "thread_pool.vectortile",
-            false
-        );
-        return Collections.singletonList(indexing);
     }
 }

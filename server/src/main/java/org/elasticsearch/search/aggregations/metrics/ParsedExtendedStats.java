@@ -39,9 +39,6 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
     protected double stdDeviationBoundUpperSampling;
     protected double stdDeviationBoundLowerSampling;
 
-    protected double sum;
-    protected double avg;
-
     @Override
     public String getType() {
         return ExtendedStatsAggregationBuilder.NAME;

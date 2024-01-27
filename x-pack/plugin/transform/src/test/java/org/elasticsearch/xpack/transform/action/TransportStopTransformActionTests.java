@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,6 +16,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
@@ -52,7 +52,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
             .addTask(
                 "non-failed-task",
                 TransformTaskParams.NAME,
-                new TransformTaskParams("transform-task-1", Version.CURRENT, null, false),
+                new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false),
                 new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
             );
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
@@ -71,7 +71,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
         pTasksBuilder.addTask(
             "failed-task",
             TransformTaskParams.NAME,
-            new TransformTaskParams("transform-task-1", Version.CURRENT, null, false),
+            new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false),
             new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
         )
             .updateTaskState(

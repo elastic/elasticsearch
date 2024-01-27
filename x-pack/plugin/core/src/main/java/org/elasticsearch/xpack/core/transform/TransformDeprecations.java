@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.core.transform;
 
-import org.elasticsearch.Version;
-
 public class TransformDeprecations {
 
-    public static final Version MIN_TRANSFORM_VERSION = Version.V_7_5_0;
+    public static final TransformConfigVersion MIN_TRANSFORM_VERSION = TransformConfigVersion.V_7_5_0;
 
     public static final String UPGRADE_TRANSFORM_URL = "https://ela.st/es-8-upgrade-transforms";
 

@@ -18,7 +18,7 @@ import java.io.IOException;
 /**
  * Exception indicating that one or more requested indices are closed.
  */
-public class IndexClosedException extends ElasticsearchException {
+public final class IndexClosedException extends ElasticsearchException {
 
     public IndexClosedException(Index index) {
         super("closed");

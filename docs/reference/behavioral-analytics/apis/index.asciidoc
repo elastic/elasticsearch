@@ -1,6 +1,8 @@
 [[behavioral-analytics-apis]]
 == Behavioral Analytics APIs
 
+beta::[]
+
 ++++
 <titleabbrev>Behavioral Analytics APIs</titleabbrev>
 ++++

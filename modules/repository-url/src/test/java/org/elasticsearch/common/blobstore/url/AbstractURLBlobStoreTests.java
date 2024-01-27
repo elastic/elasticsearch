@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public abstract class AbstractURLBlobStoreTests extends ESTestCase {
@@ -33,7 +34,7 @@ public abstract class AbstractURLBlobStoreTests extends ESTestCase {
         BytesArray data = getOriginalData();
         String blobName = getBlobName();
         BlobContainer container = getBlobContainer();
-        try (InputStream stream = container.readBlob(blobName)) {
+        try (InputStream stream = container.readBlob(randomPurpose(), blobName)) {
             BytesReference bytesRead = Streams.readFully(stream);
             assertThat(data, equalTo(bytesRead));
         }
@@ -45,7 +46,7 @@ public abstract class AbstractURLBlobStoreTests extends ESTestCase {
         BlobContainer container = getBlobContainer();
         int position = randomIntBetween(0, data.length() - 1);
         int length = randomIntBetween(1, data.length() - position);
-        try (InputStream stream = container.readBlob(blobName, position, length)) {
+        try (InputStream stream = container.readBlob(randomPurpose(), blobName, position, length)) {
             BytesReference bytesRead = Streams.readFully(stream);
             assertThat(data.slice(position, length), equalTo(bytesRead));
         }
@@ -54,7 +55,7 @@ public abstract class AbstractURLBlobStoreTests extends ESTestCase {
     public void testNoBlobFound() throws IOException {
         BlobContainer container = getBlobContainer();
         String incorrectBlobName = UUIDs.base64UUID();
-        try (InputStream ignored = container.readBlob(incorrectBlobName)) {
+        try (InputStream ignored = container.readBlob(randomPurpose(), incorrectBlobName)) {
             ignored.read();
             fail("Should have thrown NoSuchFileException exception");
         } catch (NoSuchFileException e) {

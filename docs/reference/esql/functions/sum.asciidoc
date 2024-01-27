@@ -1,0 +1,28 @@
+[discrete]
+[[esql-agg-sum]]
+=== `SUM`
+
+*Syntax*
+
+[source,esql]
+----
+SUM(column)
+----
+
+`column`::
+Numeric column.
+
+*Description*
+
+Returns the sum of a numeric column.
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=sum]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=sum-result]
+|===

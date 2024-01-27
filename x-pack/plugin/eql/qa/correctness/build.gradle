@@ -14,7 +14,7 @@ dependencies {
 }
 
 File serviceAccountFile = providers.environmentVariable('eql_test_credentials_file')
-  .orElse(providers.systemProperty('eql.test.credentials.file').forUseAtConfigurationTime())
+  .orElse(providers.systemProperty('eql.test.credentials.file'))
   .map { s -> new File(s)}
   .getOrNull()
 

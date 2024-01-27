@@ -40,6 +40,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
             super(name);
         }
 
+        @SuppressWarnings("this-escape")
         protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
@@ -95,16 +96,15 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     /**
      * Read from a stream.
      */
-    @SuppressWarnings("unchecked")
     private void read(StreamInput in) throws IOException {
-        fields = in.readMap(StreamInput::readString, MultiValuesSourceFieldConfig::new);
+        fields = in.readMap(MultiValuesSourceFieldConfig::new);
         userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
         format = in.readOptionalString();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        out.writeMap(fields, StreamOutput::writeString, (o, value) -> value.writeTo(o));
+        out.writeMap(fields, StreamOutput::writeWriteable);
         out.writeOptionalWriteable(userValueTypeHint);
         out.writeOptionalString(format);
         innerWriteTo(out);

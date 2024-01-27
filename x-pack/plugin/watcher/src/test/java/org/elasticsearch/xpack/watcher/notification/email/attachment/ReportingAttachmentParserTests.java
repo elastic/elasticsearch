@@ -673,7 +673,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
             String keyName = randomAlphaOfLength(5) + "notavalidsettingname";
             IllegalArgumentException expectedException = expectThrows(
                 IllegalArgumentException.class,
-                () -> reportingAttachmentParser.warningValidator(keyName, randomAlphaOfLength(10))
+                () -> ReportingAttachmentParser.warningValidator(keyName, randomAlphaOfLength(10))
             );
             assertThat(expectedException.getMessage(), containsString(keyName));
             assertThat(expectedException.getMessage(), containsString("is not supported"));

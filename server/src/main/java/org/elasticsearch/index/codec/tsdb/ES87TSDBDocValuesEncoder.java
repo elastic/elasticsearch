@@ -217,20 +217,20 @@ public class ES87TSDBDocValuesEncoder {
     }
 
     // this loop should auto-vectorize
-    private void mul(long[] arr, long m) {
+    private static void mul(long[] arr, long m) {
         for (int i = 0; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++i) {
             arr[i] *= m;
         }
     }
 
     // this loop should auto-vectorize
-    private void add(long[] arr, long min) {
+    private static void add(long[] arr, long min) {
         for (int i = 0; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++i) {
             arr[i] += min;
         }
     }
 
-    private void deltaDecode(long[] arr) {
+    private static void deltaDecode(long[] arr) {
         for (int i = 1; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++i) {
             arr[i] += arr[i - 1];
         }

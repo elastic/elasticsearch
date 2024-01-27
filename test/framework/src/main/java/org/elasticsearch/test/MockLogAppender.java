@@ -265,7 +265,7 @@ public class MockLogAppender extends AbstractAppender {
     /**
      * Executes an action and verifies expectations against the provided logger
      */
-    public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLogAppender.AbstractEventExpectation expectation) {
+    public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLogAppender.LoggingExpectation expectation) {
         MockLogAppender mockAppender = new MockLogAppender();
         try (var ignored = mockAppender.capturing(loggerOwner)) {
             mockAppender.addExpectation(expectation);

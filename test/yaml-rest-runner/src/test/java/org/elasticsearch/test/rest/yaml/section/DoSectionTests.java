@@ -9,16 +9,17 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.hamcrest.MatcherAssert;
@@ -29,6 +30,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
@@ -36,6 +38,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -576,7 +579,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(e.getMessage(), equalTo("the warning [foo] was both allowed and expected"));
     }
 
-    public void testNodeSelectorByVersion() throws IOException {
+    public void testNodeSelectorByVersionRange() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, """
             node_selector:
                 version: 5.2.0-6.0.0
@@ -607,7 +610,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 doSection.getApiCallSection().getNodeSelector()
             )
         ).thenReturn(mockResponse);
-        when(context.esVersion()).thenReturn(VersionUtils.randomVersion(random()));
+        when(context.nodesVersions()).thenReturn(Set.of(randomAlphaOfLength(10)));
         when(mockResponse.getHeaders("X-elastic-product")).thenReturn(List.of("Elasticsearch"));
         doSection.execute(context);
         verify(context).callApi(
@@ -626,6 +629,28 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         }
     }
 
+    public void testNodeSelectorByVersionRangeFailsWithNonSemanticVersion() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent, """
+            node_selector:
+                version: 5.2.0-6.0.0
+            indices.get_field_mapping:
+                index: test_index""");
+
+        DoSection doSection = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node nonSemantic = nodeWithVersion("abddef");
+        List<Node> nodes = new ArrayList<>();
+
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> doSection.getApiCallSection().getNodeSelector().select(List.of(nonSemantic))
+        );
+        assertThat(
+            exception.getMessage(),
+            endsWith("[version] range node selector expects a semantic version format (x.y.z), but found abddef")
+        );
+    }
+
     public void testNodeSelectorCurrentVersion() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, """
             node_selector:
@@ -638,14 +663,16 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         Node v170 = nodeWithVersion("1.7.0");
         Node v521 = nodeWithVersion("5.2.1");
         Node v550 = nodeWithVersion("5.5.0");
-        Node current = nodeWithVersion(Version.CURRENT.toString());
+        Node oldCurrent = nodeWithVersion(Version.CURRENT.toString());
+        Node newCurrent = nodeWithVersion(Build.current().version());
         List<Node> nodes = new ArrayList<>();
         nodes.add(v170);
         nodes.add(v521);
         nodes.add(v550);
-        nodes.add(current);
+        nodes.add(oldCurrent);
+        nodes.add(newCurrent);
         doSection.getApiCallSection().getNodeSelector().select(nodes);
-        assertEquals(List.of(current), nodes);
+        assertEquals(List.of(oldCurrent, newCurrent), nodes);
     }
 
     private static Node nodeWithVersion(String version) {

@@ -19,11 +19,9 @@ see the <<jvm-version, JVM version requirements>>
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of {es} has not yet been released.
+WARNING: Version {version} of {es} has not yet been released.
 
 endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
 
 The Linux archive for {es} v{version} can be downloaded and installed as follows:
 
@@ -39,18 +37,14 @@ cd elasticsearch-{version}/ <2>
     `elasticsearch-{version}-linux-x86_64.tar.gz: OK`.
 <2> This directory is known as `$ES_HOME`.
 
-endif::[]
-
 [[install-macos]]
 ==== Download and install archive for MacOS
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of {es} has not yet been released.
+WARNING: Version {version} of {es} has not yet been released.
 
 endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
 
 The MacOS archive for {es} v{version} can be downloaded and installed as follows:
 
@@ -66,8 +60,6 @@ cd elasticsearch-{version}/ <2>
 <1> Compares the SHA of the downloaded `.tar.gz` archive and the published checksum, which should output
     `elasticsearch-{version}-darwin-x86_64.tar.gz: OK`.
 <2> This directory is known as `$ES_HOME`.
-
-endif::[]
 
 ifdef::include-xpack[]
 [role="xpack"]

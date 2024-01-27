@@ -167,7 +167,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
         mem = new Mem(in);
         threads = new Threads(in);
         gc = new GarbageCollectors(in);
-        bufferPools = in.readList(BufferPool::new);
+        bufferPools = in.readCollectionAsList(BufferPool::new);
         classes = new Classes(in);
     }
 
@@ -178,7 +178,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
         mem.writeTo(out);
         threads.writeTo(out);
         gc.writeTo(out);
-        out.writeList(bufferPools);
+        out.writeCollection(bufferPools);
         classes.writeTo(out);
     }
 
@@ -506,7 +506,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
             nonHeapCommitted = in.readVLong();
             nonHeapUsed = in.readVLong();
             heapMax = in.readVLong();
-            pools = in.readList(MemoryPool::new);
+            pools = in.readCollectionAsList(MemoryPool::new);
         }
 
         @Override
@@ -516,7 +516,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
             out.writeVLong(nonHeapCommitted);
             out.writeVLong(nonHeapUsed);
             out.writeVLong(heapMax);
-            out.writeList(pools);
+            out.writeCollection(pools);
         }
 
         @Override

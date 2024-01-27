@@ -695,13 +695,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         );
     }
 
-    private void verifyPutTemplates(final int called) {
-        verify(client, times(called)).performRequestAsync(
-            argThat(new RequestMatcher(is("PUT"), startsWith("/_template/"))::matches),
-            any(ResponseListener.class)
-        );
-    }
-
     private void verifyWatcherCheck() {
         verify(client).performRequestAsync(argThat(new RequestMatcher(is("GET"), is("/_xpack"))::matches), any(ResponseListener.class));
     }

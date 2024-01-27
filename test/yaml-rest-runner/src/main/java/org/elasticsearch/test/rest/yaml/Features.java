@@ -8,8 +8,6 @@
 
 package org.elasticsearch.test.rest.yaml;
 
-import org.elasticsearch.test.rest.ESRestTestCase;
-
 import java.util.List;
 
 /**
@@ -39,7 +37,8 @@ public final class Features {
         "arbitrary_key",
         "allowed_warnings",
         "allowed_warnings_regex",
-        "close_to"
+        "close_to",
+        "is_after"
     );
 
     private Features() {
@@ -51,15 +50,7 @@ public final class Features {
      */
     public static boolean areAllSupported(List<String> features) {
         for (String feature : features) {
-            if (feature.equals("xpack")) {
-                if (false == ESRestTestCase.hasXPack()) {
-                    return false;
-                }
-            } else if (feature.equals("no_xpack")) {
-                if (ESRestTestCase.hasXPack()) {
-                    return false;
-                }
-            } else if (false == SUPPORTED.contains(feature)) {
+            if (false == SUPPORTED.contains(feature)) {
                 return false;
             }
         }

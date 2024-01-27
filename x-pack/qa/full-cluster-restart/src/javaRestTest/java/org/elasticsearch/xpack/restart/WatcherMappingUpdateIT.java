@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.restart;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 
 import java.nio.charset.StandardCharsets;
@@ -25,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100282")
 public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestCase {
 
     public WatcherMappingUpdateIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
@@ -62,18 +65,18 @@ public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestC
                 """);
             client().performRequest(putWatchRequest);
 
-            if (getOldClusterVersion().onOrAfter(Version.V_7_13_0)) {
+            if (clusterHasFeature(RestTestLegacyFeatures.WATCHES_VERSION_IN_META)) {
                 assertMappingVersion(".watches", getOldClusterVersion());
             } else {
                 // watches indices from before 7.10 do not have mapping versions in _meta
                 assertNoMappingVersion(".watches");
             }
         } else {
-            assertMappingVersion(".watches", Version.CURRENT);
+            assertMappingVersion(".watches", Build.current().version());
         }
     }
 
-    private void assertMappingVersion(String index, Version clusterVersion) throws Exception {
+    private void assertMappingVersion(String index, String clusterVersion) throws Exception {
         assertBusy(() -> {
             Request mappingRequest = new Request("GET", index + "/_mappings");
             mappingRequest.setOptions(getWarningHandlerOptions(index));
@@ -86,7 +89,8 @@ public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestC
     private void assertNoMappingVersion(String index) throws Exception {
         assertBusy(() -> {
             Request mappingRequest = new Request("GET", index + "/_mappings");
-            if (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_10_0)) {
+            assert isRunningAgainstOldCluster();
+            if (clusterHasFeature(RestTestLegacyFeatures.SYSTEM_INDICES_REST_ACCESS_DEPRECATED)) {
                 mappingRequest.setOptions(getWarningHandlerOptions(index));
             }
             Response response = client().performRequest(mappingRequest);

@@ -9,30 +9,58 @@ setup:
   - do:
       ilm.get_lifecycle:
         policy: "logs"
+  - do:
+      ilm.get_lifecycle:
+        policy: "logs@lifecycle"
 
   - do:
       ilm.get_lifecycle:
         policy: "metrics"
+  - do:
+      ilm.get_lifecycle:
+        policy: "metrics@lifecycle"
 
   - do:
       cluster.get_component_template:
         name: data-streams-mappings
+  - do:
+      cluster.get_component_template:
+        name: data-streams@mappings
 
   - do:
       cluster.get_component_template:
         name: logs-mappings
+  - do:
+      cluster.get_component_template:
+        name: logs@mappings
 
   - do:
       cluster.get_component_template:
         name: logs-settings
+  - do:
+      cluster.get_component_template:
+        name: logs@settings
 
   - do:
       cluster.get_component_template:
         name: metrics-mappings
+  - do:
+      cluster.get_component_template:
+        name: metrics@mappings
 
   - do:
       cluster.get_component_template:
         name: metrics-settings
+  - do:
+      cluster.get_component_template:
+        name: metrics@settings
+
+  - do:
+      cluster.get_component_template:
+        name: metrics-tsdb-settings
+  - do:
+      cluster.get_component_template:
+        name: metrics@tsdb-settings
 
   - do:
       indices.get_index_template:
@@ -41,6 +69,14 @@ setup:
   - do:
       indices.get_index_template:
         name: metrics
+
+  - do:
+      indices.get_index_template:
+        name: synthetics
+
+  - do:
+      indices.get_index_template:
+        name: .kibana-reporting
 
 ---
 "Test logs index auto creation":
@@ -184,6 +220,42 @@ setup:
   - do:
       indices.delete_data_stream:
         name: synthetics-foo-bar
+
+---
+"Test kibana reporting index auto creation":
+  - do:
+      index:
+        index: .kibana-reporting-foo
+        body:
+          "@timestamp": "2020-01-01"
+          jobtype: "thing"
+
+  - do:
+      indices.get_data_stream:
+        name: .kibana-reporting-foo
+
+  - match: { data_streams.0.name: .kibana-reporting-foo }
+  - match: { data_streams.0.hidden: true }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-.kibana-reporting-foo-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get:
+        index: $idx0name
+
+  - is_true: .$idx0name.settings
+  - is_true: .$idx0name.mappings
+  - match: { .$idx0name.mappings.properties.meta.properties.objectType.type: "text" }
+  - match: { .$idx0name.mappings.properties.meta.properties.layout.type: "text" }
+  - match: { .$idx0name.data_stream: ".kibana-reporting-foo" }
+
+  - do:
+      indices.delete_data_stream:
+        name: .kibana-reporting-foo
 
 ---
 "Test wrong data_stream type":

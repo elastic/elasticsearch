@@ -294,7 +294,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         try {
             handler.handle(httpExchange);
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
         assertNotEquals(0, httpExchange.getResponseCode());
         return new TestHttpResponse(

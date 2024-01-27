@@ -8,7 +8,9 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,13 +20,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.internal.MutableLicenseService;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNodeAction<DeleteLicenseRequest> {
+public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNodeAction<AcknowledgedRequest.Plain> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/xpack/license/delete");
     private final MutableLicenseService licenseService;
 
     @Inject
@@ -37,34 +39,30 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            DeleteLicenseAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            DeleteLicenseRequest::new,
+            AcknowledgedRequest.Plain::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.licenseService = licenseService;
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DeleteLicenseRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(AcknowledgedRequest.Plain request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected void masterOperation(
         Task task,
-        final DeleteLicenseRequest request,
+        final AcknowledgedRequest.Plain request,
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) throws ElasticsearchException {
-        licenseService.removeLicense(
-            listener.delegateFailure(
-                (l, postStartBasicResponse) -> l.onResponse(AcknowledgedResponse.of(postStartBasicResponse.isAcknowledged()))
-            )
-        );
+        licenseService.removeLicense(listener.map(r -> AcknowledgedResponse.of(r.isAcknowledged())));
     }
 }

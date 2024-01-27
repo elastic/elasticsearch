@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -64,6 +65,6 @@ public class MinPrimaryShardSizeCondition extends Condition<ByteSizeValue> {
 
     @Override
     boolean includedInVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersion.V_8_4_0);
+        return version.onOrAfter(TransportVersions.V_8_4_0);
     }
 }

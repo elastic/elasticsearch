@@ -302,7 +302,7 @@ public final class DiffableUtils {
         ) throws IOException {
             this.keySerializer = keySerializer;
             this.valueSerializer = valueSerializer;
-            deletes = in.readList(keySerializer::readKey);
+            deletes = in.readCollectionAsList(keySerializer::readKey);
             int diffsCount = in.readVInt();
             diffs = diffsCount == 0 ? List.of() : new ArrayList<>(diffsCount);
             for (int i = 0; i < diffsCount; i++) {

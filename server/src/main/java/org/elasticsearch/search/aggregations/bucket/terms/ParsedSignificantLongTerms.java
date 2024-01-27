@@ -52,10 +52,6 @@ public class ParsedSignificantLongTerms extends ParsedSignificantTerms {
             return Long.toString(key);
         }
 
-        public Number getKeyAsNumber() {
-            return key;
-        }
-
         @Override
         protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             builder.field(CommonFields.KEY.getPreferredName(), key);

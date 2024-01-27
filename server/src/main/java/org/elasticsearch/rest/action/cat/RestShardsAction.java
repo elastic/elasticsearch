@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -115,6 +117,12 @@ public class RestShardsAction extends AbstractCatAction {
             .addCell("state", "default:true;alias:st;desc:shard state")
             .addCell("docs", "alias:d,dc;text-align:right;desc:number of docs in shard")
             .addCell("store", "alias:sto;text-align:right;desc:store size of shard (how much disk it uses)")
+            .addCell(
+                "dataset",
+                request.getRestApiVersion() == RestApiVersion.V_7
+                    ? "default:false;text-align:right;desc:total size of dataset"
+                    : "text-align:right;desc:total size of dataset"
+            )
             .addCell("ip", "default:true;desc:ip of node where it lives")
             .addCell("id", "default:false;desc:unique id of node where it lives")
             .addCell("node", "default:true;alias:n;desc:name of node where it lives");
@@ -242,6 +250,10 @@ public class RestShardsAction extends AbstractCatAction {
             "bulk.avg_size_in_bytes",
             "alias:basi,bulkAvgSizeInBytes;default:false;text-align:right;desc:avg size in bytes of shard bulk"
         );
+        table.addCell(
+            "dense_vector.value_count",
+            "alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector"
+        );
 
         table.endHeaders();
         return table;
@@ -281,7 +293,8 @@ public class RestShardsAction extends AbstractCatAction {
             }
             table.addCell(shard.state());
             table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getCount));
-            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::getSize));
+            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::size));
+            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::totalDataSetSize));
             if (shard.assignedToNode()) {
                 String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
                 String nodeId = shard.currentNodeId();
@@ -402,6 +415,8 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalSizeInBytes));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getAvgTime));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getAvgSizeInBytes));
+
+            table.addCell(getOrNull(commonStats, CommonStats::getDenseVectorStats, DenseVectorStats::getValueCount));
 
             table.endRow();
         }

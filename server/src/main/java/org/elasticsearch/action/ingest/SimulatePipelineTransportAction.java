@@ -19,12 +19,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
@@ -57,7 +59,13 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
         ActionFilters actionFilters,
         IngestService ingestService
     ) {
-        super(SimulatePipelineAction.NAME, transportService, actionFilters, SimulatePipelineRequest::new);
+        super(
+            SimulatePipelineAction.NAME,
+            transportService,
+            actionFilters,
+            SimulatePipelineRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.ingestService = ingestService;
         this.executionService = new SimulateExecutionService(threadPool);
         this.transportService = transportService;
@@ -110,7 +118,8 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
                 logger.trace("forwarding request [{}] to ingest node [{}]", actionName, ingestNode);
                 ActionListenerResponseHandler<SimulatePipelineResponse> handler = new ActionListenerResponseHandler<>(
                     listener,
-                    SimulatePipelineAction.INSTANCE.getResponseReader()
+                    SimulatePipelineResponse::new,
+                    TransportResponseHandler.TRANSPORT_WORKER
                 );
                 if (task == null) {
                     transportService.sendRequest(ingestNode, actionName, request, handler);

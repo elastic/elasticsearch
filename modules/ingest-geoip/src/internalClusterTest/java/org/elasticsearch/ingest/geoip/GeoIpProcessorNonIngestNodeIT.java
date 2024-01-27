@@ -9,8 +9,8 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -89,7 +89,7 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
             builder.endObject();
             bytes = BytesReference.bytes(builder);
         }
-        assertAcked(client().admin().cluster().putPipeline(new PutPipelineRequest("geoip", bytes, XContentType.JSON)).actionGet());
+        assertAcked(clusterAdmin().putPipeline(new PutPipelineRequest("geoip", bytes, XContentType.JSON)).actionGet());
         // the geo-IP databases should not be loaded on any nodes as they are all non-ingest nodes
         Arrays.stream(internalCluster().getNodeNames()).forEach(node -> assertDatabaseLoadStatus(node, false));
 
@@ -101,7 +101,7 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
         final IndexRequest indexRequest = new IndexRequest("index");
         indexRequest.setPipeline("geoip");
         indexRequest.source(Collections.singletonMap("ip", "1.1.1.1"));
-        final IndexResponse indexResponse = client(ingestNode).index(indexRequest).actionGet();
+        final DocWriteResponse indexResponse = client(ingestNode).index(indexRequest).actionGet();
         assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
         // now the geo-IP database should be loaded on the ingest node
         assertDatabaseLoadStatus(ingestNode, true);

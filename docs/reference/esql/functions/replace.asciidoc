@@ -1,0 +1,44 @@
+[discrete]
+[[esql-replace]]
+=== `REPLACE`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/replace.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`str`::
+String expression.
+
+`regex`::
+Regular expression.
+
+`newStr`::
+Replacement string.
+
+*Description*
+
+The function substitutes in the string `str` any match of the regular expression
+`regex` with the replacement string `newStr`.
+
+If any of the arguments is `null`, the result is `null`.
+
+*Supported types*
+
+include::types/replace.asciidoc[]
+
+*Example*
+
+This example replaces any occurrence of the word "World" with the word
+"Universe":
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=replaceString]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=replaceString-result]
+|===

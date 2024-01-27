@@ -11,9 +11,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -76,7 +77,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
             headers,
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             buildSearchRequest(sourceConfig, timeout, numberOfBuckets),
             ActionListener.wrap(r -> {
                 try {
@@ -88,9 +89,13 @@ public abstract class AbstractCompositeAggFunction implements Function {
                         return;
                     }
                     final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
+                    if (agg == null || agg.getBuckets().isEmpty()) {
+                        listener.onResponse(Collections.emptyList());
+                        return;
+                    }
+
                     TransformIndexerStats stats = new TransformIndexerStats();
                     TransformProgress progress = new TransformProgress();
-
                     List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats, progress).map(
                         this::documentTransformationFunction
                     ).collect(Collectors.toList());
@@ -116,7 +121,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
             headers,
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.wrap(response -> {
                 if (response == null) {

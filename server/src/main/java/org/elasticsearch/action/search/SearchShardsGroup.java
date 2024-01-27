@@ -49,7 +49,7 @@ public class SearchShardsGroup implements Writeable {
 
     public SearchShardsGroup(StreamInput in) throws IOException {
         this.shardId = new ShardId(in);
-        this.allocatedNodes = in.readStringList();
+        this.allocatedNodes = in.readStringCollectionAsList();
         this.skipped = in.readBoolean();
         this.preFiltered = true;
     }
@@ -105,5 +105,19 @@ public class SearchShardsGroup implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(shardId, allocatedNodes, skipped, preFiltered);
+    }
+
+    @Override
+    public String toString() {
+        return "SearchShardsGroup{"
+            + "shardId="
+            + shardId
+            + ", allocatedNodes="
+            + allocatedNodes
+            + ", skipped="
+            + skipped
+            + ", preFiltered="
+            + preFiltered
+            + '}';
     }
 }

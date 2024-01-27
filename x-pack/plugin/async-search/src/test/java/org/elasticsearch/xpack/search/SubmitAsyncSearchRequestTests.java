@@ -85,9 +85,7 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
         SubmitAsyncSearchRequest req = new SubmitAsyncSearchRequest();
         req.getSearchRequest().setCcsMinimizeRoundtrips(true);
         ActionRequestValidationException exc = req.validate();
-        assertNotNull(exc);
-        assertThat(exc.validationErrors().size(), equalTo(1));
-        assertThat(exc.validationErrors().get(0), containsString("[ccs_minimize_roundtrips]"));
+        assertNull(exc);
     }
 
     public void testValidateScroll() {

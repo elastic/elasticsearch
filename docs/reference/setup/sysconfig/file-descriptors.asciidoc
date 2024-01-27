@@ -10,7 +10,7 @@ limited only by available resources.
 Elasticsearch uses a lot of file descriptors or file handles. Running out of
 file descriptors can be disastrous and will most probably lead to data loss.
 Make sure to increase the limit on the number of open files descriptors for
-the user running Elasticsearch to 65,536 or higher.
+the user running Elasticsearch to 65,535 or higher.
 
 For the `.zip` and `.tar.gz` packages, set <<ulimit,`ulimit -n 65535`>> as
 root before starting Elasticsearch,   or set `nofile` to `65535` in

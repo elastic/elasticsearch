@@ -30,7 +30,7 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/upgrade";
 
     private UpgradeJobModelSnapshotAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -173,6 +173,14 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
             super(in);
             this.completed = in.readBoolean();
             this.node = in.readOptionalString();
+        }
+
+        public boolean isCompleted() {
+            return completed;
+        }
+
+        public String getNode() {
+            return node;
         }
 
         @Override

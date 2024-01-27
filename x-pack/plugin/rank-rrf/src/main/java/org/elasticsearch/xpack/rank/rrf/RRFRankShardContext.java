@@ -17,6 +17,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.rank.RankDoc.NO_RANK;
+
 /**
  * Executes queries and generates results on the shard for RRF.
  */
@@ -73,6 +75,18 @@ public class RRFRankShardContext extends RankShardContext {
         Arrays.sort(sortedResults, (RRFRankDoc rrf1, RRFRankDoc rrf2) -> {
             if (rrf1.score != rrf2.score) {
                 return rrf1.score < rrf2.score ? 1 : -1;
+            }
+            assert rrf1.positions.length == rrf2.positions.length;
+            for (int qi = 0; qi < rrf1.positions.length; ++qi) {
+                if (rrf1.positions[qi] != NO_RANK && rrf2.positions[qi] != NO_RANK) {
+                    if (rrf1.scores[qi] != rrf2.scores[qi]) {
+                        return rrf1.scores[qi] < rrf2.scores[qi] ? 1 : -1;
+                    }
+                } else if (rrf1.positions[qi] != NO_RANK) {
+                    return -1;
+                } else if (rrf2.positions[qi] != NO_RANK) {
+                    return 1;
+                }
             }
             return rrf1.doc < rrf2.doc ? -1 : 1;
         });

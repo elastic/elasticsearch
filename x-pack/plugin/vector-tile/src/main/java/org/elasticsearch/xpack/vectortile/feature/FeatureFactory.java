@@ -236,7 +236,7 @@ public class FeatureFactory {
             return geomFactory.createLineString(buildMercatorCoordinates(line));
         }
 
-        private Coordinate[] buildMercatorCoordinates(Line line) {
+        private static Coordinate[] buildMercatorCoordinates(Line line) {
             final Coordinate[] coordinates = new Coordinate[line.length()];
             for (int i = 0; i < line.length(); i++) {
                 final double x = SphericalMercatorUtils.lonToSphericalMercator(line.getX(i));
@@ -282,7 +282,7 @@ public class FeatureFactory {
             return geomFactory.createMultiPoint(points);
         }
 
-        private org.locationtech.jts.geom.Geometry clipGeometry(
+        private static org.locationtech.jts.geom.Geometry clipGeometry(
             org.locationtech.jts.geom.Geometry tile,
             org.locationtech.jts.geom.Geometry geometry
         ) {

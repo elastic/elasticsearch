@@ -27,15 +27,18 @@ node:
   if it is not possible to use the `node.name` of the node and there are
   multiple nodes sharing a single IP address.
 
-IMPORTANT: After the cluster has formed, remove the `cluster.initial_master_nodes`
-setting from each node's configuration. It should not be set for
-master-ineligible nodes, master-eligible nodes joining an existing cluster, or
-nodes which are restarting.
-+
+[IMPORTANT]
+====
+After the cluster has formed, remove the `cluster.initial_master_nodes` setting
+from each node's configuration. It should not be set for master-ineligible
+nodes, master-eligible nodes joining an existing cluster, or nodes which are
+restarting.
+
 If you leave `cluster.initial_master_nodes` in place once the cluster has
 formed then there is a risk that a future misconfiguration may result in
 bootstrapping a new cluster alongside your existing cluster. It may not be
 possible to recover from this situation without losing data.
+====
 
 The simplest way to create a new cluster is for you to select one of your
 master-eligible nodes that will bootstrap itself into a single-node cluster,
@@ -148,7 +151,8 @@ a separate single-node cluster then you must start again:
 folder>>.
 
 . Configure `discovery.seed_hosts` or `discovery.seed_providers` and other
-relevant discovery settings.
+relevant discovery settings. Ensure `cluster.initial_master_nodes` is not set
+on any node.
 
 . Restart the node and verify that it joins the existing cluster rather than
 forming its own one-node cluster.
@@ -167,5 +171,7 @@ folders>>.
 relevant discovery settings.
 
 . Restart all the nodes and verify that they have formed a single cluster.
+
+. Remove `cluster.initial_master_nodes` from every node's configuration.
 
 ****

@@ -11,6 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -20,9 +21,9 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
@@ -96,7 +97,30 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
 
                     IntStream slots = convertTopDocsToSlots(topDocs, pc.rootDocsBySlot);
                     // _percolator_document_slot fields are document fields and should be under "fields" section in a hit
-                    hitContext.hit().setDocumentField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
+                    List<Object> docSlots = slots.boxed().collect(Collectors.toList());
+                    hitContext.hit().setDocumentField(fieldName, new DocumentField(fieldName, docSlots));
+
+                    // Add info what sub-queries of percolator query matched this each percolated document
+                    if (fetchContext.getSearchExecutionContext().hasNamedQueries()) {
+                        List<LeafReaderContext> leafContexts = percolatorIndexSearcher.getLeafContexts();
+                        assert leafContexts.size() == 1 : "Expected single leaf, but got [" + leafContexts.size() + "]";
+                        LeafReaderContext memoryReaderContext = leafContexts.get(0);
+                        Weight weight = percolatorIndexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1);
+                        for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                            List<NamedMatches> namedMatchesList = NamedMatches.findNamedMatches(
+                                weight.matches(memoryReaderContext, topDocs.scoreDocs[i].doc)
+                            );
+                            if (namedMatchesList.isEmpty()) {
+                                continue;
+                            }
+                            List<Object> matchedQueries = new ArrayList<>(namedMatchesList.size());
+                            for (NamedMatches match : namedMatchesList) {
+                                matchedQueries.add(match.getName());
+                            }
+                            String matchedFieldName = fieldName + "_" + docSlots.get(i) + "_matched_queries";
+                            hitContext.hit().setDocumentField(matchedFieldName, new DocumentField(matchedFieldName, matchedQueries));
+                        }
+                    }
                 }
             }
         };
@@ -107,7 +131,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         final boolean singlePercolateQuery;
         final int[] rootDocsBySlot;
 
-        PercolateContext(PercolateQuery pq, boolean singlePercolateQuery, Version indexVersionCreated) throws IOException {
+        PercolateContext(PercolateQuery pq, boolean singlePercolateQuery, IndexVersion indexVersionCreated) throws IOException {
             this.percolateQuery = pq;
             this.singlePercolateQuery = singlePercolateQuery;
             IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
@@ -128,7 +152,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             return singlePercolateQuery ? FIELD_NAME_PREFIX : FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
         }
 
-        Query filterNestedDocs(Query in, Version indexVersionCreated) {
+        Query filterNestedDocs(Query in, IndexVersion indexVersionCreated) {
             if (rootDocsBySlot != null) {
                 // Ensures that we filter out nested documents
                 return new BooleanQuery.Builder().add(in, BooleanClause.Occur.MUST)

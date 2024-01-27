@@ -6,7 +6,12 @@
 
 NOTE: {cloud-only}
 
-Exposes the desired balance and basic metrics.
+Exposes:
+* the desired balance computation and reconciliation stats
+* balancing stats such as distribution of shards, disk and ingest forecasts
+  across nodes and data tiers (based on the current cluster state)
+* routing table with each shard current and desired location
+* cluster info with nodes disk usages
 
 [[get-desired-balance-request]]
 ==== {api-request-title}
@@ -33,6 +38,8 @@ The API returns the following result:
     "reconciliation_time_in_millis": 0
   },
   "cluster_balance_stats" : {
+    "shard_count": 37,
+    "undesired_shard_allocation_count": 0,
     "tiers": {
       "data_hot" : {
         "shard_count" : {
@@ -41,6 +48,13 @@ The API returns the following result:
           "max" : 3.0,
           "average" : 2.3333333333333335,
           "std_dev" : 0.4714045207910317
+        },
+        "undesired_shard_allocation_count" : {
+          "total" : 0.0,
+          "min" : 0.0,
+          "max" : 0.0,
+          "average" : 0.0,
+          "std_dev" : 0.0
         },
         "forecast_write_load" : {
           "total" : 21.0,
@@ -72,6 +86,13 @@ The API returns the following result:
           "average" : 1.0,
           "std_dev" : 0.0
         },
+        "undesired_shard_allocation_count" : {
+          "total" : 0.0,
+          "min" : 0.0,
+          "max" : 0.0,
+          "average" : 0.0,
+          "std_dev" : 0.0
+        },
         "forecast_write_load" : {
           "total" : 0.0,
           "min" : 0.0,
@@ -100,6 +121,7 @@ The API returns the following result:
         "node_id": "UPYt8VwWTt-IADAEbqpLxA",
         "roles": ["data_content"],
         "shard_count": 10,
+        "undesired_shard_allocation_count": 0,
         "forecast_write_load": 8.5,
         "forecast_disk_usage_bytes": 498435,
         "actual_disk_usage_bytes": 498435
@@ -108,6 +130,7 @@ The API returns the following result:
         "node_id": "bgC66tboTIeFQ0VgRGI4Gg",
         "roles": ["data_content"],
         "shard_count": 15,
+        "undesired_shard_allocation_count": 0,
         "forecast_write_load": 3.25,
         "forecast_disk_usage_bytes": 384935,
         "actual_disk_usage_bytes": 384935
@@ -116,6 +139,7 @@ The API returns the following result:
         "node_id": "2x1VTuSOQdeguXPdN73yRw",
         "roles": ["data_content"],
         "shard_count": 12,
+        "undesired_shard_allocation_count": 0,
         "forecast_write_load": 6.0,
         "forecast_disk_usage_bytes": 648766,
         "actual_disk_usage_bytes": 648766

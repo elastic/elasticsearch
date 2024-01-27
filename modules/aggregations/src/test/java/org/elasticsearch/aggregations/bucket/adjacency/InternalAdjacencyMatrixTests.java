@@ -67,8 +67,7 @@ public class InternalAdjacencyMatrixTests extends AggregationMultiBucketAggregat
     @Override
     protected InternalAdjacencyMatrix createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>();
-        for (int i = 0; i < keys.size(); ++i) {
-            String key = keys.get(i);
+        for (String key : keys) {
             int docCount = randomIntBetween(0, 1000);
             buckets.add(new InternalAdjacencyMatrix.InternalBucket(key, docCount, aggregations));
         }

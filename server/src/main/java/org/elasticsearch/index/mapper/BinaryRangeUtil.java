@@ -233,11 +233,11 @@ enum BinaryRangeUtil {
         }
 
         // write the header
-        encoded[0] |= sign << 7;
+        encoded[0] |= (byte) (sign << 7);
         if (sign > 0) {
-            encoded[0] |= numAdditionalBytes << 3;
+            encoded[0] |= (byte) (numAdditionalBytes << 3);
         } else {
-            encoded[0] |= (15 - numAdditionalBytes) << 3;
+            encoded[0] |= (byte) ((15 - numAdditionalBytes) << 3);
         }
         return encoded;
     }

@@ -12,8 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.util.Locale;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class DesiredBalanceStatsTests extends AbstractWireSerializingTestCase<DesiredBalanceStats> {
@@ -25,9 +23,16 @@ public class DesiredBalanceStatsTests extends AbstractWireSerializingTestCase<De
 
     @Override
     protected DesiredBalanceStats createTestInstance() {
+        return randomDesiredBalanceStats();
+    }
+
+    public static DesiredBalanceStats randomDesiredBalanceStats() {
         return new DesiredBalanceStats(
             randomNonNegativeLong(),
             randomBoolean(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -48,8 +53,7 @@ public class DesiredBalanceStatsTests extends AbstractWireSerializingTestCase<De
         assertThat(
             Strings.toString(instance, true, false),
             equalTo(
-                String.format(
-                    Locale.ROOT,
+                Strings.format(
                     """
                         {
                           "computation_converged_index" : %d,
@@ -60,9 +64,12 @@ public class DesiredBalanceStatsTests extends AbstractWireSerializingTestCase<De
                           "computation_iterations" : %d,
                           "computed_shard_movements" : %d,
                           "computation_time_in_millis" : %d,
-                          "reconciliation_time_in_millis" : %d
+                          "reconciliation_time_in_millis" : %d,
+                          "unassigned_shards" : %d,
+                          "total_allocations" : %d,
+                          "undesired_allocations" : %d,
+                          "undesired_allocations_ratio" : %s
                         }""",
-
                     instance.lastConvergedIndex(),
                     instance.computationActive(),
                     instance.computationSubmitted(),
@@ -71,7 +78,11 @@ public class DesiredBalanceStatsTests extends AbstractWireSerializingTestCase<De
                     instance.computationIterations(),
                     instance.computedShardMovements(),
                     instance.cumulativeComputationTime(),
-                    instance.cumulativeReconciliationTime()
+                    instance.cumulativeReconciliationTime(),
+                    instance.unassignedShards(),
+                    instance.totalAllocations(),
+                    instance.undesiredAllocations(),
+                    Double.toString(instance.undesiredAllocationsRatio())
                 )
             )
         );

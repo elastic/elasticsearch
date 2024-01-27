@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -88,7 +89,7 @@ public class TestRestrictedIndices {
             new Feature(
                 "enrich-mock",
                 "fake enrich for restricted indices tests",
-                List.of(new SystemIndexDescriptor(".enrich-*", "enrich pattern"))
+                List.of(SystemIndexDescriptorUtils.createUnmanaged(".enrich-*", "enrich pattern"))
             )
         );
         features.add(
@@ -96,28 +97,23 @@ public class TestRestrictedIndices {
                 "fleet-mock",
                 "fake fleet for restricted indices tests",
                 List.of(
-                    new SystemIndexDescriptor(".fleet-actions~(-results*)", "fleet actions"),
-                    new SystemIndexDescriptor(".fleet-agents*", "fleet agents"),
-                    new SystemIndexDescriptor(".fleet-enrollment-api-keys*", "fleet enrollment"),
-                    new SystemIndexDescriptor(".fleet-policies-[0-9]+*", "fleet policies"),
-                    new SystemIndexDescriptor(".fleet-policies-leader*", "fleet policies leader"),
-                    new SystemIndexDescriptor(".fleet-servers*", "fleet servers"),
-                    new SystemIndexDescriptor(".fleet-artifacts*", "fleet artifacts")
+                    SystemIndexDescriptorUtils.createUnmanaged(".fleet-actions~(-results*)", "fleet actions"),
+                    SystemIndexDescriptorUtils.createUnmanaged(".fleet-agents*", "fleet agents"),
+                    SystemIndexDescriptorUtils.createUnmanaged(".fleet-enrollment-api-keys*", "fleet enrollment"),
+                    SystemIndexDescriptorUtils.createUnmanaged(".fleet-policies-[0-9]+*", "fleet policies"),
+                    SystemIndexDescriptorUtils.createUnmanaged(".fleet-policies-leader*", "fleet policies leader"),
+                    SystemIndexDescriptorUtils.createUnmanaged(".fleet-servers*", "fleet servers"),
+                    SystemIndexDescriptorUtils.createUnmanaged(".fleet-artifacts*", "fleet artifacts")
                 ),
                 List.of(
                     new SystemDataStreamDescriptor(
                         ".fleet-actions-results",
                         "fleet actions results",
                         SystemDataStreamDescriptor.Type.EXTERNAL,
-                        new ComposableIndexTemplate(
-                            List.of(".fleet-actions-results"),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            new ComposableIndexTemplate.DataStreamTemplate()
-                        ),
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(".fleet-actions-results"))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
                         Map.of(),
                         List.of("fleet", "kibana"),
                         null
@@ -129,14 +125,14 @@ public class TestRestrictedIndices {
             new Feature(
                 "ingest-geoip-mock",
                 "fake geoip for restricted indices tests",
-                List.of(new SystemIndexDescriptor(".geoip_databases*", "geoip databases"))
+                List.of(SystemIndexDescriptorUtils.createUnmanaged(".geoip_databases*", "geoip databases"))
             )
         );
         features.add(
             new Feature(
                 "logstash-mock",
                 "fake logstash for restricted indices tests",
-                List.of(new SystemIndexDescriptor(".logstash*", "logstash"))
+                List.of(SystemIndexDescriptorUtils.createUnmanaged(".logstash*", "logstash"))
             )
         );
         features.add(
@@ -144,9 +140,9 @@ public class TestRestrictedIndices {
                 "machine-learning-mock",
                 "fake machine learning for restricted indices tests",
                 List.of(
-                    new SystemIndexDescriptor(".ml-meta*", "machine learning meta"),
-                    new SystemIndexDescriptor(".ml-config*", "machine learning config"),
-                    new SystemIndexDescriptor(".ml-inference*", "machine learning inference")
+                    SystemIndexDescriptorUtils.createUnmanaged(".ml-meta*", "machine learning meta"),
+                    SystemIndexDescriptorUtils.createUnmanaged(".ml-config*", "machine learning config"),
+                    SystemIndexDescriptorUtils.createUnmanaged(".ml-inference*", "machine learning inference")
                 )
             )
         );
@@ -154,14 +150,14 @@ public class TestRestrictedIndices {
             new Feature(
                 "searchable-snapshots-mock",
                 "fake searchable snapshots for restricted indices tests",
-                List.of(new SystemIndexDescriptor(".snapshot-blob-cache*", "snapshot blob cache"))
+                List.of(SystemIndexDescriptorUtils.createUnmanaged(".snapshot-blob-cache*", "snapshot blob cache"))
             )
         );
         features.add(
             new Feature(
                 "transform-mock",
                 "fake transform for restricted indices tests",
-                List.of(new SystemIndexDescriptor(".transform-internal-*", "transform internal"))
+                List.of(SystemIndexDescriptorUtils.createUnmanaged(".transform-internal-*", "transform internal"))
             )
         );
         features.add(
@@ -169,8 +165,8 @@ public class TestRestrictedIndices {
                 "watcher-mock",
                 "fake watcher for restricted indices tests",
                 List.of(
-                    new SystemIndexDescriptor(".watches*", "watches"),
-                    new SystemIndexDescriptor(".triggered-watches*", "triggered watches")
+                    SystemIndexDescriptorUtils.createUnmanaged(".watches*", "watches"),
+                    SystemIndexDescriptorUtils.createUnmanaged(".triggered-watches*", "triggered watches")
                 )
             )
         );
@@ -265,6 +261,7 @@ public class TestRestrictedIndices {
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
                 .field("version", Version.CURRENT)
+                .field(SystemIndexDescriptor.VERSION_META_KEY, 0)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")

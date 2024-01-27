@@ -1,0 +1,34 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "event_type": {
+      "type": "[runtime_random_keyword_type]"
+    },
+    "tag": {
+      "type": "keyword"
+    },
+    "k1": {
+      "type": "keyword"
+    },
+    "k2": {
+      "type": "keyword"
+    },
+    "sequence": {
+      "type": "long"
+    },
+    "event": {
+      "properties": {
+        "category": {
+          "type": "alias",
+          "path": "event_type"
+        },
+        "sequence": {
+          "type": "alias",
+          "path": "sequence"
+        }
+      }
+    }
+  }
+}

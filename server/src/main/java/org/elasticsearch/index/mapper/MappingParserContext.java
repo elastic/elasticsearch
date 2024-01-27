@@ -9,10 +9,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -30,7 +30,7 @@ public class MappingParserContext {
     private final Function<String, SimilarityProvider> similarityLookupService;
     private final Function<String, Mapper.TypeParser> typeParsers;
     private final Function<String, RuntimeField.Parser> runtimeFieldParsers;
-    private final Version indexVersionCreated;
+    private final IndexVersion indexVersionCreated;
     private final Supplier<TransportVersion> clusterTransportVersion;
     private final Supplier<SearchExecutionContext> searchExecutionContextSupplier;
     private final ScriptCompiler scriptCompiler;
@@ -44,7 +44,7 @@ public class MappingParserContext {
         Function<String, SimilarityProvider> similarityLookupService,
         Function<String, Mapper.TypeParser> typeParsers,
         Function<String, RuntimeField.Parser> runtimeFieldParsers,
-        Version indexVersionCreated,
+        IndexVersion indexVersionCreated,
         Supplier<TransportVersion> clusterTransportVersion,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         ScriptCompiler scriptCompiler,
@@ -93,7 +93,7 @@ public class MappingParserContext {
         return runtimeFieldParsers.apply(type);
     }
 
-    public Version indexVersionCreated() {
+    public IndexVersion indexVersionCreated() {
         return indexVersionCreated;
     }
 

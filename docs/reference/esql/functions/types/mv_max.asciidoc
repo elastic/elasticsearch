@@ -1,0 +1,14 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+v | result
+boolean | boolean
+datetime | datetime
+double | double
+integer | integer
+ip | ip
+keyword | keyword
+long | long
+text | text
+unsigned_long | unsigned_long
+version | version
+|===

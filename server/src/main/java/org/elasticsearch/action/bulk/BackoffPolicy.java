@@ -9,6 +9,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.core.TimeValue;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
@@ -96,17 +97,7 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
     private static class NoBackoff extends BackoffPolicy {
         @Override
         public Iterator<TimeValue> iterator() {
-            return new Iterator<TimeValue>() {
-                @Override
-                public boolean hasNext() {
-                    return false;
-                }
-
-                @Override
-                public TimeValue next() {
-                    throw new NoSuchElementException("No backoff");
-                }
-            };
+            return Collections.emptyIterator();
         }
     }
 

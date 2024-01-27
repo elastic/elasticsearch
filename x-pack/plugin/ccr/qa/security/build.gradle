@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -22,7 +23,7 @@ testClusters.register('follow-cluster') {
     testDistribution = 'DEFAULT'
     setting 'cluster.remote.leader_cluster.seeds', {
       "\"${leadCluster.get().getAllTransportPortURI().join(",")}\""
-    }
+    }, IGNORE_VALUE
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.monitoring.collection.enabled', 'false' // will be enabled by tests

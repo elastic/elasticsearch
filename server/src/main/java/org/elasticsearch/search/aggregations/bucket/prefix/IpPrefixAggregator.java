@@ -12,14 +12,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
@@ -51,22 +50,6 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             this.prefixLength = prefixLength;
             this.appendPrefixLength = appendPrefixLength;
             this.netmask = netmask;
-        }
-
-        public boolean isIpv6() {
-            return isIpv6;
-        }
-
-        public int getPrefixLength() {
-            return prefixLength;
-        }
-
-        public boolean appendPrefixLength() {
-            return appendPrefixLength;
-        }
-
-        public BytesRef getNetmask() {
-            return netmask;
         }
 
         @Override
@@ -186,7 +169,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             }
         }
 
-        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+        var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
         InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
         b = 0;
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
@@ -195,15 +178,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             while (ordsEnum.next()) {
                 long ordinal = ordsEnum.ord();
                 if (bucketOrdsToCollect[b] != ordinal) {
-                    throw new AggregationExecutionException(
-                        "Iteration order of ["
-                            + bucketOrds
-                            + "] changed without mutating. ["
-                            + ordinal
-                            + "] should have been ["
-                            + bucketOrdsToCollect[b]
-                            + "]"
-                    );
+                    throw AggregationErrors.iterationOrderChangedWithoutMutating(bucketOrds.toString(), ordinal, bucketOrdsToCollect[b]);
                 }
                 BytesRef ipAddress = new BytesRef();
                 ordsEnum.readValue(ipAddress);
@@ -217,7 +192,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
                         ipPrefix.prefixLength,
                         ipPrefix.appendPrefixLength,
                         docCount,
-                        subAggregationResults[b++]
+                        subAggregationResults.apply(b++)
                     )
                 );
 

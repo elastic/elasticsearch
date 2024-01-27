@@ -68,7 +68,7 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
     public static SingleNodeShutdownStatus randomNodeShutdownStatus() {
         return new SingleNodeShutdownStatus(
             randomNodeShutdownMetadata(),
-            new ShutdownShardMigrationStatus(randomStatus(), randomNonNegativeLong()),
+            new ShutdownShardMigrationStatus(randomStatus(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
             new ShutdownPersistentTasksStatus(),
             new ShutdownPluginsStatus(randomBoolean())
         );

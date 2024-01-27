@@ -9,16 +9,17 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -46,6 +48,7 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 import org.elasticsearch.xpack.transform.transforms.RetentionPolicyToDeleteByQueryRequestConverter.RetentionPolicyException;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformSchedulingUtils;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -57,6 +60,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
 
 public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformIndexerPosition, TransformIndexerStats> {
@@ -84,8 +88,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private static final long RETENTION_OF_CHECKPOINTS_MS = 864000000L; // 10 days
     private static final long CHECKPOINT_CLEANUP_INTERVAL = 100L; // every 100 checkpoints
 
-    // constant for triggering state persistence, hardcoded for now
-    public static final long DEFAULT_TRIGGER_SAVE_STATE_INTERVAL_MS = 60_000; // 60s
+    // Constant for triggering state persistence, used when there are no state persistence errors.
+    // In face of errors, exponential backoff scheme is used.
+    public static final TimeValue DEFAULT_TRIGGER_SAVE_STATE_INTERVAL = TimeValue.timeValueSeconds(60);
 
     protected final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
@@ -127,6 +132,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected volatile boolean indexerThreadShuttingDown = false;
     protected volatile boolean saveStateRequestedDuringIndexerThreadShutdown = false;
 
+    @SuppressWarnings("this-escape")
     public TransformIndexer(
         ThreadPool threadPool,
         TransformServices transformServices,
@@ -167,11 +173,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     abstract void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener);
 
-    abstract void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener);
+    abstract void refreshDestinationIndex(ActionListener<Void> responseListener);
 
     abstract void persistState(TransformState state, ActionListener<Void> listener);
 
-    abstract void validate(ActionListener<Void> listener);
+    abstract void validate(ActionListener<ValidateTransformAction.Response> listener);
 
     @Override
     protected String getJobId() {
@@ -189,8 +195,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         if (saveStateListeners.get() != null) {
             return true;
         }
-
-        return TimeUnit.NANOSECONDS.toMillis(getTimeNanos()) > lastSaveStateMilliseconds + DEFAULT_TRIGGER_SAVE_STATE_INTERVAL_MS;
+        long currentTimeMilliseconds = TimeUnit.NANOSECONDS.toMillis(getTimeNanos());
+        long nextSaveStateMilliseconds = TransformSchedulingUtils.calculateNextScheduledTime(
+            lastSaveStateMilliseconds,
+            DEFAULT_TRIGGER_SAVE_STATE_INTERVAL,
+            context.getStatePersistenceFailureCount()
+        );
+        return currentTimeMilliseconds > nextSaveStateMilliseconds;
     }
 
     public TransformConfig getConfig() {
@@ -215,10 +226,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     public TransformCheckpoint getNextCheckpoint() {
         return nextCheckpoint;
-    }
-
-    public CheckpointProvider getCheckpointProvider() {
-        return checkpointProvider;
     }
 
     /**
@@ -260,6 +267,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             listener.onFailure(new ElasticsearchException("Attempted to start a failed transform [{}].", getJobId()));
             return;
         }
+
+        SetOnce<Map<String, String>> deducedDestIndexMappings = new SetOnce<>();
 
         ActionListener<Void> finalListener = ActionListener.wrap(r -> {
             try {
@@ -322,8 +331,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
         }, listener::onFailure);
 
-        ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(mappings -> {
-            this.fieldMappings = mappings;
+        ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(destIndexMappings -> {
+            if (destIndexMappings.isEmpty() == false) {
+                // If we managed to fetch destination index mappings, we use them from now on ...
+                this.fieldMappings = destIndexMappings;
+            } else {
+                // ... otherwise we fall back to index mappings deduced based on source indices
+                this.fieldMappings = deducedDestIndexMappings.get();
+            }
             configurationReadyListener.onResponse(null);
         }, listener::onFailure);
 
@@ -334,7 +349,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }, listener::onFailure);
 
         // If we are continuous, we will want to verify we have the latest stored configuration
-        ActionListener<Void> changedSourceListener = ActionListener.wrap(r -> {
+        ActionListener<ValidateTransformAction.Response> changedSourceListener = ActionListener.wrap(validationResponse -> {
+            deducedDestIndexMappings.set(validationResponse.getDestIndexMappings());
             if (isContinuous()) {
                 transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(config -> {
                     if (transformConfig.equals(config) && fieldMappings != null) {
@@ -347,12 +363,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     }
                 }, failure -> {
                     String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION, getJobId());
-                    logger.error(msg, failure);
                     // If the transform config index or the transform config is gone, something serious occurred
                     // We are in an unknown state and should fail out
                     if (failure instanceof ResourceNotFoundException) {
+                        logger.error(msg, failure);
                         reLoadFieldMappingsListener.onFailure(new TransformConfigLostOnReloadException(msg, failure));
                     } else {
+                        logger.warn(msg, failure);
                         auditor.warning(getJobId(), msg);
                         reLoadFieldMappingsListener.onResponse(null);
                     }
@@ -372,7 +389,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 if (hasChanged) {
                     context.setChangesLastDetectedAt(instantOfTrigger);
                     logger.debug("[{}] source has changed, triggering new indexer run.", getJobId());
-                    changedSourceListener.onResponse(null);
+                    changedSourceListener.onResponse(new ValidateTransformAction.Response(emptyMap()));
                 } else {
                     logger.trace("[{}] source has not changed, finish indexer early.", getJobId());
                     // No changes, stop executing
@@ -391,7 +408,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             hasSourceChanged = true;
             context.setLastSearchTime(instantOfTrigger);
             context.setChangesLastDetectedAt(instantOfTrigger);
-            changedSourceListener.onResponse(null);
+            changedSourceListener.onResponse(new ValidateTransformAction.Response(emptyMap()));
         }
     }
 
@@ -428,12 +445,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         try {
             refreshDestinationIndex(ActionListener.wrap(response -> {
-                if (response.getFailedShards() > 0) {
-                    logger.warn(
-                        "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",
-                        getJobId()
-                    );
-                }
                 // delete data defined by retention policy
                 if (transformConfig.getRetentionPolicyConfig() != null) {
                     executeRetentionPolicy(failureHandlingListener);
@@ -469,8 +480,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         );
         getStats().markStartDelete();
 
-        ActionListener<RefreshResponse> deleteByQueryAndRefreshDoneListener = ActionListener.wrap(
-            refreshResponse -> finalizeCheckpoint(listener),
+        ActionListener<Void> deleteByQueryAndRefreshDoneListener = ActionListener.wrap(
+            unused -> finalizeCheckpoint(listener),
             listener::onFailure
         );
 
@@ -1166,7 +1177,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     private RunState determineRunStateAtStart() {
-        if (context.from() != null) {
+        if (context.from() != null && changeCollector != null && changeCollector.queryForChanges()) {
             return RunState.IDENTIFY_CHANGES;
         }
 

@@ -11,7 +11,6 @@ import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -28,6 +27,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.SearchHit;
@@ -62,6 +63,7 @@ import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexNam
 /**
  * Main class handling a call to the _mvt API.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestVectorTileAction extends BaseRestHandler {
 
     private static final String META_LAYER = "meta";
@@ -144,21 +146,14 @@ public class RestVectorTileAction extends BaseRestHandler {
                                 .collect(Collectors.toList())
                         );
                     final SearchResponse meta = new SearchResponse(
-                        new SearchResponseSections(
-                            new SearchHits(
-                                SearchHits.EMPTY,
-                                searchResponse.getHits().getTotalHits(),
-                                searchResponse.getHits().getMaxScore()
-                            ), // remove actual hits
-                            aggsWithoutGridAndBounds,
-                            searchResponse.getSuggest(),
-                            searchResponse.isTimedOut(),
-                            searchResponse.isTerminatedEarly(),
-                            searchResponse.getProfileResults() == null
-                                ? null
-                                : new SearchProfileResults(searchResponse.getProfileResults()),
-                            searchResponse.getNumReducePhases()
-                        ),
+                        // remove actual hits
+                        SearchHits.empty(searchResponse.getHits().getTotalHits(), searchResponse.getHits().getMaxScore()),
+                        aggsWithoutGridAndBounds,
+                        searchResponse.getSuggest(),
+                        searchResponse.isTimedOut(),
+                        searchResponse.isTerminatedEarly(),
+                        searchResponse.getProfileResults() == null ? null : new SearchProfileResults(searchResponse.getProfileResults()),
+                        searchResponse.getNumReducePhases(),
                         searchResponse.getScrollId(),
                         searchResponse.getTotalShards(),
                         searchResponse.getSuccessfulShards(),

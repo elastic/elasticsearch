@@ -2,10 +2,6 @@
 [[breaking_80_jdbc_changes]]
 ==== SQL JDBC changes
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
 .JDBC driver returns geometry objects as well-known-text string instead of `org.elasticsearch.geo` objects.
 [%collapsible]
 ====
@@ -24,4 +20,3 @@ Elasticsearch JDBC driver with their WKT representation by simply calling `toStr
 This change does NOT impact users that do not use geometry classes.
 
 ====
-// end::notable-breaking-changes[]

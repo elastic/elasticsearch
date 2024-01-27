@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
@@ -58,7 +59,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
         Realms realms,
         ProfileService profileService
     ) {
-        super(GetUsersAction.NAME, transportService, actionFilters, GetUsersRequest::new);
+        super(GetUsersAction.NAME, transportService, actionFilters, GetUsersRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.settings = settings;
         this.usersStore = usersStore;
         this.reservedRealm = reservedRealm;
@@ -144,7 +145,10 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
         }).toList();
 
         profileService.searchProfilesForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
-            if (resultsAndErrors.errors().isEmpty()) {
+            if (resultsAndErrors == null) {
+                // profile index does not exist
+                listener.onResponse(null);
+            } else if (resultsAndErrors.errors().isEmpty()) {
                 assert users.size() == resultsAndErrors.results().size();
                 final Map<String, String> profileUidLookup = resultsAndErrors.results()
                     .stream()

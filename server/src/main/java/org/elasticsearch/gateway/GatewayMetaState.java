@@ -14,7 +14,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,13 +27,16 @@ import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -96,7 +98,8 @@ public class GatewayMetaState implements Closeable {
         IndexMetadataVerifier indexMetadataVerifier,
         MetadataUpgrader metadataUpgrader,
         PersistedClusterStateService persistedClusterStateService,
-        List<ClusterCoordinationPlugin> clusterCoordinationPlugins
+        List<ClusterCoordinationPlugin> clusterCoordinationPlugins,
+        CompatibilityVersions compatibilityVersions
     ) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
         try {
@@ -109,7 +112,8 @@ public class GatewayMetaState implements Closeable {
                     indexMetadataVerifier,
                     metadataUpgrader,
                     persistedClusterStateService,
-                    clusterCoordinationPlugins
+                    clusterCoordinationPlugins,
+                    compatibilityVersions
                 )
             );
         } catch (IOException e) {
@@ -125,7 +129,8 @@ public class GatewayMetaState implements Closeable {
         IndexMetadataVerifier indexMetadataVerifier,
         MetadataUpgrader metadataUpgrader,
         PersistedClusterStateService persistedClusterStateService,
-        List<ClusterCoordinationPlugin> clusterCoordinationPlugins
+        List<ClusterCoordinationPlugin> clusterCoordinationPlugins,
+        CompatibilityVersions compatibilityVersions
     ) throws IOException {
         final var persistedStateFactories = clusterCoordinationPlugins.stream()
             .map(ClusterCoordinationPlugin::getPersistedStateFactory)
@@ -148,11 +153,19 @@ public class GatewayMetaState implements Closeable {
                 metaStateService,
                 indexMetadataVerifier,
                 metadataUpgrader,
-                persistedClusterStateService
+                persistedClusterStateService,
+                compatibilityVersions
             );
         }
 
-        return createInMemoryPersistedState(settings, transportService, clusterService, metaStateService, persistedClusterStateService);
+        return createInMemoryPersistedState(
+            settings,
+            transportService,
+            clusterService,
+            metaStateService,
+            persistedClusterStateService,
+            compatibilityVersions
+        );
     }
 
     private PersistedState createOnDiskPersistedState(
@@ -162,7 +175,8 @@ public class GatewayMetaState implements Closeable {
         MetaStateService metaStateService,
         IndexMetadataVerifier indexMetadataVerifier,
         MetadataUpgrader metadataUpgrader,
-        PersistedClusterStateService persistedClusterStateService
+        PersistedClusterStateService persistedClusterStateService,
+        CompatibilityVersions compatibilityVersions
     ) throws IOException {
         final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
 
@@ -171,7 +185,7 @@ public class GatewayMetaState implements Closeable {
         long currentTerm = onDiskState.currentTerm;
 
         if (onDiskState.empty()) {
-            assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "legacy metadata loader is not needed anymore from v9 onwards";
+            @UpdateForV9 // legacy metadata loader is not needed anymore from v9 onwards
             final Tuple<Manifest, Metadata> legacyState = metaStateService.loadFullState();
             if (legacyState.v1().isEmpty() == false) {
                 metadata = legacyState.v2();
@@ -189,7 +203,8 @@ public class GatewayMetaState implements Closeable {
                 ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                     .version(lastAcceptedVersion)
                     .metadata(upgradeMetadataForNode(metadata, indexMetadataVerifier, metadataUpgrader))
-                    .build()
+                    .build(),
+                compatibilityVersions
             );
             if (DiscoveryNode.isMasterNode(settings)) {
                 persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
@@ -225,13 +240,15 @@ public class GatewayMetaState implements Closeable {
         TransportService transportService,
         ClusterService clusterService,
         MetaStateService metaStateService,
-        PersistedClusterStateService persistedClusterStateService
+        PersistedClusterStateService persistedClusterStateService,
+        CompatibilityVersions compatibilityVersions
     ) throws IOException {
         final long currentTerm = 0L;
         final ClusterState clusterState = prepareInitialClusterState(
             transportService,
             clusterService,
-            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build()
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build(),
+            compatibilityVersions
         );
         if (persistedClusterStateService.getDataPaths().length > 0) {
             // write empty cluster state just so that we have a persistent node id. There is no need to write out global metadata with
@@ -251,12 +268,17 @@ public class GatewayMetaState implements Closeable {
     }
 
     // exposed so it can be overridden by tests
-    ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
+    ClusterState prepareInitialClusterState(
+        TransportService transportService,
+        ClusterService clusterService,
+        ClusterState clusterState,
+        CompatibilityVersions compatibilityVersions
+    ) {
         assert clusterState.nodes().getLocalNode() == null : "prepareInitialClusterState must only be called once";
         assert transportService.getLocalNode() != null : "transport service is not yet started";
         return Function.<ClusterState>identity()
             .andThen(ClusterStateUpdaters::addStateNotRecoveredBlock)
-            .andThen(state -> ClusterStateUpdaters.setLocalNode(state, transportService.getLocalNode(), TransportVersion.CURRENT))
+            .andThen(state -> ClusterStateUpdaters.setLocalNode(state, transportService.getLocalNode(), compatibilityVersions))
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(clusterState);
@@ -277,10 +299,7 @@ public class GatewayMetaState implements Closeable {
         boolean changed = false;
         final Metadata.Builder upgradedMetadata = Metadata.builder(metadata);
         for (IndexMetadata indexMetadata : metadata) {
-            IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(
-                indexMetadata,
-                Version.CURRENT.minimumIndexCompatibilityVersion()
-            );
+            IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(indexMetadata, IndexVersions.MINIMUM_COMPATIBLE);
             changed |= indexMetadata != newMetadata;
             upgradedMetadata.put(newMetadata, false);
         }
@@ -358,7 +377,7 @@ public class GatewayMetaState implements Closeable {
                 1,
                 daemonThreadFactory(nodeName, THREAD_NAME),
                 threadPool.getThreadContext(),
-                false
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             );
             this.persistedState = persistedState;
         }
@@ -487,6 +506,7 @@ public class GatewayMetaState implements Closeable {
         private final AtomicReference<PersistedClusterStateService.Writer> persistenceWriter = new AtomicReference<>();
         private boolean writeNextStateFully;
 
+        @SuppressWarnings("this-escape")
         public LucenePersistedState(
             PersistedClusterStateService persistedClusterStateService,
             long currentTerm,

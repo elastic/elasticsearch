@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -34,22 +35,18 @@ import java.util.Map;
 
 public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements ToXContentFragment {
 
-    public NodesInfoResponse(StreamInput in) throws IOException {
-        super(in);
-    }
-
     public NodesInfoResponse(ClusterName clusterName, List<NodeInfo> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
     protected List<NodeInfo> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeInfo::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeInfo> nodes) throws IOException {
-        out.writeList(nodes);
+        TransportAction.localOnly();
     }
 
     @Override
@@ -65,8 +62,13 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
 
             builder.field("version", nodeInfo.getVersion());
             builder.field("transport_version", nodeInfo.getTransportVersion().id());
-            // flavor no longer exists, but we keep it here for backcompat
-            builder.field("build_flavor", "default");
+            builder.field("index_version", nodeInfo.getIndexVersion().id());
+            builder.startObject("component_versions");
+            for (var cv : nodeInfo.getComponentVersions().entrySet()) {
+                builder.field(cv.getKey(), cv.getValue());
+            }
+            builder.endObject();
+            builder.field("build_flavor", nodeInfo.getBuild().flavor());
             builder.field("build_type", nodeInfo.getBuild().type().displayName());
             builder.field("build_hash", nodeInfo.getBuild().hash());
             if (nodeInfo.getTotalIndexingBuffer() != null) {

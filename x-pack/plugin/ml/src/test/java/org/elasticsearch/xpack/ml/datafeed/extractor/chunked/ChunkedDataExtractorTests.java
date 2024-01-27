@@ -26,9 +26,9 @@ import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -100,7 +100,6 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         jobId = "test-job";
         timeField = "time";
         indices = Arrays.asList("index-1", "index-2");
-        query = QueryBuilders.matchAllQuery();
         scrollSize = 1000;
         chunkSpan = null;
         dataExtractorFactory = mock(DataExtractorFactory.class);
@@ -432,12 +431,12 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
         InputStream inputStream1 = mock(InputStream.class);
 
-        DataExtractor subExtactor1 = new StubSubExtractor(new SearchInterval(100_000L, 200_000L), inputStream1);
-        when(dataExtractorFactory.newExtractor(100000L, 200000L)).thenReturn(subExtactor1);
+        DataExtractor subExtractor1 = new StubSubExtractor(new SearchInterval(100_000L, 200_000L), inputStream1);
+        when(dataExtractorFactory.newExtractor(100000L, 200000L)).thenReturn(subExtractor1);
 
         // This one is empty
-        DataExtractor subExtactor2 = new StubSubExtractor(new SearchInterval(200_000L, 300_000L));
-        when(dataExtractorFactory.newExtractor(200000, 300000L)).thenReturn(subExtactor2);
+        DataExtractor subExtractor2 = new StubSubExtractor(new SearchInterval(200_000L, 300_000L));
+        when(dataExtractorFactory.newExtractor(200000, 300000L)).thenReturn(subExtractor2);
 
         assertThat(extractor.hasNext(), is(true));
         assertEquals(inputStream1, extractor.next().data().get());
@@ -448,8 +447,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
         // This is the last one
         InputStream inputStream2 = mock(InputStream.class);
-        DataExtractor subExtactor3 = new StubSubExtractor(new SearchInterval(200_000L, 400_000L), inputStream2);
-        when(dataExtractorFactory.newExtractor(200000, 400000)).thenReturn(subExtactor3);
+        DataExtractor subExtractor3 = new StubSubExtractor(new SearchInterval(200_000L, 400_000L), inputStream2);
+        when(dataExtractorFactory.newExtractor(200000, 400000)).thenReturn(subExtractor3);
 
         assertEquals(inputStream2, extractor.next().data().get());
         assertThat(extractor.next().data().isPresent(), is(false));
@@ -465,7 +464,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"gte\":100000,\"lt\":400000"));
         searchRequest = capturedSearchRequests.get(1).toString().replaceAll("\\s", "");
-        assertThat(searchRequest, containsString("\"gte\":200000,\"lt\":400000"));
+        assertThat(searchRequest, containsString("\"gte\":300000,\"lt\":400000"));
     }
 
     public void testCancelGivenNextWasNeverCalled() {
@@ -556,7 +555,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         SearchHit[] hits = new SearchHit[(int) totalHits];
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1);
+        Arrays.fill(hits, SearchHit.unpooled(1));
+        SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
         List<Aggregation> aggs = new ArrayList<>();
@@ -577,8 +577,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     private SearchResponse createNullSearchResponse() {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
-        SearchHit[] hits = new SearchHit[0];
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1);
+        SearchHits searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
         List<Aggregation> aggs = new ArrayList<>();
@@ -605,7 +604,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
             jobId,
             timeField,
             indices,
-            query,
+            QueryBuilders.matchAllQuery(),
             scrollSize,
             start,
             end,
@@ -650,6 +649,11 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
         @Override
         public void cancel() {
+            // do nothing
+        }
+
+        @Override
+        public void destroy() {
             // do nothing
         }
 

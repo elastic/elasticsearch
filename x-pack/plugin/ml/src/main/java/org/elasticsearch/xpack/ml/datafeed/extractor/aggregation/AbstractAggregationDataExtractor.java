@@ -17,10 +17,11 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -29,7 +30,6 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Abstract class for aggregated data extractors, e.g. {@link RollupDataExtractor}
@@ -79,6 +79,11 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
     }
 
     @Override
+    public void destroy() {
+        cancel();
+    }
+
+    @Override
     public long getEndTime() {
         return context.end;
     }
@@ -118,10 +123,14 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         T searchRequest = buildSearchRequest(buildBaseSearchSource());
         assert searchRequest.request().allowPartialSearchResults() == false;
         SearchResponse searchResponse = executeSearchRequest(searchRequest);
-        checkForSkippedClusters(searchResponse);
-        LOGGER.debug("[{}] Search response was obtained", context.jobId);
-        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        return validateAggs(searchResponse.getAggregations());
+        try {
+            checkForSkippedClusters(searchResponse);
+            LOGGER.debug("[{}] Search response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            return validateAggs(searchResponse.getAggregations());
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     private void initAggregationProcessor(Aggregations aggs) throws IOException {
@@ -143,10 +152,10 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         // For derivative aggregations the first bucket will always be null
         // so query one extra histogram bucket back and hope there is data
         // in that bucket
-        long histogramSearchStartTime = Math.max(0, context.start - ExtractorUtils.getHistogramIntervalMillis(context.aggs));
+        long histogramSearchStartTime = Math.max(0, context.start - DatafeedConfigUtils.getHistogramIntervalMillis(context.aggs));
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
-            .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
 
         if (context.runtimeMappings.isEmpty() == false) {
             searchSourceBuilder.runtimeMappings(context.runtimeMappings);
@@ -158,7 +167,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     protected abstract T buildSearchRequest(SearchSourceBuilder searchRequestBuilder);
 
-    private Aggregations validateAggs(@Nullable Aggregations aggs) {
+    private static Aggregations validateAggs(@Nullable Aggregations aggs) {
         if (aggs == null) {
             return null;
         }
@@ -168,8 +177,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         }
         if (aggsAsList.size() > 1) {
             throw new IllegalArgumentException(
-                "Multiple top level aggregations not supported; found: "
-                    + aggsAsList.stream().map(Aggregation::getName).collect(Collectors.toList())
+                "Multiple top level aggregations not supported; found: " + aggsAsList.stream().map(Aggregation::getName).toList()
             );
         }
 

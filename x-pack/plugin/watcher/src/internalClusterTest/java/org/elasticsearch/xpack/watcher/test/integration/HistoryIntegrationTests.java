@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -33,6 +32,7 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -73,8 +73,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertBusy(() -> {
             flushAndRefresh(".watcher-history-*");
-            SearchResponse searchResponse = client().prepareSearch(".watcher-history-*").get();
-            assertHitCount(searchResponse, 1);
+            assertHitCount(prepareSearch(".watcher-history-*"), 1);
         });
     }
 
@@ -107,12 +106,11 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertBusy(() -> {
             refresh(".watcher-history*");
-            SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
-            assertHitCount(searchResponse, 1);
+            assertHitCount(prepareSearch(".watcher-history*").setSize(0), 1);
         });
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(".watcher-history*").get();
         XContentSource source = new XContentSource(
             response.getMappings().values().iterator().next().source().uncompressed(),
             XContentType.JSON
@@ -153,12 +151,11 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertBusy(() -> {
             refresh(".watcher-history*");
-            SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
-            assertHitCount(searchResponse, 1);
+            assertHitCount(prepareSearch(".watcher-history*").setSize(0), 1);
         });
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(".watcher-history*").get();
         XContentSource source = new XContentSource(
             response.getMappings().values().iterator().next().source().uncompressed(),
             XContentType.JSON
@@ -190,38 +187,39 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertBusy(() -> {
             refresh(".watcher-history*");
-            SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(1).get();
-            assertHitCount(searchResponse, 1);
-            SearchHit hit = searchResponse.getHits().getAt(0);
+            assertResponse(prepareSearch(".watcher-history*").setSize(1), searchResponse -> {
+                assertHitCount(searchResponse, 1);
+                SearchHit hit = searchResponse.getHits().getAt(0);
 
-            XContentSource source = new XContentSource(hit.getSourceRef(), XContentType.JSON);
+                XContentSource source = new XContentSource(hit.getSourceRef(), XContentType.JSON);
 
-            Boolean active = source.getValue("status.state.active");
-            assertThat(active, is(status.state().isActive()));
+                Boolean active = source.getValue("status.state.active");
+                assertThat(active, is(status.state().isActive()));
 
-            String timestamp = source.getValue("status.state.timestamp");
-            assertThat(timestamp, WatcherTestUtils.isSameDate(status.state().getTimestamp()));
+                String timestamp = source.getValue("status.state.timestamp");
+                assertThat(timestamp, WatcherTestUtils.isSameDate(status.state().getTimestamp()));
 
-            String lastChecked = source.getValue("status.last_checked");
-            assertThat(lastChecked, WatcherTestUtils.isSameDate(status.lastChecked()));
-            String lastMetCondition = source.getValue("status.last_met_condition");
-            assertThat(lastMetCondition, WatcherTestUtils.isSameDate(status.lastMetCondition()));
+                String lastChecked = source.getValue("status.last_checked");
+                assertThat(lastChecked, WatcherTestUtils.isSameDate(status.lastChecked()));
+                String lastMetCondition = source.getValue("status.last_met_condition");
+                assertThat(lastMetCondition, WatcherTestUtils.isSameDate(status.lastMetCondition()));
 
-            Integer version = source.getValue("status.version");
-            int expectedVersion = (int) (status.version() - 1);
-            assertThat(version, is(expectedVersion));
+                Integer version = source.getValue("status.version");
+                int expectedVersion = (int) (status.version() - 1);
+                assertThat(version, is(expectedVersion));
 
-            ActionStatus actionStatus = status.actionStatus("_logger");
-            String ackStatusState = source.getValue("status.actions._logger.ack.state").toString().toUpperCase(Locale.ROOT);
-            assertThat(ackStatusState, is(actionStatus.ackStatus().state().toString()));
+                ActionStatus actionStatus = status.actionStatus("_logger");
+                String ackStatusState = source.getValue("status.actions._logger.ack.state").toString().toUpperCase(Locale.ROOT);
+                assertThat(ackStatusState, is(actionStatus.ackStatus().state().toString()));
 
-            Boolean lastExecutionSuccesful = source.getValue("status.actions._logger.last_execution.successful");
-            assertThat(lastExecutionSuccesful, is(actionStatus.lastExecution().successful()));
+                Boolean lastExecutionSuccesful = source.getValue("status.actions._logger.last_execution.successful");
+                assertThat(lastExecutionSuccesful, is(actionStatus.lastExecution().successful()));
+            });
         });
 
         assertBusy(() -> {
             // also ensure that the status field is disabled in the watch history
-            GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+            GetMappingsResponse response = indicesAdmin().prepareGetMappings(".watcher-history*").get();
             XContentSource mappingSource = new XContentSource(
                 response.getMappings().values().iterator().next().source().uncompressed(),
                 XContentType.JSON

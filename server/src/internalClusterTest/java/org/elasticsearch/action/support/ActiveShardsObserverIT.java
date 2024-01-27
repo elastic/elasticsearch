@@ -55,8 +55,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
             settingsBuilder.put("index.routing.allocation.exclude._name", exclude);
         }
         Settings settings = settingsBuilder.build();
-        CreateIndexResponse response = prepareCreate("test-idx").setSettings(settings).setWaitForActiveShards(ActiveShardCount.NONE).get();
-        assertTrue(response.isAcknowledged());
+        assertAcked(prepareCreate("test-idx").setSettings(settings).setWaitForActiveShards(ActiveShardCount.NONE));
     }
 
     public void testCreateIndexNotEnoughActiveShardsTimesOut() throws Exception {
@@ -86,9 +85,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
             .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), internalCluster().numDataNodes() + randomIntBetween(0, 3))
             .build();
         assertAcked(
-            prepareCreate(indexName).setSettings(settings)
-                .setWaitForActiveShards(randomIntBetween(0, internalCluster().numDataNodes()))
-                .get()
+            prepareCreate(indexName).setSettings(settings).setWaitForActiveShards(randomIntBetween(0, internalCluster().numDataNodes()))
         );
     }
 
@@ -110,7 +107,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
         );
         waitForIndexCreationToComplete(indexName);
         if (indexExists(indexName)) {
-            client().admin().indices().prepareDelete(indexName).get();
+            indicesAdmin().prepareDelete(indexName).get();
         }
 
         // enough data nodes, all shards are active
@@ -139,7 +136,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
         assertBusy(() -> assertTrue(clusterAdmin().prepareState().get().getState().metadata().hasIndex(indexName)));
 
         logger.info("--> delete the index");
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         logger.info("--> ensure the create index request completes");
         assertAcked(responseListener.get());

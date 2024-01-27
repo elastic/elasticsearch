@@ -80,11 +80,7 @@ public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
 
     static {
         declareAggregationFields(PARSER);
-        PARSER.declareObject(
-            (agg, bbox) -> { agg.geoBoundingBox = new GeoBoundingBox(bbox.v1(), bbox.v2()); },
-            BOUNDS_PARSER,
-            BOUNDS_FIELD
-        );
+        PARSER.declareObject((agg, bbox) -> agg.geoBoundingBox = new GeoBoundingBox(bbox.v1(), bbox.v2()), BOUNDS_PARSER, BOUNDS_FIELD);
 
         BOUNDS_PARSER.declareObject(constructorArg(), GEO_POINT_PARSER, TOP_LEFT_FIELD);
         BOUNDS_PARSER.declareObject(constructorArg(), GEO_POINT_PARSER, BOTTOM_RIGHT_FIELD);

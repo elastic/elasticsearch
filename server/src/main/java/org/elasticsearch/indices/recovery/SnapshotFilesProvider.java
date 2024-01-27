@@ -10,6 +10,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
@@ -49,7 +50,7 @@ public class SnapshotFilesProvider {
             inputStream = new SlicedInputStream(fileInfo.numberOfParts()) {
                 @Override
                 protected InputStream openSlice(int slice) throws IOException {
-                    return container.readBlob(fileInfo.partName(slice));
+                    return container.readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(slice));
                 }
             };
         }

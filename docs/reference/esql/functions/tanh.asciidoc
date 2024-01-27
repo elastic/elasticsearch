@@ -1,0 +1,32 @@
+[discrete]
+[[esql-tanh]]
+=== `TANH`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/tanh.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+{wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function.
+
+*Supported types*
+
+include::types/tanh.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/floats.csv-spec[tag=tanh]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/floats.csv-spec[tag=tanh-result]
+|===

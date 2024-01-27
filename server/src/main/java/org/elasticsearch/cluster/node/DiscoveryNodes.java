@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -20,6 +20,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,6 +29,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +39,8 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.cluster.routing.allocation.DataTier.ALL_DATA_TIERS;
 
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
@@ -62,8 +67,10 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     private final Version minNonClientNodeVersion;
     private final Version maxNodeVersion;
     private final Version minNodeVersion;
+    private final IndexVersion maxDataNodeCompatibleIndexVersion;
+    private final IndexVersion minSupportedIndexVersion;
 
-    private final Set<String> availableRoles;
+    private final Map<String, Set<String>> tiersToNodeIds;
 
     private DiscoveryNodes(
         long nodeLeftGeneration,
@@ -75,7 +82,10 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         @Nullable String localNodeId,
         Version minNonClientNodeVersion,
         Version maxNodeVersion,
-        Version minNodeVersion
+        Version minNodeVersion,
+        IndexVersion maxDataNodeCompatibleIndexVersion,
+        IndexVersion minSupportedIndexVersion,
+        Map<String, Set<String>> tiersToNodeIds
     ) {
         this.nodeLeftGeneration = nodeLeftGeneration;
         this.nodes = nodes;
@@ -90,12 +100,29 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         this.minNonClientNodeVersion = minNonClientNodeVersion;
         this.minNodeVersion = minNodeVersion;
         this.maxNodeVersion = maxNodeVersion;
+        this.maxDataNodeCompatibleIndexVersion = maxDataNodeCompatibleIndexVersion;
+        this.minSupportedIndexVersion = minSupportedIndexVersion;
         assert (localNodeId == null) == (localNode == null);
-        this.availableRoles = dataNodes.values()
-            .stream()
-            .flatMap(n -> n.getRoles().stream())
-            .map(DiscoveryNodeRole::roleName)
-            .collect(Collectors.toUnmodifiableSet());
+        this.tiersToNodeIds = tiersToNodeIds;
+    }
+
+    public DiscoveryNodes withMasterNodeId(@Nullable String masterNodeId) {
+        assert masterNodeId == null || nodes.containsKey(masterNodeId) : "unknown node [" + masterNodeId + "]";
+        return new DiscoveryNodes(
+            nodeLeftGeneration,
+            nodes,
+            dataNodes,
+            masterNodes,
+            ingestNodes,
+            masterNodeId,
+            localNodeId,
+            minNonClientNodeVersion,
+            maxNodeVersion,
+            minNodeVersion,
+            maxDataNodeCompatibleIndexVersion,
+            minSupportedIndexVersion,
+            tiersToNodeIds
+        );
     }
 
     @Override
@@ -127,13 +154,12 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     }
 
     /**
-     * Checks if any node has the role with the given {@code roleName}.
+     * Gets a {@link Map} of node roles to node IDs which have those roles.
      *
-     * @param roleName name to check
-     * @return true if any node has the role of the given name
+     * @return {@link Map} of node roles to node IDs which have those roles.
      */
-    public boolean isRoleAvailable(String roleName) {
-        return availableRoles.contains(roleName);
+    public Map<String, Set<String>> getTiersToNodeIds() {
+        return tiersToNodeIds;
     }
 
     /**
@@ -299,6 +325,20 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     }
 
     /**
+     * Check if a node with provided name exists
+     *
+     * @return {@code true} node identified with provided name exists or {@code false} otherwise
+     */
+    public boolean hasByName(String name) {
+        for (DiscoveryNode node : nodes.values()) {
+            if (node.getName().equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns the version of the node with the oldest version in the cluster that is not a client node
      *
      * If there are no non-client nodes, Version.CURRENT will be returned.
@@ -307,6 +347,13 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
      */
     public Version getSmallestNonClientNodeVersion() {
         return minNonClientNodeVersion;
+    }
+
+    /**
+     * Returns the highest index version supported by all data nodes in the cluster
+     */
+    public IndexVersion getMaxDataNodeCompatibleIndexVersion() {
+        return maxDataNodeCompatibleIndexVersion;
     }
 
     /**
@@ -325,6 +372,13 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
      */
     public Version getMaxNodeVersion() {
         return maxNodeVersion;
+    }
+
+    /**
+     * Returns the minimum index version supported by all nodes in the cluster
+     */
+    public IndexVersion getMinSupportedIndexVersion() {
+        return minSupportedIndexVersion;
     }
 
     /**
@@ -613,7 +667,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(masterNodeId);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeVLong(nodeLeftGeneration);
         } // else nodeLeftGeneration is zero, or we're sending this to a remote cluster which does not care about the nodeLeftGeneration
         out.writeCollection(nodes.values());
@@ -628,7 +682,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             builder.localNodeId(localNode.getId());
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             builder.nodeLeftGeneration(in.readVLong());
         } // else nodeLeftGeneration is zero, or we're receiving this from a remote cluster so the nodeLeftGeneration does not matter to us
 
@@ -669,6 +723,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         private final long oldNodeLeftGeneration;
         @Nullable // if not specified
         private Long nodeLeftGeneration;
+        private boolean resetNodeLeftGeneration;
 
         public Builder() {
             nodes = new HashMap<>();
@@ -759,25 +814,42 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             return null;
         }
 
+        private static <T extends Comparable<T>> T min(T t1, T t2) {
+            assert t2 != null;
+            return t1 == null || t1.compareTo(t2) > 0 ? t2 : t1;
+        }
+
+        private static <T extends Comparable<T>> T max(T t1, T t2) {
+            assert t2 != null;
+            return t1 == null || t1.compareTo(t2) < 0 ? t2 : t1;
+        }
+
         public DiscoveryNodes build() {
+            /*
+             * Calculate all the version info we need. This is:
+             * - The highest and lowest node versions in the cluster
+             * - The lowest node version amongst data or master nodes
+             * - The highest index version that is supported by all data/master nodes in the cluster
+             * - The lowest index version that is supported by all nodes in the cluster
+             *
+             * Any of these values may be null (for example, if there are no data or master nodes),
+             * in which case they are replaced with the defaults for this node
+             */
             Version minNodeVersion = null;
             Version maxNodeVersion = null;
             Version minNonClientNodeVersion = null;
-            Version maxNonClientNodeVersion = null;
+            IndexVersion maxDataNodeCompatibleIndexVersion = null;
+            IndexVersion minSupportedIndexVersion = null;
             for (Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
                 DiscoveryNode discoNode = nodeEntry.getValue();
-                final Version version = discoNode.getVersion();
+                Version version = discoNode.getVersion();
                 if (discoNode.canContainData() || discoNode.isMasterNode()) {
-                    if (minNonClientNodeVersion == null) {
-                        minNonClientNodeVersion = version;
-                        maxNonClientNodeVersion = version;
-                    } else {
-                        minNonClientNodeVersion = Version.min(minNonClientNodeVersion, version);
-                        maxNonClientNodeVersion = Version.max(maxNonClientNodeVersion, version);
-                    }
+                    minNonClientNodeVersion = min(minNonClientNodeVersion, version);
+                    maxDataNodeCompatibleIndexVersion = min(maxDataNodeCompatibleIndexVersion, discoNode.getMaxIndexVersion());
                 }
-                minNodeVersion = minNodeVersion == null ? version : Version.min(minNodeVersion, version);
-                maxNodeVersion = maxNodeVersion == null ? version : Version.max(maxNodeVersion, version);
+                minNodeVersion = min(minNodeVersion, version);
+                maxNodeVersion = max(maxNodeVersion, version);
+                minSupportedIndexVersion = max(minSupportedIndexVersion, discoNode.getMinIndexVersion());
             }
 
             final long newNodeLeftGeneration;
@@ -787,25 +859,50 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             } else if (this.nodeLeftGeneration != null) {
                 // only happens during deserialization
                 assert removedNode == false;
+                assert resetNodeLeftGeneration == false;
                 newNodeLeftGeneration = nodeLeftGeneration;
+            } else if (resetNodeLeftGeneration) {
+                newNodeLeftGeneration = 0L;
             } else if (removedNode) {
                 newNodeLeftGeneration = oldNodeLeftGeneration + 1L;
             } else {
                 newNodeLeftGeneration = oldNodeLeftGeneration;
             }
 
+            var dataNodes = filteredNodes(nodes, DiscoveryNode::canContainData);
             return new DiscoveryNodes(
                 newNodeLeftGeneration,
                 Map.copyOf(nodes),
-                filteredNodes(nodes, DiscoveryNode::canContainData),
+                dataNodes,
                 filteredNodes(nodes, DiscoveryNode::isMasterNode),
                 filteredNodes(nodes, DiscoveryNode::isIngestNode),
                 masterNodeId,
                 localNodeId,
-                minNonClientNodeVersion == null ? Version.CURRENT : minNonClientNodeVersion,
-                maxNodeVersion == null ? Version.CURRENT : maxNodeVersion,
-                minNodeVersion == null ? Version.CURRENT.minimumCompatibilityVersion() : minNodeVersion
+                Objects.requireNonNullElse(minNonClientNodeVersion, Version.CURRENT),
+                Objects.requireNonNullElse(maxNodeVersion, Version.CURRENT),
+                Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),
+                Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.current()),
+                Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersions.MINIMUM_COMPATIBLE),
+                computeTiersToNodesMap(dataNodes)
             );
+        }
+
+        private static Map<String, Set<String>> computeTiersToNodesMap(final Map<String, DiscoveryNode> dataNodes) {
+            Map<String, Set<String>> tiersToNodes = new HashMap<>(ALL_DATA_TIERS.size() + 1);
+            for (var node : dataNodes.values()) {
+                if (node.hasRole(DiscoveryNodeRole.DATA_ROLE.roleName())) {
+                    tiersToNodes.computeIfAbsent(DiscoveryNodeRole.DATA_ROLE.roleName(), (key) -> new HashSet<>()).add(node.getId());
+                }
+                for (var role : ALL_DATA_TIERS) {
+                    if (node.hasRole(role)) {
+                        tiersToNodes.computeIfAbsent(role, (key) -> new HashSet<>()).add(node.getId());
+                    }
+                }
+            }
+            for (var entry : tiersToNodes.entrySet()) {
+                entry.setValue(Collections.unmodifiableSet(entry.getValue()));
+            }
+            return Collections.unmodifiableMap(tiersToNodes);
         }
 
         public boolean isLocalNodeElectedMaster() {
@@ -816,6 +913,11 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             // only for deserialization
             assert this.nodeLeftGeneration == null : nodeLeftGeneration + " vs " + this.nodeLeftGeneration;
             this.nodeLeftGeneration = nodeLeftGeneration;
+        }
+
+        public void resetNodeLeftGeneration() {
+            assert this.resetNodeLeftGeneration == false;
+            this.resetNodeLeftGeneration = true;
         }
     }
 

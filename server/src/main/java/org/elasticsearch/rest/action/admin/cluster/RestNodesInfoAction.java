@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -28,7 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesInfoAction extends BaseRestHandler {
-    static final Set<String> ALLOWED_METRICS = NodesInfoRequest.Metric.allMetrics();
+    static final Set<String> ALLOWED_METRICS = NodesInfoMetrics.Metric.allMetrics();
 
     private final SettingsFilter settingsFilter;
 

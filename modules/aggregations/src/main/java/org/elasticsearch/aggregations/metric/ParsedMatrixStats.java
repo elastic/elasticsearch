@@ -86,7 +86,7 @@ public class ParsedMatrixStats extends ParsedAggregation {
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
-        if (counts != null && counts.isEmpty() == false) {
+        if (counts.isEmpty() == false) {
             builder.startArray(InternalMatrixStats.Fields.FIELDS);
             for (String fieldName : counts.keySet()) {
                 builder.startObject();

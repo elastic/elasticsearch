@@ -24,6 +24,7 @@ import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.sameInstance;
 
 public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBuilder> {
     @Override
@@ -120,5 +121,21 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
 
         assertEquals(json, 42.0, parsed.boost(), 0.0001);
         assertEquals(json, "user", parsed.fieldName());
+    }
+
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        ExistsQueryBuilder query = QueryBuilders.existsQuery("does_not_exist");
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        }
+    }
+
+    public void testRewriteIndexQueryToNotMatchNone() throws IOException {
+        ExistsQueryBuilder query = QueryBuilders.existsQuery(KEYWORD_FIELD_NAME);
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, sameInstance(query));
+        }
     }
 }

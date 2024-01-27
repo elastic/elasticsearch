@@ -25,7 +25,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -61,13 +60,13 @@ public class ListTasksResponse extends BaseTasksResponse {
 
     public ListTasksResponse(StreamInput in) throws IOException {
         super(in);
-        tasks = in.readImmutableList(TaskInfo::from);
+        tasks = in.readCollectionAsImmutableList(TaskInfo::from);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(tasks);
+        out.writeCollection(tasks);
     }
 
     protected static <T> ConstructingObjectParser<T, Void> setupParser(
@@ -192,17 +191,17 @@ public class ListTasksResponse extends BaseTasksResponse {
                     }
                     builder.startObject(TASKS);
                     return builder;
-                }), Iterators.flatMap(entry.getValue().iterator(), task -> Iterators.<ToXContent>single((builder, params) -> {
+                }), Iterators.map(entry.getValue().iterator(), task -> (builder, params) -> {
                     builder.startObject(task.taskId().toString());
                     task.toXContent(builder, params);
                     builder.endObject();
                     return builder;
-                })), Iterators.<ToXContent>single((builder, params) -> {
+                }), Iterators.single((builder, params) -> {
                     builder.endObject();
                     builder.endObject();
                     return builder;
                 }));
-            }), Iterators.<ToXContent>single((builder, params) -> {
+            }), Iterators.single((builder, params) -> {
                 builder.endObject();
                 builder.endObject();
                 return builder;
@@ -219,11 +218,11 @@ public class ListTasksResponse extends BaseTasksResponse {
             toXContentCommon(builder, params);
             builder.startObject(TASKS);
             return builder;
-        }), getTaskGroups().stream().<ToXContent>map(group -> (builder, params) -> {
+        }), Iterators.map(getTaskGroups().iterator(), group -> (builder, params) -> {
             builder.field(group.taskInfo().taskId().toString());
             group.toXContent(builder, params);
             return builder;
-        }).iterator(), Iterators.single((builder, params) -> {
+        }), Iterators.single((builder, params) -> {
             builder.endObject();
             builder.endObject();
             return builder;
@@ -239,12 +238,12 @@ public class ListTasksResponse extends BaseTasksResponse {
             toXContentCommon(builder, params);
             builder.startArray(TASKS);
             return builder;
-        }), getTasks().stream().<ToXContent>map(taskInfo -> (builder, params) -> {
+        }), Iterators.map(getTasks().iterator(), taskInfo -> (builder, params) -> {
             builder.startObject();
             taskInfo.toXContent(builder, params);
             builder.endObject();
             return builder;
-        }).iterator(), Iterators.single((builder, params) -> {
+        }), Iterators.single((builder, params) -> {
             builder.endArray();
             builder.endObject();
             return builder;

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -26,7 +26,7 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
     public static final String NAME = "cluster:monitor/settings";
 
     public ClusterGetSettingsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     /**
@@ -37,12 +37,12 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            assert in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0);
+            assert in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0);
+            assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0);
             super.writeTo(out);
         }
 
@@ -77,7 +77,7 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            assert in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0);
+            assert in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0);
             persistentSettings = Settings.readSettingsFromStream(in);
             transientSettings = Settings.readSettingsFromStream(in);
             settings = Settings.readSettingsFromStream(in);
@@ -91,7 +91,7 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0);
+            assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0);
             persistentSettings.writeTo(out);
             transientSettings.writeTo(out);
             settings.writeTo(out);

@@ -59,7 +59,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] builders = new IndexRequestBuilder[scaledRandomIntBetween(100, 1000)];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("foo", "bar");
+            builders[i] = prepareIndex("test").setSource("foo", "bar");
         }
 
         indexRandom(false, false, false, Arrays.asList(builders));
@@ -88,14 +88,16 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
             final UnassignedInfo unassignedInfo = allocationExplainResponse.getExplanation().getUnassignedInfo();
             assertThat(description, unassignedInfo, not(nullValue()));
             assertThat(description, unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-            final Throwable cause = ExceptionsHelper.unwrap(unassignedInfo.getFailure(), TranslogCorruptedException.class);
-            assertThat(description, cause, not(nullValue()));
-            assertThat(description, cause.getMessage(), containsString(translogPath.toString()));
+            var failure = unassignedInfo.getFailure();
+            assertNotNull(failure);
+            final Throwable cause = ExceptionsHelper.unwrap(failure, TranslogCorruptedException.class);
+            if (cause != null) {
+                assertThat(description, cause.getMessage(), containsString(translogPath.toString()));
+            }
         });
 
         assertThat(
-            expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test").setQuery(matchAllQuery()).get())
-                .getMessage(),
+            expectThrows(SearchPhaseExecutionException.class, prepareSearch("test").setQuery(matchAllQuery())).getMessage(),
             containsString("all shards failed")
         );
 

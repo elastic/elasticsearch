@@ -25,11 +25,12 @@ class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggregator 
         Aggregator parent,
         double[] percents,
         double compression,
+        TDigestExecutionHint executionHint,
         boolean keyed,
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, config, context, parent, percents, compression, keyed, formatter, metadata);
+        super(name, config, context, parent, percents, compression, executionHint, keyed, formatter, metadata);
     }
 
     @Override

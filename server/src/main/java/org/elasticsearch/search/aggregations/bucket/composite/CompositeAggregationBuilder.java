@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdFieldType;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -96,11 +98,6 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         return true;
     }
 
-    @Override
-    public boolean supportsConcurrentExecution() {
-        return false;
-    }
-
     public CompositeAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         int num = in.readVInt();
@@ -111,7 +108,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         }
         this.size = in.readVInt();
         if (in.readBoolean()) {
-            this.after = in.readMap();
+            this.after = in.readGenericMap();
         }
     }
 
@@ -304,6 +301,16 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        for (CompositeValuesSourceBuilder<?> source : sources) {
+            if (source.supportsParallelCollection(fieldCardinalityResolver) == false) {
+                return false;
+            }
+        }
+        return super.supportsParallelCollection(fieldCardinalityResolver);
     }
 }

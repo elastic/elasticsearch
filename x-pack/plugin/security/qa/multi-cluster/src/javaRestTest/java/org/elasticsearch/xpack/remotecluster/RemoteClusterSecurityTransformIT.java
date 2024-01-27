@@ -66,7 +66,7 @@ public class RemoteClusterSecurityTransformIT extends AbstractRemoteClusterSecur
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
             .rolesFile(Resource.fromClasspath("roles.yml"))
-            .user(REMOTE_TRANSFORM_USER, PASS.toString(), "transform_admin,transform_remote_shared_index")
+            .user(REMOTE_TRANSFORM_USER, PASS.toString(), "transform_admin,transform_remote_shared_index", false)
             .build();
     }
 

@@ -23,7 +23,7 @@ public class PutInternalCcrRepositoryAction extends ActionType<ActionResponse.Em
     public static final String NAME = "internal:admin/ccr/internal_repository/put";
 
     private PutInternalCcrRepositoryAction() {
-        super(NAME, in -> ActionResponse.Empty.INSTANCE);
+        super(NAME);
     }
 
     public static class TransportPutInternalRepositoryAction extends TransportAction<

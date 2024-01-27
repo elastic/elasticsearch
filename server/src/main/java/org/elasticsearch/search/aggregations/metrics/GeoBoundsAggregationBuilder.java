@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -98,13 +99,6 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder.
         return this;
     }
 
-    /**
-     * Get whether to wrap longitudes.
-     */
-    public boolean wrapLongitude() {
-        return wrapLongitude;
-    }
-
     @Override
     protected GeoBoundsAggregatorFactory innerBuild(
         AggregationContext context,
@@ -151,12 +145,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder.
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

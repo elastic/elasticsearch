@@ -77,7 +77,7 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         protected ScoreFunction rewrite(IndexReader reader) throws IOException {
-            Query newFilter = filter.rewrite(reader);
+            Query newFilter = filter.rewrite(new IndexSearcher(reader));
             if (newFilter == filter) {
                 return this;
             }
@@ -201,16 +201,16 @@ public class FunctionScoreQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = super.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = super.rewrite(searcher);
         if (rewritten != this) {
             return rewritten;
         }
-        Query newQ = subQuery.rewrite(reader);
+        Query newQ = subQuery.rewrite(searcher);
         ScoreFunction[] newFunctions = new ScoreFunction[functions.length];
         boolean needsRewrite = (newQ != subQuery);
         for (int i = 0; i < functions.length; i++) {
-            newFunctions[i] = functions[i].rewrite(reader);
+            newFunctions[i] = functions[i].rewrite(searcher.getIndexReader());
             needsRewrite |= (newFunctions[i] != functions[i]);
         }
         if (needsRewrite) {

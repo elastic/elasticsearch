@@ -197,8 +197,10 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
         stBuilder.significanceHeuristic(significanceHeuristic).field("text").minDocCount(200);
         XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
         stBuilder.internalXContent(stXContentBuilder, null);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.toString(stXContentBuilder));
-        SignificanceHeuristic parsedHeuristic = parseSignificanceHeuristic(stParser);
+        SignificanceHeuristic parsedHeuristic;
+        try (XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.toString(stXContentBuilder))) {
+            parsedHeuristic = parseSignificanceHeuristic(stParser);
+        }
         assertThat(significanceHeuristic, equalTo(parsedHeuristic));
     }
 

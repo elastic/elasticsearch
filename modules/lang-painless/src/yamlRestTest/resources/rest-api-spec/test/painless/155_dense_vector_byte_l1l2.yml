@@ -13,6 +13,7 @@ setup:
           mappings:
             properties:
               my_dense_vector:
+                index: false
                 type: dense_vector
                 element_type: byte
                 dims: 5

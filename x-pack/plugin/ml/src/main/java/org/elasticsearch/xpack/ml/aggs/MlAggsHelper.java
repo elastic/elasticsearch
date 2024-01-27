@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.aggs;
 
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
@@ -76,7 +75,7 @@ public final class MlAggsHelper {
                             bucketCount++;
                             continue;
                         }
-                        throw new AggregationExecutionException(
+                        throw new IllegalArgumentException(
                             "missing or invalid bucket value found for path ["
                                 + bucketPath
                                 + "] in bucket ["

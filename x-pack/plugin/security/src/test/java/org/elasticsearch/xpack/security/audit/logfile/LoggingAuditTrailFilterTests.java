@@ -2860,7 +2860,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         } else {
             return Authentication.newInternalAuthentication(
                 InternalUsers.SYSTEM_USER,
-                TransportVersion.CURRENT,
+                TransportVersion.current(),
                 randomAlphaOfLengthBetween(3, 8)
             );
         }
@@ -2893,6 +2893,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         LoggingAuditTrail.registerSettings(settingsList);
         settingsList.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingsList.add(ApiKeyService.DELETE_RETENTION_PERIOD);
+        settingsList.add(ApiKeyService.DELETE_INTERVAL);
         return new ClusterSettings(settings, new HashSet<>(settingsList));
     }
 

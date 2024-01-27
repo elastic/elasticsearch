@@ -52,7 +52,7 @@ the REST API.
 [[upgrade-fips-java17]]
 === FIPS Compliance and Java 17
 
-include::{xes-repo-dir}/security/fips-java17.asciidoc[]
+include::{es-repo-dir}/security/fips-java17.asciidoc[]
 
 include::upgrade/archived-settings.asciidoc[]
 

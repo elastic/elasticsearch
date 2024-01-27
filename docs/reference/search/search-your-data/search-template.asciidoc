@@ -1,6 +1,6 @@
 [[search-template]]
 
-== Search templates
+=== Search templates
 
 A search template is a stored search you can run with different variables.
 
@@ -13,7 +13,7 @@ your searches without modifying your app's code.
 
 [discrete]
 [[create-search-template]]
-=== Create a search template
+==== Create a search template
 
 To create or update a search template, use the <<create-stored-script-api,create
 stored script API>>.
@@ -56,7 +56,7 @@ Settings that limit or disable scripts also affect search templates.
 
 [discrete]
 [[validate-search-template]]
-=== Validate a search template
+==== Validate a search template
 
 [[_validating_templates]]
 To test a template with different `params`, use the
@@ -120,7 +120,7 @@ POST _render/template
 
 [discrete]
 [[run-templated-search]]
-=== Run a templated search
+==== Run a templated search
 
 To run a search with a search template, use the <<search-template-api,search
 template API>>. You can specify different `params` with each request.
@@ -187,7 +187,7 @@ response.
 
 [discrete]
 [[run-multiple-templated-searches]]
-=== Run multiple templated searches
+==== Run multiple templated searches
 
 To run multiple templated searches with a single request, use the
 <<multi-search-template,multi search template API>>. These requests often have
@@ -206,7 +206,7 @@ GET my-index/_msearch/template
 
 [discrete]
 [[get-search-templates]]
-=== Get search templates
+==== Get search templates
 
 To retrieve a search template, use the <<get-stored-script-api,get stored
 script API>>.
@@ -228,7 +228,7 @@ GET _cluster/state/metadata?pretty&filter_path=metadata.stored_scripts
 
 [discrete]
 [[delete-search-template]]
-=== Delete a search template
+==== Delete a search template
 
 To delete a search template, use the <<delete-stored-script-api,delete stored
 script API>>.
@@ -241,7 +241,7 @@ DELETE _scripts/my-search-template
 
 [discrete]
 [[search-template-set-default-values]]
-=== Set default values
+==== Set default values
 
 To set a default value for a variable, use the following syntax:
 
@@ -275,7 +275,7 @@ POST _render/template
 
 [discrete]
 [[search-template-url-encode-strings]]
-=== URL encode strings
+==== URL encode strings
 
 Use the `{{#url}}` function to URL encode a string.
 
@@ -314,7 +314,7 @@ The template renders as:
 
 [discrete]
 [[search-template-concatenate-values]]
-=== Concatenate values
+==== Concatenate values
 
 Use the `{{#join}}` function to concatenate array values as a comma-delimited
 string. For example, the following template concatenates two email addresses.
@@ -399,7 +399,7 @@ The template renders as:
 
 [discrete]
 [[search-template-convert-json]]
-=== Convert to JSON
+==== Convert to JSON
 
 Use the `{{#toJson}}` function to convert a variable value to its JSON
 representation.
@@ -521,7 +521,7 @@ The template renders as:
 
 [discrete]
 [[search-template-use-conditions]]
-=== Use conditions
+==== Use conditions
 
 To create if conditions, use the following syntax:
 
@@ -630,14 +630,15 @@ POST _render/template
   }
 }
 ----
+
 [[search-template-with-mustache-examples]]
-=== Search template examples with Mustache
+==== Search template examples with Mustache
 
 The mustache templating language defines various tag types you can use within templates. The following sections describe some of these tag types and provide examples of using them in {es} <<search-template, search templates>>.
 
 [discrete]
 [[search-template-mustache-variable]]
-=== Mustache variables
+==== Mustache variables
 Mustache tags are typically enclosed in double curly brackets. A mustache variable: `{{my-variable}}` is a type of mustache tag. When you run a templated search, {es} replaces these variables with values from `params`.
 
 For example, consider the following search template:
@@ -729,7 +730,7 @@ When rendered, template outputs as:
 
 [discrete]
 [[search-template-sections]]
-=== Sections
+==== Sections
 
 Sections are also a type of Mustache tags. You can use `sections` in your search template with a nested or unnested object. A section begins with `{{#my-section-variable}}` and ends with `{{/my-section-variable}}`.
 
@@ -781,7 +782,7 @@ The template renders as:
 
 [discrete]
 [[search-template-lists]]
-==== Lists
+===== Lists
 You can pass a list of objects and loop over each item in your search template.
 
 For example, following search template combines <<search-template-sections,sections>> and matches all the usernames:
@@ -794,7 +795,7 @@ PUT _scripts/my-search-template
     "lang": "mustache",
     "source": {
       "query":{
-        "multi-match":{
+        "multi_match":{
           "query": "{{query_string}}",
           "fields": """[{{#text_fields}}{{user_name}},{{/text_fields}}]"""
         }
@@ -833,7 +834,7 @@ When rendered, template outputs:
 {
   "template_output": {
     "query": {
-      "multi-match": {
+      "multi_match": {
         "query": "My string",
         "fields": "[John,kimchy,]"
       }
@@ -854,7 +855,7 @@ PUT _scripts/my-search-template
     "lang": "mustache",
     "source": {
       "query":{
-        "multi-match":{
+        "multi_match":{
           "query": "{{query_string}}",
           "fields": """[{{#text_fields}}{{user_name}}{{^last}},{{/last}}{{/text_fields}}]"""
         }
@@ -894,7 +895,7 @@ When rendered the template outputs:
 {
   "template_output": {
     "query": {
-      "multi-match": {
+      "multi_match": {
         "query": "My string",
         "fields": "[John,kimchy]"
       }
@@ -905,14 +906,14 @@ When rendered the template outputs:
 
 [discrete]
 [[search-template-lambdas]]
-==== Lambdas
+===== Lambdas
 {es} has pre-built custom functions to support converting the text into a specific format.
 
 To Learn more about usage of mustache lambdas, check out the examples in <<search-template-url-encode-strings,Url encode strings>>, <<search-template-concatenate-values,Concatenate values>>, and <<search-template-convert-json, Convert to json>>.
 
 [discrete]
 [[search-template-inverted-section]]
-=== Inverted sections
+==== Inverted sections
 Inverted sections are useful when you want to set a value once.
 
 To use inverted sections use following syntax:
@@ -980,7 +981,7 @@ When rendered, template output:
 
 [discrete]
 [[search-template-set-delimiter]]
-=== Set delimiter
+==== Set delimiter
 You can change the default delimiter: double curly brackets `{{my-variable}}` to any custom delimiter in your search template.
 
 For example, the following search template changes the default delimiter to a single round bracket `(query_string)`.
@@ -1037,7 +1038,7 @@ When rendered, template outputs:
 
 [discrete]
 [[search-template-unsupported-features]]
-=== Unsupported features
+==== Unsupported features
 The following mustache features are not supported in {es} search templates:
 
 * Partials

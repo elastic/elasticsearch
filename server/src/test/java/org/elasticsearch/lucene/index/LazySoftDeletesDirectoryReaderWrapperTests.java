@@ -105,7 +105,7 @@ public class LazySoftDeletesDirectoryReaderWrapperTests extends LuceneTestCase {
         writer.close();
         DirectoryReader reader = new LazySoftDeletesDirectoryReaderWrapper(DirectoryReader.open(dir), softDeletesField);
         assertEquals(uniqueDocs.size(), reader.numDocs());
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
         for (Integer docId : uniqueDocs) {
             assertEquals(1, searcher.count(new TermQuery(new Term("id", docId.toString()))));
         }

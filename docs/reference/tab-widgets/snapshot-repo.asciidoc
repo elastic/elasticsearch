@@ -4,9 +4,8 @@ When you create a cluster, {ess} automatically registers a default
 supports {search-snaps}.
 
 The `found-snapshots` repository is specific to your cluster. To use another
-cluster's default repository, see
-{cloud}/ec_share_a_repository_across_clusters.html[Share a repository across
-clusters].
+cluster's default repository, refer to the Cloud
+{cloud}/ec-snapshot-restore.html[Snapshot and restore] documentation.
 
 You can also use any of the following custom repository types with {search-snaps}:
 

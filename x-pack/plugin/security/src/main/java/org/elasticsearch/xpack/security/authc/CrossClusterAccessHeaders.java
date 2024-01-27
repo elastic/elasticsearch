@@ -48,7 +48,7 @@ public final class CrossClusterAccessHeaders {
         return parseCredentialsHeader(credentialsHeader);
     }
 
-    private static ApiKeyService.ApiKeyCredentials parseCredentialsHeader(final String header) {
+    static ApiKeyService.ApiKeyCredentials parseCredentialsHeader(final String header) {
         try {
             return Objects.requireNonNull(ApiKeyService.getCredentialsFromHeader(header, ApiKey.Type.CROSS_CLUSTER));
         } catch (Exception ex) {

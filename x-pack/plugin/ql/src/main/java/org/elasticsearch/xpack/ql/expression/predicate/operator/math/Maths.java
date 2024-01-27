@@ -8,21 +8,23 @@
 package org.elasticsearch.xpack.ql.expression.predicate.operator.math;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.MathContext;
+
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
 
 public final class Maths {
 
-    public static Number round(Number n, Number precision) throws ArithmeticException {
-        long longPrecision = precision.longValue();
+    public static Number round(Number n, long precision) throws ArithmeticException {
         if (n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte) {
-            return convertToIntegerType(round(n.longValue(), longPrecision), n.getClass());
+            return convertToIntegerType(round(n.longValue(), precision), n.getClass());
         }
         double nDouble = n.doubleValue();
         if (Double.isNaN(nDouble)) {
             return n instanceof Float ? 0.0f : 0.0d;
         }
 
-        double tenAtScale = tenPower(longPrecision);
+        double tenAtScale = tenPower(precision);
         if (tenAtScale == 0.0 || nDouble == 0.0) {
             return n instanceof Float ? 0.0f : 0.0d;
         }
@@ -47,29 +49,50 @@ public final class Maths {
         return n instanceof Float ? result.floatValue() : result;
     }
 
-    public static Long round(Long n, Long precision) throws ArithmeticException {
-        long nLong = n.longValue();
-        if (nLong == 0L || precision >= 0) {
+    public static BigInteger round(BigInteger n, long precision) throws ArithmeticException {
+        if (n.signum() == 0 || precision > 0) {
+            return n;
+        }
+
+        int digitsToRound = safeToInt(-precision); // TODO: why is precision a long?
+        BigInteger tenAtScaleMinusOne = BigInteger.TEN.pow(digitsToRound - 1);
+        BigInteger tenAtScale = tenAtScaleMinusOne.multiply(BigInteger.TEN);
+        BigInteger middleResult = n.divide(tenAtScale); // TODO: "intermediateResult"?
+        BigInteger remainder = n.mod(tenAtScale);
+        BigInteger having = tenAtScaleMinusOne.multiply(BigInteger.valueOf(5));
+        if (remainder.compareTo(having) >= 0) {
+            middleResult = middleResult.add(BigInteger.ONE);
+        } else if (remainder.compareTo(having.negate()) <= 0) {
+            middleResult = middleResult.subtract(BigInteger.ONE);
+        }
+
+        return middleResult.multiply(tenAtScale);
+    }
+
+    public static Long round(long n, long precision) throws ArithmeticException {
+        if (n == 0L || precision >= 0) {
             return n;
         }
 
         long digitsToRound = -precision;
-        int digits = (int) (Math.log10(Math.abs(n.doubleValue())) + 1);
+        int digits = (int) (Math.log10(Math.abs((double) n)) + 1);
         if (digits <= digitsToRound) {
             return 0L;
         }
 
-        long tenAtScale = (long) tenPower(digitsToRound);
-        long middleResult = nLong / tenAtScale;
-        long remainder = nLong % tenAtScale;
-        if (remainder >= 5 * (long) tenPower(digitsToRound - 1)) {
+        long tenAtScaleMinusOne = (long) tenPower(digitsToRound - 1);
+        long tenAtScale = tenAtScaleMinusOne * 10;
+        long middleResult = n / tenAtScale;
+        long remainder = n % tenAtScale; // TODO: vs.: n - middleResult * tenAtScale
+        long halving = 5 * tenAtScaleMinusOne;
+        if (remainder >= halving) {
             middleResult++;
-        } else if (remainder <= -5 * (long) tenPower(digitsToRound - 1)) {
+        } else if (remainder <= -halving) {
             middleResult--;
         }
 
         long result = middleResult * tenAtScale;
-        if (Long.signum(result) == Long.signum(nLong)) {
+        if (Long.signum(result) == Long.signum(n)) {
             return result;
         } else {
             throw new ArithmeticException("long overflow");

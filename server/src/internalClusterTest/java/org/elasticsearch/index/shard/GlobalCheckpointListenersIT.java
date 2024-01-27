@@ -63,7 +63,7 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
                 }
 
             }, null);
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
             assertBusy(() -> assertThat(globalCheckpoint.get(), equalTo((long) index)));
             // adding a listener expecting a lower global checkpoint should fire immediately
             final AtomicLong immediateGlobalCheckpint = new AtomicLong();

@@ -27,7 +27,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -368,9 +367,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
-                Min min = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
+                Min min = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
                 assertEquals(-19.0, min.value(), 0);
                 assertTrue(AggregationInspectionHelper.hasValue(min));
             }
@@ -557,9 +554,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
-                try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
+                try (AggregationContext context = createAggregationContext(indexReader, new MatchAllDocsQuery(), fieldType)) {
                     createAggregator(aggregationBuilder, context);
                     assertTrue(context.isCacheable());
                 }
@@ -584,14 +579,12 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
-                try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
+                try (AggregationContext context = createAggregationContext(indexReader, new MatchAllDocsQuery(), fieldType)) {
                     createAggregator(nonDeterministicAggregationBuilder, context);
                     assertFalse(context.isCacheable());
                 }
 
-                try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
+                try (AggregationContext context = createAggregationContext(indexReader, new MatchAllDocsQuery(), fieldType)) {
                     createAggregator(aggregationBuilder, context);
                     assertTrue(context.isCacheable());
                 }

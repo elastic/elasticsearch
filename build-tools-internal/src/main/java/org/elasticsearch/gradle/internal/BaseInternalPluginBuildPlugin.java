@@ -13,6 +13,7 @@ import groovy.lang.Closure;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin;
+import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
@@ -36,6 +37,7 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(PluginBuildPlugin.class);
         project.getPluginManager().apply(JarHellPrecommitPlugin.class);
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
+        project.getPluginManager().apply(HistoricalFeaturesMetadataPlugin.class);
         // Clear default dependencies added by public PluginBuildPlugin as we add our
         // own project dependencies for internal builds
         // TODO remove once we removed default dependencies from PluginBuildPlugin
@@ -72,13 +74,12 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
                 }
             });
 
+        boolean isModule = GradleUtils.isModuleProject(project.getPath());
+        boolean isXPackModule = isModule && project.getPath().startsWith(":x-pack");
+        if (isModule == false || isXPackModule) {
+            addNoticeGeneration(project, extension);
+        }
         project.afterEvaluate(p -> {
-            boolean isModule = GradleUtils.isModuleProject(p.getPath());
-            boolean isXPackModule = isModule && p.getPath().startsWith(":x-pack");
-            if (isModule == false || isXPackModule) {
-                addNoticeGeneration(p, extension);
-            }
-
             @SuppressWarnings("unchecked")
             NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
                 .getExtensions()

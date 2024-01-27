@@ -13,7 +13,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -40,6 +40,10 @@ public class RestClosePointInTimeAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             clearRequest = ClosePointInTimeRequest.fromXContent(parser);
         }
-        return channel -> client.execute(ClosePointInTimeAction.INSTANCE, clearRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(
+            TransportClosePointInTimeAction.TYPE,
+            clearRequest,
+            new RestToXContentListener<>(channel, ClosePointInTimeResponse::status)
+        );
     }
 }

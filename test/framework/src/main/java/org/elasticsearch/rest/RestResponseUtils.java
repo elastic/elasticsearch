@@ -10,6 +10,13 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.util.Iterator;
 
 import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
 
@@ -39,7 +46,19 @@ public class RestResponseUtils {
             out.flush();
             return out.bytes();
         } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
+            return ESTestCase.fail(e);
+        }
+    }
+
+    public static String getTextBodyContent(Iterator<CheckedConsumer<Writer, IOException>> iterator) {
+        try (var writer = new StringWriter()) {
+            while (iterator.hasNext()) {
+                iterator.next().accept(writer);
+            }
+            writer.flush();
+            return writer.toString();
+        } catch (Exception e) {
+            return ESTestCase.fail(e);
         }
     }
 }

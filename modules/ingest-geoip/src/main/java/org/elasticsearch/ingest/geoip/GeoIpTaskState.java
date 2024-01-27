@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -67,10 +68,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     }
 
     GeoIpTaskState(StreamInput input) throws IOException {
-        databases = input.readImmutableMap(StreamInput::readString, in -> {
-            long lastUpdate = in.readLong();
-            return new Metadata(lastUpdate, in.readVInt(), in.readVInt(), in.readString(), in.readLong());
-        });
+        databases = input.readImmutableMap(in -> new Metadata(in.readLong(), in.readVInt(), in.readVInt(), in.readString(), in.readLong()));
     }
 
     public GeoIpTaskState put(String name, Metadata metadata) {
@@ -125,12 +123,12 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_13_0;
+        return TransportVersions.V_7_13_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(databases, StreamOutput::writeString, (o, v) -> {
+        out.writeMap(databases, (o, v) -> {
             o.writeLong(v.lastUpdate);
             o.writeVInt(v.firstChunk);
             o.writeVInt(v.lastChunk);

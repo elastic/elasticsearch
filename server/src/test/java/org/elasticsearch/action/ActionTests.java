@@ -13,14 +13,9 @@ import org.elasticsearch.test.ESTestCase;
 public class ActionTests extends ESTestCase {
 
     public void testEquals() {
-        class FakeAction extends ActionType<ActionResponse> {
-            protected FakeAction(String name) {
-                super(name, null);
-            }
-        }
-        FakeAction fakeAction1 = new FakeAction("a");
-        FakeAction fakeAction2 = new FakeAction("a");
-        FakeAction fakeAction3 = new FakeAction("b");
+        final var fakeAction1 = new ActionType<>("a");
+        final var fakeAction2 = new ActionType<>("a");
+        final var fakeAction3 = new ActionType<>("b");
         String s = "Some random other object";
         assertEquals(fakeAction1, fakeAction1);
         assertEquals(fakeAction2, fakeAction2);

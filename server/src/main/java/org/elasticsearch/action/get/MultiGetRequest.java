@@ -9,7 +9,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -85,7 +85,7 @@ public class MultiGetRequest extends ActionRequest
 
         public Item(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 in.readOptionalString();
             }
             id = in.readString();
@@ -179,7 +179,7 @@ public class MultiGetRequest extends ActionRequest
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
             }
             out.writeString(id);
@@ -262,8 +262,8 @@ public class MultiGetRequest extends ActionRequest
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         realtime = in.readBoolean();
-        items = in.readList(Item::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        items = in.readCollectionAsList(Item::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
             forceSyntheticSource = false;
@@ -276,8 +276,8 @@ public class MultiGetRequest extends ActionRequest
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
         out.writeBoolean(realtime);
-        out.writeList(items);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        out.writeCollection(items);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {
             if (forceSyntheticSource) {
@@ -358,8 +358,9 @@ public class MultiGetRequest extends ActionRequest
      * of the worst case performance. Fetches with this enabled will be slower the
      * enabling synthetic source natively in the index.
      */
-    public void setForceSyntheticSource(boolean forceSyntheticSource) {
+    public MultiGetRequest setForceSyntheticSource(boolean forceSyntheticSource) {
         this.forceSyntheticSource = forceSyntheticSource;
+        return this;
     }
 
     /**

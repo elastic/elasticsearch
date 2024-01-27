@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
@@ -50,6 +51,7 @@ public interface CheckpointProvider {
         TransformCheckpoint nextCheckpoint,
         TransformIndexerPosition nextCheckpointPosition,
         TransformProgress nextCheckpointProgress,
+        TimeValue timeout,
         ActionListener<TransformCheckpointingInfoBuilder> listener
     );
 
@@ -67,6 +69,7 @@ public interface CheckpointProvider {
         long lastCheckpointNumber,
         TransformIndexerPosition nextCheckpointPosition,
         TransformProgress nextCheckpointProgress,
+        TimeValue timeout,
         ActionListener<TransformCheckpointingInfoBuilder> listener
     );
 }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Request;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedAlias;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -421,7 +422,7 @@ public class ResolveIndexTests extends ESTestCase {
         boolean frozen
     ) {
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", hidden)
             .put("index.frozen", frozen);
 
@@ -499,12 +500,12 @@ public class ResolveIndexTests extends ESTestCase {
                     "test-system-feature",
                     "test system index",
                     List.of(
-                        new SystemIndexDescriptor(
-                            ".test-system*",
-                            "test-system-description",
-                            SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED,
-                            List.of("test-system")
-                        ),
+                        SystemIndexDescriptor.builder()
+                            .setIndexPattern(".test-system*")
+                            .setDescription("test-system-description")
+                            .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
+                            .setAllowedElasticProductOrigins(List.of("test-system"))
+                            .build(),
                         SystemIndexDescriptor.builder()
                             .setIndexPattern(".test-net-new-system*")
                             .setDescription("test-net-new-system-description")
@@ -512,7 +513,16 @@ public class ResolveIndexTests extends ESTestCase {
                             .setAllowedElasticProductOrigins(List.of("test-net-new-system"))
                             .setNetNew()
                             .setSettings(Settings.EMPTY)
-                            .setMappings("{ \"_doc\": { \"_meta\": { \"version\": \"8.0.0\" } } }")
+                            .setMappings(String.format(Locale.ROOT, """
+                                {
+                                  "_doc": {
+                                    "_meta": {
+                                      "version": "8.0.0",
+                                      "%s": 1
+                                    }
+                                  }
+                                }
+                                """, SystemIndexDescriptor.VERSION_META_KEY))
                             .setPrimaryIndex(".test-net-new-system-1")
                             .setVersionMetaKey("version")
                             .setOrigin("system")
@@ -525,7 +535,7 @@ public class ResolveIndexTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder indexBuilder(String index, Settings additionalSettings) {
-        return IndexMetadata.builder(index).settings(indexSettings(Version.CURRENT, 1, 0).put(additionalSettings));
+        return IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0).put(additionalSettings));
     }
 
     private ThreadContext createThreadContext() {

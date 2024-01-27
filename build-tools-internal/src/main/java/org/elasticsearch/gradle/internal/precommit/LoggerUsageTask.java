@@ -52,7 +52,7 @@ public abstract class LoggerUsageTask extends PrecommitTask {
     }
 
     @Inject
-    abstract public WorkerExecutor getWorkerExecutor();
+    public abstract WorkerExecutor getWorkerExecutor();
 
     @TaskAction
     public void runLoggerUsageTask() {

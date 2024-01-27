@@ -74,11 +74,11 @@ public class SamlRedirect {
         }
     }
 
-    private String base64Encode(byte[] bytes) {
+    private static String base64Encode(byte[] bytes) {
         return Base64.getEncoder().encodeToString(bytes);
     }
 
-    private String urlEncode(String param) {
+    private static String urlEncode(String param) {
         return URLEncoder.encode(param, StandardCharsets.US_ASCII);
     }
 

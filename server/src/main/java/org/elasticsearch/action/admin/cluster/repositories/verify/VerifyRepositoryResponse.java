@@ -117,7 +117,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
     public VerifyRepositoryResponse(StreamInput in) throws IOException {
         super(in);
-        this.nodes = in.readList(NodeView::new);
+        this.nodes = in.readCollectionAsList(NodeView::new);
     }
 
     public VerifyRepositoryResponse(DiscoveryNode[] nodes) {
@@ -130,7 +130,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     public List<NodeView> getNodes() {

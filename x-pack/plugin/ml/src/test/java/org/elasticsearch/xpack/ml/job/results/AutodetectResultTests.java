@@ -129,7 +129,7 @@ public class AutodetectResultTests extends AbstractXContentSerializingTestCase<A
             categorizerStats = null;
         }
         if (randomBoolean()) {
-            flushAcknowledgement = new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomInstant());
+            flushAcknowledgement = new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomInstant(), randomBoolean());
         } else {
             flushAcknowledgement = null;
         }

@@ -1,0 +1,31 @@
+[discrete]
+[[esql-coalesce]]
+=== `COALESCE`
+
+*Syntax*
+
+[source,esql]
+----
+COALESCE(expression1 [, ..., expressionN])
+----
+
+*Parameters*
+
+`expressionX`::
+Expression to evaluate.
+
+*Description*
+
+Returns the first of its arguments that is not null. If all arguments are null,
+it returns `null`.
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/null.csv-spec[tag=coalesce]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/null.csv-spec[tag=coalesce-result]
+|===

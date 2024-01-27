@@ -9,6 +9,8 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -20,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,6 +34,7 @@ import java.util.Set;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 
 public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeAction<PutPipelineRequest> {
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/ingest/pipeline/put");
     private final IngestService ingestService;
     private final OriginSettingClient client;
 
@@ -44,14 +48,14 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
         NodeClient client
     ) {
         super(
-            PutPipelineAction.NAME,
+            TYPE.name(),
             transportService,
             ingestService.getClusterService(),
             threadPool,
             actionFilters,
             PutPipelineRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         // This client is only used to perform an internal implementation detail,
         // so uses an internal origin context rather than the user context
@@ -65,7 +69,7 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
         ingestService.putPipeline(request, listener, (nodeListener) -> {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
             nodesInfoRequest.clear();
-            nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
+            nodesInfoRequest.addMetric(NodesInfoMetrics.Metric.INGEST.metricName());
             client.admin().cluster().nodesInfo(nodesInfoRequest, nodeListener);
         });
     }

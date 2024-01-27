@@ -147,7 +147,7 @@ public class BatchedRerouteService implements RerouteService {
                             e
                         );
                     }
-                    ActionListener.onFailure(currentListeners, new ElasticsearchException("delayed reroute [" + reason + "] failed", e));
+                    ActionListener.onFailure(currentListeners, e);
                 }
 
                 @Override

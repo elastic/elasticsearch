@@ -221,7 +221,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
                 assertThat(re.getResponse().getStatusLine().getStatusCode(), is(equalTo(409)));
                 assertThat(
                     re.getMessage(),
-                    containsString("Transform with id [" + transformId + "] got updated in the meantime. Please try again")
+                    containsString("Cannot update transform id [" + transformId + "] due to a concurrent update conflict. Please retry.")
                 );
             }
         }

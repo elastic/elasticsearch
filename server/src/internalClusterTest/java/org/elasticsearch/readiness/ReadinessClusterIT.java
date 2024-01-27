@@ -21,23 +21,28 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.readiness.ReadinessClientProbe;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
+import static org.elasticsearch.readiness.MockReadinessService.tcpReadinessProbeFalse;
+import static org.elasticsearch.readiness.MockReadinessService.tcpReadinessProbeTrue;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterNode;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
@@ -48,7 +53,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClientProbe {
+public class ReadinessClusterIT extends ESIntegTestCase {
 
     private static AtomicLong versionCounter = new AtomicLong(1);
 
@@ -86,18 +91,19 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         return settings.build();
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getMockPlugins());
+        plugins.add(MockReadinessService.TestPlugin.class);
+        return Collections.unmodifiableList(plugins);
+    }
+
     private void assertMasterNode(Client client, String node) {
-        assertThat(
-            client.admin().cluster().prepareState().execute().actionGet().getState().nodes().getMasterNode().getName(),
-            equalTo(node)
-        );
+        assertThat(client.admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(), equalTo(node));
     }
 
     private void expectMasterNotFound() {
-        expectThrows(
-            MasterNotDiscoveredException.class,
-            () -> clusterAdmin().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().getMasterNodeId()
-        );
+        expectThrows(MasterNotDiscoveredException.class, clusterAdmin().prepareState().setMasterNodeTimeout("100ms"));
     }
 
     public void testReadinessDuringRestarts() throws Exception {
@@ -115,11 +121,7 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNode));
         tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, masterNode));
 
-        Integer masterPort = internalCluster().getInstance(ReadinessService.class, internalCluster().getMasterName())
-            .boundAddress()
-            .publishAddress()
-            .getPort();
-
+        final var masterReadinessService = internalCluster().getInstance(ReadinessService.class, masterNode);
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
 
         logger.info("--> stop master node");
@@ -127,7 +129,7 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         internalCluster().stopCurrentMasterNode();
         expectMasterNotFound();
 
-        tcpReadinessProbeFalse(masterPort);
+        tcpReadinessProbeFalse(masterReadinessService);
 
         logger.info("--> start previous master node again");
         final String nextMasterEligibleNodeName = internalCluster().startNode(
@@ -154,8 +156,7 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, masterNode));
 
         for (String dataNode : dataNodes) {
-            ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
-            tcpReadinessProbeTrue(s);
+            tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNode));
         }
 
         logger.info("--> restart data node 1");
@@ -192,8 +193,7 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
 
         ensureGreen();
         for (String dataNode : dataNodes) {
-            ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
-            tcpReadinessProbeTrue(s);
+            tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNode));
         }
     }
 

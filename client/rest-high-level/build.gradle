@@ -13,7 +13,10 @@ apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'elasticsearch.rest-resources'
 
 group = 'org.elasticsearch.client'
-archivesBaseName = 'elasticsearch-rest-high-level-client'
+
+base {
+  archivesName = 'elasticsearch-rest-high-level-client'
+}
 
 restResources {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
@@ -56,11 +59,6 @@ tasks.named('forbiddenApisMain').configure {
   // specified
   addSignatureFiles 'http-signatures'
   signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
-}
-
-tasks.named('splitPackagesAudit').configure {
-  // the client package should be owned by the client, but server has some classes there too
-  ignoreClasses 'org.elasticsearch.client.*'
 }
 
 // we don't have tests now, as HLRC is in the process of being removed

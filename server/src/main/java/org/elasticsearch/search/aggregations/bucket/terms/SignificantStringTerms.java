@@ -67,12 +67,6 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
         }
 
         @Override
-        public Number getKeyAsNumber() {
-            // this method is needed for scripted numeric aggregations
-            return Double.parseDouble(termBytes.utf8ToString());
-        }
-
-        @Override
         public String getKeyAsString() {
             return format.format(termBytes).toString();
         }

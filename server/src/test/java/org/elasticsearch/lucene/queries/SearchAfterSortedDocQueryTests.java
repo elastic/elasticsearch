@@ -80,7 +80,7 @@ public class SearchAfterSortedDocQueryTests extends ESTestCase {
             }
         }
         final IndexReader reader = w.getReader();
-        final IndexSearcher searcher = new IndexSearcher(reader);
+        final IndexSearcher searcher = newSearcher(reader);
 
         int step = randomIntBetween(1, 10);
         FixedBitSet bitSet = new FixedBitSet(numDocs);

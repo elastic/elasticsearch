@@ -125,6 +125,13 @@ public final class HttpTransportSettings {
         new ByteSizeValue(4, ByteSizeUnit.KB),
         Property.NodeScope
     );
+
+    public static final Setting<TimeValue> SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD = Setting.positiveTimeSetting(
+        "http.shutdown_grace_period",
+        TimeValue.timeValueMillis(0),
+        Setting.Property.NodeScope
+    );
+
     // don't reset cookies by default, since I don't think we really need to
     // note, parsing cookies was fixed in netty 3.5.1 regarding stack allocation, but still, currently, we don't need cookies
     public static final Setting<Boolean> SETTING_HTTP_RESET_COOKIES = Setting.boolSetting("http.reset_cookies", false, Property.NodeScope);

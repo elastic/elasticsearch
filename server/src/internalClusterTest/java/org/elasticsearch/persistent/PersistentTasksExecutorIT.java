@@ -51,10 +51,6 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         return Collections.singletonList(TestPersistentTasksPlugin.class);
     }
 
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     @Before
     public void resetNonClusterStateCondition() {
         TestPersistentTasksExecutor.setNonClusterStateCondition(true);

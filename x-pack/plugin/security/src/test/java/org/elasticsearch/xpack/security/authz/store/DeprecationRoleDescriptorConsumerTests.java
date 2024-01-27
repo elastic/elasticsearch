@@ -18,7 +18,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.junit.Before;
@@ -342,7 +342,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     private void addIndex(Metadata.Builder metadataBuilder, String index, String... aliases) {
         final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index)
-            .settings(Settings.builder().put("index.version.created", VersionUtils.randomVersion(random())))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
             .numberOfShards(1)
             .numberOfReplicas(1);
         for (final String alias : aliases) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.eql;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,7 +24,7 @@ public class EqlFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public EqlFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        stats = in.readMap();
+        stats = in.readGenericMap();
     }
 
     public EqlFeatureSetUsage(Map<String, Object> stats) {
@@ -53,7 +54,7 @@ public class EqlFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_9_0;
+        return TransportVersions.V_7_9_0;
     }
 
 }

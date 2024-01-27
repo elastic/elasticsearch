@@ -11,8 +11,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -37,12 +37,12 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.MAX_MODEL_MEMORY_LIMIT;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_JVM_SIZE_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LAZY_ML_NODES;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
-import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderServiceTests.AUTO_NODE_TIERS_NO_MONITORING;
 import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderServiceTests.AUTO_NODE_TIERS_WITH_MONITORING;
 import static org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator.MINIMUM_AUTOMATIC_NODE_SIZE;
@@ -531,7 +531,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
             if (i < numMlNodes) {
                 // ML node
                 builder.add(
-                    TestDiscoveryNode.create(
+                    DiscoveryNodeUtils.create(
                         nodeName,
                         nodeId,
                         ta,
@@ -547,7 +547,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
             } else {
                 // Not an ML node
                 builder.add(
-                    TestDiscoveryNode.create(
+                    DiscoveryNodeUtils.create(
                         nodeName,
                         nodeId,
                         ta,
@@ -584,7 +584,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
         } else {
             roles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
         }
-        return TestDiscoveryNode.create("node", ESTestCase.buildNewFakeTransportAddress(), attrs, roles);
+        return DiscoveryNodeUtils.create("node", ESTestCase.buildNewFakeTransportAddress(), attrs, roles);
     }
 
 }

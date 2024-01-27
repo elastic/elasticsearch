@@ -11,21 +11,18 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
-import org.elasticsearch.action.delete.DeleteAction;
-import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
+import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -62,17 +59,13 @@ public class IndexPrivilegeTests extends ESTestCase {
     }
 
     public void testFindPrivilegesThatGrant() {
-        assertThat(findPrivilegesThatGrant(SearchAction.NAME), equalTo(List.of("read", "all")));
-        assertThat(findPrivilegesThatGrant(IndexAction.NAME), equalTo(List.of("create_doc", "create", "index", "write", "all")));
-        assertThat(findPrivilegesThatGrant(UpdateAction.NAME), equalTo(List.of("index", "write", "all")));
-        assertThat(findPrivilegesThatGrant(DeleteAction.NAME), equalTo(List.of("delete", "write", "all")));
+        assertThat(findPrivilegesThatGrant(TransportSearchAction.TYPE.name()), equalTo(List.of("read", "all")));
+        assertThat(findPrivilegesThatGrant(TransportIndexAction.NAME), equalTo(List.of("create_doc", "create", "index", "write", "all")));
+        assertThat(findPrivilegesThatGrant(TransportUpdateAction.NAME), equalTo(List.of("index", "write", "all")));
+        assertThat(findPrivilegesThatGrant(TransportDeleteAction.NAME), equalTo(List.of("delete", "write", "all")));
         assertThat(
             findPrivilegesThatGrant(IndicesStatsAction.NAME),
-            equalTo(
-                Stream.of("monitor", (TcpTransport.isUntrustedRemoteClusterEnabled() ? "cross_cluster_replication" : null), "manage", "all")
-                    .filter(Objects::nonNull)
-                    .toList()
-            )
+            equalTo(List.of("monitor", "cross_cluster_replication", "manage", "all"))
         );
         assertThat(findPrivilegesThatGrant(RefreshAction.NAME), equalTo(List.of("maintenance", "manage", "all")));
         assertThat(findPrivilegesThatGrant(ShrinkAction.NAME), equalTo(List.of("manage", "all")));
@@ -122,8 +115,6 @@ public class IndexPrivilegeTests extends ESTestCase {
     }
 
     public void testCrossClusterReplicationPrivileges() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final IndexPrivilege crossClusterReplication = IndexPrivilege.get(Set.of("cross_cluster_replication"));
         List.of(
             "indices:data/read/xpack/ccr/shard_changes",

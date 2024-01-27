@@ -8,10 +8,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.util.ArrayList;
@@ -38,6 +38,9 @@ public class TypeParsers {
         }
         @SuppressWarnings("unchecked")
         Map<String, ?> meta = (Map<String, ?>) metaObject;
+        if (meta.isEmpty()) {
+            return Map.of();
+        }
         if (meta.size() > 5) {
             throw new MapperParsingException("[meta] can't have more than 5 entries, but got " + meta.size() + " on field [" + name + "]");
         }
@@ -69,6 +72,12 @@ public class TypeParsers {
                 );
             }
         }
+        var entrySet = meta.entrySet();
+        if (entrySet.size() == 1) {
+            // no need to sort for a single entry
+            var entry = entrySet.iterator().next();
+            return Map.of(entry.getKey(), (String) entry.getValue());
+        }
         Map<String, String> sortedMeta = new TreeMap<>();
         for (Map.Entry<String, ?> entry : meta.entrySet()) {
             sortedMeta.put(entry.getKey(), (String) entry.getValue());
@@ -88,7 +97,7 @@ public class TypeParsers {
             if (parserContext.isWithinMultiField()) {
                 // For indices created prior to 8.0, we only emit a deprecation warning and do not fail type parsing. This is to
                 // maintain the backwards-compatibility guarantee that we can always load indexes from the previous major version.
-                if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                if (parserContext.indexVersionCreated().before(IndexVersions.V_8_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.INDICES,
                         "multifield_within_multifield",

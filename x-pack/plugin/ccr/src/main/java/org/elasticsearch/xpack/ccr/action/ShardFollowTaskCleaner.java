@@ -33,7 +33,7 @@ import java.util.Set;
 /**
  * A {@link ClusterStateListener} that completes any {@link ShardFollowTask} which concerns a deleted index.
  */
-public class ShardFollowTaskCleaner implements ClusterStateListener {
+public final class ShardFollowTaskCleaner implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ShardFollowTaskCleaner.class);
 

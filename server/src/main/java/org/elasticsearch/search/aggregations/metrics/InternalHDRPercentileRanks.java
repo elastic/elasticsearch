@@ -14,6 +14,7 @@ import org.elasticsearch.search.DocValueFormat;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles implements PercentileRanks {
     public static final String NAME = "hdr_percentile_ranks";
@@ -53,6 +54,9 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
 
     @Override
     public Iterator<Percentile> iterator() {
+        if (state == null) {
+            return EMPTY_ITERATOR;
+        }
         return new Iter(keys, state);
     }
 
@@ -103,7 +107,7 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
 
         public Iter(double[] values, DoubleHistogram state) {
             this.values = values;
-            this.state = state;
+            this.state = Objects.requireNonNull(state);
             i = 0;
         }
 

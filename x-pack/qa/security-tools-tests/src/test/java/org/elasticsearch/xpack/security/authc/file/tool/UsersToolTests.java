@@ -48,6 +48,13 @@ import static org.hamcrest.Matchers.containsString;
 
 public class UsersToolTests extends CommandTestCase {
 
+    @BeforeClass
+    public static void setUpClass() {
+        // Initialize the reserved roles store so that static fields are populated.
+        // In production code, this is guaranteed UsersTool's static initializer
+        new ReservedRolesStore();
+    }
+
     // the mock filesystem we use so permissions/users/groups can be modified
     static FileSystem jimfs;
     String pathHomeParameter;

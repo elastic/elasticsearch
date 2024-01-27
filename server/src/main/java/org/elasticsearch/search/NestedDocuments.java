@@ -18,8 +18,8 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
@@ -45,7 +45,7 @@ public class NestedDocuments {
      * @param filterProducer    a function to build BitSetProducers from filter queries
      * @param indexVersionCreated the index creation version
      */
-    public NestedDocuments(MappingLookup mappingLookup, Function<Query, BitSetProducer> filterProducer, Version indexVersionCreated) {
+    public NestedDocuments(MappingLookup mappingLookup, Function<Query, BitSetProducer> filterProducer, IndexVersion indexVersionCreated) {
         this.nestedLookup = mappingLookup.nestedLookup();
         if (this.nestedLookup == NestedLookup.EMPTY) {
             this.parentDocumentFilter = null;

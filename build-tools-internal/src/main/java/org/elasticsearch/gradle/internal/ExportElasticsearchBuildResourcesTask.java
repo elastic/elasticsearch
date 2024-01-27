@@ -40,7 +40,7 @@ import javax.inject.Inject;
  */
 public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
 
-    private final Logger logger = Logging.getLogger(ExportElasticsearchBuildResourcesTask.class);
+    private static final Logger logger = Logging.getLogger(ExportElasticsearchBuildResourcesTask.class);
 
     private final Set<String> resources = new HashSet<>();
 

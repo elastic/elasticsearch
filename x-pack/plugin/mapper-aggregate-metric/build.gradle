@@ -17,7 +17,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-aggregate-metric'
+base {
+  archivesName = 'x-pack-aggregate-metric'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

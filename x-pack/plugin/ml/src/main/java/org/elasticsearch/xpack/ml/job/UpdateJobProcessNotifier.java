@@ -79,7 +79,7 @@ public class UpdateJobProcessNotifier {
     }
 
     private void start() {
-        cancellable = threadPool.scheduleWithFixedDelay(this::processNextUpdate, TimeValue.timeValueSeconds(1), ThreadPool.Names.GENERIC);
+        cancellable = threadPool.scheduleWithFixedDelay(this::processNextUpdate, TimeValue.timeValueSeconds(1), threadPool.generic());
     }
 
     private void stop() {

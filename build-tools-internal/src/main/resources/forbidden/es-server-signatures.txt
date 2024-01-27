@@ -38,6 +38,11 @@ java.lang.Math#abs(long)
 @defaultMessage Please do not try to stop the world
 java.lang.System#gc()
 
+@defaultMessage Don't use MethodHandles in slow ways
+java.lang.invoke.MethodHandle#invoke(java.lang.Object[])
+java.lang.invoke.MethodHandle#invokeWithArguments(java.lang.Object[])
+java.lang.invoke.MethodHandle#invokeWithArguments(java.util.List)
+
 @defaultMessage Use Channels.* methods to write to channels. Do not write directly.
 java.nio.channels.WritableByteChannel#write(java.nio.ByteBuffer)
 java.nio.channels.FileChannel#write(java.nio.ByteBuffer, long)
@@ -56,9 +61,6 @@ org.apache.lucene.index.NoMergePolicy#INSTANCE @ explicit use of NoMergePolicy r
 @defaultMessage Spawns a new thread which is solely under lucenes control use ThreadPool#relativeTimeInMillis instead
 org.apache.lucene.search.TimeLimitingCollector#getGlobalTimerThread()
 org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()
-
-@defaultMessage use @org.elasticsearch.common.lucene.RegExp instead to avoid StackOverflowError
-org.apache.lucene.util.automaton.RegExp
 
 @defaultMessage Don't interrupt threads use FutureUtils#cancel(Future<T>) instead
 java.util.concurrent.Future#cancel(boolean)
@@ -150,3 +152,21 @@ org.elasticsearch.cluster.service.ClusterService#submitUnbatchedStateUpdateTask(
 @defaultMessage Reacting to the published cluster state is an obstruction to batching cluster state tasks which leads to performance and stability bugs. Use the variants that accept a Runnable instead.
 org.elasticsearch.cluster.ClusterStateTaskExecutor$TaskContext#success(java.util.function.Consumer)
 org.elasticsearch.cluster.ClusterStateTaskExecutor$TaskContext#success(java.util.function.Consumer, org.elasticsearch.cluster.ClusterStateAckListener)
+
+@defaultMessage ClusterState#compatibilityVersions are for internal use only. Use ClusterState#getMinVersions or a different version. See TransportVersion javadocs for more info.
+org.elasticsearch.cluster.ClusterState#compatibilityVersions()
+
+@defaultMessage ClusterFeatures#nodeFeatures is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
+org.elasticsearch.cluster.ClusterFeatures#nodeFeatures()
+@defaultMessage ClusterFeatures#allNodeFeatures is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
+org.elasticsearch.cluster.ClusterFeatures#allNodeFeatures()
+@defaultMessage ClusterFeatures#clusterHasFeature is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
+org.elasticsearch.cluster.ClusterFeatures#clusterHasFeature(org.elasticsearch.features.NodeFeature)
+
+@defaultMessage Do not construct this records outside the source files they are declared in
+org.elasticsearch.cluster.SnapshotsInProgress$ShardSnapshotStatus#<init>(java.lang.String, org.elasticsearch.cluster.SnapshotsInProgress$ShardState, org.elasticsearch.repositories.ShardGeneration, java.lang.String, org.elasticsearch.repositories.ShardSnapshotResult)
+org.elasticsearch.cluster.SnapshotDeletionsInProgress$Entry#<init>(java.lang.String, java.util.List, long, long, org.elasticsearch.cluster.SnapshotDeletionsInProgress$State, java.lang.String)
+
+@defaultMessage Use a Thread constructor with a name, anonymous threads are more difficult to debug
+java.lang.Thread#<init>(java.lang.Runnable)
+java.lang.Thread#<init>(java.lang.ThreadGroup, java.lang.Runnable)

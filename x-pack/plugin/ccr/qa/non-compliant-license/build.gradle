@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -21,7 +22,7 @@ def followerCluster =  testClusters.register('follow-cluster') {
   setting 'xpack.security.enabled', 'true'
   user username: 'admin', password: 'admin-password', role: 'superuser'
   setting 'cluster.remote.leader_cluster.seeds',
-          { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }
+          { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
 }
 
 tasks.register('leader-cluster', RestIntegTestTask) {

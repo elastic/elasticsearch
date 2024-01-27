@@ -13,11 +13,11 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -60,7 +60,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     private static final Logger logger = LogManager.getLogger(TransformTask.class);
     private static final IndexerState[] RUNNING_STATES = new IndexerState[] { IndexerState.STARTED, IndexerState.INDEXING };
 
-    private final ParentTaskAssigningClient parentTaskClient;
     private final TransformTaskParams transform;
     private final TransformScheduler transformScheduler;
     private final ThreadPool threadPool;
@@ -70,12 +69,12 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     private final TransformContext context;
     private final SetOnce<ClientTransformIndexer> indexer = new SetOnce<>();
 
+    @SuppressWarnings("this-escape")
     public TransformTask(
         long id,
         String type,
         String action,
         TaskId parentTask,
-        Client client,
         TransformTaskParams transform,
         TransformState state,
         TransformScheduler transformScheduler,
@@ -84,7 +83,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         Map<String, String> headers
     ) {
         super(id, type, action, TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, headers);
-        this.parentTaskClient = new ParentTaskAssigningClient(client, parentTask);
         this.transform = transform;
         this.transformScheduler = transformScheduler;
         this.threadPool = threadPool;
@@ -119,10 +117,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         if (state != null) {
             this.context.setAuthState(state.getAuthState());
         }
-    }
-
-    public ParentTaskAssigningClient getParentTaskClient() {
-        return parentTaskClient;
     }
 
     public String getTransformId() {
@@ -179,7 +173,9 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     public void getCheckpointingInfo(
         TransformCheckpointService transformsCheckpointService,
-        ActionListener<TransformCheckpointingInfo> listener
+        ParentTaskAssigningClient parentTaskClient,
+        ActionListener<TransformCheckpointingInfo> listener,
+        TimeValue timeout
     ) {
         ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ActionListener.wrap(infoBuilder -> {
             if (context.getChangesLastDetectedAt() != null) {
@@ -195,6 +191,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         if (transformIndexer == null) {
             transformsCheckpointService.getCheckpointingInfo(
                 parentTaskClient,
+                timeout,
                 transform.getId(),
                 context.getCheckpoint(),
                 initialPosition,
@@ -203,12 +200,13 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             );
             return;
         }
-        transformIndexer.getCheckpointProvider()
+        transformsCheckpointService.getCheckpointProvider(parentTaskClient, transformIndexer.getConfig())
             .getCheckpointingInfo(
                 transformIndexer.getLastCheckpoint(),
                 transformIndexer.getNextCheckpoint(),
                 transformIndexer.getPosition(),
                 transformIndexer.getProgress(),
+                timeout,
                 checkPointInfoListener
             );
     }
@@ -482,7 +480,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     @Override
-    public void fail(String reason, ActionListener<Void> listener) {
+    public void fail(Throwable exception, String reason, ActionListener<Void> listener) {
         synchronized (context) {
             // If we are already flagged as failed, this probably means that a second trigger started firing while we were attempting to
             // flag the previously triggered indexer as failed. Exit early as we are already flagged as failed.
@@ -507,7 +505,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 return;
             }
 
-            logger.error("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
+            logger.atError().withThrowable(exception).log("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
             auditor.error(transform.getId(), reason);
             // We should not keep retrying. Either the task will be stopped, or started
             // If it is started again, it is registered again.
@@ -519,7 +517,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             // The end user should see that the task is in a failed state, and attempt to stop it again but with force=true
             context.setTaskStateToFailed(reason);
             TransformState newState = getState();
-            // Even though the indexer information is persisted to an index, we still need TransformTaskState in the clusterstate
+            // Even though the indexer information is persisted to an index, we still need TransformTaskState in the cluster state
             // This keeps track of STARTED, FAILED, STOPPED
             // This is because a FAILED state could occur because we failed to read the config from the internal index, which would imply
             // that

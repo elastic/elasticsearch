@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SortOrderAnalyticsEventField.SORT_ORDER_DIRECTION_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SortOrderAnalyticsEventField.SORT_ORDER_NAME_FIELD;
 
@@ -26,7 +27,7 @@ public class SortOrderAnalyticsEventFieldTests extends AnalyticsEventFieldParser
 
     @Override
     protected Map<String, String> createTestInstance() {
-        return randomEventSearchSortOrderField();
+        return new HashMap<>(randomEventSearchSortOrderField());
     }
 
     @Override
@@ -35,9 +36,9 @@ public class SortOrderAnalyticsEventFieldTests extends AnalyticsEventFieldParser
     }
 
     public static Map<String, String> randomEventSearchSortOrderField() {
-        return MapBuilder.<String, String>newMapBuilder()
-            .put(SORT_ORDER_NAME_FIELD.getPreferredName(), randomIdentifier())
-            .put(SORT_ORDER_DIRECTION_FIELD.getPreferredName(), randomIdentifier())
-            .map();
+        return Map.ofEntries(
+            entry(SORT_ORDER_NAME_FIELD.getPreferredName(), randomIdentifier()),
+            entry(SORT_ORDER_DIRECTION_FIELD.getPreferredName(), randomIdentifier())
+        );
     }
 }

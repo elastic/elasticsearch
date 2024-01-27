@@ -42,7 +42,7 @@ public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrame
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/explain";
 
     private ExplainDataFrameAnalyticsAction() {
-        super(NAME, ExplainDataFrameAnalyticsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -82,7 +82,7 @@ public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrame
             return error;
         }
 
-        private ActionRequestValidationException checkConfigIdIsValid(
+        private static ActionRequestValidationException checkConfigIdIsValid(
             DataFrameAnalyticsConfig analyticsConfig,
             ActionRequestValidationException error
         ) {
@@ -106,7 +106,7 @@ public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrame
             return error;
         }
 
-        private ActionRequestValidationException checkNoIncludedAnalyzedFieldsAreExcludedBySourceFiltering(
+        private static ActionRequestValidationException checkNoIncludedAnalyzedFieldsAreExcludedBySourceFiltering(
             DataFrameAnalyticsConfig analyticsConfig,
             ActionRequestValidationException error
         ) {
@@ -185,13 +185,13 @@ public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrame
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.fieldSelection = in.readList(FieldSelection::new);
+            this.fieldSelection = in.readCollectionAsList(FieldSelection::new);
             this.memoryEstimation = new MemoryEstimation(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(fieldSelection);
+            out.writeCollection(fieldSelection);
             memoryEstimation.writeTo(out);
         }
 

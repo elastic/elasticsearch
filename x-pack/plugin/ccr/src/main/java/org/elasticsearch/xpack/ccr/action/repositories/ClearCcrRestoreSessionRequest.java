@@ -19,7 +19,7 @@ import org.elasticsearch.transport.RemoteClusterAwareRequest;
 
 import java.io.IOException;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
+import static org.elasticsearch.xpack.ccr.Ccr.TRANSPORT_VERSION_ACTION_WITH_SHARD_ID;
 
 public class ClearCcrRestoreSessionRequest extends ActionRequest implements RemoteClusterAwareRequest, IndicesRequest {
 
@@ -30,7 +30,7 @@ public class ClearCcrRestoreSessionRequest extends ActionRequest implements Remo
     ClearCcrRestoreSessionRequest(StreamInput in) throws IOException {
         super(in);
         sessionUUID = in.readString();
-        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)) {
+        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ACTION_WITH_SHARD_ID)) {
             shardId = new ShardId(in);
         } else {
             shardId = null;
@@ -52,7 +52,7 @@ public class ClearCcrRestoreSessionRequest extends ActionRequest implements Remo
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(sessionUUID);
-        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)) {
+        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ACTION_WITH_SHARD_ID)) {
             shardId.writeTo(out);
         }
     }

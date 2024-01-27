@@ -11,6 +11,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -163,12 +164,15 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
 
             private void collectFromSource(int doc, long owningBucketOrd, TokenListCategorizer categorizer) throws IOException {
                 Source source = sourceProvider.getSource(aggCtx.getLeafReaderContext(), doc).filter(sourceFilter);
-                Iterator<String> itr = XContentMapValues.extractRawValues(sourceFieldName, source.source()).stream().map(obj -> {
-                    if (obj instanceof BytesRef) {
-                        return fieldType.valueForDisplay(obj).toString();
+                Iterator<String> itr = Iterators.map(
+                    XContentMapValues.extractRawValues(sourceFieldName, source.source()).iterator(),
+                    obj -> {
+                        if (obj instanceof BytesRef) {
+                            return fieldType.valueForDisplay(obj).toString();
+                        }
+                        return (obj == null) ? null : obj.toString();
                     }
-                    return (obj == null) ? null : obj.toString();
-                }).iterator();
+                );
                 while (itr.hasNext()) {
                     String string = itr.next();
                     try (TokenStream ts = analyzer.tokenStream(fieldType.name(), string)) {

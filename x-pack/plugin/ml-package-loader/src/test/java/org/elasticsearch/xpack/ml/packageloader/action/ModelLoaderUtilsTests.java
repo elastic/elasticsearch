@@ -14,8 +14,21 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.core.Is.is;
 
 public class ModelLoaderUtilsTests extends ESTestCase {
+
+    public void testGetInputStreamFromModelRepositoryThrowsUnsupportedScheme() {
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ModelLoaderUtils.getInputStreamFromModelRepository(new URI("unknown:/home/ml/package.ext"))
+        );
+
+        assertThat(e.getMessage(), is("unsupported scheme"));
+    }
 
     public void testResolvePackageLocationTrailingSlash() throws URISyntaxException {
         assertEquals(new URI("file:/home/ml/package.ext"), ModelLoaderUtils.resolvePackageLocation("file:///home/ml", "package.ext"));
@@ -82,5 +95,21 @@ public class ModelLoaderUtilsTests extends ESTestCase {
         assertEquals(bytes.length - (chunkSize * (totalParts - 1)), inputStreamChunker.next().length());
         assertEquals(bytes.length, inputStreamChunker.getTotalBytesRead());
         assertEquals(expectedDigest, inputStreamChunker.getSha256());
+    }
+
+    public void testParseVocabulary() throws IOException {
+        String vocabParts = """
+            {
+              "vocabulary": ["foo", "bar", "baz"],
+              "merges": ["mergefoo", "mergebar", "mergebaz"],
+              "scores": [1.0, 2.0, 3.0]
+            }
+            """;
+
+        var is = new ByteArrayInputStream(vocabParts.getBytes(StandardCharsets.UTF_8));
+        var parsedVocab = ModelLoaderUtils.parseVocabParts(is);
+        assertThat(parsedVocab.vocab(), contains("foo", "bar", "baz"));
+        assertThat(parsedVocab.merges(), contains("mergefoo", "mergebar", "mergebaz"));
+        assertThat(parsedVocab.scores(), contains(1.0, 2.0, 3.0));
     }
 }

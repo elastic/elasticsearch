@@ -55,9 +55,9 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
 
     record Config(int[] offsets, String utf8str) {}
 
-    static Config fromBase64Str(String s) {
+    static Config fromBase64EncodedResource(String resourcePath) throws IOException {
+        byte[] bytes = Base64.getDecoder().wrap(PrecompiledCharMapNormalizer.class.getResourceAsStream(resourcePath)).readAllBytes();
         int offset = 0;
-        byte[] bytes = Base64.getDecoder().decode(s);
         int trieSize = ByteBuffer.wrap(bytes, offset, 4).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt();
         offset += 4;
         int size = trieSize / 4;
@@ -87,19 +87,19 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
         this.normalizedStrUtf8Bytes = normalizedStr.getBytes(StandardCharsets.UTF_8);
     }
 
-    private boolean hasLeaf(int v) {
+    private static boolean hasLeaf(int v) {
         return ((v >>> 8) & 1) == 1;
     }
 
-    private int label(int v) {
+    private static int label(int v) {
         return (v & ((1 << 31) | 0xFF));
     }
 
-    private int value(int v) {
+    private static int value(int v) {
         return (v & ((1 << 31) - 1));
     }
 
-    private int offset(int v) {
+    private static int offset(int v) {
         return (v >>> 10) << ((v & (1 << 9)) >>> 6);
     }
 

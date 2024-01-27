@@ -1,6 +1,13 @@
 ---
 "Score should match explanation in rescore":
   - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 1
+
+  - do:
       bulk:
         refresh: true
         body:
@@ -18,16 +25,16 @@
         body:
           explain: true
           query:
-            match_all: {}
+            match_all: { }
           rescore:
             window_size: 2
             query:
               rescore_query:
-                match_all: {}
+                match_all: { }
               query_weight: 5
               rescore_query_weight: 10
 
-  - match: {hits.max_score: 15}
+  - match: { hits.max_score: 15 }
   - match: { hits.hits.0._score: 15 }
   - match: { hits.hits.0._explanation.value: 15 }
 

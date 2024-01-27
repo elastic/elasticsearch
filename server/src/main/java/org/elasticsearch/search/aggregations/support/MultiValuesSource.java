@@ -10,7 +10,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 
 import java.io.IOException;
 import java.util.Map;
@@ -28,9 +28,7 @@ public abstract class MultiValuesSource<VS extends ValuesSource> {
             for (Map.Entry<String, ValuesSourceConfig> entry : valuesSourceConfigs.entrySet()) {
                 final ValuesSource valuesSource = entry.getValue().getValuesSource();
                 if (valuesSource instanceof ValuesSource.Numeric == false) {
-                    throw new AggregationExecutionException(
-                        "ValuesSource type " + valuesSource.toString() + "is not supported for multi-valued aggregation"
-                    );
+                    throw AggregationErrors.unsupportedValuesSourceType(valuesSource, "multi-value");
                 }
                 values.put(entry.getKey(), (ValuesSource.Numeric) valuesSource);
             }

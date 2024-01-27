@@ -43,7 +43,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.bits = this.missingBucket ? new BitArray(100, bigArrays) : null;
         boolean success = false;

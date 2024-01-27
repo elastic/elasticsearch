@@ -26,6 +26,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -60,6 +61,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
     );
     private final SegmentsStats segmentsStats;
     private final DocsStats docsStats;
+    private final DenseVectorStats denseVectorStats;
     private volatile ElasticsearchDirectoryReader lastOpenedReader;
     private final ElasticsearchDirectoryReader canMatchReader;
     private final Object cacheIdentity = new Object();
@@ -90,6 +92,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 fillSegmentStats(segmentReader, true, segmentsStats);
             }
             this.docsStats = docsStats(reader);
+            this.denseVectorStats = denseVectorStats(reader);
             canMatchReader = ElasticsearchDirectoryReader.wrap(
                 new RewriteCachingDirectoryReader(directory, reader.leaves(), null),
                 config.getShardId()
@@ -324,6 +327,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
     @Override
     public DocsStats docStats() {
         return docsStats;
+    }
+
+    @Override
+    public DenseVectorStats denseVectorStats() {
+        return denseVectorStats;
     }
 
     synchronized boolean isReaderOpen() {

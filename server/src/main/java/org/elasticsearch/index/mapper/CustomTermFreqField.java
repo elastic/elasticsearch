@@ -21,11 +21,13 @@ import org.apache.lucene.index.IndexOptions;
  */
 public final class CustomTermFreqField extends Field {
 
-    private static final FieldType FIELD_TYPE = new FieldType();
+    private static final FieldType FIELD_TYPE;
     static {
-        FIELD_TYPE.setTokenized(false);
-        FIELD_TYPE.setOmitNorms(true);
-        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
+        final FieldType ft = new FieldType();
+        ft.setTokenized(false);
+        ft.setOmitNorms(true);
+        ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
+        FIELD_TYPE = Mapper.freezeAndDeduplicateFieldType(ft);
     }
 
     private final int fieldValue;

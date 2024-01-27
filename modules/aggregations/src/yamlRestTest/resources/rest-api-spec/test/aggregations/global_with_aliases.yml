@@ -1,0 +1,30 @@
+"global agg with a terms filtered alias":
+  - skip:
+      version: "- 8.9.99"
+      reason: Fixed in 8.10
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"name": "one"}'
+          - '{"index": {}}'
+          - '{"name": "two"}'
+          - '{"index": {}}'
+          - '{"name": "two"}'
+
+  - do:
+      indices.put_alias:
+        index: test
+        name: test-filtered
+        body: {"filter": {"terms": {"name": [ "one" ] }}}
+
+  - do:
+      search:
+        index: test-filtered
+        body:
+          aggs:
+            all_docs:
+              global: {}

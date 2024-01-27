@@ -9,7 +9,6 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -53,26 +52,18 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     public ShardFetchSearchRequest(StreamInput in) throws IOException {
         super(in);
         originalIndices = OriginalIndices.readOriginalIndices(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            shardSearchRequest = in.readOptionalWriteable(ShardSearchRequest::new);
-            rescoreDocIds = new RescoreDocIds(in);
-            aggregatedDfs = in.readOptionalWriteable(AggregatedDfs::new);
-        } else {
-            shardSearchRequest = null;
-            rescoreDocIds = RescoreDocIds.EMPTY;
-            aggregatedDfs = null;
-        }
+        shardSearchRequest = in.readOptionalWriteable(ShardSearchRequest::new);
+        rescoreDocIds = new RescoreDocIds(in);
+        aggregatedDfs = in.readOptionalWriteable(AggregatedDfs::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            out.writeOptionalWriteable(shardSearchRequest);
-            rescoreDocIds.writeTo(out);
-            out.writeOptionalWriteable(aggregatedDfs);
-        }
+        out.writeOptionalWriteable(shardSearchRequest);
+        rescoreDocIds.writeTo(out);
+        out.writeOptionalWriteable(aggregatedDfs);
     }
 
     @Override

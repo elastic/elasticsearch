@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -146,14 +145,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         this.valuesField = valuesField;
         values = in.readDoubleArray();
         keyed = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
-            percentilesConfig = (PercentilesConfig) in.readOptionalWriteable((Reader<Writeable>) PercentilesConfig::fromStream);
-        } else {
-            int numberOfSignificantValueDigits = in.readVInt();
-            double compression = in.readDouble();
-            PercentilesMethod method = PercentilesMethod.readFromStream(in);
-            percentilesConfig = PercentilesConfig.fromLegacy(method, compression, numberOfSignificantValueDigits);
-        }
+        percentilesConfig = (PercentilesConfig) in.readOptionalWriteable((Reader<Writeable>) PercentilesConfig::fromStream);
     }
 
     @Override
@@ -165,23 +157,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(values);
         out.writeBoolean(keyed);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
-            out.writeOptionalWriteable(percentilesConfig);
-        } else {
-            // Legacy method serialized both SigFigs and compression, even though we only need one. So we need
-            // to serialize the default for the unused method
-            int numberOfSignificantValueDigits = percentilesConfig.getMethod().equals(PercentilesMethod.HDR)
-                ? ((PercentilesConfig.Hdr) percentilesConfig).getNumberOfSignificantValueDigits()
-                : PercentilesConfig.Hdr.DEFAULT_NUMBER_SIG_FIGS;
-
-            double compression = percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)
-                ? ((PercentilesConfig.TDigest) percentilesConfig).getCompression()
-                : PercentilesConfig.TDigest.DEFAULT_COMPRESSION;
-
-            out.writeVInt(numberOfSignificantValueDigits);
-            out.writeDouble(compression);
-            percentilesConfig.getMethod().writeTo(out);
-        }
+        out.writeOptionalWriteable(percentilesConfig);
     }
 
     /**
@@ -191,13 +167,6 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     public T keyed(boolean keyed) {
         this.keyed = keyed;
         return (T) this;
-    }
-
-    /**
-     * Get whether the XContent response should be keyed
-     */
-    public boolean keyed() {
-        return keyed;
     }
 
     /**

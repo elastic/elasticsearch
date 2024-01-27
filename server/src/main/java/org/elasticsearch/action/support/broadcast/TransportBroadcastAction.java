@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,14 +27,14 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -49,31 +50,48 @@ public abstract class TransportBroadcastAction<
     protected final TransportService transportService;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    final String transportShardAction;
-    private final String shardExecutor;
+    private final String transportShardAction;
+    private final Executor executor;
 
+    @SuppressWarnings("this-escape")
     protected TransportBroadcastAction(
         String actionName,
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Writeable.Reader<Request> request,
-        Writeable.Reader<ShardRequest> shardRequest,
-        String shardExecutor
+        Writeable.Reader<Request> requestReader,
+        Writeable.Reader<ShardRequest> shardRequestReader,
+        Executor executor
     ) {
-        super(actionName, transportService, actionFilters, request);
+        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.transportShardAction = actionName + "[s]";
-        this.shardExecutor = shardExecutor;
+        this.executor = executor;
+        assert this.executor != EsExecutors.DIRECT_EXECUTOR_SERVICE : "O(#shards) work must always fork to an appropriate executor";
 
-        transportService.registerRequestHandler(transportShardAction, ThreadPool.Names.SAME, shardRequest, new ShardTransportHandler());
+        transportService.registerRequestHandler(
+            transportShardAction,
+            this.executor,
+            shardRequestReader,
+            (request, channel, task) -> ActionListener.completeWith(
+                new ChannelActionListener<>(channel),
+                () -> shardOperation(request, task)
+            )
+        );
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        executor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, listener)));
+    }
+
+    protected void doExecuteForked(Task task, Request request, ActionListener<Response> listener) {
+        assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         new AsyncBroadcastAction(task, request, listener).start();
     }
 
@@ -184,7 +202,7 @@ public abstract class TransportBroadcastAction<
                 node,
                 transportShardAction,
                 shardRequest,
-                new ActionListenerResponseHandler<>(listener, TransportBroadcastAction.this::readShardResponse)
+                new ActionListenerResponseHandler<>(listener, TransportBroadcastAction.this::readShardResponse, executor)
             );
         }
 
@@ -238,11 +256,8 @@ public abstract class TransportBroadcastAction<
             }
         }
 
-        protected AtomicReferenceArray<Object> shardsResponses() {
-            return shardsResponses;
-        }
-
         protected void finishHim() {
+            assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
             ActionListener.completeWith(listener, () -> newResponse(request, shardsResponses, clusterState));
         }
 
@@ -268,25 +283,5 @@ public abstract class TransportBroadcastAction<
                 shardsResponses.set(shardIndex, e);
             }
         }
-    }
-
-    class ShardTransportHandler implements TransportRequestHandler<ShardRequest> {
-
-        @Override
-        public void messageReceived(ShardRequest request, TransportChannel channel, Task task) throws Exception {
-            asyncShardOperation(request, task, ActionListener.wrap(channel::sendResponse, e -> {
-                try {
-                    channel.sendResponse(e);
-                } catch (Exception e1) {
-                    logger.warn(() -> format("Failed to send error response for action [%s] and request [%s]", actionName, request), e1);
-                }
-            }));
-        }
-    }
-
-    private void asyncShardOperation(ShardRequest request, Task task, ActionListener<ShardResponse> listener) {
-        transportService.getThreadPool()
-            .executor(shardExecutor)
-            .execute(ActionRunnable.supply(listener, () -> shardOperation(request, task)));
     }
 }

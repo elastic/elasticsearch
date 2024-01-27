@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
@@ -141,6 +142,11 @@ public final class ShardGenerations {
         return generations.get(shardId);
     }
 
+    public boolean hasShardGen(RepositoryShardId repositoryShardId) {
+        final var indexShardGens = getGens(repositoryShardId.index());
+        return repositoryShardId.shardId() < indexShardGens.size() && indexShardGens.get(repositoryShardId.shardId()) != null;
+    }
+
     public List<ShardGeneration> getGens(IndexId indexId) {
         return shardGenerations.getOrDefault(indexId, Collections.emptyList());
     }
@@ -219,10 +225,20 @@ public final class ShardGenerations {
         }
 
         public Builder put(IndexId indexId, int shardId, ShardGeneration generation) {
+            assert noDuplicateIndicesWithSameName(indexId);
             ShardGeneration existingGeneration = generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
             assert generation != null || existingGeneration == null
                 : "must not overwrite existing generation with null generation [" + existingGeneration + "]";
             return this;
+        }
+
+        private boolean noDuplicateIndicesWithSameName(IndexId newId) {
+            for (IndexId id : generations.keySet()) {
+                if (id.getName().equals(newId.getName()) && id.equals(newId) == false) {
+                    assert false : Strings.format("Unable to add: %s. There's another index id with the same name: %s", newId, id);
+                }
+            }
+            return true;
         }
 
         public ShardGenerations build() {

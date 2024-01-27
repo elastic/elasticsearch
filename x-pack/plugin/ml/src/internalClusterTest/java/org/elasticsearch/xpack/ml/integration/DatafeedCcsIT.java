@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.util.Collection;
 import java.util.List;
@@ -86,8 +87,9 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
             IndexLifecycle.class,
             // Deprecation warnings go to a data stream, if we ever cause a deprecation warning the data streams plugin is required
             DataStreamsPlugin.class,
-            // To remove errors from parsing built in templates that contain scaled_float
-            MapperExtrasPlugin.class
+            // To remove errors from parsing built in templates that contain scaled_float or wildcard
+            MapperExtrasPlugin.class,
+            Wildcard.class
         );
     }
 
@@ -188,9 +190,12 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         try {
             SearchResponse response = client(LOCAL_CLUSTER).prepareSearch(".ml-notifications*")
                 .setQuery(new MatchPhraseQueryBuilder("message", message))
-                .execute()
-                .actionGet();
-            return response.getHits().getTotalHits().value > 0;
+                .get();
+            try {
+                return response.getHits().getTotalHits().value > 0;
+            } finally {
+                response.decRef();
+            }
         } catch (ElasticsearchException e) {
             return false;
         }

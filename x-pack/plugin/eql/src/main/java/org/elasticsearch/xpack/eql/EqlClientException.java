@@ -8,14 +8,10 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.xpack.ql.QlClientException;
 
-public abstract class EqlClientException extends QlClientException {
+public class EqlClientException extends QlClientException {
 
-    protected EqlClientException(String message, Object... args) {
+    public EqlClientException(String message, Object... args) {
         super(message, args);
-    }
-
-    protected EqlClientException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
-        super(message, cause, enableSuppression, writableStackTrace);
     }
 
     protected EqlClientException(String message, Throwable cause) {
@@ -26,7 +22,4 @@ public abstract class EqlClientException extends QlClientException {
         super(cause, message, args);
     }
 
-    protected EqlClientException(Throwable cause) {
-        super(cause);
-    }
 }

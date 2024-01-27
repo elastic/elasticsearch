@@ -176,7 +176,11 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             final Response response = performRequestWithRemoteSearchUser(searchRequest);
             assertOK(response);
             final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            assertSearchResultContainsIndices(searchResponse, REMOTE_INDEX_NAME);
+            try {
+                assertSearchResultContainsIndices(searchResponse, REMOTE_INDEX_NAME);
+            } finally {
+                searchResponse.decRef();
+            }
 
             // Check that the feature is tracked on both QC and FC.
             assertFeatureTracked(client());

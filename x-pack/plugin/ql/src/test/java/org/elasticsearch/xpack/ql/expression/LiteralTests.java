@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ql.expression;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
 import org.elasticsearch.xpack.ql.type.Converter;
@@ -133,7 +133,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
                 Converter c = DataTypeConverter.converterFor(type, candidate);
                 c.convert(value);
                 validDataTypes.add(candidate);
-            } catch (QlIllegalArgumentException e) {
+            } catch (InvalidArgumentException e) {
                 // invalid conversion then....
             }
         }

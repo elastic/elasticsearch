@@ -91,7 +91,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         List<String> sourceSetConfigurationNames = List.of(
             sourceSet.getApiConfigurationName(),
             sourceSet.getImplementationConfigurationName(),
-            sourceSet.getImplementationConfigurationName(),
             sourceSet.getCompileOnlyConfigurationName(),
             sourceSet.getRuntimeOnlyConfigurationName()
         );
@@ -133,6 +132,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
             compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
             compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+            compileOptions.setIncremental(BuildParams.isCi() == false);
         });
         // also apply release flag to groovy, which is used in build-tools
         project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {

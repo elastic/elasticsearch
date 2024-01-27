@@ -58,11 +58,6 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
         }
 
         @Override
-        public Number getKeyAsNumber() {
-            return term;
-        }
-
-        @Override
         public int compareKey(Bucket other) {
             return Long.compare(term, other.term);
         }
@@ -124,11 +119,6 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
     @Override
     protected LongRareTerms createWithFilter(String name, List<LongRareTerms.Bucket> buckets, SetBackedScalingCuckooFilter filter) {
         return new LongRareTerms(name, order, getMetadata(), format, buckets, maxDocCount, filter);
-    }
-
-    @Override
-    protected LongRareTerms.Bucket[] createBucketsArray(int size) {
-        return new LongRareTerms.Bucket[size];
     }
 
     @Override

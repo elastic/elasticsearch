@@ -15,14 +15,79 @@ ingested in the pipeline.
 .{infer-cap} Options
 [options="header"]
 |======
-| Name                                  | Required  | Default                        | Description
-| `model_id` .                          | yes       | -                              | (String) The ID or alias for the trained model, or the ID of the deployment.
-| `target_field`                        | no        | `ml.inference.<processor_tag>` | (String) Field added to incoming documents to contain results objects.
-| `field_map`                           | no        | If defined the model's default field map | (Object) Maps the document field names to the known field names of the model. This mapping takes precedence over any default mappings provided in the model configuration.
+| Name                                  | Required  | Default                                    | Description
+| `model_id` .                          | yes       | -                                          | (String) The ID or alias for the trained model, or the ID of the deployment.
+| `input_output`                        | no        | -                                          | (List) Input fields for {infer} and output (destination) fields for the {infer} results. This option is incompatible with the `target_field` and `field_map` options.
+| `target_field`                        | no        | `ml.inference.<processor_tag>`             | (String) Field added to incoming documents to contain results objects.
+| `field_map`                           | no        | If defined the model's default field map   | (Object) Maps the document field names to the known field names of the model. This mapping takes precedence over any default mappings provided in the model configuration.
 | `inference_config`                    | no        | The default settings defined in the model  | (Object) Contains the inference type and its options.
+| `ignore_missing`                      | no        | `false`                                    | (Boolean) If `true` and any of the input fields defined in `input_ouput` are missing then those missing fields are quietly ignored, otherwise a missing field causes a failure. Only applies when using `input_output` configurations to explicitly list the input fields.
 include::common-options.asciidoc[]
 |======
 
+[IMPORTANT]
+==================================================
+* You cannot use the `input_output` field with the `target_field` and 
+`field_map` fields. For NLP models, use the `input_output` option. For 
+{dfanalytics} models, use the `target_field` and `field_map` option.
+* Each {infer} input field must be single strings, not arrays of strings.
+==================================================
+
+[discrete]
+[[inference-input-output-example]]
+==== Configuring input and output fields
+
+Select the `content` field for inference and write the result to 
+`content_embedding`.
+
+[source,js]
+--------------------------------------------------
+{
+  "inference": {
+    "model_id": "model_deployment_for_inference",
+    "input_output": [
+        {
+            "input_field": "content",
+            "output_field": "content_embedding"
+        }
+    ]
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+==== Configuring multiple inputs
+
+The `content` and `title` fields will be read from the incoming document and 
+sent to the model for the inference. The inference output is written to 
+`content_embedding` and `title_embedding` respectively.
+
+[source,js]
+--------------------------------------------------
+{
+  "inference": {
+    "model_id": "model_deployment_for_inference",
+    "input_output": [
+        {
+            "input_field": "content",
+            "output_field": "content_embedding"
+        },
+        {
+            "input_field": "title",
+            "output_field": "title_embedding"
+        }
+    ]
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Selecting the input fields with `input_output` is incompatible with
+the `target_field` and `field_map` options.
+
+{dfanalytics-cap} models must use the `target_field` to specify the root 
+location results are written to and optionally a `field_map` to map field names 
+in the input document to the model input fields.
 
 [source,js]
 --------------------------------------------------
@@ -38,6 +103,7 @@ include::common-options.asciidoc[]
 }
 --------------------------------------------------
 // NOTCONSOLE
+
 
 [discrete]
 [[inference-processor-classification-opt]]
@@ -317,6 +383,72 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 =====
+
+
+[discrete]
+[[inference-processor-text-expansion-opt]]
+==== Text expansion configuration options
+
+`results_field`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field-processor]
+
+
+`tokenization`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
++
+.Properties of tokenization
+[%collapsible%open]
+=====
+`bert`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
++
+.Properties of bert
+[%collapsible%open]
+=======
+
+`span`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+
+`roberta`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
++
+.Properties of roberta
+[%collapsible%open]
+=======
+
+`span`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+
+`mpnet`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
++
+.Properties of mpnet
+[%collapsible%open]
+=======
+
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+=======
+=====
+
 
 [discrete]
 [[inference-processor-zero-shot-opt]]

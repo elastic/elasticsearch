@@ -30,22 +30,27 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilderTests;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -61,7 +66,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -115,17 +123,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertNotSame(copy, original);
     }
 
-    public void testSerializingWithRuntimeFieldsBeforeSupportedThrows() {
-        SearchSourceBuilder original = new SearchSourceBuilder().runtimeMappings(randomRuntimeMappings());
-        TransportVersion v = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.V_7_0_0,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.V_7_11_0)
-        );
-        Exception e = expectThrows(IllegalArgumentException.class, () -> copyBuilder(original, v));
-        assertThat(e.getMessage(), equalTo("Versions before 7110099 don't support [runtime_mappings] and search was sent to [" + v + "]"));
-    }
-
     public void testShallowCopy() {
         for (int i = 0; i < 10; i++) {
             SearchSourceBuilder original = createSearchSourceBuilder();
@@ -140,7 +137,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original) throws IOException {
-        return copyBuilder(original, TransportVersion.CURRENT);
+        return copyBuilder(original, TransportVersion.current());
     }
 
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original, TransportVersion version) throws IOException {
@@ -880,6 +877,92 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         Map<String, Long> sectionsUsage = searchUsageStats.getSectionsUsage();
         assertEquals(1, sectionsUsage.size());
         assertEquals(iters, sectionsUsage.get("query").longValue());
+    }
+
+    public void testSupportsParallelCollection() {
+        Supplier<SearchSourceBuilder> newSearchSourceBuilder = () -> {
+            SearchSourceBuilder searchSourceBuilder = createSearchSourceBuilder();
+            searchSourceBuilder.collapse(null);
+            searchSourceBuilder.sort((List<SortBuilder<?>>) null);
+            searchSourceBuilder.profile(false);
+            return searchSourceBuilder;
+        };
+        ToLongFunction<String> fieldCardinality = name -> -1;
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            if (searchSourceBuilder.aggregations() == null) {
+                assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            } else {
+                assertEquals(
+                    searchSourceBuilder.aggregations().supportsParallelCollection(fieldCardinality),
+                    searchSourceBuilder.supportsParallelCollection(fieldCardinality)
+                );
+            }
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new MaxAggregationBuilder("max"));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.collapse(CollapseBuilderTests.randomCollapseBuilder());
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().collapse(CollapseBuilderTests.randomCollapseBuilder());
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            searchSourceBuilder.sort(
+                SortBuilders.scriptSort(
+                    new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "foo", emptyMap()),
+                    ScriptSortBuilder.ScriptSortType.NUMBER
+                ).order(randomFrom(SortOrder.values()))
+            );
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            searchSourceBuilder.sort(SortBuilders.fieldSort("field"));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            searchSourceBuilder.sort(SortBuilders.geoDistanceSort("field", 0, 0));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            searchSourceBuilder.sort(SortBuilders.pitTiebreaker());
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            searchSourceBuilder.sort(SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.profile(true);
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {

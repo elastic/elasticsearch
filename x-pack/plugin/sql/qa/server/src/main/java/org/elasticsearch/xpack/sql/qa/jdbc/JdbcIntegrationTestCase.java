@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
@@ -38,8 +39,8 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
     /**
      * Read an address for Elasticsearch suitable for the JDBC driver from the system properties.
      */
-    public static String elasticsearchAddress() {
-        String cluster = System.getProperty("tests.rest.cluster");
+    public String elasticsearchAddress() {
+        String cluster = getTestRestCluster();
         // JDBC only supports a single node at a time so we just give it one.
         return cluster.split(",")[0];
         /* This doesn't include "jdbc:es://" because we want the example in
@@ -72,21 +73,35 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
         return connection;
     }
 
-    public static void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
-        index(index, "1", body);
+    public static void index(String index, CheckedConsumer<XContentBuilder, IOException> body, RestClient provisioningClient)
+        throws IOException {
+        index(index, "1", body, provisioningClient);
     }
 
-    public static void index(String index, String documentId, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
+    public void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
+        index(index, body, provisioningClient());
+    }
+
+    public static void index(
+        String index,
+        String documentId,
+        CheckedConsumer<XContentBuilder, IOException> body,
+        RestClient provisioningClient
+    ) throws IOException {
         Request request = new Request("PUT", "/" + index + "/_doc/" + documentId);
         request.addParameter("refresh", "true");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
-        provisioningClient().performRequest(request);
+        provisioningClient.performRequest(request);
     }
 
-    public static void delete(String index, String documentId) throws IOException {
+    public void index(String index, String documentId, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
+        index(index, documentId, body, provisioningClient());
+    }
+
+    public void delete(String index, String documentId) throws IOException {
         Request request = new Request("DELETE", "/" + index + "/_doc/" + documentId);
         request.addParameter("refresh", "true");
         provisioningClient().performRequest(request);
@@ -116,7 +131,7 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
         return connectionProperties;
     }
 
-    protected static void createIndexWithSettingsAndMappings(String index) throws IOException {
+    protected void createIndexWithSettingsAndMappings(String index) throws IOException {
         Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
@@ -135,7 +150,7 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
         provisioningClient().performRequest(request);
     }
 
-    protected static void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
+    protected void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
         Request request = new Request("PUT", "/" + index + "/_mapping");
         XContentBuilder updateMapping = JsonXContent.contentBuilder().startObject();
         updateMapping.startObject("properties");

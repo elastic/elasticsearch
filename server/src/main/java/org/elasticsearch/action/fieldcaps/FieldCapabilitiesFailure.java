@@ -38,7 +38,7 @@ public class FieldCapabilitiesFailure implements Writeable, ToXContentObject {
     }
 
     public FieldCapabilitiesFailure(StreamInput in) throws IOException {
-        this.indices = in.readStringList();
+        this.indices = in.readStringCollectionAsList();
         this.exception = in.readException();
     }
 

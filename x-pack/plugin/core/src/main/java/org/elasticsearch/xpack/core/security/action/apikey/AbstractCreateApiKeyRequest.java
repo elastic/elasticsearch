@@ -21,17 +21,17 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
-    public static final WriteRequest.RefreshPolicy DEFAULT_REFRESH_POLICY = WriteRequest.RefreshPolicy.WAIT_UNTIL;
     protected final String id;
     protected String name;
     protected TimeValue expiration;
     protected Map<String, Object> metadata;
     protected List<RoleDescriptor> roleDescriptors = Collections.emptyList();
-    protected WriteRequest.RefreshPolicy refreshPolicy = DEFAULT_REFRESH_POLICY;
+    protected WriteRequest.RefreshPolicy refreshPolicy;
 
     public AbstractCreateApiKeyRequest() {
         super();
@@ -39,6 +39,7 @@ public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
         this.id = UUIDs.base64UUID(); // because auditing can currently only catch requests but not responses,
     }
 
+    @SuppressWarnings("this-escape")
     public AbstractCreateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
         this.id = doReadId(in);
@@ -68,6 +69,10 @@ public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
         return refreshPolicy;
     }
 
+    public void setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy may not be null");
+    }
+
     public Map<String, Object> getMetadata() {
         return metadata;
     }
@@ -94,6 +99,7 @@ public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
                 validationException
             );
         }
+        assert refreshPolicy != null : "refresh policy is required";
         return validationException;
     }
 }

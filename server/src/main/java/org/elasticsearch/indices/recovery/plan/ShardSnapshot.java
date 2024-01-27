@@ -8,8 +8,8 @@
 
 package org.elasticsearch.indices.recovery.plan;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -71,7 +71,7 @@ public class ShardSnapshot {
     }
 
     @Nullable
-    public Version getCommitVersion() {
+    public IndexVersion getCommitVersion() {
         return metadataSnapshot.getCommitVersion();
     }
 

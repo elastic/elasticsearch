@@ -11,10 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -36,7 +34,7 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
     public static final String NAME = "cluster:admin/persistent/remove";
 
     private RemovePersistentTaskAction() {
-        super(NAME, PersistentTaskResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -83,22 +81,6 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
-        RemovePersistentTaskAction.Request,
-        PersistentTaskResponse,
-        RemovePersistentTaskAction.RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, RemovePersistentTaskAction action) {
-            super(client, action, new Request());
-        }
-
-        public final RequestBuilder setTaskId(String taskId) {
-            request.setTaskId(taskId);
-            return this;
-        }
-
-    }
-
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
@@ -121,7 +103,7 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
                 Request::new,
                 indexNameExpressionResolver,
                 PersistentTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
         }

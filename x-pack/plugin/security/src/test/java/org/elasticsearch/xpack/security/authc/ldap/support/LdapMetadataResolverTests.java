@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -54,11 +54,11 @@ public class LdapMetadataResolverTests extends ESTestCase {
             .build();
         RealmConfig config = new RealmConfig(realmId, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
         resolver = new LdapMetadataResolver(config, false);
-        assertThat(resolver.attributeNames(), arrayContaining("cn", "uid"));
+        assertThat(resolver.attributeNames(), arrayContainingInAnyOrder("cn", "uid"));
     }
 
     public void testResolveSingleValuedAttributeFromCachedAttributes() throws Exception {
-        resolver = new LdapMetadataResolver(Arrays.asList("cn", "uid"), true);
+        resolver = new LdapMetadataResolver(null, null, Arrays.asList("cn", "uid"), true);
         final Collection<Attribute> attributes = Arrays.asList(
             new Attribute("cn", "Clint Barton"),
             new Attribute("uid", "hawkeye"),
@@ -72,7 +72,7 @@ public class LdapMetadataResolverTests extends ESTestCase {
     }
 
     public void testResolveMultiValuedAttributeFromCachedAttributes() throws Exception {
-        resolver = new LdapMetadataResolver(Arrays.asList("cn", "uid"), true);
+        resolver = new LdapMetadataResolver(null, null, Arrays.asList("cn", "uid"), true);
         final Collection<Attribute> attributes = Arrays.asList(
             new Attribute("cn", "Clint Barton", "hawkeye"),
             new Attribute("uid", "hawkeye")
@@ -85,7 +85,7 @@ public class LdapMetadataResolverTests extends ESTestCase {
     }
 
     public void testResolveMissingAttributeFromCachedAttributes() throws Exception {
-        resolver = new LdapMetadataResolver(Arrays.asList("cn", "uid"), true);
+        resolver = new LdapMetadataResolver(null, null, Arrays.asList("cn", "uid"), true);
         final Collection<Attribute> attributes = Collections.singletonList(new Attribute("uid", "hawkeye"));
         final Map<String, Object> map = resolve(attributes);
         assertThat(map, aMapWithSize(1));
@@ -94,8 +94,8 @@ public class LdapMetadataResolverTests extends ESTestCase {
     }
 
     private Map<String, Object> resolve(Collection<Attribute> attributes) throws Exception {
-        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        final PlainActionFuture<LdapMetadataResolver.LdapMetadataResult> future = new PlainActionFuture<>();
         resolver.resolve(null, HAWKEYE_DN, TimeValue.timeValueSeconds(1), logger, attributes, future);
-        return future.get();
+        return future.get().getMetaData();
     }
 }

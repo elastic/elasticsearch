@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
@@ -62,35 +63,32 @@ public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTe
     }
 
     public void testLeftFunctionInputValidation() {
-        SqlIllegalArgumentException siae = expectThrows(
+        Exception e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new Left(EMPTY, l(5), l(3)).makePipe().asProcessor().process(null)
         );
-        assertEquals("A string/char is required; received [5]", siae.getMessage());
+        assertEquals("A string/char is required; received [5]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new Left(EMPTY, l("foo bar"), l("baz")).makePipe().asProcessor().process(null)
         );
-        assertEquals("A fixed point number is required for [count]; received [java.lang.String]", siae.getMessage());
+        assertEquals("A fixed point number is required for [count]; received [java.lang.String]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new Left(EMPTY, l("foo"), l((long) Integer.MIN_VALUE - 1)).makePipe().asProcessor().process(null)
         );
-        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [-2147483649]", siae.getMessage());
+        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [-2147483649]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new Left(EMPTY, l("foo"), l((long) Integer.MAX_VALUE + 1)).makePipe().asProcessor().process(null)
         );
-        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [2147483648]", siae.getMessage());
+        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [2147483648]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
-            () -> new Left(EMPTY, l("foo"), l(1.0)).makePipe().asProcessor().process(null)
-        );
-        assertEquals("A fixed point number is required for [count]; received [java.lang.Double]", siae.getMessage());
+        e = expectThrows(InvalidArgumentException.class, () -> new Left(EMPTY, l("foo"), l(1.0)).makePipe().asProcessor().process(null));
+        assertEquals("A fixed point number is required for [count]; received [java.lang.Double]", e.getMessage());
     }
 
     public void testRightFunctionWithValidInput() {
@@ -111,35 +109,32 @@ public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTe
     }
 
     public void testRightFunctionInputValidation() {
-        SqlIllegalArgumentException siae = expectThrows(
+        Exception e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new Right(EMPTY, l(5), l(3)).makePipe().asProcessor().process(null)
         );
-        assertEquals("A string/char is required; received [5]", siae.getMessage());
+        assertEquals("A string/char is required; received [5]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new Right(EMPTY, l("foo bar"), l("baz")).makePipe().asProcessor().process(null)
         );
-        assertEquals("A fixed point number is required for [count]; received [java.lang.String]", siae.getMessage());
+        assertEquals("A fixed point number is required for [count]; received [java.lang.String]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new Right(EMPTY, l("foo"), l((long) Integer.MIN_VALUE - 1)).makePipe().asProcessor().process(null)
         );
-        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [-2147483649]", siae.getMessage());
+        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [-2147483649]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new Right(EMPTY, l("foo"), l((long) Integer.MAX_VALUE + 1)).makePipe().asProcessor().process(null)
         );
-        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [2147483648]", siae.getMessage());
+        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [2147483648]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
-            () -> new Right(EMPTY, l("foo"), l(1.0)).makePipe().asProcessor().process(null)
-        );
-        assertEquals("A fixed point number is required for [count]; received [java.lang.Double]", siae.getMessage());
+        e = expectThrows(InvalidArgumentException.class, () -> new Right(EMPTY, l("foo"), l(1.0)).makePipe().asProcessor().process(null));
+        assertEquals("A fixed point number is required for [count]; received [java.lang.Double]", e.getMessage());
     }
 
     public void testRepeatFunctionWithValidInput() {
@@ -158,34 +153,31 @@ public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTe
     }
 
     public void testRepeatFunctionInputsValidation() {
-        SqlIllegalArgumentException siae = expectThrows(
+        Exception e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new Repeat(EMPTY, l(5), l(3)).makePipe().asProcessor().process(null)
         );
-        assertEquals("A string/char is required; received [5]", siae.getMessage());
+        assertEquals("A string/char is required; received [5]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new Repeat(EMPTY, l("foo bar"), l("baz")).makePipe().asProcessor().process(null)
         );
-        assertEquals("A fixed point number is required for [count]; received [java.lang.String]", siae.getMessage());
+        assertEquals("A fixed point number is required for [count]; received [java.lang.String]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new Repeat(EMPTY, l("foo"), l((long) Integer.MIN_VALUE - 1)).makePipe().asProcessor().process(null)
         );
-        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [-2147483649]", siae.getMessage());
+        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [-2147483649]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new Repeat(EMPTY, l("foo"), l((long) Integer.MAX_VALUE + 1)).makePipe().asProcessor().process(null)
         );
-        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [2147483648]", siae.getMessage());
+        assertEquals("[count] out of the allowed range [-2147483648, 2147483647], received [2147483648]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
-            () -> new Repeat(EMPTY, l("foo"), l(1.0)).makePipe().asProcessor().process(null)
-        );
-        assertEquals("A fixed point number is required for [count]; received [java.lang.Double]", siae.getMessage());
+        e = expectThrows(InvalidArgumentException.class, () -> new Repeat(EMPTY, l("foo"), l(1.0)).makePipe().asProcessor().process(null));
+        assertEquals("A fixed point number is required for [count]; received [java.lang.Double]", e.getMessage());
     }
 }

@@ -9,17 +9,19 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
 
@@ -32,10 +34,10 @@ import java.util.function.Supplier;
 public class MappingParserTests extends MapperServiceTestCase {
 
     private static MappingParser createMappingParser(Settings settings) {
-        return createMappingParser(settings, Version.CURRENT, TransportVersion.CURRENT);
+        return createMappingParser(settings, IndexVersion.current(), TransportVersion.current());
     }
 
-    private static MappingParser createMappingParser(Settings settings, Version version, TransportVersion transportVersion) {
+    private static MappingParser createMappingParser(Settings settings, IndexVersion version, TransportVersion transportVersion) {
         ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
         IndexSettings indexSettings = createIndexSettings(version, settings);
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
@@ -316,11 +318,11 @@ public class MappingParserTests extends MapperServiceTestCase {
     }
 
     public void testBlankFieldNameBefore8_6_0() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.V_8_5_0);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.V_8_5_0);
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersion.V_8_5_0
+            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersions.V_8_5_0
         );
         {
             XContentBuilder builder = mapping(b -> b.startObject(" ").field("type", randomFieldType()).endObject());

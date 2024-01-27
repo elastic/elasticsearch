@@ -408,7 +408,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             if (lowerBoundResult != null && upperBoundResult != null) {
                 // we only need to round the lower bound, because the checkpoint will not contain new data for the upper bound
                 lowerBound = rounding.round((long) lowerBoundResult.value());
-                upperBound = (long) upperBoundResult.value();
+                upperBound = rounding.nextRoundingValue((long) upperBoundResult.value());
 
                 return false;
             }

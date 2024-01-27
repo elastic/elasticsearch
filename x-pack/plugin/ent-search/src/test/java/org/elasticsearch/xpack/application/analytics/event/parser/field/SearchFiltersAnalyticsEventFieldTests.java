@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -44,7 +43,7 @@ public class SearchFiltersAnalyticsEventFieldTests extends AnalyticsEventFieldPa
 
         for (Object value : invalidValues) {
             String fieldName = randomIdentifier();
-            Map<String, Object> jsonMap = new MapBuilder<String, Object>().put(fieldName, value).immutableMap();
+            Map<String, Object> jsonMap = Map.of(fieldName, value);
 
             BytesReference json = convertMapToJson(jsonMap);
 

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -48,7 +49,7 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
         Exporters exportService,
         MonitoringService monitoringService
     ) {
-        super(MonitoringBulkAction.NAME, transportService, actionFilters, MonitoringBulkRequest::new);
+        super(MonitoringBulkAction.NAME, transportService, actionFilters, MonitoringBulkRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.exportService = exportService;

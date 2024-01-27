@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
@@ -70,7 +71,7 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
             actionFilters,
             DeleteEnrichPolicyAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.enrichPolicyLocks = enrichPolicyLocks;
@@ -148,19 +149,21 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
         // as the setting 'action.destructive_requires_name' may be set to true
         DeleteIndexRequest deleteRequest = new DeleteIndexRequest().indices(indices).indicesOptions(LENIENT_OPTIONS);
 
-        new OriginSettingClient(client, ENRICH_ORIGIN).admin().indices().delete(deleteRequest, ActionListener.wrap((response) -> {
-            if (response.isAcknowledged() == false) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Could not fetch indices to delete during policy delete of [{}]",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        name
-                    )
-                );
-            } else {
-                deletePolicy(name, listener);
-            }
-        }, listener::onFailure));
+        new OriginSettingClient(client, ENRICH_ORIGIN).admin()
+            .indices()
+            .delete(deleteRequest, listener.delegateFailureAndWrap((delegate, response) -> {
+                if (response.isAcknowledged() == false) {
+                    delegate.onFailure(
+                        new ElasticsearchStatusException(
+                            "Could not fetch indices to delete during policy delete of [{}]",
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            name
+                        )
+                    );
+                } else {
+                    deletePolicy(name, delegate);
+                }
+            }));
     }
 
     private void deletePolicy(String name, ActionListener<AcknowledgedResponse> listener) {

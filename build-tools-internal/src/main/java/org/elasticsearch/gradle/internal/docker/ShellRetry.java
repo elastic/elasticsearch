@@ -8,6 +8,9 @@
 
 package org.elasticsearch.gradle.internal.docker;
 
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
 /**
  * The methods in this class take a shell command and wrap it in retry logic, so that our
  * Docker builds can be more robust in the face of transient errors e.g. network issues.
@@ -17,8 +20,7 @@ public class ShellRetry {
         return loop(name, command, 4, "exit");
     }
 
-    // TODO: Re-enable when we sort out https://github.com/elastic/elasticsearch/issues/96207
-    /*static String loop(String name, String command, int indentSize, String exitKeyword) {
+    static String loop(String name, String command, int indentSize, String exitKeyword) {
         String indent = " ".repeat(indentSize);
 
         // bash understands the `{1..10}` syntax, but other shells don't e.g. the default in Alpine Linux.
@@ -35,9 +37,5 @@ public class ShellRetry {
 
         // We need to escape all newlines so that the build process doesn't run all lines onto a single line
         return commandWithRetry.toString().replaceAll(" *\n", " \\\\\n");
-    }*/
-
-    static String loop(String name, String command, int indentSize, String exitKeyword) {
-        return command.replaceAll(" *\n", " \\\\\n");
     }
 }

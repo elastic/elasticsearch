@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -50,6 +51,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -79,7 +81,9 @@ public abstract class MappedFieldType {
         this.isStored = isStored;
         this.docValues = hasDocValues;
         this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
-        this.meta = Objects.requireNonNull(meta);
+        // meta should be sorted but for the one item or empty case we can fall back to immutable maps to save some memory since order is
+        // irrelevant
+        this.meta = meta.size() <= 1 ? Map.copyOf(meta) : meta;
     }
 
     /**
@@ -627,4 +631,61 @@ public abstract class MappedFieldType {
                 + "]."
         );
     }
+
+    /**
+     * Returns a loader for ESQL or {@code null} if the field doesn't support
+     * ESQL.
+     */
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return null;
+    }
+
+    public enum FieldExtractPreference {
+        /**
+         * Load the field from doc-values into a BlockLoader supporting doc-values.
+         */
+        DOC_VALUES,
+        /**
+         * No preference. Leave the choice of where to load the field from up to the FieldType.
+         */
+        NONE
+    }
+
+    /**
+     * Arguments for {@link #blockLoader}.
+     */
+    public interface BlockLoaderContext {
+        /**
+         * The name of the index.
+         */
+        String indexName();
+
+        /**
+         * How the field should be extracted into the BlockLoader. The default is {@link FieldExtractPreference#NONE}, which means
+         * that the field type can choose where to load the field from. However, in some cases, the caller may have a preference.
+         * For example, when loading a spatial field for usage in STATS, it is preferable to load from doc-values.
+         */
+        FieldExtractPreference fieldExtractPreference();
+
+        /**
+         * {@link SearchLookup} used for building scripts.
+         */
+        SearchLookup lookup();
+
+        /**
+         * Find the paths in {@code _source} that contain values for the field named {@code name}.
+         */
+        Set<String> sourcePaths(String name);
+
+        /**
+         * If field is a leaf multi-field return the path to the parent field. Otherwise, return null.
+         */
+        String parentField(String field);
+
+        /**
+         * The {@code _field_names} field mapper, mostly used to check if it is enabled.
+         */
+        FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
+    }
+
 }

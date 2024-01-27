@@ -10,7 +10,6 @@
 package org.elasticsearch.system.indices;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -36,7 +35,7 @@ public class NetNewSystemIndicesIT extends ESRestTestCase {
     public void testCreatingSystemIndex() throws Exception {
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> client().performRequest(new Request("PUT", "/.net-new-system-index-" + Version.CURRENT.major))
+            () -> client().performRequest(new Request("PUT", "/.net-new-system-index-primary"))
         );
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("system"));
 
@@ -48,7 +47,7 @@ public class NetNewSystemIndicesIT extends ESRestTestCase {
         String id = randomAlphaOfLength(4);
 
         ResponseException e = expectThrows(ResponseException.class, () -> {
-            Request request = new Request("PUT", "/.net-new-system-index-" + Version.CURRENT.major + "/_doc" + id);
+            Request request = new Request("PUT", "/.net-new-system-index-primary/_doc" + id);
             request.setJsonEntity("{}");
             client().performRequest(request);
         });
@@ -91,7 +90,7 @@ public class NetNewSystemIndicesIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(searchResponse.getEntity()), not(containsString(".net-new")));
 
         // direct index search
-        Request directRequest = new Request("GET", "/.net-new-system-index-" + Version.CURRENT.major + "/_search");
+        Request directRequest = new Request("GET", "/.net-new-system-index-primary/_search");
         directRequest.setJsonEntity("{ \"query\": { \"match_all\": {} } }");
         directRequest.addParameter("size", "10000");
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(directRequest));

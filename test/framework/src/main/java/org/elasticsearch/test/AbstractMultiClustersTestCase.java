@@ -10,15 +10,18 @@ package org.elasticsearch.test;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
+import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -46,6 +49,7 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     public static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+    public static final boolean DEFAULT_SKIP_UNAVAILABLE = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getDefault(Settings.EMPTY);
 
     private static final Logger LOGGER = LogManager.getLogger(AbstractMultiClustersTestCase.class);
 
@@ -53,6 +57,10 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
     protected Collection<String> remoteClusterAlias() {
         return randomSubsetOf(List.of("cluster-a", "cluster-b"));
+    }
+
+    protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
+        return Map.of("cluster-a", DEFAULT_SKIP_UNAVAILABLE, "cluster-b", DEFAULT_SKIP_UNAVAILABLE);
     }
 
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
@@ -171,28 +179,39 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     protected void configureRemoteCluster(String clusterAlias, Collection<String> seedNodes) throws Exception {
         final String remoteClusterSettingPrefix = "cluster.remote." + clusterAlias + ".";
         Settings.Builder settings = Settings.builder();
-        final List<String> seedAdresses = seedNodes.stream().map(node -> {
+        final List<String> seedAddresses = seedNodes.stream().map(node -> {
             final TransportService transportService = cluster(clusterAlias).getInstance(TransportService.class, node);
             return transportService.boundAddress().publishAddress().toString();
         }).toList();
+        boolean skipUnavailable = skipUnavailableForRemoteClusters().containsKey(clusterAlias)
+            ? skipUnavailableForRemoteClusters().get(clusterAlias)
+            : DEFAULT_SKIP_UNAVAILABLE;
+        Settings.Builder builder;
         if (randomBoolean()) {
             LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", Collectors.joining(","), seedNodes);
-            settings.putNull(remoteClusterSettingPrefix + "proxy_address")
+            builder = settings.putNull(remoteClusterSettingPrefix + "proxy_address")
                 .put(remoteClusterSettingPrefix + "mode", "sniff")
-                .put(remoteClusterSettingPrefix + "seeds", String.join(",", seedAdresses))
-                .build();
+                .put(remoteClusterSettingPrefix + "seeds", String.join(",", seedAddresses));
         } else {
-            final String proxyNode = randomFrom(seedAdresses);
+            final String proxyNode = randomFrom(seedAddresses);
             LOGGER.info("--> use proxy node [{}], remote nodes [{}]", proxyNode, seedNodes);
-            settings.putNull(remoteClusterSettingPrefix + "seeds")
+            builder = settings.putNull(remoteClusterSettingPrefix + "seeds")
                 .put(remoteClusterSettingPrefix + "mode", "proxy")
-                .put(remoteClusterSettingPrefix + "proxy_address", proxyNode)
-                .build();
+                .put(remoteClusterSettingPrefix + "proxy_address", proxyNode);
+        }
+        if (skipUnavailable != DEFAULT_SKIP_UNAVAILABLE) {
+            builder.put(remoteClusterSettingPrefix + "skip_unavailable", String.valueOf(skipUnavailable));
+        }
+        builder.build();
+
+        ClusterUpdateSettingsResponse resp = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        if (skipUnavailable != DEFAULT_SKIP_UNAVAILABLE) {
+            String key = Strings.format("cluster.remote.%s.skip_unavailable", clusterAlias);
+            assertEquals(String.valueOf(skipUnavailable), resp.getPersistentSettings().get(key));
         }
 
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
         assertBusy(() -> {
-            List<RemoteConnectionInfo> remoteConnectionInfos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest())
+            List<RemoteConnectionInfo> remoteConnectionInfos = client().execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest())
                 .actionGet()
                 .getInfos()
                 .stream()
@@ -220,7 +239,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(clusters.values());
+            IOUtils.close(CloseableTestClusterWrapper.wrap(clusters.values()));
         }
     }
 

@@ -12,10 +12,12 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xcontent.XContentType;
@@ -72,8 +74,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
     public void testAutomaticModelUpdate() throws Exception {
         ensureGreen("_all");
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
-        client().prepareIndex(MlConfigIndex.indexName())
-            .setId(DatafeedConfig.documentId("farequote-datafeed-with-old-agg"))
+        prepareIndex(MlConfigIndex.indexName()).setId(DatafeedConfig.documentId("farequote-datafeed-with-old-agg"))
             .setSource(AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL, XContentType.JSON)
             .get();
         AtomicReference<DatafeedConfig.Builder> getConfigHolder = new AtomicReference<>();
@@ -96,19 +97,18 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
                 .nodes(
                     DiscoveryNodes.builder()
                         .add(
-                            new DiscoveryNode(
-                                "node_name",
-                                "node_id",
-                                new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                                Collections.emptyMap(),
-                                Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                                Version.V_8_0_0
-                            )
+                            DiscoveryNodeUtils.builder("node_id")
+                                .name("node_name")
+                                .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                                .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+                                .version(VersionInformation.inferVersions(Version.V_8_0_0))
+                                .build()
                         )
                         .localNodeId("node_id")
                         .masterNodeId("node_id")
                         .build()
                 )
+                .putCompatibilityVersions("node_id", CompatibilityVersionsUtils.staticCurrent())
                 .build(),
             ClusterState.builder(new ClusterName("test")).build()
         );

@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -24,6 +25,9 @@ import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -44,6 +48,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -310,6 +315,41 @@ public class AggregatorFactoriesTests extends ESTestCase {
         assertThat(tree.aggregators().stream().map(PipelineAggregator::name).collect(toList()), equalTo(List.of("foo", "bar")));
     }
 
+    public void testSupportsParallelCollection() {
+        ToLongFunction<String> randomCardinality = name -> randomLongBetween(1, 200);
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            assertTrue(builder.supportsParallelCollection(randomCardinality));
+            builder.addAggregator(new FilterAggregationBuilder("name", new MatchAllQueryBuilder()));
+            assertTrue(builder.supportsParallelCollection(randomCardinality));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new CardinalityAggregationBuilder("cardinality"));
+            assertTrue(builder.supportsParallelCollection(randomCardinality));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new NestedAggregationBuilder("nested", "path"));
+            assertTrue(builder.supportsParallelCollection(randomCardinality));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new SignificantTermsAggregationBuilder("name"));
+            assertFalse(builder.supportsParallelCollection(randomCardinality));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new FilterAggregationBuilder("terms", new MatchAllQueryBuilder()) {
+                @Override
+                public boolean isInSortOrderExecutionRequired() {
+                    return true;
+                }
+            });
+            assertFalse(builder.supportsParallelCollection(randomCardinality));
+        }
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;
@@ -348,7 +388,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
         }
 
         @Override

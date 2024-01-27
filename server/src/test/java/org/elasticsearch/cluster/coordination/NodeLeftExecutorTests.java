@@ -9,13 +9,12 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.Priority;
@@ -27,7 +26,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -69,13 +67,8 @@ public class NodeLeftExecutorTests extends ESTestCase {
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
         final NodeLeftExecutor executor = new NodeLeftExecutor(allocationService) {
             @Override
-            protected ClusterState remainingNodesClusterState(
-                ClusterState currentState,
-                DiscoveryNodes.Builder remainingNodesBuilder,
-                Map<String, TransportVersion> transportVersions
-            ) {
-                remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder, transportVersions));
-                return remainingNodesClusterState.get();
+            void remainingNodesClusterState(ClusterState state) {
+                remainingNodesClusterState.set(state);
             }
         };
 
@@ -110,10 +103,14 @@ public class NodeLeftExecutorTests extends ESTestCase {
         );
         final var executor = new NodeLeftExecutor(allocationService);
 
-        final DiscoveryNode masterNode = TestDiscoveryNode.create("master");
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.create("master");
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
-                DiscoveryNodes.builder().add(masterNode).localNodeId("master").masterNodeId("master").add(TestDiscoveryNode.create("other"))
+                DiscoveryNodes.builder()
+                    .add(masterNode)
+                    .localNodeId("master")
+                    .masterNodeId("master")
+                    .add(DiscoveryNodeUtils.create("other"))
             )
             .build();
 
@@ -146,7 +143,7 @@ public class NodeLeftExecutorTests extends ESTestCase {
     }
 
     private static DiscoveryNode node(final int id) {
-        return TestDiscoveryNode.create(Integer.toString(id));
+        return DiscoveryNodeUtils.create(Integer.toString(id));
     }
 
     // Hard-coding the class name here because it is also mentioned in the troubleshooting docs, so should not be renamed without care.

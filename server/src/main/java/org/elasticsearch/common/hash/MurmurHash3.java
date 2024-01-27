@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.hash;
 
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.util.ByteUtils;
 
 import java.math.BigInteger;
@@ -28,6 +27,17 @@ public enum MurmurHash3 {
         public long h1;
         /** higher 64 bits part **/
         public long h2;
+
+        public byte[] getBytes() {
+            byte[] hash = new byte[16];
+            getBytes(hash, 0);
+            return hash;
+        }
+
+        public void getBytes(byte[] bytes, int offset) {
+            ByteUtils.writeLongBE(h1, bytes, offset);
+            ByteUtils.writeLongBE(h2, bytes, offset + 8);
+        }
 
         @Override
         public boolean equals(Object other) {
@@ -49,8 +59,7 @@ public enum MurmurHash3 {
         @Override
         public String toString() {
             byte[] longBytes = new byte[17];
-            System.arraycopy(Numbers.longToBytes(h1), 0, longBytes, 1, 8);
-            System.arraycopy(Numbers.longToBytes(h2), 0, longBytes, 9, 8);
+            getBytes(longBytes, 1);
             BigInteger bi = new BigInteger(longBytes);
             return "0x" + bi.toString(16);
         }

@@ -45,6 +45,7 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
             )
         );
         mutators.add(() -> mutation.setPreserveExisting(request.isPreserveExisting() == false));
+        mutators.add(() -> mutation.reopen(request.reopen() == false));
         randomFrom(mutators).run();
         return mutation;
     }
@@ -67,6 +68,7 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
         request.timeout(randomTimeValue());
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         request.setPreserveExisting(randomBoolean());
+        request.reopen(randomBoolean());
         return request;
     }
 

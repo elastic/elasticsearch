@@ -10,7 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -40,7 +40,7 @@ public final class TextParams {
             IndexAnalyzers indexAnalyzers,
             Function<FieldMapper, NamedAnalyzer> analyzerInitFunction,
             Function<FieldMapper, Integer> positionGapInitFunction,
-            Version indexCreatedVersion
+            IndexVersion indexCreatedVersion
         ) {
 
             this.indexAnalyzer = Parameter.analyzerParam(

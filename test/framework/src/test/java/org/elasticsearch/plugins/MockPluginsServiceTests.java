@@ -78,7 +78,7 @@ public class MockPluginsServiceTests extends ESTestCase {
         Map<String, Plugin> pluginMap = mockPluginsService.pluginMap();
         assertThat(pluginMap.keySet(), containsInAnyOrder(containsString("TestPlugin1"), containsString("TestPlugin2")));
 
-        List<TestPlugin1> plugin1 = mockPluginsService.filterPlugins(TestPlugin1.class);
+        List<TestPlugin1> plugin1 = mockPluginsService.filterPlugins(TestPlugin1.class).toList();
         assertThat(plugin1, contains(instanceOf(TestPlugin1.class)));
     }
 

@@ -29,10 +29,11 @@ public class GeoBoundingBoxTests extends ESTestCase {
 
     public void testInvalidParseInvalidWKT() throws IOException {
         XContentBuilder bboxBuilder = XContentFactory.jsonBuilder().startObject().field("wkt", "invalid").endObject();
-        XContentParser parser = createParser(bboxBuilder);
-        parser.nextToken();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> GeoBoundingBox.parseBoundingBox(parser));
-        assertThat(e.getMessage(), equalTo("failed to parse WKT bounding box"));
+        try (XContentParser parser = createParser(bboxBuilder)) {
+            parser.nextToken();
+            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> GeoBoundingBox.parseBoundingBox(parser));
+            assertThat(e.getMessage(), equalTo("failed to parse WKT bounding box"));
+        }
     }
 
     public void testInvalidParsePoint() throws IOException {

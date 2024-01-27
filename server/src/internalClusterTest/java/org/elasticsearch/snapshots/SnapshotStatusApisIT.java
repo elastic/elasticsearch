@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -87,7 +87,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfos.size(), equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
+        assertThat(snapshotInfo.version(), equalTo(IndexVersion.current()));
 
         final List<SnapshotStatus> snapshotStatus = clusterAdmin().prepareSnapshotStatus("test-repo")
             .setSnapshots("test-snap")
@@ -138,10 +138,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> delete snap-${uuid}.dat file for this snapshot to simulate concurrent delete");
         IOUtils.rm(repoPath.resolve(BlobStoreRepository.SNAPSHOT_PREFIX + snapshotInfo.snapshotId().getUUID() + ".dat"));
 
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> clusterAdmin().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
-        );
+        expectThrows(SnapshotMissingException.class, clusterAdmin().prepareGetSnapshots("test-repo").setSnapshots("test-snap"));
     }
 
     public void testExceptionOnMissingShardLevelSnapBlob() throws IOException {
@@ -170,10 +167,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 .resolve(BlobStoreRepository.SNAPSHOT_PREFIX + snapshotInfo.snapshotId().getUUID() + ".dat")
         );
 
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> clusterAdmin().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").execute().actionGet()
-        );
+        expectThrows(SnapshotMissingException.class, clusterAdmin().prepareSnapshotStatus("test-repo").setSnapshots("test-snap"));
     }
 
     public void testGetSnapshotsWithoutIndices() throws Exception {
@@ -422,7 +416,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> wait for snapshots to get to a consistent state");
         awaitClusterState(state -> {
-            SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
             Set<Snapshot> snapshots = snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
             if (snapshots.size() != 1) {
                 return false;
@@ -459,11 +453,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         expectThrows(
             SnapshotMissingException.class,
-            () -> clusterAdmin().prepareGetSnapshots("test-repo")
-                .setSnapshots(notExistedSnapshotName)
-                .setIgnoreUnavailable(false)
-                .execute()
-                .actionGet()
+            clusterAdmin().prepareGetSnapshots("test-repo").setSnapshots(notExistedSnapshotName).setIgnoreUnavailable(false)
         );
 
         logger.info("--> unblock all data nodes");
@@ -506,7 +496,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> get snapshots on an empty repository");
         expectThrows(
             SnapshotMissingException.class,
-            () -> client.admin().cluster().prepareGetSnapshots(repositoryName).addSnapshots("non-existent-snapshot").get()
+            client.admin().cluster().prepareGetSnapshots(repositoryName).addSnapshots("non-existent-snapshot")
         );
         // with ignore unavailable set to true, should not throw an exception
         GetSnapshotsResponse getSnapshotsResponse = client.admin()
@@ -670,17 +660,16 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         // ... and then some more status requests until all snapshots are done
         var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         assertBusy(() -> {
-            final var stillRunning = masterClusterService.state()
-                .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .isEmpty() == false;
+            final var stillRunning = SnapshotsInProgress.get(masterClusterService.state()).isEmpty() == false;
             statuses.add(dataNodeClient.admin().cluster().prepareSnapshotStatus(repoName).setSnapshots(snapshotNames).execute());
             gets.add(dataNodeClient.admin().cluster().prepareGetSnapshots(repoName).setSnapshots(snapshotNames).execute());
             assertFalse(stillRunning);
         }, 60, TimeUnit.SECONDS);
 
         for (ActionFuture<SnapshotsStatusResponse> status : statuses) {
-            assertThat(status.get().getSnapshots(), hasSize(snapshots));
-            for (SnapshotStatus snapshot : status.get().getSnapshots()) {
+            var statusResponse = status.get();
+            assertThat(statusResponse.getSnapshots(), hasSize(snapshots));
+            for (SnapshotStatus snapshot : statusResponse.getSnapshots()) {
                 assertThat(snapshot.getState(), allOf(not(SnapshotsInProgress.State.FAILED), not(SnapshotsInProgress.State.ABORTED)));
                 for (final var shard : snapshot.getShards()) {
                     if (shard.getStage() == SnapshotIndexShardStage.DONE) {

@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -21,7 +22,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -56,7 +57,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
     static {
         Map<String, Consumer<NodesStatsRequest>> map = new HashMap<>();
-        for (NodesStatsRequest.Metric metric : NodesStatsRequest.Metric.values()) {
+        for (NodesStatsRequestParameters.Metric metric : NodesStatsRequestParameters.Metric.values()) {
             map.put(metric.metricName(), request -> request.addMetric(metric.metricName()));
         }
         map.put("indices", request -> request.indices(true));
@@ -91,7 +92,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
         nodesStatsRequest.timeout(request.param("timeout"));
         // level parameter validation
-        NodeStatsLevel.of(request, NodeStatsLevel.NODE);
+        nodesStatsRequest.setIncludeShardsStats(NodeStatsLevel.of(request, NodeStatsLevel.NODE) != NodeStatsLevel.NODE);
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             if (request.hasParam("index_metric")) {
@@ -188,7 +189,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
-            .nodesStats(nodesStatsRequest, new RestChunkedToXContentListener<>(channel));
+            .nodesStats(nodesStatsRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 
     private final Set<String> RESPONSE_PARAMS = Collections.singleton("level");

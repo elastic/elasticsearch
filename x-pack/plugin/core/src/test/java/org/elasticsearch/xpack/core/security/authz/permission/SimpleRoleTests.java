@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -17,6 +16,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 
 import java.util.Arrays;
 import java.util.List;
@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SimpleRoleTests extends ESTestCase {
 
@@ -148,8 +149,6 @@ public class SimpleRoleTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteCluster() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         SimpleRole role = Role.builder(RESTRICTED_INDICES, randomAlphaOfLength(6))
             .addRemoteGroup(
                 Set.of("remote-cluster-a"),
@@ -222,8 +221,6 @@ public class SimpleRoleTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterWithoutRemoteIndicesPermissions() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final SimpleRole role = Role.buildFromRoleDescriptor(
             new RoleDescriptor(
                 randomAlphaOfLengthBetween(3, 8),
@@ -242,5 +239,42 @@ public class SimpleRoleTests extends ESTestCase {
         );
 
         assertThat(role.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLength(8)), equalTo(RoleDescriptorsIntersection.EMPTY));
+    }
+
+    public void testForWorkflowWithRestriction() {
+        final SimpleRole role = Role.buildFromRoleDescriptor(
+            new RoleDescriptor(
+                "r1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new RoleDescriptor.Restriction(new String[] { WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name() })
+            ),
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES,
+            List.of()
+        );
+
+        assertThat(role.hasWorkflowsRestriction(), equalTo(true));
+        assertThat(role.forWorkflow(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name()), sameInstance(role));
+        assertThat(role.forWorkflow(randomFrom(randomAlphaOfLength(9), null, "")), sameInstance(Role.EMPTY_RESTRICTED_BY_WORKFLOW));
+    }
+
+    public void testForWorkflowWithoutRestriction() {
+        final SimpleRole role = Role.buildFromRoleDescriptor(
+            new RoleDescriptor("r1", null, null, null, null, null, null, null, null, null),
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES,
+            List.of()
+        );
+
+        assertThat(role.hasWorkflowsRestriction(), equalTo(false));
+        String workflow = randomFrom(WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name(), null, "", randomAlphaOfLength(9));
+        assertThat(role.forWorkflow(workflow), sameInstance(role));
     }
 }

@@ -22,7 +22,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -611,7 +610,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 parserConfig(),
                 writableRegistry(),
                 client,
-                new IndexSearcher(directoryReader),
+                newSearcher(directoryReader),
                 () -> nowInMillis,
                 null,
                 null,

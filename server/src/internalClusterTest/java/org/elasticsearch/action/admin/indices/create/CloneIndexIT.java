@@ -7,16 +7,16 @@
  */
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import static org.elasticsearch.action.admin.indices.create.ShrinkIndexIT.assertNoResizeSourceIndexSettings;
@@ -32,14 +32,14 @@ public class CloneIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateCloneIndex() {
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
         int numPrimaryShards = randomIntBetween(1, 5);
         prepareCreate("source").setSettings(
             Settings.builder().put(indexSettings()).put("number_of_shards", numPrimaryShards).put("index.version.created", version)
         ).get();
         final int docs = randomIntBetween(0, 128);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         internalCluster().ensureAtLeastNumDataNodes(2);
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
@@ -64,7 +64,6 @@ public class CloneIndexIT extends ESIntegTestCase {
                     .setSettings(
                         Settings.builder().put("index.number_of_replicas", createWithReplicas ? 1 : 0).putNull("index.blocks.write").build()
                     )
-                    .get()
             );
             ensureGreen();
             assertNoResizeSourceIndexSettings("target");
@@ -80,26 +79,26 @@ public class CloneIndexIT extends ESIntegTestCase {
             }
 
             final int size = docs > 0 ? 2 * docs : 1;
-            assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
+            assertHitCount(prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")), docs);
 
             if (createWithReplicas == false) {
                 // bump replicas
                 setReplicaCount(1, "target");
                 ensureGreen();
-                assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
+                assertHitCount(prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")), docs);
             }
 
             for (int i = docs; i < 2 * docs; i++) {
-                client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+                prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
             }
             flushAndRefresh();
-            assertHitCount(
-                client().prepareSearch("target").setSize(2 * size).setQuery(new TermsQueryBuilder("foo", "bar")).get(),
-                2 * docs
-            );
-            assertHitCount(client().prepareSearch("source").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
+            assertHitCount(prepareSearch("target").setSize(2 * size).setQuery(new TermsQueryBuilder("foo", "bar")), 2 * docs);
+            assertHitCount(prepareSearch("source").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")), docs);
             GetSettingsResponse target = indicesAdmin().prepareGetSettings("target").get();
-            assertEquals(version, target.getIndexToSettings().get("target").getAsVersion("index.version.created", null));
+            assertThat(
+                target.getIndexToSettings().get("target").getAsVersionId("index.version.created", IndexVersion::fromId),
+                equalTo(version)
+            );
         } finally {
             // clean up
             updateClusterSettings(

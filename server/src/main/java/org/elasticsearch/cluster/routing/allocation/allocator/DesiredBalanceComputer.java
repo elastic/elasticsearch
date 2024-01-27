@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfoSimulator;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,7 +39,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 
-import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
 /**
@@ -52,6 +51,7 @@ public class DesiredBalanceComputer {
     private final ThreadPool threadPool;
     private final ShardsAllocator delegateAllocator;
 
+    // stats
     protected final MeanMetric iterations = new MeanMetric();
 
     public static final Setting<TimeValue> PROGRESS_LOG_INTERVAL_SETTING = Setting.timeSetting(
@@ -81,10 +81,10 @@ public class DesiredBalanceComputer {
 
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
+        final var knownNodeIds = routingNodes.getAllNodeIds();
         final var changes = routingAllocation.changes();
         final var ignoredShards = getIgnoredShardsWithDiscardedAllocationStatus(desiredBalanceInput.ignoredShards());
-        final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(toSet());
-        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation.clusterInfo());
+        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation);
 
         if (routingNodes.size() == 0) {
             return new DesiredBalance(desiredBalanceInput.index(), Map.of());
@@ -274,7 +274,7 @@ public class DesiredBalanceComputer {
             routingAllocation.setSimulatedClusterInfo(clusterInfoSimulator.getClusterInfo());
             logger.trace("running delegate allocator");
             delegateAllocator.allocate(routingAllocation);
-            assert routingNodes.unassigned().size() == 0; // any unassigned shards should now be ignored
+            assert routingNodes.unassigned().isEmpty(); // any unassigned shards should now be ignored
 
             hasChanges = false;
             for (final var routingNode : routingNodes) {
@@ -331,10 +331,7 @@ public class DesiredBalanceComputer {
         }
         iterations.inc(i);
 
-        final var assignments = new HashMap<ShardId, ShardAssignment>();
-        for (var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {
-            assignments.put(shardAndAssignments.getKey(), ShardAssignment.ofAssignedShards(shardAndAssignments.getValue()));
-        }
+        final var assignments = collectShardAssignments(routingNodes);
 
         for (var shard : routingNodes.unassigned().ignored()) {
             var info = shard.unassignedInfo();
@@ -362,6 +359,16 @@ public class DesiredBalanceComputer {
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
         return new DesiredBalance(lastConvergedIndex, assignments);
+    }
+
+    private static Map<ShardId, ShardAssignment> collectShardAssignments(RoutingNodes routingNodes) {
+        final var entries = routingNodes.getAssignedShards().entrySet();
+        assert entries.stream().flatMap(t -> t.getValue().stream()).allMatch(ShardRouting::started) : routingNodes;
+        final Map<ShardId, ShardAssignment> res = Maps.newHashMapWithExpectedSize(entries.size());
+        for (var shardAndAssignments : entries) {
+            res.put(shardAndAssignments.getKey(), ShardAssignment.ofAssignedShards(shardAndAssignments.getValue()));
+        }
+        return res;
     }
 
     private record ShardRoutings(List<ShardRouting> unassigned, List<ShardRouting> assigned) {

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.SqlConverter;
 
@@ -38,7 +38,7 @@ public class CastProcessorTests extends AbstractWireSerializingTestCase<CastProc
             CastProcessor proc = new CastProcessor(DefaultConverter.STRING_TO_INT);
             assertEquals(null, proc.process(null));
             assertEquals(1, proc.process("1"));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> proc.process("1.2"));
+            Exception e = expectThrows(InvalidArgumentException.class, () -> proc.process("1.2"));
             assertEquals("cannot cast [1.2] to [integer]", e.getMessage());
         }
         {

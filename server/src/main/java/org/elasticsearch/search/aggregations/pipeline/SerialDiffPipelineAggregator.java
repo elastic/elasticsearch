@@ -28,9 +28,9 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class SerialDiffPipelineAggregator extends PipelineAggregator {
-    private DocValueFormat formatter;
-    private GapPolicy gapPolicy;
-    private int lag;
+    private final DocValueFormat formatter;
+    private final GapPolicy gapPolicy;
+    private final int lag;
 
     SerialDiffPipelineAggregator(
         String name,

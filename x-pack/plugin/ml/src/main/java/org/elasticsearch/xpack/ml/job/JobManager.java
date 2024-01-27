@@ -10,9 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -31,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
@@ -86,7 +86,7 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class JobManager {
 
-    private static final Version MIN_NODE_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER = Version.V_7_14_0;
+    private static final MlConfigVersion MIN_ML_CONFIG_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER = MlConfigVersion.V_7_14_0;
 
     private static final Logger logger = LogManager.getLogger(JobManager.class);
 
@@ -209,7 +209,7 @@ public class JobManager {
     static void validateCategorizationAnalyzerOrSetDefault(
         Job.Builder jobBuilder,
         AnalysisRegistry analysisRegistry,
-        Version minNodeVersion
+        MlConfigVersion minNodeVersion
     ) throws IOException {
         AnalysisConfig analysisConfig = jobBuilder.getAnalysisConfig();
         CategorizationAnalyzerConfig categorizationAnalyzerConfig = analysisConfig.getCategorizationAnalyzerConfig();
@@ -219,7 +219,7 @@ public class JobManager {
                 analysisRegistry
             );
         } else if (analysisConfig.getCategorizationFieldName() != null
-            && minNodeVersion.onOrAfter(MIN_NODE_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER)) {
+            && minNodeVersion.onOrAfter(MIN_ML_CONFIG_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER)) {
                 // Any supplied categorization filters are transferred into the new categorization analyzer.
                 // The user supplied categorization filters will already have been validated when the put job
                 // request was built, so we know they're valid.
@@ -240,7 +240,7 @@ public class JobManager {
         ActionListener<PutJobAction.Response> actionListener
     ) throws IOException {
 
-        Version minNodeVersion = state.getNodes().getMinNodeVersion();
+        MlConfigVersion minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.getNodes());
 
         Job.Builder jobBuilder = request.getJobBuilder();
         jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimitSupplier.get());
@@ -282,7 +282,8 @@ public class JobManager {
                 client,
                 state,
                 request.masterNodeTimeout(),
-                putJobListener
+                putJobListener,
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
             ),
             putJobListener::onFailure
         );
@@ -353,7 +354,8 @@ public class JobManager {
             client,
             clusterService.state(),
             request.masterNodeTimeout(),
-            ActionListener.wrap(bool -> doUpdate.run(), actionListener::onFailure)
+            ActionListener.wrap(bool -> doUpdate.run(), actionListener::onFailure),
+            MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
 
         if (request.getJobUpdate().getGroups() != null && request.getJobUpdate().getGroups().isEmpty() == false) {
@@ -476,24 +478,27 @@ public class JobManager {
 
     private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, VoidChainTaskExecutor voidChainTaskExecutor) {
         if (modelSnapshotId != null && ModelSnapshot.isTheEmptySnapshot(modelSnapshotId) == false) {
-            voidChainTaskExecutor.add(listener -> jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
-                if (newModelSnapshot == null) {
-                    String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId, job.getId());
-                    listener.onFailure(new ResourceNotFoundException(message));
-                    return;
-                }
-                jobResultsProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
-                    if (oldModelSnapshot != null && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
-                        String message = "Job ["
-                            + job.getId()
-                            + "] has a more recent model snapshot ["
-                            + oldModelSnapshot.result.getSnapshotId()
-                            + "]";
-                        listener.onFailure(new IllegalArgumentException(message));
+            voidChainTaskExecutor.add(
+                listener -> jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, false, newModelSnapshot -> {
+                    if (newModelSnapshot == null) {
+                        String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId, job.getId());
+                        listener.onFailure(new ResourceNotFoundException(message));
+                        return;
                     }
-                    listener.onResponse(null);
-                }, listener::onFailure);
-            }, listener::onFailure));
+                    jobResultsProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), false, oldModelSnapshot -> {
+                        if (oldModelSnapshot != null
+                            && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
+                            String message = "Job ["
+                                + job.getId()
+                                + "] has a more recent model snapshot ["
+                                + oldModelSnapshot.result.getSnapshotId()
+                                + "]";
+                            listener.onFailure(new IllegalArgumentException(message));
+                        }
+                        listener.onResponse(null);
+                    }, listener::onFailure);
+                }, listener::onFailure)
+            );
         }
     }
 
@@ -538,13 +543,13 @@ public class JobManager {
         }
     }
 
-    private boolean isJobOpen(ClusterState clusterState, String jobId) {
+    private static boolean isJobOpen(ClusterState clusterState, String jobId) {
         PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         return jobState == JobState.OPENED;
     }
 
-    private Set<String> openJobIds(ClusterState clusterState) {
+    private static Set<String> openJobIds(ClusterState clusterState) {
         PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.openJobIds(persistentTasks);
     }
@@ -664,7 +669,7 @@ public class JobManager {
 
         // Step 3. After the model size stats is persisted, also persist the snapshot's quantiles and respond
         // -------
-        CheckedConsumer<IndexResponse, Exception> modelSizeStatsResponseHandler = response -> {
+        CheckedConsumer<DocWriteResponse, Exception> modelSizeStatsResponseHandler = response -> {
             // In case we are reverting to the empty snapshot the quantiles will be null
             if (modelSnapshot.getQuantiles() == null) {
                 actionListener.onResponse(new RevertModelSnapshotAction.Response(modelSnapshot));

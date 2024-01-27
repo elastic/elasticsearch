@@ -20,7 +20,7 @@ import org.junit.ClassRule;
 public class LicenseClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().nodes(1).plugin("rank-rrf").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().nodes(1).module("rank-rrf").build();
 
     @BeforeClass
     public static void init() {

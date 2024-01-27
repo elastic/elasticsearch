@@ -12,11 +12,9 @@ import com.maxmind.db.InvalidDatabaseException;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,8 +22,8 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -39,9 +37,12 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
@@ -57,6 +58,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -68,11 +70,13 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -109,6 +113,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     private IngestService ingestService;
     private ClusterService clusterService;
 
+    private final Collection<Releasable> toRelease = new CopyOnWriteArrayList<>();
+
     @Before
     public void setup() throws IOException {
         final Path geoIpConfigDir = createTempDir();
@@ -133,6 +139,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     public void cleanup() {
         resourceWatcherService.close();
         threadPool.shutdownNow();
+        Releasables.close(toRelease);
+        toRelease.clear();
     }
 
     public void testCheckDatabases() throws Exception {
@@ -191,13 +199,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(createClusterState(tasksCustomMetadata))
             .nodes(
                 new DiscoveryNodes.Builder().add(
-                    TestDiscoveryNode.create(
-                        "_name1",
-                        "_id1",
-                        buildNewFakeTransportAddress(),
-                        Map.of(),
-                        Set.of(DiscoveryNodeRole.MASTER_ROLE)
-                    )
+                    DiscoveryNodeUtils.builder("_id1").name("_name1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build()
                 ).localNodeId("_id1")
             )
             .build();
@@ -219,7 +221,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
-            .nodes(new DiscoveryNodes.Builder().add(TestDiscoveryNode.create("_id1")).localNodeId("_id1"))
+            .nodes(new DiscoveryNodes.Builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
             .build();
 
         databaseNodeService.checkDatabases(state);
@@ -316,7 +318,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         Map<String, ActionFuture<SearchResponse>> requestMap = new HashMap<>();
         for (int i = firstChunk; i <= lastChunk; i++) {
             byte[] chunk = data.get(i - firstChunk);
-            SearchHit hit = new SearchHit(i);
+            SearchHit hit = SearchHit.unpooled(i);
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
                 builder.map(Map.of("data", chunk));
                 builder.flush();
@@ -326,20 +328,15 @@ public class DatabaseNodeServiceTests extends ESTestCase {
                 throw new UncheckedIOException(ex);
             }
 
-            SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
-            SearchResponse searchResponse = new SearchResponse(
-                new SearchResponseSections(hits, null, null, false, null, null, 0),
-                null,
-                1,
-                1,
-                0,
-                1L,
-                null,
-                null
-            );
+            SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+            SearchResponse searchResponse = new SearchResponse(hits, null, null, false, null, null, 0, null, 1, 1, 0, 1L, null, null);
+            toRelease.add(searchResponse::decRef);
             @SuppressWarnings("unchecked")
             ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
-            when(actionFuture.actionGet()).thenReturn(searchResponse);
+            when(actionFuture.actionGet()).thenAnswer((Answer<SearchResponse>) invocation -> {
+                searchResponse.incRef();
+                return searchResponse;
+            });
             requestMap.put(databaseName + "_" + i, actionFuture);
         }
         when(client.search(any())).thenAnswer(invocationOnMock -> {
@@ -365,7 +362,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             : GeoIpDownloader.DATABASES_INDEX;
         Index index = new Index(indexName, UUID.randomUUID().toString());
         IndexMetadata.Builder idxMeta = IndexMetadata.builder(index.getName())
-            .settings(indexSettings(Version.CURRENT, 1, 0).put("index.uuid", index.getUUID()));
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put("index.uuid", index.getUUID()));
         if (aliasGeoipDatabase) {
             idxMeta.putAlias(AliasMetadata.builder(GeoIpDownloader.DATABASES_INDEX));
         }
@@ -383,7 +380,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         }
         return ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).put(idxMeta))
-            .nodes(DiscoveryNodes.builder().add(TestDiscoveryNode.create("_id1")).localNodeId("_id1"))
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_id1")).localNodeId("_id1"))
             .routingTable(
                 RoutingTable.builder()
                     .add(

@@ -23,7 +23,7 @@ public abstract class InternalPercentilesTestCase<T extends InternalAggregation 
         Percentiles parsedPercentiles = (Percentiles) parsedAggregation;
 
         for (Percentile percentile : aggregation) {
-            Double percent = percentile.getPercent();
+            Double percent = percentile.percent();
             assertEquals(aggregation.percentile(percent), parsedPercentiles.percentile(percent), 0);
             assertEquals(aggregation.percentileAsString(percent), parsedPercentiles.percentileAsString(percent));
         }

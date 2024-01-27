@@ -1,0 +1,4 @@
+[[troubleshooting-unstable-cluster]]
+== Troubleshooting an unstable cluster
+
+include::../modules/discovery/fault-detection.asciidoc[tag=troubleshooting,leveloffset=-2]

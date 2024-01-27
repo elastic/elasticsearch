@@ -16,7 +16,10 @@ Index level settings can be set per-index. Settings may be:
 _static_::
 
 They can only be set at index creation time or on a
-<<indices-open-close,closed index>>.
+<<indices-open-close,closed index>>, or by using the
+<<indices-update-settings,update-index-settings>> API with the
+`reopen` query parameter set to `true` (which automatically
+closes and reopens impacted indices).
 
 _dynamic_::
 
@@ -195,9 +198,9 @@ are ignored for this index.
     refresh. If this setting is not explicitly set, shards that haven't seen
     search traffic for at least `index.search.idle.after` seconds will not receive
     background refreshes until they receive a search request. Searches that hit an
-    idle shard where a refresh is pending will wait for the next background
-    refresh (within `1s`). This behavior aims to automatically optimize bulk
-    indexing in the default case when no searches are performed. In order to opt
+    idle shard where a refresh is pending will trigger a refresh as part of the
+    search operation for that shard only. This behavior aims to automatically optimize
+    bulk indexing in the default case when no searches are performed. In order to opt
     out of this behavior an explicit value of `1s` should set as the refresh
     interval.
 

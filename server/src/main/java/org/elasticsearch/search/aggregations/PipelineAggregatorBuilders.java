@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.CumulativeSumPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
@@ -60,10 +59,6 @@ public final class PipelineAggregatorBuilders {
 
     public static BucketScriptPipelineAggregationBuilder bucketScript(String name, Script script, String... bucketsPaths) {
         return new BucketScriptPipelineAggregationBuilder(name, script, bucketsPaths);
-    }
-
-    public static CumulativeSumPipelineAggregationBuilder cumulativeSum(String name, String bucketsPath) {
-        return new CumulativeSumPipelineAggregationBuilder(name, bucketsPath);
     }
 
     public static SerialDiffPipelineAggregationBuilder diff(String name, String bucketsPath) {

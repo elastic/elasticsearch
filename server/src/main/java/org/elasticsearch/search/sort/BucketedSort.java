@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 
 import static java.util.Collections.emptyList;
 
@@ -110,7 +109,7 @@ public abstract class BucketedSort implements Releasable {
         public void swap(long lhs, long rhs) {}
 
         @Override
-        public Loader loader(LeafReaderContext ctx) throws IOException {
+        public Loader loader(LeafReaderContext ctx) {
             return (index, doc) -> {};
         }
     };
@@ -255,24 +254,6 @@ public abstract class BucketedSort implements Releasable {
     protected abstract void swap(long lhs, long rhs);
 
     /**
-     * Return a fairly human readable representation of the array backing the sort.
-     * <p>
-     * This is intentionally not a {@link #toString()} implementation because it'll
-     * be quite slow.
-     * </p>
-     */
-    protected final String debugFormat() {
-        StringBuilder b = new StringBuilder();
-        for (long index = 0; index < values().size(); index++) {
-            if (index % bucketSize == 0) {
-                b.append('\n').append(String.format(Locale.ROOT, "%20d", index / bucketSize)).append(":  ");
-            }
-            b.append(String.format(Locale.ROOT, "%20s", getValue(index))).append(' ');
-        }
-        return b.toString();
-    }
-
-    /**
      * Initialize the gather offsets after setting up values. Subclasses
      * should call this once, after setting up their {@link #values()}.
      */
@@ -415,7 +396,6 @@ public abstract class BucketedSort implements Releasable {
             } else {
                 setNextGatherOffset(rootIndex, next - 1);
             }
-            return;
         }
 
         /**
@@ -455,6 +435,7 @@ public abstract class BucketedSort implements Releasable {
     public abstract static class ForDoubles extends BucketedSort {
         private DoubleArray values;
 
+        @SuppressWarnings("this-escape")
         public ForDoubles(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize, ExtraData extra) {
             super(bigArrays, sortOrder, format, bucketSize, extra);
             boolean success = false;
@@ -555,6 +536,7 @@ public abstract class BucketedSort implements Releasable {
 
         private FloatArray values;
 
+        @SuppressWarnings("this-escape")
         public ForFloats(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize, ExtraData extra) {
             super(bigArrays, sortOrder, format, bucketSize, extra);
             if (bucketSize > MAX_BUCKET_SIZE) {
@@ -646,6 +628,7 @@ public abstract class BucketedSort implements Releasable {
     public abstract static class ForLongs extends BucketedSort {
         private LongArray values;
 
+        @SuppressWarnings("this-escape")
         public ForLongs(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize, ExtraData extra) {
             super(bigArrays, sortOrder, format, bucketSize, extra);
             boolean success = false;

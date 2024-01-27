@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.script.ScriptContextInfo;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
@@ -24,7 +25,13 @@ public class TransportGetScriptContextAction extends HandledTransportAction<GetS
 
     @Inject
     public TransportGetScriptContextAction(TransportService transportService, ActionFilters actionFilters, ScriptService scriptService) {
-        super(GetScriptContextAction.NAME, transportService, actionFilters, GetScriptContextRequest::new);
+        super(
+            GetScriptContextAction.NAME,
+            transportService,
+            actionFilters,
+            GetScriptContextRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.scriptService = scriptService;
     }
 

@@ -25,6 +25,10 @@ public class MutableSettingsProvider implements SettingsProvider {
         settings.put(setting, value);
     }
 
+    public void remove(String setting) {
+        settings.remove(setting);
+    }
+
     public void clear() {
         settings.clear();
     }

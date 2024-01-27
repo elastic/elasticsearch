@@ -13,7 +13,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -42,13 +41,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
@@ -81,10 +81,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", shardSplits[0])).get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source")
-                .setId(Integer.toString(i))
-                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON)
-                .get();
+            prepareIndex("source").setId(Integer.toString(i)).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         Map<String, DiscoveryNode> dataNodes = clusterAdmin().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
@@ -104,20 +101,18 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertAcked(
             indicesAdmin().prepareResizeIndex("source", "first_shrink")
                 .setSettings(indexSettings(shardSplits[1], 0).putNull("index.blocks.write").build())
-                .get()
         );
         ensureGreen();
-        assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        assertHitCount(prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
 
         for (int i = 0; i < 20; i++) { // now update
-            client().prepareIndex("first_shrink")
-                .setId(Integer.toString(i))
+            prepareIndex("first_shrink").setId(Integer.toString(i))
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON)
                 .get();
         }
         flushAndRefresh();
-        assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
-        assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        assertHitCount(prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
+        assertHitCount(prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
 
         // relocate all shards to one node such that we can merge it.
         updateIndexSettings(
@@ -131,28 +126,26 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .setSettings(
                     indexSettings(shardSplits[2], 0).putNull("index.blocks.write").putNull("index.routing.allocation.require._name").build()
                 )
-                .get()
         );
         ensureGreen();
-        assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        assertHitCount(prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
         // let it be allocated anywhere and bump replicas
         updateIndexSettings(
             Settings.builder().putNull("index.routing.allocation.include._id").put("index.number_of_replicas", 1),
             "second_shrink"
         );
         ensureGreen();
-        assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        assertHitCount(prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
 
         for (int i = 0; i < 20; i++) { // now update
-            client().prepareIndex("second_shrink")
-                .setId(Integer.toString(i))
+            prepareIndex("second_shrink").setId(Integer.toString(i))
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON)
                 .get();
         }
         flushAndRefresh();
-        assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
-        assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
-        assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        assertHitCount(prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
+        assertHitCount(prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
+        assertHitCount(prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
 
         assertNoResizeSourceIndexSettings("first_shrink");
         assertNoResizeSourceIndexSettings("second_shrink");
@@ -234,13 +227,13 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
     public void testCreateShrinkIndex() {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        Version version = VersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion(random());
         prepareCreate("source").setSettings(
             Settings.builder().put(indexSettings()).put("number_of_shards", randomIntBetween(2, 7)).put("index.version.created", version)
         ).get();
         final int docs = randomIntBetween(0, 128);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         Map<String, DiscoveryNode> dataNodes = clusterAdmin().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
@@ -272,7 +265,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                         .putNull("index.routing.allocation.require._name")
                         .build()
                 )
-                .get()
         );
         ensureGreen();
 
@@ -311,23 +303,26 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         }
 
         final int size = docs > 0 ? 2 * docs : 1;
-        assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
+        assertHitCount(prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")), docs);
 
         if (createWithReplicas == false) {
             // bump replicas
             setReplicaCount(1, "target");
             ensureGreen();
-            assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
+            assertHitCount(prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")), docs);
         }
 
         for (int i = docs; i < 2 * docs; i++) {
-            client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         flushAndRefresh();
-        assertHitCount(client().prepareSearch("target").setSize(2 * size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 2 * docs);
-        assertHitCount(client().prepareSearch("source").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
+        assertHitCount(prepareSearch("target").setSize(2 * size).setQuery(new TermsQueryBuilder("foo", "bar")), 2 * docs);
+        assertHitCount(prepareSearch("source").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")), docs);
         GetSettingsResponse target = indicesAdmin().prepareGetSettings("target").get();
-        assertEquals(version, target.getIndexToSettings().get("target").getAsVersion("index.version.created", null));
+        assertThat(
+            target.getIndexToSettings().get("target").getAsVersionId("index.version.created", IndexVersion::fromId),
+            equalTo(version)
+        );
 
         // clean up
         updateClusterSettings(
@@ -344,7 +339,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             Settings.builder().put(indexSettings()).put("number_of_shards", randomIntBetween(2, 7)).put("number_of_replicas", 0)
         ).get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         Map<String, DiscoveryNode> dataNodes = clusterAdmin().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
@@ -406,7 +401,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         // we support the expected shard size in the allocator to sum up over the source index shards
         assertTrue("expected shard size must be set but wasn't: " + expectedShardSize, expectedShardSize > 0);
         ensureGreen();
-        assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        assertHitCount(prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
         assertNoResizeSourceIndexSettings("target");
     }
 
@@ -424,10 +419,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .put("number_of_replicas", 0)
         ).setMapping("id", "type=keyword,doc_values=true").get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source")
-                .setId(Integer.toString(i))
-                .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON)
-                .get();
+            prepareIndex("source").setId(Integer.toString(i)).setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON).get();
         }
         Map<String, DiscoveryNode> dataNodes = clusterAdmin().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
@@ -451,30 +443,26 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         // check that index sort cannot be set on the target index
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareResizeIndex("source", "target")
-                .setSettings(indexSettings(2, 0).put("index.sort.field", "foo").build())
-                .get()
+            indicesAdmin().prepareResizeIndex("source", "target").setSettings(indexSettings(2, 0).put("index.sort.field", "foo").build())
         );
         assertThat(exc.getMessage(), containsString("can't override index sort when resizing an index"));
 
         // check that the index sort order of `source` is correctly applied to the `target`
         assertAcked(
-            indicesAdmin().prepareResizeIndex("source", "target")
-                .setSettings(indexSettings(2, 0).putNull("index.blocks.write").build())
-                .get()
+            indicesAdmin().prepareResizeIndex("source", "target").setSettings(indexSettings(2, 0).putNull("index.blocks.write").build())
         );
         ensureGreen();
         assertNoResizeSourceIndexSettings("target");
 
         flushAndRefresh();
-        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings("target").execute().actionGet();
+        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings("target").get();
         assertEquals(settingsResponse.getSetting("target", "index.sort.field"), "id");
         assertEquals(settingsResponse.getSetting("target", "index.sort.order"), "desc");
         assertSortedSegments("target", expectedIndexSort);
 
         // ... and that the index sort is also applied to updates
         for (int i = 20; i < 40; i++) {
-            client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         flushAndRefresh();
         assertSortedSegments("target", expectedIndexSort);
@@ -485,7 +473,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             Settings.builder().put(indexSettings()).put("index.number_of_replicas", 0).put("number_of_shards", 5)
         ).get();
         for (int i = 0; i < 30; i++) {
-            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         indicesAdmin().prepareFlush("source").get();
         Map<String, DiscoveryNode> dataNodes = clusterAdmin().prepareState().get().getState().nodes().getDataNodes();
@@ -510,7 +498,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             assertAcked(
                 indicesAdmin().prepareResizeIndex("source", "target")
                     .setSettings(Settings.builder().put("index.number_of_replicas", 0).build())
-                    .get()
             );
             ensureGreen();
             assertNoResizeSourceIndexSettings("target");
@@ -583,7 +570,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                     ).build()
                 )
                 .setResizeType(ResizeType.SHRINK)
-                .get()
         );
         ensureGreen();
 
@@ -614,8 +600,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .clear()
             .setMetadata(true)
             .setRoutingTable(true)
-            .execute()
-            .actionGet();
+            .get();
         IndexRoutingTable indexRoutingTable = clusterStateResponse.getState().routingTable().index(index);
         assertThat("Index " + index + " should have all primaries started", indexRoutingTable.allPrimaryShardsActive(), equalTo(true));
         IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(index);

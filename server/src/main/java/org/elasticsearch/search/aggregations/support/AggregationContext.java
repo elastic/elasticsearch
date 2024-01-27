@@ -15,10 +15,12 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NameOrDefinition;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
@@ -149,11 +152,6 @@ public abstract class AggregationContext implements Releasable {
     public abstract Set<String> getMatchingFieldNames(String pattern);
 
     /**
-     * Returns true if the field identified by the provided name is mapped, false otherwise
-     */
-    public abstract boolean isFieldMapped(String field);
-
-    /**
      * Compile a script.
      */
     public abstract <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context);
@@ -202,6 +200,11 @@ public abstract class AggregationContext implements Releasable {
      * The settings for the index against which this search is running.
      */
     public abstract IndexSettings getIndexSettings();
+
+    /**
+     * The settings for the cluster against which this search is running.
+     */
+    public abstract ClusterSettings getClusterSettings();
 
     /**
      * Compile a sort.
@@ -306,6 +309,14 @@ public abstract class AggregationContext implements Releasable {
     public abstract Set<String> sourcePath(String fullName);
 
     /**
+     * Returns the MappingLookup for the index, if one is initialized.
+     */
+    @Nullable
+    public MappingLookup getMappingLookup() {
+        return null;
+    }
+
+    /**
      * Does this index have a {@code _doc_count} field in any segment?
      */
     public final boolean hasDocCountField() throws IOException {
@@ -335,6 +346,9 @@ public abstract class AggregationContext implements Releasable {
         private final SearchExecutionContext context;
         private final PreallocatedCircuitBreakerService preallocatedBreakerService;
         private final BigArrays bigArrays;
+
+        private final ClusterSettings clusterSettings;
+
         private final Supplier<Query> topLevelQuery;
         private final AggregationProfiler profiler;
         private final int maxBuckets;
@@ -354,6 +368,7 @@ public abstract class AggregationContext implements Releasable {
             AnalysisRegistry analysisRegistry,
             SearchExecutionContext context,
             BigArrays bigArrays,
+            ClusterSettings clusterSettings,
             long bytesToPreallocate,
             Supplier<Query> topLevelQuery,
             @Nullable AggregationProfiler profiler,
@@ -369,6 +384,7 @@ public abstract class AggregationContext implements Releasable {
         ) {
             this.analysisRegistry = analysisRegistry;
             this.context = context;
+            this.clusterSettings = clusterSettings;
             if (bytesToPreallocate == 0) {
                 /*
                  * Its possible if a bit strange for the aggregations to ask
@@ -407,7 +423,7 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
+        public Aggregator profileIfEnabled(Aggregator agg) {
             if (profiler == null) {
                 return agg;
             }
@@ -437,7 +453,14 @@ public abstract class AggregationContext implements Releasable {
             List<NameOrDefinition> charFilters,
             List<NameOrDefinition> tokenFilters
         ) throws IOException {
-            return analysisRegistry.buildCustomAnalyzer(indexSettings, normalizer, tokenizer, charFilters, tokenFilters);
+            return analysisRegistry.buildCustomAnalyzer(
+                IndexService.IndexCreationContext.RELOAD_ANALYZERS,
+                indexSettings,
+                normalizer,
+                tokenizer,
+                charFilters,
+                tokenFilters
+            );
         }
 
         @Override
@@ -453,11 +476,6 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public Set<String> getMatchingFieldNames(String pattern) {
             return context.getMatchingFieldNames(pattern);
-        }
-
-        @Override
-        public boolean isFieldMapped(String field) {
-            return context.isFieldMapped(field);
         }
 
         @Override
@@ -501,6 +519,11 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
+        public ClusterSettings getClusterSettings() {
+            return clusterSettings;
+        }
+
+        @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
             return SortBuilder.buildSort(sortBuilders, context);
         }
@@ -528,7 +551,9 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public void removeReleasable(Aggregator aggregator) {
+        public synchronized void removeReleasable(Aggregator aggregator) {
+            // Removing an aggregator is done after calling Aggregator#buildTopLevel which happens on an executor thread.
+            // We need to synchronize the removal because he AggregatorContext it is shared between executor threads.
             assert releaseMe.contains(aggregator)
                 : "removing non-existing aggregator [" + aggregator.name() + "] from the the aggregation context";
             releaseMe.remove(aggregator);
@@ -593,6 +618,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public Set<String> sourcePath(String fullName) {
             return context.sourcePath(fullName);
+        }
+
+        @Override
+        public MappingLookup getMappingLookup() {
+            return context.getMappingLookup();
         }
 
         @Override

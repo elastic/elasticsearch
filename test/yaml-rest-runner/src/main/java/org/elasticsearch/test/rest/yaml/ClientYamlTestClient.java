@@ -20,7 +20,6 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -30,6 +29,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
@@ -61,42 +62,18 @@ public class ClientYamlTestClient implements Closeable {
 
     private final ClientYamlSuiteRestSpec restSpec;
     private final Map<NodeSelector, RestClient> restClients = new HashMap<>();
-    private final Version esVersion;
-    private final Version masterVersion;
-    private final String os;
     private final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes;
 
     ClientYamlTestClient(
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
         final List<HttpHost> hosts,
-        final Version esVersion,
-        final Version masterVersion,
-        final String os,
         final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes
     ) {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClients.put(NodeSelector.ANY, restClient);
-        this.esVersion = esVersion;
-        this.masterVersion = masterVersion;
-        this.os = os;
         this.clientBuilderWithSniffedNodes = clientBuilderWithSniffedNodes;
-    }
-
-    /**
-     * @return the version of the oldest node in the cluster
-     */
-    public Version getEsVersion() {
-        return esVersion;
-    }
-
-    public Version getMasterVersion() {
-        return masterVersion;
-    }
-
-    public String getOs() {
-        return os;
     }
 
     /**
@@ -107,7 +84,8 @@ public class ClientYamlTestClient implements Closeable {
         Map<String, String> params,
         HttpEntity entity,
         Map<String, String> headers,
-        NodeSelector nodeSelector
+        NodeSelector nodeSelector,
+        BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate
     ) throws IOException {
 
         ClientYamlSuiteRestApi restApi = restApi(apiName);
@@ -120,8 +98,20 @@ public class ClientYamlTestClient implements Closeable {
             .collect(Collectors.toSet());
 
         List<ClientYamlSuiteRestApi.Path> bestPaths = restApi.getBestMatchingPaths(params.keySet());
+        List<ClientYamlSuiteRestApi.Path> filteredPaths = bestPaths.stream()
+            .filter(path -> pathPredicate.test(restApi, path))
+            .collect(Collectors.toUnmodifiableList());
+        if (filteredPaths.isEmpty()) {
+            throw new IllegalStateException(
+                Strings.format(
+                    "All possible paths [%s] for API [%s] have been skipped",
+                    Strings.collectionToCommaDelimitedString(bestPaths),
+                    apiName
+                )
+            );
+        }
         // the rest path to use is randomized out of the matching ones (if more than one)
-        ClientYamlSuiteRestApi.Path path = RandomizedTest.randomFrom(bestPaths);
+        ClientYamlSuiteRestApi.Path path = RandomizedTest.randomFrom(filteredPaths);
 
         // divide params between ones that go within query string and ones that go within path
         Map<String, String> pathParts = new HashMap<>();

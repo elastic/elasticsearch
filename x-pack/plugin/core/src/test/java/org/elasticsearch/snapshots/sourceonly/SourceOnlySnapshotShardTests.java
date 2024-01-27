@@ -21,7 +21,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -30,7 +29,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -42,10 +41,12 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -70,6 +71,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
@@ -99,7 +101,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
@@ -121,7 +123,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(new ShardGeneration(-1L));
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
@@ -130,10 +132,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -163,7 +165,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
             SnapshotId snapshotId = new SnapshotId("test", "test");
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
@@ -172,10 +174,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -194,7 +196,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             SnapshotId snapshotId = new SnapshotId("test_1", "test_1");
 
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
@@ -203,10 +205,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -225,7 +227,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             SnapshotId snapshotId = new SnapshotId("test_2", "test_2");
 
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
@@ -234,10 +236,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -258,7 +260,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         return "{ \"value\" : \"" + randomAlphaOfLength(10) + "\"}";
     }
 
-    public void testRestoreMinmal() throws IOException {
+    public void testRestoreMinimal() throws IOException {
         IndexShard shard = newStartedShard(true);
         int numInitialDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numInitialDocs; i++) {
@@ -287,7 +289,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(shard.getThreadPool(), () -> {
                 repository.snapshotShard(
                     new SnapshotShardContext(
@@ -295,16 +297,16 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         shard.mapperService(),
                         snapshotId,
                         indexId,
-                        snapshotRef,
+                        new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
                 );
                 future.actionGet();
-                final PlainActionFuture<SnapshotInfo> finFuture = PlainActionFuture.newFuture();
+                final PlainActionFuture<SnapshotInfo> finFuture = new PlainActionFuture<>();
                 final ShardGenerations shardGenerations = ShardGenerations.builder()
                     .put(indexId, 0, indexShardSnapshotStatus.generation())
                     .build();
@@ -327,7 +329,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                             0L,
                             Collections.emptyMap()
                         ),
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         new ActionListener<>() {
                             @Override
                             public void onResponse(RepositoryData repositoryData) {
@@ -357,13 +359,17 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 new Snapshot("src_only", snapshotId),
-                Version.CURRENT,
+                IndexVersion.current(),
                 indexId
             )
         );
         IndexMetadata metadata = runAsSnapshot(
             threadPool,
-            () -> repository.getSnapshotIndexMetaData(PlainActionFuture.get(repository::getRepositoryData), snapshotId, indexId)
+            () -> repository.getSnapshotIndexMetaData(
+                PlainActionFuture.get(listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener)),
+                snapshotId,
+                indexId
+            )
         );
         IndexShard restoredShard = newShard(
             shardRouting,
@@ -373,10 +379,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY
         );
-        DiscoveryNode discoveryNode = TestDiscoveryNode.create("node_g");
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("node_g");
         restoredShard.markAsRecovering("test from snap", new RecoveryState(restoredShard.routingEntry(), discoveryNode, null));
         runAsSnapshot(shard.getThreadPool(), () -> {
-            final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
             restoredShard.restoreFromRepository(repository, future);
             assertTrue(future.actionGet());
         });
@@ -447,7 +453,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
@@ -475,7 +481,14 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(
                             Versions.MATCH_ANY,
                             VersionType.INTERNAL,
-                            new SourceToParse(id, source, XContentHelper.xContentType(source), rootFieldsVisitor.routing(), Map.of()),
+                            new SourceToParse(
+                                id,
+                                source,
+                                XContentHelper.xContentType(source),
+                                rootFieldsVisitor.routing(),
+                                Map.of(),
+                                false
+                            ),
                             SequenceNumbers.UNASSIGNED_SEQ_NO,
                             0,
                             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,

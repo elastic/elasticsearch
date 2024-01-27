@@ -8,13 +8,12 @@
 package org.elasticsearch.index.engine.frozen;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -49,7 +48,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -73,45 +74,38 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         createIndex("index", 1, 1);
 
-        final IndexResponse indexResponse = client().prepareIndex("index")
-            .setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-06T02:03:04.567Z")
+        final DocWriteResponse indexResponse = prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567Z")
             .get();
 
         ensureGreen("index");
 
-        assertThat(client().admin().indices().prepareFlush("index").get().getSuccessfulShards(), equalTo(2));
-        assertThat(client().admin().indices().prepareRefresh("index").get().getSuccessfulShards(), equalTo(2));
+        assertThat(indicesAdmin().prepareFlush("index").get().getSuccessfulShards(), equalTo(2));
+        assertThat(indicesAdmin().prepareRefresh("index").get().getSuccessfulShards(), equalTo(2));
 
         final String excludeSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey();
         updateIndexSettings(Settings.builder().put(excludeSetting, nodeNames.get(0)), "index");
-        assertAcked(client().admin().cluster().prepareReroute().add(new CancelAllocationCommand("index", 0, nodeNames.get(0), true)));
-        assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(1));
+        assertAcked(clusterAdmin().prepareReroute().add(new CancelAllocationCommand("index", 0, nodeNames.get(0), true)));
+        assertThat(clusterAdmin().prepareHealth("index").get().getUnassignedShards(), equalTo(1));
 
         assertThat(client().prepareDelete("index", indexResponse.getId()).get().status(), equalTo(RestStatus.OK));
 
-        assertAcked(
-            client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index").waitForActiveShards(ActiveShardCount.ONE)).actionGet()
-        );
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index").waitForActiveShards(ActiveShardCount.ONE)));
 
         assertThat(
-            client().admin().cluster().prepareState().get().getState().metadata().index("index").getTimestampRange(),
+            clusterAdmin().prepareState().get().getState().metadata().index("index").getTimestampRange(),
             sameInstance(IndexLongFieldRange.EMPTY)
         );
 
         internalCluster().stopNode(nodeNames.get(1));
-        assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
+        assertThat(clusterAdmin().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
         updateIndexSettings(Settings.builder().putNull(excludeSetting), "index");
-        assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
+        assertThat(clusterAdmin().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
 
-        assertAcked(
-            client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand("index", 0, nodeNames.get(0), true))
-        );
+        assertAcked(clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand("index", 0, nodeNames.get(0), true)));
 
         ensureYellowAndNoInitializingShards("index");
 
-        final IndexLongFieldRange timestampFieldRange = client().admin()
-            .cluster()
-            .prepareState()
+        final IndexLongFieldRange timestampFieldRange = clusterAdmin().prepareState()
             .get()
             .getState()
             .metadata()
@@ -154,7 +148,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
                     jsonBuilder().startObject()
                         .startObject("_doc")
                         .startObject("properties")
-                        .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+                        .startObject(DataStream.TIMESTAMP_FIELD_NAME)
                         .field("type", "date")
                         .field("format", "dd LLL yyyy HH:mm:ssX")
                         .field("locale", locale)
@@ -165,9 +159,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
                 )
         );
 
-        final Index index = client().admin()
-            .cluster()
-            .prepareState()
+        final Index index = clusterAdmin().prepareState()
             .clear()
             .setIndices("index")
             .setMetadata(true)
@@ -179,7 +171,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         ensureGreen("index");
         if (randomBoolean()) {
-            client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, date).get();
+            prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, date).get();
         }
 
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
@@ -220,9 +212,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         final String assignedNode = randomFrom(dataNodes);
         final String indexName = "test";
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
@@ -234,39 +224,35 @@ public class FrozenIndexIT extends ESIntegTestCase {
         );
         int numDocs = randomIntBetween(1, 100);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex(indexName).setSource("created_date", "2011-02-02").get();
+            prepareIndex(indexName).setSource("created_date", "2011-02-02").get();
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
         final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(indexName).indicesOptions(
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
         ).keepAlive(TimeValue.timeValueMinutes(2));
-        final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
+        final String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest).actionGet().getPointInTimeId();
         try {
-            SearchResponse resp = client().prepareSearch()
-                .setIndices(indexName)
-                .setPreference(null)
-                .setPointInTime(new PointInTimeBuilder(pitId))
-                .get();
-            assertNoFailures(resp);
-            assertThat(resp.pointInTimeId(), equalTo(pitId));
-            assertHitCount(resp, numDocs);
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), searchResponse -> {
+                assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
+                assertHitCount(searchResponse, numDocs);
+            });
             internalCluster().restartNode(assignedNode);
             ensureGreen(indexName);
-            resp = client().prepareSearch()
-                .setIndices(indexName)
-                .setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setPreference(null)
-                .setPreFilterShardSize(between(1, 10))
-                .setAllowPartialSearchResults(true)
-                .setPointInTime(new PointInTimeBuilder(pitId))
-                .get();
-            assertNoFailures(resp);
-            assertThat(resp.pointInTimeId(), equalTo(pitId));
-            assertHitCount(resp, numDocs);
+
+            assertNoFailuresAndResponse(
+                prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
+                    .setSearchType(SearchType.QUERY_THEN_FETCH)
+                    .setPreFilterShardSize(between(1, 10))
+                    .setAllowPartialSearchResults(true)
+                    .setPointInTime(new PointInTimeBuilder(pitId)),
+                searchResponse -> {
+                    assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
+                    assertHitCount(searchResponse, numDocs);
+                }
+            );
         } finally {
             assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName).setFreeze(false)).actionGet());
-            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
         }
     }
 
@@ -277,13 +263,13 @@ public class FrozenIndexIT extends ESIntegTestCase {
         int index1 = randomIntBetween(10, 50);
         for (int i = 0; i < index1; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index-1").setId(id).setSource("value", i).get();
+            prepareIndex("index-1").setId(id).setSource("value", i).get();
         }
 
         int index2 = randomIntBetween(10, 50);
         for (int i = 0; i < index2; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index-2").setId(id).setSource("value", i).get();
+            prepareIndex("index-2").setId(id).setSource("value", i).get();
         }
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index-1", "index-2")).actionGet());
@@ -291,27 +277,24 @@ public class FrozenIndexIT extends ESIntegTestCase {
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
         ).keepAlive(TimeValue.timeValueMinutes(2));
 
-        final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
+        final String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest).actionGet().getPointInTimeId();
         try {
-            client().admin().indices().prepareDelete("index-1").get();
+            indicesAdmin().prepareDelete("index-1").get();
             // Return partial results if allow partial search result is allowed
-            SearchResponse resp = client().prepareSearch()
-                .setPreference(null)
-                .setAllowPartialSearchResults(true)
-                .setPointInTime(new PointInTimeBuilder(pitId))
-                .get();
-            assertFailures(resp);
-            assertHitCount(resp, index2);
+            assertResponse(
+                prepareSearch().setAllowPartialSearchResults(true).setPointInTime(new PointInTimeBuilder(pitId)),
+                searchResponse -> {
+                    assertFailures(searchResponse);
+                    assertHitCount(searchResponse, index2);
+                }
+            );
             // Fails if allow partial search result is not allowed
             expectThrows(
                 ElasticsearchException.class,
-                client().prepareSearch()
-                    .setPreference(null)
-                    .setAllowPartialSearchResults(false)
-                    .setPointInTime(new PointInTimeBuilder(pitId))::get
+                prepareSearch().setAllowPartialSearchResults(false).setPointInTime(new PointInTimeBuilder(pitId))
             );
         } finally {
-            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
         }
     }
 
@@ -321,7 +304,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(10, 50);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("test-index").setId(id).setSource("value", i).get();
+            prepareIndex("test-index").setId(id).setSource("value", i).get();
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("test-index")).actionGet());
         // include the frozen indices
@@ -329,13 +312,16 @@ public class FrozenIndexIT extends ESIntegTestCase {
             final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").indicesOptions(
                 IndicesOptions.strictExpandOpenAndForbidClosed()
             ).keepAlive(TimeValue.timeValueMinutes(2));
-            final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
+            final String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest)
+                .actionGet()
+                .getPointInTimeId();
             try {
-                SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
-                assertNoFailures(resp);
-                assertHitCount(resp, numDocs);
+                assertNoFailuresAndResponse(
+                    prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)),
+                    searchResponse -> assertHitCount(searchResponse, numDocs)
+                );
             } finally {
-                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+                client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
             }
         }
         // exclude the frozen indices
@@ -343,13 +329,13 @@ public class FrozenIndexIT extends ESIntegTestCase {
             final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").keepAlive(
                 TimeValue.timeValueMinutes(2)
             );
-            final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
+            final String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest)
+                .actionGet()
+                .getPointInTimeId();
             try {
-                SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
-                assertNoFailures(resp);
-                assertHitCount(resp, 0);
+                assertHitCountAndNoFailures(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), 0);
             } finally {
-                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+                client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
             }
         }
     }

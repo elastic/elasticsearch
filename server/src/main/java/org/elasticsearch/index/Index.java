@@ -103,9 +103,14 @@ public class Index implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
+        toXContentFragment(builder);
+        return builder.endObject();
+    }
+
+    public XContentBuilder toXContentFragment(final XContentBuilder builder) throws IOException {
         builder.field(INDEX_NAME_KEY, name);
         builder.field(INDEX_UUID_KEY, uuid);
-        return builder.endObject();
+        return builder;
     }
 
     public static Index fromXContent(final XContentParser parser) throws IOException {

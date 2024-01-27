@@ -54,40 +54,40 @@ public class SimilarityScriptTests extends ScriptTestCase {
             SimilarityScript.CONTEXT,
             Collections.emptyMap()
         );
-        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", null, "foobaz", factory::newInstance, true);
-        Directory dir = new ByteBuffersDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
+        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", null, "foobaz", factory, true);
+        try (Directory dir = new ByteBuffersDirectory()) {
+            IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 
-        Document doc = new Document();
-        doc.add(new TextField("f", "foo bar", Store.NO));
-        doc.add(new StringField("match", "no", Store.NO));
-        w.addDocument(doc);
+            Document doc = new Document();
+            doc.add(new TextField("f", "foo bar", Store.NO));
+            doc.add(new StringField("match", "no", Store.NO));
+            w.addDocument(doc);
 
-        doc = new Document();
-        doc.add(new TextField("f", "foo foo bar", Store.NO));
-        doc.add(new StringField("match", "yes", Store.NO));
-        w.addDocument(doc);
+            doc = new Document();
+            doc.add(new TextField("f", "foo foo bar", Store.NO));
+            doc.add(new StringField("match", "yes", Store.NO));
+            w.addDocument(doc);
 
-        doc = new Document();
-        doc.add(new TextField("f", "bar", Store.NO));
-        doc.add(new StringField("match", "no", Store.NO));
-        w.addDocument(doc);
+            doc = new Document();
+            doc.add(new TextField("f", "bar", Store.NO));
+            doc.add(new StringField("match", "no", Store.NO));
+            w.addDocument(doc);
 
-        IndexReader r = DirectoryReader.open(w);
-        w.close();
-        IndexSearcher searcher = new IndexSearcher(r);
-        searcher.setSimilarity(sim);
-        Query query = new BoostQuery(
-            new BooleanQuery.Builder().add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
-                .add(new TermQuery(new Term("match", "yes")), Occur.FILTER)
-                .build(),
-            3.2f
-        );
-        TopDocs topDocs = searcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits.value);
-        assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);
-        w.close();
-        dir.close();
+            try (IndexReader r = DirectoryReader.open(w)) {
+                w.close();
+                IndexSearcher searcher = newSearcher(r);
+                searcher.setSimilarity(sim);
+                Query query = new BoostQuery(
+                    new BooleanQuery.Builder().add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
+                        .add(new TermQuery(new Term("match", "yes")), Occur.FILTER)
+                        .build(),
+                    3.2f
+                );
+                TopDocs topDocs = searcher.search(query, 1);
+                assertEquals(1, topDocs.totalHits.value);
+                assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);
+            }
+        }
     }
 
     public void testWeightScript() throws IOException {
@@ -103,39 +103,39 @@ public class SimilarityScriptTests extends ScriptTestCase {
             SimilarityScript.CONTEXT,
             Collections.emptyMap()
         );
-        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", weightFactory::newInstance, "foobaz", factory::newInstance, true);
-        Directory dir = new ByteBuffersDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
+        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", weightFactory, "foobaz", factory, true);
+        try (Directory dir = new ByteBuffersDirectory()) {
+            IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 
-        Document doc = new Document();
-        doc.add(new TextField("f", "foo bar", Store.NO));
-        doc.add(new StringField("match", "no", Store.NO));
-        w.addDocument(doc);
+            Document doc = new Document();
+            doc.add(new TextField("f", "foo bar", Store.NO));
+            doc.add(new StringField("match", "no", Store.NO));
+            w.addDocument(doc);
 
-        doc = new Document();
-        doc.add(new TextField("f", "foo foo bar", Store.NO));
-        doc.add(new StringField("match", "yes", Store.NO));
-        w.addDocument(doc);
+            doc = new Document();
+            doc.add(new TextField("f", "foo foo bar", Store.NO));
+            doc.add(new StringField("match", "yes", Store.NO));
+            w.addDocument(doc);
 
-        doc = new Document();
-        doc.add(new TextField("f", "bar", Store.NO));
-        doc.add(new StringField("match", "no", Store.NO));
-        w.addDocument(doc);
+            doc = new Document();
+            doc.add(new TextField("f", "bar", Store.NO));
+            doc.add(new StringField("match", "no", Store.NO));
+            w.addDocument(doc);
 
-        IndexReader r = DirectoryReader.open(w);
-        w.close();
-        IndexSearcher searcher = new IndexSearcher(r);
-        searcher.setSimilarity(sim);
-        Query query = new BoostQuery(
-            new BooleanQuery.Builder().add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
-                .add(new TermQuery(new Term("match", "yes")), Occur.FILTER)
-                .build(),
-            3.2f
-        );
-        TopDocs topDocs = searcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits.value);
-        assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);
-        w.close();
-        dir.close();
+            try (IndexReader r = DirectoryReader.open(w)) {
+                w.close();
+                IndexSearcher searcher = newSearcher(r);
+                searcher.setSimilarity(sim);
+                Query query = new BoostQuery(
+                    new BooleanQuery.Builder().add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
+                        .add(new TermQuery(new Term("match", "yes")), Occur.FILTER)
+                        .build(),
+                    3.2f
+                );
+                TopDocs topDocs = searcher.search(query, 1);
+                assertEquals(1, topDocs.totalHits.value);
+                assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);
+            }
+        }
     }
 }

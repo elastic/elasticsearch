@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
@@ -128,7 +129,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             var mismatchingBaseClasses = testClassesCandidate.stream()
                 .filter(testClassDefaultPredicate)
                 .filter(TestingConventionsCheckWorkAction::seemsLikeATest)
-                .collect(Collectors.toList());
+                .toList();
             if (mismatchingBaseClasses.isEmpty() == false) {
                 throw new GradleException(
                     "Following test classes do not extend any supported base class:\n\t"
@@ -141,7 +142,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             // ensure base class matching do match suffix
             var matchingBaseClassNotMatchingSuffix = matchingBaseClass.stream()
                 .filter(c -> suffixes.stream().allMatch(s -> c.getName().endsWith(s) == false))
-                .collect(Collectors.toList());
+                .toList();
             if (matchingBaseClassNotMatchingSuffix.isEmpty() == false) {
                 throw new GradleException(
                     "Following test classes do not match naming convention to use suffix "
@@ -202,8 +203,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         }
 
         private static boolean isAnnotated(Method method, Class<?> annotation) {
-            return List.of(method.getAnnotations())
-                .stream()
+            return Stream.of(method.getAnnotations())
                 .anyMatch(presentAnnotation -> annotation.isAssignableFrom(presentAnnotation.getClass()));
         }
 

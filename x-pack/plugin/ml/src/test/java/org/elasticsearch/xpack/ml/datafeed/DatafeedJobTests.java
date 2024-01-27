@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -176,6 +176,7 @@ public class DatafeedJobTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(0L, 1000L);
         FlushJobAction.Request flushRequest = new FlushJobAction.Request(jobId);
         flushRequest.setCalcInterim(true);
+        flushRequest.setRefreshRequired(false);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
@@ -202,6 +203,7 @@ public class DatafeedJobTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(0L, 1500L);
         FlushJobAction.Request flushRequest = new FlushJobAction.Request(jobId);
         flushRequest.setCalcInterim(true);
+        flushRequest.setRefreshRequired(false);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
         verify(client).execute(same(PersistJobAction.INSTANCE), eq(new PersistJobAction.Request(jobId)));
     }
@@ -226,6 +228,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(flushJobRequests.getAllValues().size(), equalTo(1));
         FlushJobAction.Request flushRequest = new FlushJobAction.Request(jobId);
         flushRequest.setCalcInterim(true);
+        flushRequest.setRefreshRequired(false);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
         verify(client).execute(same(PersistJobAction.INSTANCE), eq(new PersistJobAction.Request(jobId)));
     }
@@ -285,6 +288,7 @@ public class DatafeedJobTests extends ESTestCase {
         flushRequest.setCalcInterim(true);
         flushRequest.setAdvanceTime("59000");
         flushRequest.setWaitForNormalization(false);
+        flushRequest.setRefreshRequired(false);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
 

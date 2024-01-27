@@ -22,11 +22,7 @@ public class BulkAction extends ActionType<BulkResponse> {
     );
 
     private BulkAction() {
-        super(NAME, BulkResponse::new);
+        super(NAME);
     }
 
-    @Override
-    public TransportRequestOptions transportOptions() {
-        return TRANSPORT_REQUEST_OPTIONS;
-    }
 }

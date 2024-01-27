@@ -31,6 +31,7 @@ import java.io.InputStream;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class BlobStoreFormatTests extends ESTestCase {
@@ -113,7 +114,7 @@ public class BlobStoreFormatTests extends ESTestCase {
         BlobObj blobObj = new BlobObj(veryRedundantText.toString());
         checksumFormat.write(blobObj, blobContainer, "blob-comp", true);
         checksumFormat.write(blobObj, blobContainer, "blob-not-comp", false);
-        Map<String, BlobMetadata> blobs = blobContainer.listBlobsByPrefix("blob-");
+        Map<String, BlobMetadata> blobs = blobContainer.listBlobsByPrefix(randomPurpose(), "blob-");
         assertEquals(blobs.size(), 2);
         assertThat(blobs.get("blob-not-comp").length(), greaterThan(blobs.get("blob-comp").length()));
     }
@@ -146,8 +147,8 @@ public class BlobStoreFormatTests extends ESTestCase {
     }
 
     protected void randomCorruption(BlobContainer blobContainer, String blobName) throws IOException {
-        final byte[] buffer = new byte[(int) blobContainer.listBlobsByPrefix(blobName).get(blobName).length()];
-        try (InputStream inputStream = blobContainer.readBlob(blobName)) {
+        final byte[] buffer = new byte[(int) blobContainer.listBlobsByPrefix(randomPurpose(), blobName).get(blobName).length()];
+        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), blobName)) {
             Streams.readFully(inputStream, buffer);
         }
         final BytesArray corruptedBytes;
@@ -163,7 +164,7 @@ public class BlobStoreFormatTests extends ESTestCase {
             // another sequence of 8 zero bytes anywhere in the file, let alone such a sequence followed by a correct checksum.
             corruptedBytes = new BytesArray(buffer, 0, location);
         }
-        blobContainer.writeBlob(blobName, corruptedBytes, false);
+        blobContainer.writeBlob(randomPurpose(), blobName, corruptedBytes, false);
     }
 
 }

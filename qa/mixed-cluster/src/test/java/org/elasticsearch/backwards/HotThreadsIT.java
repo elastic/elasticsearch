@@ -17,8 +17,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class HotThreadsIT extends ESRestTestCase {
 
+    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+
     public void testHotThreads() throws Exception {
-        final IndexingIT.Nodes nodes = IndexingIT.buildNodeAndVersions(client());
+        final MixedClusterTestNodes nodes = MixedClusterTestNodes.buildNodes(client(), BWC_NODES_VERSION);
         assumeFalse("no new node found", nodes.getNewNodes().isEmpty());
         assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
         assumeTrue(

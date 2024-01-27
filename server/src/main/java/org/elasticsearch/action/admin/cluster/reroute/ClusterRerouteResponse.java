@@ -82,7 +82,7 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
         RoutingExplanations.writeTo(explanations, out);
     }
 
-    private boolean emitState(ToXContent.Params params) {
+    private static boolean emitState(ToXContent.Params params) {
         return Objects.equals(params.param("metric"), "none") == false;
     }
 

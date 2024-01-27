@@ -275,7 +275,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         return blobs;
     }
 
-    private String httpServerUrl(final HttpExchange exchange) {
+    private static String httpServerUrl(final HttpExchange exchange) {
         return "http://" + exchange.getRequestHeaders().get("HOST").get(0);
     }
 

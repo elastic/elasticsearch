@@ -11,10 +11,10 @@ package org.elasticsearch.tasks;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.TaskManagerTestCase;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +30,6 @@ import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 
 import java.io.Closeable;
@@ -38,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
@@ -113,8 +113,8 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
 
             final MockTransportService parentTransportService = MockTransportService.createNewService(
                 Settings.EMPTY,
-                Version.CURRENT,
-                TransportVersion.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool
             );
             resources.add(parentTransportService);
@@ -124,15 +124,15 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
 
             final MockTransportService childTransportService = MockTransportService.createNewService(
                 Settings.EMPTY,
-                Version.CURRENT,
-                TransportVersion.CURRENT,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
                 threadPool
             );
             resources.add(childTransportService);
             childTransportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(childTransportService));
             childTransportService.registerRequestHandler(
                 "internal:testAction[c]",
-                ThreadPool.Names.MANAGEMENT, // busy-wait for cancellation but not on a transport thread
+                threadPool.executor(ThreadPool.Names.MANAGEMENT), // busy-wait for cancellation but not on a transport thread
                 (StreamInput in) -> new TransportRequest.Empty(in) {
                     @Override
                     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
@@ -221,7 +221,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         }
     }
 
-    private static class ChildResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
+    private static class ChildResponseHandler extends TransportResponseHandler.Empty {
         private final Runnable onException;
 
         ChildResponseHandler(Runnable onException) {
@@ -229,7 +229,12 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         }
 
         @Override
-        public void handleResponse(TransportResponse.Empty response) {
+        public Executor executor() {
+            return TransportResponseHandler.TRANSPORT_WORKER;
+        }
+
+        @Override
+        public void handleResponse() {
             fail("should not get successful response");
         }
 
@@ -237,11 +242,6 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         public void handleException(TransportException exp) {
             assertThat(exp.unwrapCause(), anyOf(instanceOf(TaskCancelledException.class), instanceOf(NodeDisconnectedException.class)));
             onException.run();
-        }
-
-        @Override
-        public TransportResponse.Empty read(StreamInput in) {
-            return TransportResponse.Empty.INSTANCE;
         }
     }
 

@@ -47,12 +47,6 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public ScheduleTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser)
-        throws IOException {
-        return ScheduleTriggerEvent.parse(parser, watchId, context, clock);
-    }
-
-    @Override
     public synchronized void start(Collection<Watch> jobs) {
         logger.info("starting scheduler");
         jobs.forEach((watch) -> watches.get().put(watch.id(), watch));

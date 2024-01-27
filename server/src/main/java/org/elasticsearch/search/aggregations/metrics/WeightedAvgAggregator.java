@@ -13,7 +13,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -77,7 +76,7 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
                 if (docValues.advanceExact(doc) && docWeights.advanceExact(doc)) {
                     if (docWeights.docValueCount() > 1) {
-                        throw new AggregationExecutionException(
+                        throw new IllegalArgumentException(
                             "Encountered more than one weight for a "
                                 + "single document. Use a script to combine multiple weights-per-doc into a single value."
                         );

@@ -99,7 +99,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.name = in.readString();
         this.schedule = in.readString();
         this.repository = in.readString();
-        this.configuration = in.readMap();
+        this.configuration = in.readGenericMap();
         this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
     }
 

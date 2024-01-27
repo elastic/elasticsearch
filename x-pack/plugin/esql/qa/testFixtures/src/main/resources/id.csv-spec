@@ -1,0 +1,130 @@
+//
+// Tests for _id fields
+//
+
+selectAll
+FROM apps [metadata _id];
+ignoreOrder:true
+
+id:integer |name:keyword   |version:version     | _id:keyword
+1          |aaaaa          |1                   | 1
+2          |bbbbb          |2.1                 | 2
+3          |ccccc          |2.3.4               | 3
+4          |ddddd          |2.12.0              | 4
+5          |eeeee          |1.11.0              | 5
+6          |fffff          |5.2.9               | 6
+7          |ggggg          |5.2.9-SNAPSHOT      | 7
+8          |hhhhh          |1.2.3.4             | 8
+9          |iiiii          |bad                 | 9
+10         |jjjjj          |5.2.9               | 10
+11         |kkkkk          |null                | 11 
+12         |aaaaa          |1.2.3.4             | 12
+13         |lllll          |null                | 13
+14         |mmmmm          |5.2.9               | 14
+;
+
+filterById
+FROM apps [metadata _id]| WHERE _id == "4";
+
+id:i |name:k |version:v | _id:k
+4    |ddddd  |2.12.0    | 4
+;
+
+keepId
+FROM apps [metadata _id] | WHERE id == 3 | KEEP _id;
+
+_id:k
+3
+;
+
+idRangeAndSort
+FROM apps [metadata _id] | WHERE _id >= "2" AND _id <= "7" | SORT _id | keep id, name, _id;
+
+id:i    |name:k       | _id:k
+2       |bbbbb        | 2
+3       |ccccc        | 3
+4       |ddddd        | 4
+5       |eeeee        | 5
+6       |fffff        | 6
+7       |ggggg        | 7
+;
+
+orderById
+FROM apps [metadata _id] | KEEP _id, name | SORT _id;
+
+_id:k  | name:s
+1      | aaaaa
+10     | jjjjj
+11     | kkkkk
+12     | aaaaa
+13     | lllll
+14     | mmmmm
+2      | bbbbb
+3      | ccccc
+4      | ddddd
+5      | eeeee
+6      | fffff
+7      | ggggg
+8      | hhhhh
+9      | iiiii
+;
+
+orderByIdDesc
+FROM apps [metadata _id] | KEEP _id, name | SORT _id DESC;
+
+_id:k  | name:s
+
+9      | iiiii
+8      | hhhhh
+7      | ggggg
+6      | fffff
+5      | eeeee
+4      | ddddd
+3      | ccccc
+2      | bbbbb
+14     | mmmmm
+13     | lllll
+12     | aaaaa
+11     | kkkkk
+10     | jjjjj
+1      | aaaaa
+;
+
+concatId
+FROM apps [metadata _id] | eval c = concat(_id, name) | SORT _id | KEEP c;
+
+c:k
+1aaaaa
+10jjjjj
+11kkkkk
+12aaaaa
+13lllll
+14mmmmm
+2bbbbb
+3ccccc
+4ddddd
+5eeeee
+6fffff
+7ggggg
+8hhhhh
+9iiiii
+;
+
+statsOnId
+FROM apps [metadata _id] | stats c = count(_id), d = count_distinct(_id);
+
+c:l | d:l
+14  | 14
+;
+
+
+statsOnIdByGroup
+FROM apps [metadata _id] | stats c = count(_id) by name | sort c desc, name | limit 5;
+
+c:l | name:k
+2   | aaaaa
+1   | bbbbb
+1   | ccccc
+1   | ddddd
+1   | eeeee
+;

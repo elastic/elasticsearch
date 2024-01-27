@@ -32,6 +32,6 @@ public abstract class HistogramValue {
      * The current count of the histogram
      * @return the current count of the histogram
      */
-    public abstract int count();
+    public abstract long count();
 
 }

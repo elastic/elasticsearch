@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.LicenseUtils;
@@ -86,7 +87,7 @@ public class RRFRankBuilder extends RankBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_8_0;
+        return TransportVersions.V_8_8_0;
     }
 
     public int rankConstant() {

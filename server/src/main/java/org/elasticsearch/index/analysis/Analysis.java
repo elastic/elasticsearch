@@ -40,24 +40,32 @@ import org.apache.lucene.analysis.no.NorwegianAnalyzer;
 import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
+import org.apache.lucene.analysis.sr.SerbianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
+import org.apache.lucene.analysis.util.CSVUtil;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.synonyms.PagedResult;
+import org.elasticsearch.synonyms.SynonymRule;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -124,6 +132,7 @@ public class Analysis {
         entry("_portuguese_", PortugueseAnalyzer.getDefaultStopSet()),
         entry("_romanian_", RomanianAnalyzer.getDefaultStopSet()),
         entry("_russian_", RussianAnalyzer.getDefaultStopSet()),
+        entry("_serbian_", SerbianAnalyzer.getDefaultStopSet()),
         entry("_sorani_", SoraniAnalyzer.getDefaultStopSet()),
         entry("_spanish_", SpanishAnalyzer.getDefaultStopSet()),
         entry("_swedish_", SwedishAnalyzer.getDefaultStopSet()),
@@ -250,6 +259,52 @@ public class Analysis {
         }
     }
 
+    public static List<String> getWordList(
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        boolean removeComments,
+        boolean checkDuplicate
+    ) {
+        final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments);
+        if (ruleList != null && ruleList.isEmpty() == false && checkDuplicate) {
+            checkDuplicateRules(ruleList);
+        }
+        return ruleList;
+    }
+
+    /**
+     * This method checks for any duplicate rules in the provided ruleList. Each rule in the list is parsed with CSVUtil.parse
+     * to separate the rule into individual components, represented as a String array. Only the first component from each rule
+     * is considered in the duplication check.
+     *
+     * The method will ignore any line that starts with a '#' character, treating it as a comment.
+     *
+     * The check is performed by adding the first component of each rule into a HashSet (dup), which does not allow duplicates.
+     * If the addition to the HashSet returns false, it means that item was already present in the set, indicating a duplicate.
+     * In such a case, an IllegalArgumentException is thrown specifying the duplicate term and the line number in the original list.
+     *
+     * @param ruleList The list of rules to check for duplicates.
+     * @throws IllegalArgumentException If a duplicate rule is found.
+     */
+    private static void checkDuplicateRules(List<String> ruleList) {
+        Set<String> dup = new HashSet<>();
+        int lineNum = 0;
+        for (String line : ruleList) {
+            // ignore comments
+            if (line.startsWith("#") == false) {
+                String[] values = CSVUtil.parse(line);
+                if (dup.add(values[0]) == false) {
+                    throw new IllegalArgumentException(
+                        "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + lineNum + "]"
+                    );
+                }
+            }
+            ++lineNum;
+        }
+    }
+
     private static List<String> loadWordList(Path path, boolean removeComments) throws IOException {
         final List<String> result = new ArrayList<>();
         try (BufferedReader br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
@@ -290,6 +345,19 @@ public class Analysis {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());
             throw new IllegalArgumentException(message, ioe);
         }
+    }
+
+    public static Reader getReaderFromIndex(String synonymsSet, SynonymsManagementAPIService synonymsManagementAPIService) {
+        final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>();
+        synonymsManagementAPIService.getSynonymSetRules(synonymsSet, 0, 10_000, synonymsLoadingFuture);
+        PagedResult<SynonymRule> results = synonymsLoadingFuture.actionGet();
+
+        SynonymRule[] synonymRules = results.pageResults();
+        StringBuilder sb = new StringBuilder();
+        for (SynonymRule synonymRule : synonymRules) {
+            sb.append(synonymRule.synonyms()).append(System.lineSeparator());
+        }
+        return new StringReader(sb.toString());
     }
 
 }

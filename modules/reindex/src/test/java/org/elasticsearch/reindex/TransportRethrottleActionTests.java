@@ -34,9 +34,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.theInstance;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TransportRethrottleActionTests extends ESTestCase {
     private int slices;
@@ -65,6 +67,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         float newRequestsPerSecond = randomValueOtherThanMany(f -> f <= 0, () -> randomFloat());
         @SuppressWarnings("unchecked")
         ActionListener<TaskInfo> listener = mock(ActionListener.class);
+        when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
 
         TransportRethrottleAction.rethrottle(logger, localNodeId, client, task, newRequestsPerSecond, listener);
 
@@ -73,7 +76,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         @SuppressWarnings({ "unchecked", "rawtypes" }) // Magical generics incantation.....
         ArgumentCaptor<ActionListener<ListTasksResponse>> subListener = ArgumentCaptor.forClass((Class) ActionListener.class);
         if (runningSlices > 0) {
-            verify(client).execute(eq(RethrottleAction.INSTANCE), subRequest.capture(), subListener.capture());
+            verify(client).execute(eq(ReindexPlugin.RETHROTTLE_ACTION), subRequest.capture(), subListener.capture());
 
             assertEquals(new TaskId(localNodeId, task.getId()), subRequest.getValue().getTargetParentTaskId());
             assertEquals(newRequestsPerSecond / runningSlices, subRequest.getValue().getRequestsPerSecond(), 0.00001f);
@@ -100,6 +103,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
             tasks.add(
                 new TaskInfo(
                     new TaskId("test", 123),
+                    "test",
                     "test",
                     "test",
                     "test",
@@ -136,6 +140,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
             tasks.add(
                 new TaskInfo(
                     new TaskId("test", 123),
+                    "test",
                     "test",
                     "test",
                     "test",

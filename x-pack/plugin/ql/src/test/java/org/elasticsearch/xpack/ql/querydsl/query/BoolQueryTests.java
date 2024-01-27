@@ -19,6 +19,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -124,6 +125,31 @@ public class BoolQueryTests extends ESTestCase {
                 new ExistsQuery(new Source(1, 1, StringUtils.EMPTY), "f1"),
                 new ExistsQuery(new Source(1, 7, StringUtils.EMPTY), "f2")
             ).toString()
+        );
+    }
+
+    public void testNotAllNegated() {
+        var q = new BoolQuery(Source.EMPTY, true, new ExistsQuery(Source.EMPTY, "f1"), new ExistsQuery(Source.EMPTY, "f2"));
+        assertThat(q.negate(Source.EMPTY), equalTo(new NotQuery(Source.EMPTY, q)));
+    }
+
+    public void testNotSomeNegated() {
+        var q = new BoolQuery(
+            Source.EMPTY,
+            true,
+            new ExistsQuery(Source.EMPTY, "f1"),
+            new NotQuery(Source.EMPTY, new ExistsQuery(Source.EMPTY, "f2"))
+        );
+        assertThat(
+            q.negate(Source.EMPTY),
+            equalTo(
+                new BoolQuery(
+                    Source.EMPTY,
+                    false,
+                    new NotQuery(Source.EMPTY, new ExistsQuery(Source.EMPTY, "f1")),
+                    new ExistsQuery(Source.EMPTY, "f2")
+                )
+            )
         );
     }
 

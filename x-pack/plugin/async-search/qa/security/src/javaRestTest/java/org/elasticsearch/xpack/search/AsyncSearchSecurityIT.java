@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -22,6 +23,9 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,6 +35,7 @@ import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.hamcrest.CustomMatcher;
 import org.hamcrest.Matcher;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,6 +51,27 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class AsyncSearchSecurityIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .nodes(2)
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("test_kibana_user", "x-pack-test-password", "kibana_system", false)
+        .user("test-admin", "x-pack-test-password", "test-admin", false)
+        .user("user1", "x-pack-test-password", "user1", false)
+        .user("user2", "x-pack-test-password", "user2", false)
+        .user("user-dls", "x-pack-test-password", "user-dls", false)
+        .user("user-cancel", "x-pack-test-password", "user-cancel", false)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     /**
      * All tests run as a superuser but use <code>es-security-runas-user</code> to become a less privileged user.
      */
@@ -157,15 +183,19 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     private SearchHit[] getSearchHits(String asyncId, String user) throws IOException {
         final Response resp = getAsyncSearch(asyncId, user);
         assertOK(resp);
-        AsyncSearchResponse searchResponse = AsyncSearchResponse.fromXContent(
+        SearchResponse searchResponse = AsyncSearchResponse.fromXContent(
             XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
                 new BytesArray(EntityUtils.toByteArray(resp.getEntity())),
                 XContentType.JSON
             )
-        );
-        return searchResponse.getSearchResponse().getHits().getHits();
+        ).getSearchResponse();
+        try {
+            return searchResponse.getHits().asUnpooled().getHits();
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void testAuthorizationOfPointInTime() throws Exception {
@@ -204,7 +234,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         try {
             final Request request = new Request("POST", "/_async_search");
             setRunAsHeader(request, authorizedUser);
-            request.addParameter("wait_for_completion_timeout", "true");
+            request.addParameter("wait_for_completion_timeout", "1s");
             request.addParameter("keep_on_completion", "true");
             if (randomBoolean()) {
                 request.addParameter("index", "index-" + authorizedUser);

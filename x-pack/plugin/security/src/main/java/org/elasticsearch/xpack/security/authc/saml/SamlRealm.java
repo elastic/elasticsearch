@@ -278,7 +278,7 @@ public final class SamlRealm extends Realm implements Releasable {
         this.populateUserMetadata = config.getSetting(POPULATE_USER_METADATA);
         this.principalAttribute = AttributeParser.forSetting(logger, PRINCIPAL_ATTRIBUTE, config, true);
 
-        this.groupsAttribute = AttributeParser.forSetting(logger, GROUPS_ATTRIBUTE, config, false);
+        this.groupsAttribute = AttributeParser.forSetting(logger, GROUPS_ATTRIBUTE, config);
         this.dnAttribute = AttributeParser.forSetting(logger, DN_ATTRIBUTE, config, false);
         this.nameAttribute = AttributeParser.forSetting(logger, NAME_ATTRIBUTE, config, false);
         this.mailAttribute = AttributeParser.forSetting(logger, MAIL_ATTRIBUTE, config, false);
@@ -579,15 +579,15 @@ public final class SamlRealm extends Realm implements Releasable {
         }
 
         final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
-        ActionListener<AuthenticationResult<User>> wrappedListener = ActionListener.wrap(auth -> {
+        ActionListener<AuthenticationResult<User>> wrappedListener = baseListener.delegateFailureAndWrap((l, auth) -> {
             if (auth.isAuthenticated()) {
                 // Add the SAML token details as metadata on the authentication
                 Map<String, Object> metadata = new HashMap<>(auth.getMetadata());
                 metadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
                 auth = AuthenticationResult.success(auth.getValue(), metadata);
             }
-            baseListener.onResponse(auth);
-        }, baseListener::onFailure);
+            l.onResponse(auth);
+        });
 
         if (delegatedRealms.hasDelegation()) {
             delegatedRealms.resolve(principal, wrappedListener);
@@ -617,11 +617,11 @@ public final class SamlRealm extends Realm implements Releasable {
         final String mail = resolveSingleValueAttribute(attributes, mailAttribute, MAIL_ATTRIBUTE.name(config));
         UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMeta, config);
         logger.debug("SAML attribute mapping = [{}]", userData);
-        roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
+        roleMapper.resolveRoles(userData, wrappedListener.delegateFailureAndWrap((l, roles) -> {
             final User user = new User(principal, roles.toArray(new String[roles.size()]), name, mail, userMeta, true);
             logger.debug("SAML user = [{}]", user);
-            wrappedListener.onResponse(AuthenticationResult.success(user));
-        }, wrappedListener::onFailure));
+            l.onResponse(AuthenticationResult.success(user));
+        }));
     }
 
     public Map<String, Object> createTokenMetadata(SamlNameId nameId, String session) {
@@ -644,7 +644,7 @@ public final class SamlRealm extends Realm implements Releasable {
         return tokenMeta;
     }
 
-    private String resolveSingleValueAttribute(SamlAttributes attributes, AttributeParser parser, String name) {
+    private static String resolveSingleValueAttribute(SamlAttributes attributes, AttributeParser parser, String name) {
         final List<String> list = parser.getAttribute(attributes);
         switch (list.size()) {
             case 0:
@@ -1002,6 +1002,66 @@ public final class SamlRealm extends Realm implements Releasable {
         @Override
         public String toString() {
             return name;
+        }
+
+        static AttributeParser forSetting(Logger logger, SamlRealmSettings.AttributeSettingWithDelimiter setting, RealmConfig realmConfig) {
+            SamlRealmSettings.AttributeSetting attributeSetting = setting.getAttributeSetting();
+            if (realmConfig.hasSetting(setting.getDelimiter())) {
+                if (realmConfig.hasSetting(attributeSetting.getAttribute()) == false) {
+                    throw new SettingsException(
+                        "Setting ["
+                            + RealmSettings.getFullSettingKey(realmConfig, setting.getDelimiter())
+                            + "] cannot be set unless ["
+                            + RealmSettings.getFullSettingKey(realmConfig, attributeSetting.getAttribute())
+                            + "] is also set"
+                    );
+                }
+                if (realmConfig.hasSetting(attributeSetting.getPattern())) {
+                    throw new SettingsException(
+                        "Setting ["
+                            + RealmSettings.getFullSettingKey(realmConfig, attributeSetting.getPattern())
+                            + "] can not be set when ["
+                            + RealmSettings.getFullSettingKey(realmConfig, setting.getDelimiter())
+                            + "] is set"
+                    );
+                }
+
+                String attributeName = realmConfig.getSetting(attributeSetting.getAttribute());
+                String delimiter = realmConfig.getSetting(setting.getDelimiter());
+                return new AttributeParser(
+                    "SAML Attribute ["
+                        + attributeName
+                        + "] with delimiter ["
+                        + delimiter
+                        + "] for ["
+                        + attributeSetting.name(realmConfig)
+                        + "]",
+                    attributes -> {
+                        List<String> attributeValues = attributes.getAttributeValues(attributeName);
+                        if (attributeValues.size() > 1) {
+                            throw SamlUtils.samlException(
+                                "Expected single string value for attribute: ["
+                                    + attributeName
+                                    + "], but got list with "
+                                    + attributeValues.size()
+                                    + " values"
+                            );
+                        }
+                        return attributeValues.stream()
+                            .map(s -> s.split(Pattern.quote(delimiter)))
+                            .flatMap(Arrays::stream)
+                            .filter(attribute -> {
+                                if (Strings.isNullOrEmpty(attribute)) {
+                                    logger.debug("Attribute [{}] has empty components when using delimiter [{}]", attributeName, delimiter);
+                                    return false;
+                                }
+                                return true;
+                            })
+                            .collect(Collectors.toList());
+                    }
+                );
+            }
+            return AttributeParser.forSetting(logger, attributeSetting, realmConfig, false);
         }
 
         static AttributeParser forSetting(

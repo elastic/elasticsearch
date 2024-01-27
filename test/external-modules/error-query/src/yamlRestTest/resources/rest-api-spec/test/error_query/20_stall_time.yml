@@ -1,0 +1,47 @@
+# Integration tests for error_query using stall_time_seconds field
+#
+
+---
+"Error query with stall time":
+  - skip:
+      version: " - 8.9.99"
+      reason: stall_time_seconds error_query field added in 8.10
+
+  - do:
+      indices.create:
+        index: test_exception
+        body:
+          settings:
+            index.number_of_shards: 1
+
+  # to get timed_out=true, you must have indexed some data
+  - do:
+      index:
+        index:  test_exception
+        id:     "1"
+        body:   { id: 1, foo: bar, age: 18 }
+
+  - do:
+      index:
+        index:  test_exception
+        id:     "42"
+        body:   { id: 42, foo: bar, age: 18 }
+
+  - do:
+      indices.refresh:
+        index: test_exception
+
+  - do:
+      search:
+        index: test_exception
+        timeout: 1500ms
+        body:
+          query:
+            "error_query": { "indices": [ { name: "test_exception", stall_time_seconds: 3, error_type: "none" } ] }
+
+  - match:  { hits.total.value:                                                       0 }
+  - match:  { _shards.total:                                                          1 }
+  - match:  { _shards.successful:                                                     1 }
+  - match:  { _shards.failed:                                                         0 }
+  - gte: { took: 3000 }
+  - is_true: timed_out

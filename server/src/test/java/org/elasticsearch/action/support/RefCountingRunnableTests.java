@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 
@@ -166,10 +167,10 @@ public class RefCountingRunnableTests extends ESTestCase {
             final String expectedMessage;
             if (randomBoolean()) {
                 throwingRunnable = randomBoolean() ? refs::acquire : refs::acquireListener;
-                expectedMessage = RefCountingRunnable.ALREADY_CLOSED_MESSAGE;
+                expectedMessage = AbstractRefCounted.ALREADY_CLOSED_MESSAGE;
             } else {
                 throwingRunnable = refs::close;
-                expectedMessage = "already closed";
+                expectedMessage = AbstractRefCounted.INVALID_DECREF_MESSAGE;
             }
 
             assertEquals(expectedMessage, expectThrows(AssertionError.class, throwingRunnable).getMessage());

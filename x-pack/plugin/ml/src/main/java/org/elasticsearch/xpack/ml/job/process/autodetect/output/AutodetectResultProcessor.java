@@ -58,8 +58,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_FORECAST_NATIVE_PROCESS_KILLED;
 
 /**
@@ -394,10 +392,12 @@ public class AutodetectResultProcessor {
             try {
                 bulkResultsPersister.executeRequest();
                 bulkAnnotationsPersister.executeRequest();
-                persister.commitWrites(
-                    jobId,
-                    EnumSet.of(JobResultsPersister.CommitType.RESULTS, JobResultsPersister.CommitType.ANNOTATIONS)
-                );
+                if (flushAcknowledgement.getRefreshRequired()) {
+                    persister.commitWrites(
+                        jobId,
+                        EnumSet.of(JobResultsPersister.CommitType.RESULTS, JobResultsPersister.CommitType.ANNOTATIONS)
+                    );
+                }
             } catch (Exception e) {
                 logger.error(
                     "["
@@ -504,19 +504,27 @@ public class AutodetectResultProcessor {
             return;
         }
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
-            @Override
-            public void onResponse(PutJobAction.Response response) {
-                updateModelSnapshotSemaphore.release();
-                logger.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
-            }
+        RetryableUpdateModelSnapshotAction updateModelSnapshotAction = new RetryableUpdateModelSnapshotAction(
+            client,
+            updateRequest,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(PutJobAction.Response response) {
+                    updateModelSnapshotSemaphore.release();
+                    logger.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                updateModelSnapshotSemaphore.release();
-                logger.error("[" + jobId + "] Failed to update job with new model snapshot id [" + modelSnapshot.getSnapshotId() + "]", e);
+                @Override
+                public void onFailure(Exception e) {
+                    updateModelSnapshotSemaphore.release();
+                    logger.error(
+                        "[" + jobId + "] Failed to update job with new model snapshot id [" + modelSnapshot.getSnapshotId() + "]",
+                        e
+                    );
+                }
             }
-        });
+        );
+        updateModelSnapshotAction.run();
     }
 
     public void awaitCompletion() throws TimeoutException {

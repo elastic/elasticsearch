@@ -1,0 +1,32 @@
+[discrete]
+[[esql-cosh]]
+=== `COSH`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/cosh.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine].
+
+*Supported types*
+
+include::types/cosh.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/floats.csv-spec[tag=cosh]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/floats.csv-spec[tag=cosh-result]
+|===

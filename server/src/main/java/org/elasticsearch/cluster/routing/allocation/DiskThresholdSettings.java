@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.util.Iterator;
 import java.util.List;
@@ -152,7 +152,11 @@ public class DiskThresholdSettings {
     private volatile TimeValue rerouteInterval;
 
     static {
-        assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // this check is unnecessary in v9
+        checkAutoReleaseIndexEnabled();
+    }
+
+    @UpdateForV9 // this check is unnecessary in v9
+    private static void checkAutoReleaseIndexEnabled() {
         final String AUTO_RELEASE_INDEX_ENABLED_KEY = "es.disk.auto_release_flood_stage_block";
         final String property = System.getProperty(AUTO_RELEASE_INDEX_ENABLED_KEY);
         if (property != null) {
@@ -426,7 +430,7 @@ public class DiskThresholdSettings {
         this.frozenFloodStageMaxHeadroom = maxHeadroom;
     }
 
-    private ByteSizeValue getFreeBytesThreshold(ByteSizeValue total, RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {
+    private static ByteSizeValue getFreeBytesThreshold(ByteSizeValue total, RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {
         // If bytes are given, they can be readily returned as free bytes. If percentages are given, we need to calculate the free bytes.
         if (watermark.isAbsolute()) {
             return watermark.getAbsolute();
@@ -450,7 +454,7 @@ public class DiskThresholdSettings {
         return getFreeBytesThreshold(total, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom);
     }
 
-    private ByteSizeValue getMinimumTotalSizeForBelowWatermark(
+    private static ByteSizeValue getMinimumTotalSizeForBelowWatermark(
         ByteSizeValue used,
         RelativeByteSizeValue watermark,
         ByteSizeValue maxHeadroom
@@ -490,7 +494,7 @@ public class DiskThresholdSettings {
         return rerouteInterval;
     }
 
-    private String describeThreshold(
+    private static String describeThreshold(
         ByteSizeValue total,
         RelativeByteSizeValue watermark,
         ByteSizeValue maxHeadroom,

@@ -30,7 +30,7 @@ public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
         new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
-            MapperBuilderContext.root(false)
+            MapperBuilderContext.root(false, false)
         ),
         new MetadataFieldMapper[0],
         null
@@ -133,10 +133,12 @@ public final class Mapping implements ToXContentFragment {
      *
      * @param mergeWith the new mapping to merge into this one.
      * @param reason the reason this merge was initiated.
+     * @param newFieldsBudget how many new fields can be added during the merge process
      * @return the resulting merged mapping.
      */
-    Mapping merge(Mapping mergeWith, MergeReason reason) {
-        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, MapperBuilderContext.root(isSourceSynthetic()));
+    Mapping merge(Mapping mergeWith, MergeReason reason, long newFieldsBudget) {
+        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, newFieldsBudget);
+        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, mergeContext);
 
         // When merging metadata fields as part of applying an index template, new field definitions
         // completely overwrite existing ones instead of being merged. This behavior matches how we
@@ -148,7 +150,7 @@ public final class Mapping implements ToXContentFragment {
             if (mergeInto == null || reason == MergeReason.INDEX_TEMPLATE) {
                 merged = metaMergeWith;
             } else {
-                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith, MapperBuilderContext.root(isSourceSynthetic()));
+                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith, mergeContext);
             }
             mergedMetadataMappers.put(merged.getClass(), merged);
         }
@@ -167,6 +169,18 @@ public final class Mapping implements ToXContentFragment {
         }
 
         return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
+    }
+
+    /**
+     * Returns a copy of this mapper that ensures that the number of fields isn't greater than the provided fields budget.
+     * @param fieldsBudget the maximum number of fields this mapping may have
+     */
+    public Mapping withFieldsBudget(long fieldsBudget) {
+        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, fieldsBudget);
+        // get a copy of the root mapper, without any fields
+        RootObjectMapper shallowRoot = root.withoutMappers();
+        // calling merge on the shallow root to ensure we're only adding as many fields as allowed by the fields budget
+        return new Mapping(shallowRoot.merge(root, MergeReason.MAPPING_RECOVERY, mergeContext), metadataMappers, meta);
     }
 
     @Override

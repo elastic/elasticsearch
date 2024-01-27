@@ -12,12 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -68,6 +68,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -190,7 +191,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
     private static TestPlugin getMasterNodePlugin() {
         return internalCluster().getCurrentMasterNodeInstance(PluginsService.class)
             .filterPlugins(TestPlugin.class)
-            .stream()
             .findFirst()
             .orElseThrow(() -> new AssertionError("no plugin"));
     }
@@ -253,7 +253,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
             }
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 
@@ -378,7 +378,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "ES-4677")
     public void testRelocation() {
         var routingTableWatcher = new RoutingTableWatcher();
 
@@ -498,7 +497,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             }
             // Regular search
             for (int i = 0; i < 10; i++) {
-                final var search = client().prepareSearch(INDEX_NAME).setProfile(true);
+                final var search = prepareSearch(INDEX_NAME).setProfile(true);
                 switch (randomIntBetween(0, 2)) {
                     case 0 -> search.setRouting(randomAlphaOfLength(10));
                     case 1 -> search.setPreference(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
@@ -506,11 +505,13 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         // do nothing
                     }
                 }
-                final var profileResults = search.get().getProfileResults();
-                assertThat(profileResults, not(anEmptyMap()));
-                for (final var searchShardProfileKey : profileResults.keySet()) {
-                    assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
-                }
+                assertResponse(search, resp -> {
+                    final var profileResults = resp.getProfileResults();
+                    assertThat(profileResults, not(anEmptyMap()));
+                    for (final var searchShardProfileKey : profileResults.keySet()) {
+                        assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
+                    }
+                });
             }
             // Search with PIT
             for (int i = 0; i < 10; i++) {
@@ -524,19 +525,17 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         // do nothing
                     }
                 }
-                String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openRequest).actionGet().getPointInTimeId();
+                String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
                 try {
-                    final var profileResults = client().prepareSearch()
-                        .setPointInTime(new PointInTimeBuilder(pitId))
-                        .setProfile(true)
-                        .get()
-                        .getProfileResults();
-                    assertThat(profileResults, not(anEmptyMap()));
-                    for (final var profileKey : profileResults.keySet()) {
-                        assertThat(profileKey, in(searchShardProfileKeys));
-                    }
+                    assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setProfile(true), response -> {
+                        var profileResults = response.getProfileResults();
+                        assertThat(profileResults, not(anEmptyMap()));
+                        for (final var profileKey : profileResults.keySet()) {
+                            assertThat(profileKey, in(searchShardProfileKeys));
+                        }
+                    });
                 } finally {
-                    client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId));
+                    client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId));
                 }
             }
             // search-shards API
@@ -700,7 +699,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 });
             }
 
-            RefreshResponse response = indicesAdmin().prepareRefresh(INDEX_NAME).execute().actionGet();
+            BroadcastResponse response = indicesAdmin().prepareRefresh(INDEX_NAME).get();
             assertThat(
                 "each unpromotable replica shard should be added to the shard failures",
                 response.getFailedShards(),

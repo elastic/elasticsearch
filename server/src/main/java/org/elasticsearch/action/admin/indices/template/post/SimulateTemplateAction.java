@@ -8,13 +8,12 @@
 
 package org.elasticsearch.action.admin.indices.template.post;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -32,7 +31,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
     public static final String NAME = "indices:admin/index_template/simulate";
 
     private SimulateTemplateAction() {
-        super(NAME, SimulateIndexTemplateResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -41,7 +40,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         private String templateName;
 
         @Nullable
-        private PutComposableIndexTemplateAction.Request indexTemplateRequest;
+        private TransportPutComposableIndexTemplateAction.Request indexTemplateRequest;
         private boolean includeDefaults = false;
 
         public Request() {}
@@ -53,7 +52,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             this.templateName = templateName;
         }
 
-        public Request(PutComposableIndexTemplateAction.Request indexTemplateRequest) {
+        public Request(TransportPutComposableIndexTemplateAction.Request indexTemplateRequest) {
             if (indexTemplateRequest == null) {
                 throw new IllegalArgumentException("index template body must be present");
             }
@@ -63,8 +62,8 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         public Request(StreamInput in) throws IOException {
             super(in);
             templateName = in.readOptionalString();
-            indexTemplateRequest = in.readOptionalWriteable(PutComposableIndexTemplateAction.Request::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            indexTemplateRequest = in.readOptionalWriteable(TransportPutComposableIndexTemplateAction.Request::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 includeDefaults = in.readBoolean();
             }
         }
@@ -74,7 +73,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             super.writeTo(out);
             out.writeOptionalString(templateName);
             out.writeOptionalWriteable(indexTemplateRequest);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeBoolean(includeDefaults);
             }
         }
@@ -104,7 +103,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         }
 
         @Nullable
-        public PutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
+        public TransportPutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
             return indexTemplateRequest;
         }
 
@@ -113,7 +112,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             return this;
         }
 
-        public Request indexTemplateRequest(PutComposableIndexTemplateAction.Request indexTemplateRequest) {
+        public Request indexTemplateRequest(TransportPutComposableIndexTemplateAction.Request indexTemplateRequest) {
             this.indexTemplateRequest = indexTemplateRequest;
             return this;
         }

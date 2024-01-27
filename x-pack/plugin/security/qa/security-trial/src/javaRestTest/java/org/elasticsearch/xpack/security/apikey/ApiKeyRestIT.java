@@ -15,14 +15,15 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -34,13 +35,17 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE;
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_DESCRIPTOR;
+import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
@@ -51,9 +56,11 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -196,6 +203,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         for (Map<String, Object> apiKeyMap : apiKeyMaps) {
             final String name = (String) apiKeyMap.get("name");
+            assertThat(apiKeyMap, not(hasKey("access")));
             @SuppressWarnings("unchecked")
             final var roleDescriptors = (Map<String, Object>) apiKeyMap.get("role_descriptors");
 
@@ -435,6 +443,23 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         doTestAuthenticationWithApiKey(apiKeyExpectingNoop.name, apiKeyExpectingNoop.id, apiKeyExpectingNoop.encoded);
     }
 
+    public void testBulkUpdateExpirationTimeApiKey() throws IOException {
+        final EncodedApiKey apiKey1 = createApiKey("my-api-key-name", Map.of());
+        final EncodedApiKey apiKey2 = createApiKey("my-other-api-key-name", Map.of());
+        final var bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+        final TimeValue expiration = ApiKeyTests.randomFutureExpirationTime();
+        bulkUpdateApiKeyRequest.setJsonEntity(
+            XContentTestUtils.convertToXContent(Map.of("ids", List.of(apiKey1.id, apiKey2.id), "expiration", expiration), XContentType.JSON)
+                .utf8ToString()
+        );
+        final Response bulkUpdateApiKeyResponse = performRequestUsingRandomAuthMethod(bulkUpdateApiKeyRequest);
+        assertOK(bulkUpdateApiKeyResponse);
+        final Map<String, Object> response = responseAsMap(bulkUpdateApiKeyResponse);
+        assertEquals(List.of(apiKey1.id(), apiKey2.id()), response.get("updated"));
+        assertNull(response.get("errors"));
+        assertEquals(List.of(), response.get("noops"));
+    }
+
     public void testGrantTargetCanUpdateApiKey() throws IOException {
         final var request = new Request("POST", "_security/api_key/grant");
         request.setOptions(
@@ -595,8 +620,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testRemoteIndicesSupportForApiKeys() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         createUser(REMOTE_INDICES_USER, END_USER_PASSWORD, List.of("remote_indices_role"));
         createRole("remote_indices_role", Set.of("grant_api_key", "manage_own_api_key"), "remote");
         final String remoteIndicesSection = """
@@ -684,9 +707,78 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     }
 
-    public void testCreateCrossClusterApiKey() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+    @SuppressWarnings("unchecked")
+    public void testQueryCrossClusterApiKeysByType() throws IOException {
+        final List<String> apiKeyIds = new ArrayList<>(3);
+        for (int i = 0; i < randomIntBetween(3, 5); i++) {
+            Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+            createRequest.setJsonEntity(Strings.format("""
+                {
+                  "name": "test-cross-key-query-%d",
+                  "access": {
+                    "search": [
+                      {
+                        "names": [ "whatever" ]
+                      }
+                    ]
+                  },
+                  "metadata": { "tag": %d, "label": "rest" }
+                }""", i, i));
+            setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+            ObjectPath createResponse = assertOKAndCreateObjectPath(client().performRequest(createRequest));
+            apiKeyIds.add(createResponse.evaluate("id"));
+        }
+        // the "cross_cluster" keys are not "rest" type
+        for (String restTypeQuery : List.of("""
+            {"query": {"term": {"type": "rest" }}}""", """
+            {"query": {"bool": {"must_not": {"term": {"type": "cross_cluster"}}}}}""", """
+            {"query": {"simple_query_string": {"query": "re* rest -cross_cluster", "fields": ["ty*"]}}}""", """
+            {"query": {"simple_query_string": {"query": "-cross*", "fields": ["type"]}}}""", """
+            {"query": {"prefix": {"type": "re" }}}""", """
+            {"query": {"wildcard": {"type": "r*t" }}}""", """
+            {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""")) {
+            Request queryRequest = new Request("GET", "/_security/_query/api_key");
+            queryRequest.addParameter("with_limited_by", String.valueOf(randomBoolean()));
+            queryRequest.setJsonEntity(restTypeQuery);
+            setUserForRequest(queryRequest, MANAGE_API_KEY_USER, END_USER_PASSWORD);
+            ObjectPath queryResponse = assertOKAndCreateObjectPath(client().performRequest(queryRequest));
+            assertThat(queryResponse.evaluate("total"), is(0));
+            assertThat(queryResponse.evaluate("count"), is(0));
+            assertThat(queryResponse.evaluate("api_keys"), iterableWithSize(0));
+        }
+        for (String crossClusterTypeQuery : List.of("""
+            {"query": {"term": {"type": "cross_cluster" }}}""", """
+            {"query": {"bool": {"must_not": {"term": {"type": "rest"}}}}}""", """
+            {"query": {"simple_query_string": {"query": "cro* cross_cluster -re*", "fields": ["ty*"]}}}""", """
+            {"query": {"simple_query_string": {"query": "-re*", "fields": ["type"]}}}""", """
+            {"query": {"prefix": {"type": "cro" }}}""", """
+            {"query": {"wildcard": {"type": "*oss_*er" }}}""", """
+            {"query": {"range": {"type": {"gte": "cross", "lte": "zzzz"}}}}""")) {
+            Request queryRequest = new Request("GET", "/_security/_query/api_key");
+            queryRequest.addParameter("with_limited_by", String.valueOf(randomBoolean()));
+            queryRequest.setJsonEntity(crossClusterTypeQuery);
+            setUserForRequest(queryRequest, MANAGE_API_KEY_USER, END_USER_PASSWORD);
+            ObjectPath queryResponse = assertOKAndCreateObjectPath(client().performRequest(queryRequest));
+            assertThat(queryResponse.evaluate("total"), is(apiKeyIds.size()));
+            assertThat(queryResponse.evaluate("count"), is(apiKeyIds.size()));
+            assertThat(queryResponse.evaluate("api_keys"), iterableWithSize(apiKeyIds.size()));
+            Iterator<?> apiKeys = ((List<?>) queryResponse.evaluate("api_keys")).iterator();
+            while (apiKeys.hasNext()) {
+                assertThat(apiKeyIds, hasItem((String) ((Map<String, Object>) apiKeys.next()).get("id")));
+            }
+        }
+        final Request queryRequest = new Request("GET", "/_security/_query/api_key");
+        queryRequest.addParameter("with_limited_by", String.valueOf(randomBoolean()));
+        queryRequest.setJsonEntity("""
+            {"query": {"bool": {"must": [{"term": {"type": "cross_cluster" }}, {"term": {"metadata.tag": 2}}]}}}""");
+        setUserForRequest(queryRequest, MANAGE_API_KEY_USER, END_USER_PASSWORD);
+        final ObjectPath queryResponse = assertOKAndCreateObjectPath(client().performRequest(queryRequest));
+        assertThat(queryResponse.evaluate("total"), is(1));
+        assertThat(queryResponse.evaluate("count"), is(1));
+        assertThat(queryResponse.evaluate("api_keys.0.name"), is("test-cross-key-query-2"));
+    }
 
+    public void testCreateCrossClusterApiKey() throws IOException {
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity("""
             {
@@ -773,6 +865,27 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 )
             )
         );
+        assertThat(fetchResponse.evaluate("api_keys.0.access"), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            {
+                "search": [
+                  {
+                    "names": [
+                      "metrics"
+                    ],
+                    "query": "{\\"term\\":{\\"score\\":42}}",
+                    "allow_restricted_indices": false
+                  }
+                ],
+                "replication": [
+                  {
+                    "names": [
+                      "logs"
+                    ],
+                    "allow_restricted_indices": true
+                  }
+                ]
+
+            }""", false)));
         assertThat(fetchResponse.evaluate("api_keys.0.limited_by"), nullValue());
 
         final Request deleteRequest = new Request("DELETE", "/_security/api_key");
@@ -797,9 +910,36 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(e.getMessage(), containsString("action [cluster:admin/xpack/security/cross_cluster/api_key/create] is unauthorized"));
     }
 
-    public void testCrossClusterApiKeyDoesNotAllowEmptyAccess() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+    public void testCannotCreateDerivedCrossClusterApiKey() throws IOException {
+        final Request createRestApiKeyRequest = new Request("POST", "_security/api_key");
+        setUserForRequest(createRestApiKeyRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        createRestApiKeyRequest.setJsonEntity("{\"name\":\"rest-key\"}");
+        final ObjectPath createRestApiKeyResponse = assertOKAndCreateObjectPath(client().performRequest(createRestApiKeyRequest));
 
+        final Request createDerivedRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createDerivedRequest.setJsonEntity("""
+            {
+              "name": "derived-cross-cluster-key",
+              "access": {
+                "replication": [
+                  {
+                    "names": [ "logs" ]
+                  }
+                ]
+              }
+            }""");
+        createDerivedRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + createRestApiKeyResponse.evaluate("encoded"))
+        );
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createDerivedRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(
+            e.getMessage(),
+            containsString("authentication via API key not supported: An API key cannot be used to create a cross-cluster API key")
+        );
+    }
+
+    public void testCrossClusterApiKeyDoesNotAllowEmptyAccess() throws IOException {
         assertBadCreateCrossClusterApiKeyRequest("""
             {"name": "my-key"}""", "Required [access]");
 
@@ -823,8 +963,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testCrossClusterApiKeyDoesNotAllowDlsFlsForReplication() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         assertBadCreateCrossClusterApiKeyRequest("""
             {
               "name": "key",
@@ -855,8 +993,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testCrossClusterApiKeyRequiresName() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         assertBadCreateCrossClusterApiKeyRequest("""
             {
               "access": {
@@ -866,7 +1002,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testUpdateCrossClusterApiKey() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity("""
             {
@@ -883,7 +1018,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ObjectPath createResponse = assertOKAndCreateObjectPath(client().performRequest(createRequest));
         final String apiKeyId = createResponse.evaluate("id");
 
-        // Update both access and metadata
+        // Update access, metadata and expiration
         final Request updateRequest1 = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
         updateRequest1.setJsonEntity("""
             {
@@ -900,7 +1035,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                   }
                 ]
               },
-              "metadata": { "tag": "shared", "points": 0 }
+              "metadata": { "tag": "shared", "points": 0 },
+              "expiration": "30d"
             }""");
         setUserForRequest(updateRequest1, MANAGE_SECURITY_USER, END_USER_PASSWORD);
         final ObjectPath updateResponse1 = assertOKAndCreateObjectPath(client().performRequest(updateRequest1));
@@ -926,6 +1062,23 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse1.evaluate("api_keys.0.role_descriptors"),
             equalTo(Map.of("cross_cluster", XContentTestUtils.convertToMap(updatedRoleDescriptor1)))
         );
+        assertThat(fetchResponse1.evaluate("api_keys.0.expiration"), notNullValue());
+        assertThat(fetchResponse1.evaluate("api_keys.0.access"), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            {
+              "search": [
+                {
+                  "names": [ "data" ],
+                  "query": "{\\"term\\":{\\"score\\":42}}",
+                  "allow_restricted_indices": false
+                }
+              ],
+              "replication": [
+                {
+                  "names": [ "logs" ],
+                  "allow_restricted_indices": false
+                }
+              ]
+            }""", false)));
         assertThat(fetchResponse1.evaluate("api_keys.0.metadata"), equalTo(Map.of("tag", "shared", "points", 0)));
 
         // Update metadata only
@@ -942,6 +1095,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse2.evaluate("api_keys.0.role_descriptors"),
             equalTo(Map.of("cross_cluster", XContentTestUtils.convertToMap(updatedRoleDescriptor1)))
         );
+        assertThat(fetchResponse2.evaluate("api_keys.0.access"), equalTo(fetchResponse1.evaluate("api_keys.0.access")));
         assertThat(fetchResponse2.evaluate("api_keys.0.metadata"), equalTo(Map.of("env", "prod", "magic", 42)));
 
         // Update access only
@@ -974,6 +1128,15 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse3.evaluate("api_keys.0.role_descriptors"),
             equalTo(Map.of("cross_cluster", XContentTestUtils.convertToMap(updatedRoleDescriptors2)))
         );
+        assertThat(fetchResponse3.evaluate("api_keys.0.access"), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            {
+              "search": [
+                {
+                  "names": [ "blogs" ],
+                  "allow_restricted_indices": false
+                }
+              ]
+            }""", false)));
         assertThat(fetchResponse3.evaluate("api_keys.0.metadata"), equalTo(Map.of("env", "prod", "magic", 42)));
 
         // Noop update
@@ -1009,11 +1172,11 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse4.evaluate("api_keys.0.role_descriptors"),
             equalTo(Map.of("cross_cluster", XContentTestUtils.convertToMap(updatedRoleDescriptors2)))
         );
+        assertThat(fetchResponse4.evaluate("api_keys.0.access"), equalTo(fetchResponse3.evaluate("api_keys.0.access")));
         assertThat(fetchResponse4.evaluate("api_keys.0.metadata"), equalTo(Map.of("env", "prod", "magic", 42)));
     }
 
     public void testUpdateFailureCases() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity("""
             {
@@ -1105,41 +1268,28 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ResponseException e8 = expectThrows(ResponseException.class, () -> client().performRequest(anotherUpdateRequest));
         assertThat(e8.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(e8.getMessage(), containsString("action [cluster:admin/xpack/security/cross_cluster/api_key/update] is unauthorized"));
+    }
 
-        // Cross-cluster API key created by another API key cannot be updated
-        // This isn't the desired behaviour and more like a bug because we don't yet have a full story about API key's identity.
-        // Since we actively block it, we are checking it here. But it should be removed once we solve the issue of API key identity.
-        final Request createDerivedRequest = new Request("POST", "/_security/cross_cluster/api_key");
-        createDerivedRequest.setJsonEntity("""
+    public void testCrossClusterApiKeyAccessInResponseCanBeUsedAsInputForUpdate() throws IOException {
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity(Strings.format("""
             {
-              "name": "derived-cross-cluster-key",
-              "access": {
-                "replication": [
-                  {
-                    "names": [ "logs" ]
-                  }
-                ]
-              }
-            }""");
-        createDerivedRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + createRestApiKeyResponse.evaluate("encoded"))
-        );
-        final ObjectPath createDerivedResponse = assertOKAndCreateObjectPath(client().performRequest(createDerivedRequest));
-        final String derivedApiKey = createDerivedResponse.evaluate("id");
-        // cannot be updated by the original creator user
-        final Request updateDerivedRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + derivedApiKey);
-        setUserForRequest(updateDerivedRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
-        updateDerivedRequest.setJsonEntity("{\"metadata\":{}}");
-        final ResponseException e9 = expectThrows(ResponseException.class, () -> client().performRequest(updateDerivedRequest));
-        assertThat(e9.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-        assertThat(e9.getMessage(), containsString("no API key owned by requesting user found"));
-        // cannot be updated by the original API key either
-        updateDerivedRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + createRestApiKeyResponse.evaluate("encoded"))
-        );
-        final ResponseException e10 = expectThrows(ResponseException.class, () -> client().performRequest(updateDerivedRequest));
-        assertThat(e10.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e10.getMessage(), containsString("authentication via API key not supported: only the owner user can update an API key"));
+              "name": "my-key",
+              "access": %s
+            }""", randomCrossClusterApiKeyAccessField()));
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRequest)).evaluate("id");
+        final ObjectPath fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity(Strings.format("""
+            {
+              "access": %s
+            }""", XContentTestUtils.convertToXContent(fetchResponse.evaluate("api_keys.0.access"), XContentType.JSON).utf8ToString()));
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath updateResponse4 = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
+        assertThat(updateResponse4.evaluate("updated"), is(false));
     }
 
     public void testWorkflowsRestrictionSupportForApiKeys() throws IOException {
@@ -1150,7 +1300,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 "role_descriptors":{
                     "r1": {
                         "restriction": {
-                            "workflows": ["search_application"]
+                            "workflows": ["search_application_query"]
                         }
                     }
                 }
@@ -1158,7 +1308,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         Response response = performRequestWithManageOwnApiKeyUser(createApiKeyRequest);
         String apiKeyId = assertOKAndCreateObjectPath(response).evaluate("id");
         assertThat(apiKeyId, notNullValue());
-        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application_query");
 
         final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
         grantApiKeyRequest.setJsonEntity(Strings.format("""
@@ -1171,7 +1321,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                   "role_descriptors":{
                      "r1":{
                         "restriction": {
-                            "workflows": ["search_application"]
+                            "workflows": ["search_application_query"]
                         }
                      }
                   }
@@ -1179,38 +1329,37 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", MANAGE_OWN_API_KEY_USER));
         response = adminClient().performRequest(grantApiKeyRequest);
         String grantedApiKeyId = assertOKAndCreateObjectPath(response).evaluate("id");
-        fetchAndAssertApiKeyContainsWorkflows(grantedApiKeyId, "r1", "search_application");
+        fetchAndAssertApiKeyContainsWorkflows(grantedApiKeyId, "r1", "search_application_query");
 
-        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        Request createApiKeyWithoutWorkflowRequest = new Request("POST", "_security/api_key");
+        createApiKeyWithoutWorkflowRequest.setJsonEntity("""
+            {
+                "name": "key2",
+                "role_descriptors":{
+                    "r1": {
+                        "restriction": {
+                        }
+                    }
+                }
+            }""");
+        response = performRequestWithManageOwnApiKeyUser(createApiKeyWithoutWorkflowRequest);
+        String apiKeyIdWithoutWorkflow = assertOKAndCreateObjectPath(response).evaluate("id");
+        assertThat(apiKeyIdWithoutWorkflow, notNullValue());
+
+        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyIdWithoutWorkflow);
         updateApiKeyRequest.setJsonEntity("""
             {
               "role_descriptors": {
                 "r1": {
                   "restriction": {
-                   "workflows": ["search_application", "search_analytics"]
+                   "workflows": ["search_application_query"]
                   }
                 }
               }
             }""");
         response = performRequestWithManageOwnApiKeyUser(updateApiKeyRequest);
         assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), equalTo(true));
-        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application", "search_analytics");
-
-        final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
-        bulkUpdateApiKeyRequest.setJsonEntity(Strings.format("""
-            {
-              "ids": ["%s"],
-              "role_descriptors": {
-                "r1": {
-                  "restriction": {
-                     "workflows": ["search_application"]
-                  }
-                }
-              }
-            }""", apiKeyId));
-        response = performRequestWithManageOwnApiKeyUser(bulkUpdateApiKeyRequest);
-        assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), contains(apiKeyId));
-        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application");
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyIdWithoutWorkflow, "r1", "search_application_query");
 
         final Request removeRestrictionRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
         removeRestrictionRequest.setJsonEntity("""
@@ -1223,6 +1372,22 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         response = performRequestWithManageOwnApiKeyUser(removeRestrictionRequest);
         assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), equalTo(true));
         fetchAndAssertApiKeyDoesNotContainWorkflows(apiKeyId, "r1");
+
+        final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+        bulkUpdateApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+              "ids": ["%s"],
+              "role_descriptors": {
+                "r1": {
+                  "restriction": {
+                     "workflows": ["search_application_query"]
+                  }
+                }
+              }
+            }""", apiKeyId));
+        response = performRequestWithManageOwnApiKeyUser(bulkUpdateApiKeyRequest);
+        assertThat(assertOKAndCreateObjectPath(response).evaluate("updated"), contains(apiKeyId));
+        fetchAndAssertApiKeyContainsWorkflows(apiKeyId, "r1", "search_application_query");
     }
 
     public void testWorkflowsRestrictionValidation() throws IOException {
@@ -1231,14 +1396,14 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final String r1 = """
                 "r1": {
                     "restriction": {
-                        "workflows": ["search_application"]
+                        "workflows": ["search_application_query"]
                     }
                 }
             """;
         final String r2 = secondRoleWithWorkflowsRestriction ? """
             "r2": {
                 "restriction": {
-                    "workflows": ["search_analytics"]
+                    "workflows": ["search_application_query"]
                 }
             }
             """ : """
@@ -1287,7 +1452,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 "role_descriptors":{
                     "r1": {
                         "restriction": {
-                            "workflows": ["search_application"]
+                            "workflows": ["search_application_query"]
                         }
                     }
                 }
@@ -1397,6 +1562,40 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(authenticate, hasEntry("api_key", Map.of("id", apiKeyId, "name", apiKeyName)));
     }
 
+    private static Map<String, Object> getRandomUpdateApiKeyRequestBody(
+        final Map<String, Object> oldMetadata,
+        boolean updateExpiration,
+        boolean updateMetadata
+    ) {
+        return getRandomUpdateApiKeyRequestBody(oldMetadata, updateExpiration, updateMetadata, List.of());
+    }
+
+    private static Map<String, Object> getRandomUpdateApiKeyRequestBody(
+        final Map<String, Object> oldMetadata,
+        boolean updateExpiration,
+        boolean updateMetadata,
+        List<String> ids
+    ) {
+        Map<String, Object> updateRequestBody = new HashMap<>();
+
+        if (updateMetadata) {
+            updateRequestBody.put("metadata", Map.of("not", "returned (changed)", "foo", "bar"));
+        } else if (oldMetadata != null) {
+            updateRequestBody.put("metadata", oldMetadata);
+        }
+
+        if (updateExpiration) {
+            updateRequestBody.put("expiration", ApiKeyTests.randomFutureExpirationTime());
+        }
+
+        if (ids.isEmpty() == false) {
+            updateRequestBody.put("ids", ids);
+        }
+
+        return updateRequestBody;
+    }
+
+    @SuppressWarnings({ "unchecked" })
     private void doTestUpdateApiKey(
         final String apiKeyName,
         final String apiKeyId,
@@ -1404,19 +1603,17 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final Map<String, Object> oldMetadata
     ) throws IOException {
         final var updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
-        final boolean updated = randomBoolean();
-        final Map<String, Object> expectedApiKeyMetadata = updated ? Map.of("not", "returned (changed)", "foo", "bar") : oldMetadata;
-        final Map<String, Object> updateApiKeyRequestBody = expectedApiKeyMetadata == null
-            ? Map.of()
-            : Map.of("metadata", expectedApiKeyMetadata);
-        updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString());
+        final boolean updateExpiration = randomBoolean();
+        final boolean updateMetadata = randomBoolean();
+        final Map<String, Object> updateRequestBody = getRandomUpdateApiKeyRequestBody(oldMetadata, updateExpiration, updateMetadata);
+        updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateRequestBody, XContentType.JSON).utf8ToString());
 
         final Response updateApiKeyResponse = performRequestUsingRandomAuthMethod(updateApiKeyRequest);
 
         assertOK(updateApiKeyResponse);
         final Map<String, Object> updateApiKeyResponseMap = responseAsMap(updateApiKeyResponse);
-        assertEquals(updated, updateApiKeyResponseMap.get("updated"));
-        expectMetadata(apiKeyId, expectedApiKeyMetadata == null ? Map.of() : expectedApiKeyMetadata);
+        assertEquals(updateMetadata || updateExpiration, updateApiKeyResponseMap.get("updated"));
+        expectMetadata(apiKeyId, (Map<String, Object>) updateRequestBody.get("metadata"));
         // validate authentication still works after update
         doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
     }
@@ -1429,28 +1626,29 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final Map<String, Object> oldMetadata
     ) throws IOException {
         final var bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
-        final boolean updated = randomBoolean();
-        final Map<String, Object> expectedApiKeyMetadata = updated ? Map.of("not", "returned (changed)", "foo", "bar") : oldMetadata;
-        final Map<String, Object> bulkUpdateApiKeyRequestBody = expectedApiKeyMetadata == null
-            ? Map.of("ids", List.of(apiKeyId))
-            : Map.of("ids", List.of(apiKeyId), "metadata", expectedApiKeyMetadata);
-        bulkUpdateApiKeyRequest.setJsonEntity(
-            XContentTestUtils.convertToXContent(bulkUpdateApiKeyRequestBody, XContentType.JSON).utf8ToString()
+        boolean updateMetadata = randomBoolean();
+        boolean updateExpiration = randomBoolean();
+        Map<String, Object> updateRequestBody = getRandomUpdateApiKeyRequestBody(
+            oldMetadata,
+            updateExpiration,
+            updateMetadata,
+            List.of(apiKeyId)
         );
+        bulkUpdateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateRequestBody, XContentType.JSON).utf8ToString());
 
         final Response bulkUpdateApiKeyResponse = performRequestUsingRandomAuthMethod(bulkUpdateApiKeyRequest);
 
         assertOK(bulkUpdateApiKeyResponse);
         final Map<String, Object> bulkUpdateApiKeyResponseMap = responseAsMap(bulkUpdateApiKeyResponse);
         assertThat(bulkUpdateApiKeyResponseMap, not(hasKey("errors")));
-        if (updated) {
+        if (updateMetadata || updateExpiration) {
             assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("noops"), empty());
             assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("updated"), contains(apiKeyId));
         } else {
             assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("updated"), empty());
             assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("noops"), contains(apiKeyId));
         }
-        expectMetadata(apiKeyId, expectedApiKeyMetadata == null ? Map.of() : expectedApiKeyMetadata);
+        expectMetadata(apiKeyId, (Map<String, Object>) updateRequestBody.get("metadata"));
         // validate authentication still works after update
         doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
     }
@@ -1513,6 +1711,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         assertThat(fetchResponse.evaluate("api_keys.0.id"), equalTo(apiKeyId));
         assertThat(fetchResponse.evaluate("api_keys.0.type"), equalTo("cross_cluster"));
+        assertThat(fetchResponse.evaluate("api_keys.0.access"), notNullValue());
         return fetchResponse;
     }
 
@@ -1535,7 +1734,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
     }
 
-    @SuppressWarnings({ "unchecked" })
     private void expectMetadata(final String apiKeyId, final Map<String, Object> expectedMetadata) throws IOException {
         final var request = new Request("GET", "_security/api_key/");
         request.addParameter("id", apiKeyId);
@@ -1544,7 +1742,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         try (XContentParser parser = responseAsParser(response)) {
             final var apiKeyResponse = GetApiKeyResponse.fromXContent(parser);
             assertThat(apiKeyResponse.getApiKeyInfos().length, equalTo(1));
-            assertThat(apiKeyResponse.getApiKeyInfos()[0].getMetadata(), equalTo(expectedMetadata));
+            // ApiKey metadata is set to empty Map if null
+            assertThat(apiKeyResponse.getApiKeyInfos()[0].getMetadata(), equalTo(expectedMetadata == null ? Map.of() : expectedMetadata));
         }
     }
 

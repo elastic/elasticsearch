@@ -1,0 +1,32 @@
+simple
+from employees | eval x = 1, y = to_string(languages) | enrich languages_policy on y | where x > 1 | keep emp_no, language_name | limit 1;
+
+emp_no:integer | language_name:keyword
+;
+
+docsGettingStartedEnrich
+// tag::gs-enrich[]
+FROM sample_data
+| KEEP @timestamp, client_ip, event_duration
+| EVAL client_ip = TO_STRING(client_ip)
+| ENRICH clientip_policy ON client_ip WITH env
+// end::gs-enrich[]
+| LIMIT 0
+;
+
+@timestamp:date | event_duration:long | client_ip:keyword | env:keyword
+;
+
+docsGettingStartedEnrichStatsBy
+// tag::gs-enrich-stats-by[]
+FROM sample_data
+| KEEP @timestamp, client_ip, event_duration
+| EVAL client_ip = TO_STRING(client_ip)
+| ENRICH clientip_policy ON client_ip WITH env
+| STATS median_duration = MEDIAN(event_duration) BY env
+// end::gs-enrich-stats-by[]
+| LIMIT 0
+;
+
+median_duration:double | env:keyword
+;

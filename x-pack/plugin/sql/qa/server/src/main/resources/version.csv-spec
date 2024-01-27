@@ -382,6 +382,38 @@ SELECT * FROM apps WHERE '1.2.0' < '1.11.0'::version ORDER BY id LIMIT 1;
 
 ;
 
+filterByVersionEquality
+SELECT id, version FROM apps WHERE version = '2.12.0'::version;
+
+      id:i     |    version:s
+---------------+---------------
+4              |2.12.0
+;
+
+filterByVersionInequality
+SELECT id, version FROM apps WHERE version > '2.12'::version;
+
+      id:i     |    version:s
+---------------+---------------
+4              |2.12.0
+6              |5.2.9
+7              |5.2.9-SNAPSHOT
+9              |bad
+10             |5.2.9
+14             |5.2.9
+;
+
+filterByVersionIn
+SELECT id, version FROM apps WHERE version IN ('2.12.0'::version, '5.2.9'::version);
+
+      id:i     |    version:s
+---------------+---------------
+4              |2.12.0
+6              |5.2.9
+10             |5.2.9
+14             |5.2.9
+;
+
 groupByVersionHaving
 SELECT max(id) as idx, version FROM apps GROUP BY version HAVING idx = 14;
 

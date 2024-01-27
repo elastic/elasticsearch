@@ -16,6 +16,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,7 +30,7 @@ import java.util.Objects;
 public class StoreFileMetadata implements Writeable {
 
     public static final BytesRef UNAVAILABLE_WRITER_UUID = new BytesRef();
-    private static final TransportVersion WRITER_UUID_MIN_VERSION = TransportVersion.V_7_16_0;
+    private static final TransportVersion WRITER_UUID_MIN_VERSION = TransportVersions.V_7_16_0;
 
     private final String name;
 

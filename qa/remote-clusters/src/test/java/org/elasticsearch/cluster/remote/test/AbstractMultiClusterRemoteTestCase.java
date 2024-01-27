@@ -11,7 +11,6 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -26,10 +25,8 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.function.Consumer;
 
-@SuppressWarnings("removal")
 public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase {
 
     private static final String USER = "x_pack_rest_user";
@@ -40,8 +37,8 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
         return true;
     }
 
-    private static RestHighLevelClient cluster1Client;
-    private static RestHighLevelClient cluster2Client;
+    private static RestClient cluster1Client;
+    private static RestClient cluster2Client;
     private static boolean initialized = false;
 
     @Override
@@ -62,8 +59,8 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
             request.addParameter("wait_for_status", "yellow");
             request.addParameter("wait_for_nodes", "1");
         };
-        ensureHealth(cluster1Client().getLowLevelClient(), waitForYellowRequest);
-        ensureHealth(cluster2Client().getLowLevelClient(), waitForYellowRequest);
+        ensureHealth(cluster1Client, waitForYellowRequest);
+        ensureHealth(cluster2Client, waitForYellowRequest);
 
         initialized = true;
     }
@@ -86,28 +83,22 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
         }
     }
 
-    protected static RestHighLevelClient cluster1Client() {
+    protected static RestClient cluster1Client() {
         return cluster1Client;
     }
 
-    protected static RestHighLevelClient cluster2Client() {
+    protected static RestClient cluster2Client() {
         return cluster2Client;
     }
 
-    private static class HighLevelClient extends RestHighLevelClient {
-        private HighLevelClient(RestClient restClient) {
-            super(restClient, RestClient::close, Collections.emptyList());
-        }
-    }
-
-    private RestHighLevelClient buildClient(final String url) throws IOException {
+    private RestClient buildClient(final String url) throws IOException {
         int portSeparator = url.lastIndexOf(':');
         HttpHost httpHost = new HttpHost(
             url.substring(0, portSeparator),
             Integer.parseInt(url.substring(portSeparator + 1)),
             getProtocol()
         );
-        return new HighLevelClient(buildClient(restAdminSettings(), new HttpHost[] { httpHost }));
+        return buildClient(restAdminSettings(), new HttpHost[] { httpHost });
     }
 
     protected boolean isOss() {

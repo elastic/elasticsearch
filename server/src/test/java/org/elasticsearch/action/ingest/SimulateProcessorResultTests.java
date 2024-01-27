@@ -127,7 +127,7 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
 
     static void assertEqualProcessorResults(SimulateProcessorResult response, SimulateProcessorResult parsedResponse) {
         assertEquals(response.getProcessorTag(), parsedResponse.getProcessorTag());
-        assertEquals(response.getIngestDocument(), parsedResponse.getIngestDocument());
+        assertIngestDocument(response.getIngestDocument(), parsedResponse.getIngestDocument());
         if (response.getFailure() != null) {
             assertNotNull(parsedResponse.getFailure());
             assertThat(parsedResponse.getFailure().getMessage(), containsString(response.getFailure().getMessage()));

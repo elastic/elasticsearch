@@ -10,7 +10,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.logging.ChunkedLoggingStreamTests;
 import org.elasticsearch.common.settings.Settings;
@@ -255,7 +255,7 @@ public class LagDetectorTests extends ESTestCase {
 
     @TestLogging(reason = "testing LagDetector logging", value = LOGGER_NAME + ":DEBUG")
     public void testHotThreadsChunkedLoggingEncoding() {
-        final var node = TestDiscoveryNode.create("test");
+        final var node = DiscoveryNodeUtils.create("test");
         final var expectedBody = randomUnicodeOfLengthBetween(1, 20000);
         assertEquals(
             expectedBody,
@@ -266,7 +266,7 @@ public class LagDetectorTests extends ESTestCase {
                     + node.descriptionWithoutAttributes()
                     + "] lagging at version [1] despite commit of cluster state version [2]",
                 ReferenceDocs.LAGGING_NODE_TROUBLESHOOTING,
-                new LagDetector.HotThreadsLoggingTask(node, 1, 2, expectedBody)::run
+                new LagDetector.HotThreadsLoggingTask(node, 1, 2, expectedBody, () -> {})::run
             ).utf8ToString()
         );
     }

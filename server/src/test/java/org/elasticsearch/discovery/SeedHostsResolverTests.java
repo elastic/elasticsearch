@@ -114,11 +114,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         }
 
         seedHostsResolver.resolveConfiguredHosts(resolvedAddresses -> {
-            try {
-                assertTrue(startLatch.await(30, TimeUnit.SECONDS));
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(startLatch);
             resolvedAddressesRef.set(resolvedAddresses);
             endLatch.countDown();
         });
@@ -136,7 +132,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final InetAddress loopbackAddress = InetAddress.getLoopbackAddress();
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -182,7 +178,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final UnknownHostException unknownHostException = new UnknownHostException(hostname);
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -242,7 +238,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -316,7 +312,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final CountDownLatch conditionLatch = new CountDownLatch(1);
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -379,7 +375,7 @@ public class SeedHostsResolverTests extends ESTestCase {
     public void testInvalidHosts() {
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,

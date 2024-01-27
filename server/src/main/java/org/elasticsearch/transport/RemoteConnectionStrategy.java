@@ -383,7 +383,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     protected abstract RemoteConnectionInfo.ModeInfo getModeInfo();
 
-    protected boolean isRetryableException(Exception e) {
+    protected static boolean isRetryableException(Exception e) {
         // ISE if we fail the handshake with a version incompatible node
         return e instanceof ConnectTransportException || e instanceof IOException || e instanceof IllegalStateException;
     }

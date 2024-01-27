@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.support;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
@@ -28,7 +28,7 @@ public abstract class CartesianShapeValuesSource extends ShapeValuesSource<Carte
 
     @Override
     protected Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) {
-        throw new AggregationExecutionException("can't round a [shape]");
+        throw AggregationErrors.unsupportedRounding("shape");
     }
 
     public static class Fielddata extends CartesianShapeValuesSource {

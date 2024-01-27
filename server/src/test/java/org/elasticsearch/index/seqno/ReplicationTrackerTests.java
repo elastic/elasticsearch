@@ -192,15 +192,15 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final Thread thread = new Thread(() -> {
             try {
-                barrier.await();
+                safeAwait(barrier);
                 tracker.markAllocationIdAsInSync(replicaId.getId(), randomLongBetween(NO_OPS_PERFORMED, localCheckpoint - 1));
-                barrier.await();
-            } catch (BrokenBarrierException | InterruptedException e) {
+                safeAwait(barrier);
+            } catch (InterruptedException e) {
                 throw new AssertionError(e);
             }
         });
         thread.start();
-        barrier.await();
+        safeAwait(barrier);
         assertBusy(() -> assertTrue(tracker.pendingInSync()));
         final long updatedLocalCheckpoint = randomLongBetween(1 + localCheckpoint, Long.MAX_VALUE);
         // there is a shard copy pending in sync, the global checkpoint can not advance
@@ -210,7 +210,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         // we are implicitly marking the pending in sync copy as in sync with the current global checkpoint, no advancement should occur
         tracker.updateLocalCheckpoint(replicaId.getId(), localCheckpoint);
         assertThat(updatedGlobalCheckpoint.get(), equalTo(UNASSIGNED_SEQ_NO));
-        barrier.await();
+        safeAwait(barrier);
         thread.join();
         // now we expect that the global checkpoint would advance
         tracker.markAllocationIdAsInSync(replicaId.getId(), updatedLocalCheckpoint);

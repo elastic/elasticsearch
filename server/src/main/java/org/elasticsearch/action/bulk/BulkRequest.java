@@ -75,6 +75,7 @@ public class BulkRequest extends ActionRequest
     private String globalRouting;
     private String globalIndex;
     private Boolean globalRequireAlias;
+    private Boolean globalRequireDatsStream;
 
     private long sizeInBytes = 0;
 
@@ -83,7 +84,7 @@ public class BulkRequest extends ActionRequest
     public BulkRequest(StreamInput in) throws IOException {
         super(in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        requests.addAll(in.readList(i -> DocWriteRequest.readDocumentRequest(null, i)));
+        requests.addAll(in.readCollectionAsList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
     }
@@ -232,7 +233,7 @@ public class BulkRequest extends ActionRequest
      * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, null, null, null, null, true, xContentType, RestApiVersion.current());
+        return add(data, defaultIndex, null, null, null, null, null, null, true, xContentType, RestApiVersion.current());
     }
 
     /**
@@ -240,7 +241,7 @@ public class BulkRequest extends ActionRequest
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, boolean allowExplicitIndex, XContentType xContentType)
         throws IOException {
-        return add(data, defaultIndex, null, null, null, null, allowExplicitIndex, xContentType, RestApiVersion.current());
+        return add(data, defaultIndex, null, null, null, null, null, null, allowExplicitIndex, xContentType, RestApiVersion.current());
 
     }
 
@@ -251,6 +252,8 @@ public class BulkRequest extends ActionRequest
         @Nullable FetchSourceContext defaultFetchSourceContext,
         @Nullable String defaultPipeline,
         @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultRequireDataStream,
+        @Nullable Boolean defaultListExecutedPipelines,
         boolean allowExplicitIndex,
         XContentType xContentType,
         RestApiVersion restApiVersion
@@ -258,6 +261,7 @@ public class BulkRequest extends ActionRequest
         String routing = valueOrDefault(defaultRouting, globalRouting);
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
         Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
+        Boolean requireDataStream = valueOrDefault(defaultRequireDataStream, globalRequireDatsStream);
         new BulkRequestParser(true, restApiVersion).parse(
             data,
             defaultIndex,
@@ -265,6 +269,8 @@ public class BulkRequest extends ActionRequest
             defaultFetchSourceContext,
             pipeline,
             requireAlias,
+            requireDataStream,
+            defaultListExecutedPipelines,
             allowExplicitIndex,
             xContentType,
             (indexRequest, type) -> internalAdd(indexRequest),
@@ -372,6 +378,10 @@ public class BulkRequest extends ActionRequest
         return globalRequireAlias;
     }
 
+    public Boolean requireDataStream() {
+        return globalRequireDatsStream;
+    }
+
     /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
@@ -386,6 +396,11 @@ public class BulkRequest extends ActionRequest
      */
     public BulkRequest requireAlias(Boolean globalRequireAlias) {
         this.globalRequireAlias = globalRequireAlias;
+        return this;
+    }
+
+    public BulkRequest requireDataStream(Boolean globalRequireDatsStream) {
+        this.globalRequireDatsStream = globalRequireDatsStream;
         return this;
     }
 

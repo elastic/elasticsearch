@@ -69,6 +69,13 @@ public class TextSimilarityInferenceResults extends NlpInferenceResults {
     }
 
     @Override
+    public Map<String, Object> asMap(String outputField) {
+        var map = super.asMap(outputField);
+        map.put(outputField, score);
+        return map;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

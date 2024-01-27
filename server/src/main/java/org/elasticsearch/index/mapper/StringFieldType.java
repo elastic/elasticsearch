@@ -70,13 +70,22 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        return new FuzzyQuery(
-            new Term(name(), indexedValueForSearch(value)),
-            fuzziness.asDistance(BytesRefs.toString(value)),
-            prefixLength,
-            maxExpansions,
-            transpositions
-        );
+        return rewriteMethod == null
+            ? new FuzzyQuery(
+                new Term(name(), indexedValueForSearch(value)),
+                fuzziness.asDistance(BytesRefs.toString(value)),
+                prefixLength,
+                maxExpansions,
+                transpositions
+            )
+            : new FuzzyQuery(
+                new Term(name(), indexedValueForSearch(value)),
+                fuzziness.asDistance(BytesRefs.toString(value)),
+                prefixLength,
+                maxExpansions,
+                transpositions,
+                rewriteMethod
+            );
     }
 
     @Override
@@ -168,10 +177,10 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
         if (caseInsensitive) {
             return method == null
-                ? new AutomatonQuery(term, toCaseInsensitiveWildcardAutomaton(term, Integer.MAX_VALUE))
+                ? new AutomatonQuery(term, toCaseInsensitiveWildcardAutomaton(term))
                 : new AutomatonQuery(
                     term,
-                    toCaseInsensitiveWildcardAutomaton(term, Integer.MAX_VALUE),
+                    toCaseInsensitiveWildcardAutomaton(term),
                     Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
                     false,
                     method

@@ -13,12 +13,13 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene95.Lucene95Codec;
+import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -37,12 +38,14 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  * per index in real time via the mapping API. If no specific postings format or vector format is
  * configured for a specific field the default postings or vector format is used.
  */
-public class PerFieldMapperCodec extends Lucene95Codec {
+public final class PerFieldMapperCodec extends Lucene99Codec {
 
     private final MapperService mapperService;
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
+
+    private final ES812PostingsFormat es812PostingsFormat;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
@@ -54,6 +57,7 @@ public class PerFieldMapperCodec extends Lucene95Codec {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
+        this.es812PostingsFormat = new ES812PostingsFormat();
     }
 
     @Override
@@ -69,7 +73,8 @@ public class PerFieldMapperCodec extends Lucene95Codec {
         if (format != null) {
             return format;
         }
-        return super.getPostingsFormatForField(field);
+        // return our own posting format using PFOR
+        return es812PostingsFormat;
     }
 
     boolean useBloomFilter(String field) {
@@ -91,10 +96,7 @@ public class PerFieldMapperCodec extends Lucene95Codec {
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
         Mapper mapper = mapperService.mappingLookup().getMapper(field);
         if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
-            KnnVectorsFormat format = vectorMapper.getKnnVectorsFormatForField();
-            if (format != null) {
-                return format;
-            }
+            return vectorMapper.getKnnVectorsFormatForField(super.getKnnVectorsFormatForField(field));
         }
         return super.getKnnVectorsFormatForField(field);
     }
@@ -130,11 +132,11 @@ public class PerFieldMapperCodec extends Lucene95Codec {
         return false;
     }
 
-    private boolean isTimestampField(String field) {
+    private static boolean isTimestampField(String field) {
         return "@timestamp".equals(field);
     }
 
-    private boolean isNotSpecialField(String field) {
+    private static boolean isNotSpecialField(String field) {
         return field.startsWith("_") == false;
     }
 }

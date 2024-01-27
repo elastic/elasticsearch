@@ -68,6 +68,7 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
     private final HttpClient httpClient;
     private final boolean additionalTokenEnabled;
 
+    @SuppressWarnings("this-escape")
     public WebhookService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super(NAME, settings, clusterSettings, List.of(), getSecureSettings());
         this.httpClient = httpClient;

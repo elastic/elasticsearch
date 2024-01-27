@@ -8,13 +8,12 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -22,6 +21,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -33,18 +33,18 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -66,7 +66,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -155,7 +154,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
 
         @Override
-        void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             listener.onResponse(null);
         }
@@ -165,7 +164,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         TestSingleItemBulkWriteAction(TestTransportBulkAction bulkAction) {
             super(
-                IndexAction.NAME,
+                TransportIndexAction.NAME,
                 TransportBulkActionIngestTests.this.transportService,
                 new ActionFilters(Collections.emptySet()),
                 IndexRequest::new,
@@ -178,10 +177,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void setupAction() {
         // initialize captors, which must be members to use @Capture because of generics
         threadPool = mock(ThreadPool.class);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         MockitoAnnotations.openMocks(this);
         // setup services that will be called by action
-        transportService = mock(TransportService.class);
+        transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         clusterService = mock(ClusterService.class);
         localIngest = true;
         // setup nodes for local and remote
@@ -194,7 +192,6 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         nodes = mock(DiscoveryNodes.class);
         Map<String, DiscoveryNode> ingestNodes = Map.of("node1", remoteNode1, "node2", remoteNode2);
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
-        when(nodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
         Metadata metadata = Metadata.builder()
@@ -202,14 +199,14 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 Map.of(
                     WITH_DEFAULT_PIPELINE,
                     IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
-                        .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build())
+                        .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build())
                         .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
                         .numberOfShards(1)
                         .numberOfReplicas(1)
                         .build(),
                     ".system",
                     IndexMetadata.builder(".system")
-                        .settings(settings(Version.CURRENT))
+                        .settings(settings(IndexVersion.current()))
                         .system(true)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
@@ -219,6 +216,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             .build();
         when(state.getMetadata()).thenReturn(metadata);
         when(state.metadata()).thenReturn(metadata);
+        when(state.blocks()).thenReturn(mock(ClusterBlocks.class));
         when(clusterService.state()).thenReturn(state);
         doAnswer(invocation -> {
             ClusterChangedEvent event = mock(ClusterChangedEvent.class);
@@ -238,12 +236,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         IndexRequest indexRequest = new IndexRequest("index").id("id");
         indexRequest.source(Collections.emptyMap());
         bulkRequest.add(indexRequest);
-        ActionTestUtils.execute(
-            action,
-            null,
-            bulkRequest,
-            ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); })
-        );
+        ActionTestUtils.execute(action, null, bulkRequest, ActionTestUtils.assertNoFailureListener(response -> {}));
         assertTrue(action.isExecuted);
         verifyNoMoreInteractions(ingestService);
     }
@@ -251,9 +244,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void testSingleItemBulkActionIngestSkipped() throws Exception {
         IndexRequest indexRequest = new IndexRequest("index").id("id");
         indexRequest.source(Collections.emptyMap());
-        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, ActionListener.wrap(response -> {}, exception -> {
-            throw new AssertionError(exception);
-        }));
+        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, ActionTestUtils.assertNoFailureListener(response -> {}));
         assertTrue(action.isExecuted);
         verifyNoMoreInteractions(ingestService);
     }
@@ -403,10 +394,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         bulkRequest.add(indexRequest);
         BulkResponse bulkResponse = mock(BulkResponse.class);
         AtomicBoolean responseCalled = new AtomicBoolean(false);
-        ActionListener<BulkResponse> listener = ActionListener.wrap(response -> {
+        ActionListener<BulkResponse> listener = ActionTestUtils.assertNoFailureListener(response -> {
             responseCalled.set(true);
             assertSame(bulkResponse, response);
-        }, e -> { throw new AssertionError(e); });
+        });
         ActionTestUtils.execute(action, null, bulkRequest, listener);
 
         // should not have executed ingest locally
@@ -443,10 +434,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         indexRequest.setPipeline("testpipeline");
         IndexResponse indexResponse = mock(IndexResponse.class);
         AtomicBoolean responseCalled = new AtomicBoolean(false);
-        ActionListener<IndexResponse> listener = ActionListener.wrap(response -> {
+        ActionListener<IndexResponse> listener = ActionTestUtils.assertNoFailureListener(response -> {
             responseCalled.set(true);
             assertSame(indexResponse, response);
-        }, e -> { throw new AssertionError(e); });
+        });
         ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, listener);
 
         // should not have executed ingest locally
@@ -685,16 +676,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void testFindDefaultPipelineFromV2TemplateMatch() {
         Exception exception = new Exception("fake exception");
 
-        ComposableIndexTemplate t1 = new ComposableIndexTemplate(
-            Collections.singletonList("missing_*"),
-            new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        ComposableIndexTemplate t1 = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList("missing_*"))
+            .template(new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null))
+            .build();
 
         ClusterState state = clusterService.state();
         Metadata metadata = Metadata.builder().put("my-template", t1).build();

@@ -246,21 +246,19 @@ public class NodeDeprecationChecks {
         Settings clusterSettings,
         Settings nodeSettings
     ) {
-        List<Setting<?>> deprecatedConcreteNodeSettings = deprecatedAffixSetting.getAllConcreteSettings(nodeSettings)
+        var deprecatedConcreteNodeSettings = deprecatedAffixSetting.getAllConcreteSettings(nodeSettings)
             .sorted(Comparator.comparing(Setting::getKey))
-            .collect(Collectors.toList());
-        List<Setting<?>> deprecatedConcreteClusterSettings = deprecatedAffixSetting.getAllConcreteSettings(clusterSettings)
+            .toList();
+        var deprecatedConcreteClusterSettings = deprecatedAffixSetting.getAllConcreteSettings(clusterSettings)
             .sorted(Comparator.comparing(Setting::getKey))
-            .collect(Collectors.toList());
+            .toList();
 
         if (deprecatedConcreteNodeSettings.isEmpty() && deprecatedConcreteClusterSettings.isEmpty()) {
             return null;
         }
 
-        List<String> deprecatedNodeSettingKeys = deprecatedConcreteNodeSettings.stream().map(Setting::getKey).collect(Collectors.toList());
-        List<String> deprecatedClusterSettingKeys = deprecatedConcreteClusterSettings.stream()
-            .map(Setting::getKey)
-            .collect(Collectors.toList());
+        List<String> deprecatedNodeSettingKeys = deprecatedConcreteNodeSettings.stream().map(Setting::getKey).toList();
+        List<String> deprecatedClusterSettingKeys = deprecatedConcreteClusterSettings.stream().map(Setting::getKey).toList();
 
         final String concatSettingNames = Stream.concat(deprecatedNodeSettingKeys.stream(), deprecatedClusterSettingKeys.stream())
             .distinct()
@@ -289,10 +287,10 @@ public class NodeDeprecationChecks {
     ) {
         List<Setting<Settings>> deprecatedConcreteNodeSettings = deprecatedAffixSetting.getAllConcreteSettings(nodeSettings)
             .sorted(Comparator.comparing(Setting::getKey))
-            .collect(Collectors.toList());
+            .toList();
         List<Setting<Settings>> deprecatedConcreteClusterSettings = deprecatedAffixSetting.getAllConcreteSettings(clusterSettings)
             .sorted(Comparator.comparing(Setting::getKey))
-            .collect(Collectors.toList());
+            .toList();
 
         if (deprecatedConcreteNodeSettings.isEmpty() && deprecatedConcreteClusterSettings.isEmpty()) {
             return null;
@@ -305,19 +303,19 @@ public class NodeDeprecationChecks {
             .map(key -> key + "*")
             .collect(Collectors.joining(","));
         // The actual group setting that are present in the settings objects, with full setting name prepended.
-        List<String> allNodeSubSettingKeys = deprecatedConcreteNodeSettings.stream().map(affixSetting -> {
+        List<String> allNodeSubSettingKeys = deprecatedConcreteNodeSettings.stream().flatMap(affixSetting -> {
             String groupPrefix = affixSetting.getKey();
             Settings groupSettings = affixSetting.get(nodeSettings);
             Set<String> subSettings = groupSettings.keySet();
-            return subSettings.stream().map(key -> groupPrefix + key).collect(Collectors.toList());
-        }).flatMap(List::stream).sorted().collect(Collectors.toList());
+            return subSettings.stream().map(key -> groupPrefix + key);
+        }).sorted().toList();
 
-        List<String> allClusterSubSettingKeys = deprecatedConcreteClusterSettings.stream().map(affixSetting -> {
+        List<String> allClusterSubSettingKeys = deprecatedConcreteClusterSettings.stream().flatMap(affixSetting -> {
             String groupPrefix = affixSetting.getKey();
             Settings groupSettings = affixSetting.get(clusterSettings);
             Set<String> subSettings = groupSettings.keySet();
-            return subSettings.stream().map(key -> groupPrefix + key).collect(Collectors.toList());
-        }).flatMap(List::stream).sorted().collect(Collectors.toList());
+            return subSettings.stream().map(key -> groupPrefix + key);
+        }).sorted().toList();
 
         final String allSubSettings = Stream.concat(allNodeSubSettingKeys.stream(), allClusterSubSettingKeys.stream())
             .distinct()

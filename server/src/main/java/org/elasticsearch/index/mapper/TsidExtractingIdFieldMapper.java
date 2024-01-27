@@ -88,6 +88,11 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return new BlockStoredFieldsReader.IdBlockLoader();
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("Fielddata is not supported on [_id] field in [time_series] indices");
         }
@@ -108,7 +113,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         }
         long timestamp = timestampFields.get(0).numericValue().longValue();
         byte[] suffix = new byte[16];
-        String id = createId(context.getDynamicMappers().isEmpty(), routingBuilder, tsid, timestamp, suffix);
+        String id = createId(context.hasDynamicMappers() == false, routingBuilder, tsid, timestamp, suffix);
         /*
          * Make sure that _id from extracting the tsid matches that _id
          * from extracting the _source. This should be true for all valid

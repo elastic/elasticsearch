@@ -15,8 +15,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.LeaderChecker.LeaderCheckRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -26,7 +26,6 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
@@ -38,6 +37,7 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -65,10 +65,10 @@ import static org.hamcrest.Matchers.startsWith;
 public class LeaderCheckerTests extends ESTestCase {
 
     public void testFollowerBehaviour() {
-        final DiscoveryNode leader1 = TestDiscoveryNode.create("leader-1");
-        final DiscoveryNode leader2 = randomBoolean() ? leader1 : TestDiscoveryNode.create("leader-2");
+        final DiscoveryNode leader1 = DiscoveryNodeUtils.create("leader-1");
+        final DiscoveryNode leader2 = randomBoolean() ? leader1 : DiscoveryNodeUtils.create("leader-2");
 
-        final DiscoveryNode localNode = TestDiscoveryNode.create("local-node");
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
         Settings.Builder settingsBuilder = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId());
 
         final long leaderCheckIntervalMillis;
@@ -247,8 +247,8 @@ public class LeaderCheckerTests extends ESTestCase {
     }
 
     public void testFollowerFailsImmediatelyOnDisconnection() {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("local-node");
-        final DiscoveryNode leader = TestDiscoveryNode.create("leader");
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
+        final DiscoveryNode leader = DiscoveryNodeUtils.create("leader");
 
         final Response[] responseHolder = new Response[] { Response.SUCCESS };
 
@@ -260,7 +260,7 @@ public class LeaderCheckerTests extends ESTestCase {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
                     handleResponse(
                         requestId,
-                        new TransportService.HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), node, ClusterName.DEFAULT)
+                        new TransportService.HandshakeResponse(Version.CURRENT, Build.current().hash(), node, ClusterName.DEFAULT)
                     );
                     return;
                 }
@@ -383,8 +383,8 @@ public class LeaderCheckerTests extends ESTestCase {
     }
 
     public void testFollowerFailsImmediatelyOnHealthCheckFailure() {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("local-node");
-        final DiscoveryNode leader = TestDiscoveryNode.create("leader");
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
+        final DiscoveryNode leader = DiscoveryNodeUtils.create("leader");
 
         final Response[] responseHolder = new Response[] { Response.SUCCESS };
 
@@ -396,7 +396,7 @@ public class LeaderCheckerTests extends ESTestCase {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
                     handleResponse(
                         requestId,
-                        new TransportService.HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), node, ClusterName.DEFAULT)
+                        new TransportService.HandshakeResponse(Version.CURRENT, Build.current().hash(), node, ClusterName.DEFAULT)
                     );
                     return;
                 }
@@ -468,8 +468,8 @@ public class LeaderCheckerTests extends ESTestCase {
     }
 
     public void testLeaderBehaviour() {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("local-node");
-        final DiscoveryNode otherNode = TestDiscoveryNode.create("other-node");
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
+        final DiscoveryNode otherNode = DiscoveryNodeUtils.create("other-node");
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         final CapturingTransport capturingTransport = new CapturingTransport();
@@ -485,6 +485,7 @@ public class LeaderCheckerTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
+        final var executor = transportService.getThreadPool().generic();
 
         final LeaderChecker leaderChecker = new LeaderChecker(
             settings,
@@ -502,7 +503,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setCurrentNodes(discoveryNodes);
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(executor);
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
@@ -517,7 +518,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setCurrentNodes(discoveryNodes);
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(executor);
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
@@ -530,7 +531,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setCurrentNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).build());
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(executor);
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
@@ -541,7 +542,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setCurrentNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).masterNodeId(null).build());
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(executor);
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
@@ -556,6 +557,11 @@ public class LeaderCheckerTests extends ESTestCase {
 
         TransportException transportException;
         boolean successfulResponseReceived;
+        final Executor executor;
+
+        private CapturingTransportResponseHandler(Executor executor) {
+            this.executor = executor;
+        }
 
         @Override
         public void handleResponse(TransportResponse.Empty response) {
@@ -568,8 +574,8 @@ public class LeaderCheckerTests extends ESTestCase {
         }
 
         @Override
-        public String executor() {
-            return Names.GENERIC;
+        public Executor executor() {
+            return executor;
         }
 
         @Override
@@ -579,12 +585,12 @@ public class LeaderCheckerTests extends ESTestCase {
     }
 
     public void testLeaderCheckRequestEqualsHashcodeSerialization() {
-        LeaderCheckRequest request = new LeaderCheckRequest(TestDiscoveryNode.create(randomAlphaOfLength(10)));
+        LeaderCheckRequest request = new LeaderCheckRequest(DiscoveryNodeUtils.create(randomAlphaOfLength(10)));
         // noinspection RedundantCast since it is needed for some IDEs (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             request,
             (CopyFunction<LeaderCheckRequest>) rq -> copyWriteable(rq, writableRegistry(), LeaderCheckRequest::new),
-            rq -> new LeaderCheckRequest(TestDiscoveryNode.create(randomAlphaOfLength(10)))
+            rq -> new LeaderCheckRequest(DiscoveryNodeUtils.create(randomAlphaOfLength(10)))
         );
     }
 }

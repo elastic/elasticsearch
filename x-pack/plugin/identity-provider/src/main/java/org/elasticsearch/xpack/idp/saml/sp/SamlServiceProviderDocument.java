@@ -163,7 +163,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             return decodeCertificates(this.identityProviderMetadataSigning);
         }
 
-        private List<String> encodeCertificates(Collection<X509Certificate> certificates) {
+        private static List<String> encodeCertificates(Collection<X509Certificate> certificates) {
             return certificates == null ? List.of() : certificates.stream().map(cert -> {
                 try {
                     return cert.getEncoded();
@@ -173,14 +173,14 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             }).map(Base64.getEncoder()::encodeToString).toList();
         }
 
-        private List<X509Certificate> decodeCertificates(List<String> encodedCertificates) {
+        private static List<X509Certificate> decodeCertificates(List<String> encodedCertificates) {
             if (encodedCertificates == null || encodedCertificates.isEmpty()) {
                 return List.of();
             }
-            return encodedCertificates.stream().map(this::decodeCertificate).toList();
+            return encodedCertificates.stream().map(Certificates::decodeCertificate).toList();
         }
 
-        private X509Certificate decodeCertificate(String base64Cert) {
+        private static X509Certificate decodeCertificate(String base64Cert) {
             final byte[] bytes = base64Cert.getBytes(StandardCharsets.UTF_8);
             try (InputStream stream = new ByteArrayInputStream(bytes)) {
                 final List<Certificate> certificates = CertParsingUtils.readCertificates(Base64.getDecoder().wrap(stream));
@@ -256,16 +256,16 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         authenticationExpiryMillis = in.readOptionalVLong();
 
         privileges.resource = in.readString();
-        privileges.rolePatterns = new TreeSet<>(in.readSet(StreamInput::readString));
+        privileges.rolePatterns = new TreeSet<>(in.readCollectionAsSet(StreamInput::readString));
 
         attributeNames.principal = in.readString();
         attributeNames.email = in.readOptionalString();
         attributeNames.name = in.readOptionalString();
         attributeNames.roles = in.readOptionalString();
 
-        certificates.serviceProviderSigning = in.readStringList();
-        certificates.identityProviderSigning = in.readStringList();
-        certificates.identityProviderMetadataSigning = in.readStringList();
+        certificates.serviceProviderSigning = in.readStringCollectionAsList();
+        certificates.identityProviderSigning = in.readStringCollectionAsList();
+        certificates.identityProviderMetadataSigning = in.readStringCollectionAsList();
     }
 
     @Override

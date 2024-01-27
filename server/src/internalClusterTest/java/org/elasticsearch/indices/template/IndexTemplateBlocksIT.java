@@ -44,13 +44,12 @@ public class IndexTemplateBlocksIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         try {
             setClusterReadOnly(true);
 
-            GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates("template_blocks").execute().actionGet();
+            GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates("template_blocks").get();
             assertThat(response.getIndexTemplates(), hasSize(1));
 
             assertBlocked(
@@ -60,7 +59,7 @@ public class IndexTemplateBlocksIT extends ESIntegTestCase {
                     .addAlias(new Alias("alias_1"))
             );
 
-            assertBlocked(client().admin().indices().prepareDeleteTemplate("template_blocks"));
+            assertBlocked(indicesAdmin().prepareDeleteTemplate("template_blocks"));
 
         } finally {
             setClusterReadOnly(false);

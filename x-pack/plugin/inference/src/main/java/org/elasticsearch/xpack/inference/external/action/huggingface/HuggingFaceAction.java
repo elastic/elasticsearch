@@ -61,7 +61,7 @@ public class HuggingFaceAction implements ExecutableAction {
             serviceComponents.threadPool()
         );
         this.account = new HuggingFaceAccount(model.getUri(), model.getApiKey());
-        this.errorMessage = format("Failed to send Hugging Face %s request to [%s]", requestType, model.getUri().toString());
+        this.errorMessage = format("Failed to send Hugging Face %s request from model id [%s]", requestType, model.getModelId());
         this.truncator = Objects.requireNonNull(serviceComponents.truncator());
     }
 

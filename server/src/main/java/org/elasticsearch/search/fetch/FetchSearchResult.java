@@ -26,8 +26,6 @@ import java.io.IOException;
 public final class FetchSearchResult extends SearchPhaseResult {
 
     private SearchHits hits;
-
-    private RankHitData rankHitData;
     // client side counter
     private transient int counter;
 
@@ -52,7 +50,6 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId = new ShardSearchContextId(in);
         hits = SearchHits.readFrom(in, true);
         profileResult = in.readOptionalWriteable(ProfileResult::new);
-        rankHitData = in.readOptionalNamedWriteable(RankHitData.class);
     }
 
     @Override
@@ -61,7 +58,6 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId.writeTo(out);
         hits.writeTo(out);
         out.writeOptionalWriteable(profileResult);
-        out.writeOptionalNamedWriteable(rankHitData);
     }
 
     @Override
@@ -120,9 +116,5 @@ public final class FetchSearchResult extends SearchPhaseResult {
     @Override
     public boolean hasReferences() {
         return refCounted.hasReferences();
-    }
-
-    public RankHitData getRankFetchResult() {
-        return rankHitData;
     }
 }

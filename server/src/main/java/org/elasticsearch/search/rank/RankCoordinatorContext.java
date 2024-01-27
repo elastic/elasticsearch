@@ -9,6 +9,7 @@
 package org.elasticsearch.search.rank;
 
 import org.elasticsearch.action.search.SearchPhaseController;
+import org.elasticsearch.action.search.SearchPhaseController.ReducedQueryPhase;
 import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -45,8 +46,8 @@ public abstract class RankCoordinatorContext {
     public abstract SortedTopDocs rank(List<QuerySearchResult> querySearchResults, TopDocsStats topDocStats);
     // don't think anything needs to change here, we expose this with rank
 
-    public SearchHits getHits(
-        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+    public ReducedQueryPhase updateReducedQueryPhase(
+        ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArray
     ) {
         return null;

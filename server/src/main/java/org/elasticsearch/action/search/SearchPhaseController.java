@@ -370,10 +370,9 @@ public final class SearchPhaseController {
         if (reducedQueryPhase.rankCoordinatorContext instanceof ScriptRankCoordinatorContext) {
             // needs reducedQueryPhase and fetch results array
             // need to get the hits back from it (without the script)
-            hits = reducedQueryPhase.rankCoordinatorContext.getHits(reducedQueryPhase, fetchResultsArray);
-        } else {
-            hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
+            reducedQueryPhase = reducedQueryPhase.rankCoordinatorContext.updateReducedQueryPhase(reducedQueryPhase, fetchResultsArray);
         }
+        hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
 
         try {
             if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
@@ -458,7 +457,19 @@ public final class SearchPhaseController {
                     continue;
                 }
                 FetchSearchResult fetchResult = fetchResultProvider.fetchResult();
-                final int index = fetchResult.counterGetAndIncrement();
+                int index = -1;
+                if (reducedQueryPhase.rankCoordinatorContext() != null) {
+                    int count = 0;
+                    for (SearchHit searchHit : fetchResult.hits()) {
+                        if (searchHit.docId() == shardDoc.doc) {
+                            index = count;
+                            break;
+                        }
+                        ++count;
+                    }
+                } else {
+                    index = fetchResult.counterGetAndIncrement();
+                }
                 assert index < fetchResult.hits().getHits().length
                     : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
                 SearchHit searchHit = fetchResult.hits().getHits()[index];

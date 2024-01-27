@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.search.SearchPhaseController;
+import org.elasticsearch.action.search.SearchPhaseController.ReducedQueryPhase;
 import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.util.Maps;
@@ -178,8 +179,8 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
     }
 
     @Override
-    public SearchHits getHits(
-        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+    public ReducedQueryPhase updateReducedQueryPhase(
+        ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArray
     ) {
         throw new UnsupportedOperationException("TODO");

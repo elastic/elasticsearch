@@ -82,15 +82,13 @@ public class ScriptRankFetchSubPhaseProcessor implements FetchSubPhaseProcessor 
         if (queries != null && queries.isEmpty() == false) {
             queryScores = new float[queries.size()];
             for (int i = 0; i < queries.size(); ++i) {
-                logger.info("EXECUTING QUERY [" + i + "] FOR DOC [" + hitContext.docId() + "]");
-                var weight = queries.get(i).createWeight(fetchContext.searcher(), COMPLETE, 1f); // TODO boost is 1?
+                var weight = queries.get(i).createWeight(fetchContext.searcher(), COMPLETE, 1f);
                 var scorer = weight.scorer(hitContext.readerContext());
                 if (scorer == null) {
                     queryScores[i] = 0f;
                 } else {
                     var docId = scorer.iterator().advance(hitContext.docId());
                     queryScores[i] = docId == hitContext.docId() ? scorer.score() : 0f;
-                    logger.info("SETTING QUERY [" + i + "] SCORE [" + queryScores[i] + "] FOR DOC [" + hitContext.docId() + "]");
                 }
             }
         }

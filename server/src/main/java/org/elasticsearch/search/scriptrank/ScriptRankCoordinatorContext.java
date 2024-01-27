@@ -95,50 +95,19 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
 
     @Override
     @SuppressWarnings("unchecked")
-    public SearchHits getHits(
+    public SearchPhaseController.ReducedQueryPhase updateReducedQueryPhase(
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArray
     ) {
         RankScript.Factory factory = scriptService.compile(script, RankScript.CONTEXT);
         RankScript rankScript = factory.newInstance(script.getParams());
 
-
-// Example that calculates RRF
-/*
-def results = [:];
-for (def retrieverResult : docs) {
-    int index = retrieverResult.size();
-    for (ScriptRankDoc scriptRankDoc : retrieverResult) {
-        ScoreDoc scoreDoc = scriptRankDoc.scoreDoc();
-        String kwField = scriptRankDoc.fields().get(\"kw\");
-        results.compute(
-                new RankKey(scoreDoc.doc, scoreDoc.shardIndex),
-                (key, value) -> {
-                    def v = value;
-                    if (v == null) {
-                        v = new ScoreDoc(scoreDoc.doc, 0f, scoreDoc.shardIndex);
-                    }
-                    v.score += 1.0f / (60 + index );
-                    return v;
-                }
-        );
-        --index;
-    }
-}
-def output = new ArrayList(results.values());
-output.sort((ScoreDoc sd1, ScoreDoc sd2) -> { return sd1.score < sd2.score ? 1 : -1; });
-return output;
-
-*/
-
-        record LookupData(Map<String, Object> fields, float[] queryScores) {
-        }
+        record LookupData(Map<String, Object> fields, float[] queryScores) {}
 
         // TODO: John clean this up.
         Map<RankKey, LookupData> lookup = new HashMap<>();
         for (var fetchResult : fetchResultsArray.asList()) {
             for (var hit : fetchResult.fetchResult().hits().getHits()) {
-                LogManager.getLogger(ScriptRankCoordinatorContext.class).info("RANK_KEY ID ["+ hit.docId() + "] SHARD [" + fetchResult.getShardIndex() + "]");
                 lookup.put(
                     new RankKey(hit.docId(), fetchResult.getShardIndex()),
                     new LookupData(
@@ -154,7 +123,6 @@ return output;
             List<ScriptRankDoc> currentRetrieverResults = new ArrayList<>();
             while (queue.size() != 0) {
                 ScoreDoc scoreDoc = queue.pop();
-                LogManager.getLogger(ScriptRankCoordinatorContext.class).info("SCORE_DOC ID ["+ scoreDoc.doc + "] SHARD [" + scoreDoc.shardIndex + "]");
                 var lookupData = lookup.get(new RankKey(scoreDoc.doc, scoreDoc.shardIndex));
                 currentRetrieverResults.add(
                     new ScriptRankDoc(
@@ -170,7 +138,7 @@ return output;
         List<ScoreDoc> scriptResult = rankScript.execute(allRetrieverResults);
 
         var sortedTopDocs = new SearchPhaseController.SortedTopDocs(scriptResult.toArray(ScoreDoc[]::new), false, null, null, null, 0);
-        var updatedReducedQueryPhase = new SearchPhaseController.ReducedQueryPhase(
+        return new SearchPhaseController.ReducedQueryPhase(
             reducedQueryPhase.totalHits(),
             scriptResult.size(),
             reducedQueryPhase.maxScore(),
@@ -187,7 +155,5 @@ return output;
             reducedQueryPhase.from(),
             reducedQueryPhase.isEmptyResult()
         );
-
-        return SearchPhaseController.getHits(updatedReducedQueryPhase, false, fetchResultsArray);
     }
 }

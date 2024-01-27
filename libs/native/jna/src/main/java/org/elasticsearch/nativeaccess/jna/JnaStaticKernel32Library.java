@@ -14,12 +14,17 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 
+import com.sun.jna.WString;
+
+import com.sun.jna.ptr.IntByReference;
+
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.IntConsumer;
 
 class JnaStaticKernel32Library {
     private static final Logger logger = LogManager.getLogger(JnaStaticPosixCLibrary.class);
@@ -59,37 +64,37 @@ class JnaStaticKernel32Library {
         }
 
         @Override
-        public long getBaseAddress() {
+        public long BaseAddress() {
             return Pointer.nativeValue(BaseAddress);
         }
 
         @Override
-        public long getAllocationBase() {
+        public long AllocationBase() {
             return Pointer.nativeValue(AllocationBase);
         }
 
         @Override
-        public long getAllocationProtect() {
+        public long AllocationProtect() {
             return AllocationProtect.longValue();
         }
 
         @Override
-        public long getRegionSize() {
+        public long RegionSize() {
             return RegionSize.longValue();
         }
 
         @Override
-        public long getState() {
+        public long State() {
             return State.longValue();
         }
 
         @Override
-        public long getProtect() {
+        public long Protect() {
             return Protect.longValue();
         }
 
         @Override
-        public long getType() {
+        public long Type() {
             return Type.longValue();
         }
     }
@@ -124,5 +129,9 @@ class JnaStaticKernel32Library {
      */
     static native boolean SetProcessWorkingSetSize(Pointer handle, SizeT minSize, SizeT maxSize);
 
+    /**
+     * @see Kernel32Library#GetCompressedFileSizeW(String, IntConsumer)
+     */
+    static native int GetCompressedFileSizeW(WString lpFileName, IntByReference lpFileSizeHigh);
 
 }

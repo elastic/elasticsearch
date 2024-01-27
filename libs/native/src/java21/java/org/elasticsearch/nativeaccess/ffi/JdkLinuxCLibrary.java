@@ -63,7 +63,7 @@ public class JdkLinuxCLibrary implements LinuxCLibrary {
         var jdkStatxbuf = (JdkStatx)statxbuf;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment nativePathname = arena.allocateUtf8String(pathname);
-            return (int)statx$mh.invokeExact(errnoState, dirfd, nativePathname, flags, mask, jdkStatxbuf.segment);
+            return (int)statx$mh.invokeExact(dirfd, nativePathname, flags, mask, jdkStatxbuf.segment, errnoState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

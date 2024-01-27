@@ -18,10 +18,13 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.StructLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.VarHandle;
+import java.nio.charset.StandardCharsets;
+import java.util.function.IntConsumer;
 
 import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BOOLEAN;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
@@ -33,6 +36,7 @@ class JdkKernel32Library implements Kernel32Library {
     private static final MethodHandle VirtualLock$mh;
     private static final MethodHandle VirtualQueryEx$mh;
     private static final MethodHandle SetProcessWorkingSetSize$mh;
+    private static final MethodHandle GetCompressedFileSizeW$mh;
 
     static {
         GetCurrentProcess$mh = downcallHandle("GetCurrentProcess", FunctionDescriptor.of(ADDRESS));
@@ -44,6 +48,9 @@ class JdkKernel32Library implements Kernel32Library {
         SetProcessWorkingSetSize$mh = downcallHandleWithError(
             "SetProcessWorkingSetSize",
             FunctionDescriptor.of(ADDRESS, JAVA_LONG, JAVA_LONG));
+        GetCompressedFileSizeW$mh = downcallHandleWithError(
+            "GetCompressedFileSizeW",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
     }
 
     // GetLastError can change from other Java threads so capture it
@@ -80,37 +87,37 @@ class JdkKernel32Library implements Kernel32Library {
         }
 
         @Override
-        public long getBaseAddress() {
+        public long BaseAddress() {
             return ((MemorySegment)BaseAddress$vh.get(segment)).address();
         }
 
         @Override
-        public long getAllocationBase() {
+        public long AllocationBase() {
             return ((MemorySegment)AllocationBase$vh.get(segment)).address();
         }
 
         @Override
-        public long getAllocationProtect() {
+        public long AllocationProtect() {
             return (long)AllocationProtect$vh.get(segment);
         }
 
         @Override
-        public long getRegionSize() {
+        public long RegionSize() {
             return (long)RegionSize$vh.get(segment);
         }
 
         @Override
-        public long getState() {
+        public long State() {
             return (long)State$vh.get(segment);
         }
 
         @Override
-        public long getProtect() {
+        public long Protect() {
             return (long)Protect$vh.get(segment);
         }
 
         @Override
-        public long getType() {
+        public long Type() {
             return (long)Type$vh.get(segment);
         }
     }
@@ -134,7 +141,7 @@ class JdkKernel32Library implements Kernel32Library {
     @Override
     public boolean CloseHandle(long handle) {
         try {
-            return (boolean)CloseHandle$mh.invokeExact(lastErrorState, MemorySegment.ofAddress(handle));
+            return (boolean)CloseHandle$mh.invokeExact(MemorySegment.ofAddress(handle), lastErrorState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -153,7 +160,7 @@ class JdkKernel32Library implements Kernel32Library {
     @Override
     public boolean VirtualLock(long address, long size) {
         try {
-            return (boolean)VirtualLock$mh.invokeExact(lastErrorState, MemorySegment.ofAddress(address), size);
+            return (boolean)VirtualLock$mh.invokeExact(MemorySegment.ofAddress(address), size, lastErrorState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -165,11 +172,11 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkMemoryInfo = (JdkMemoryBasicInformation)memoryInfo;
         try {
             return (int)VirtualQueryEx$mh.invokeExact(
-                lastErrorState,
                 MemorySegment.ofAddress(processHandle),
                 MemorySegment.ofAddress(address),
                 jdkMemoryInfo.segment,
-                jdkMemoryInfo.segment.byteSize());
+                jdkMemoryInfo.segment.byteSize(),
+                lastErrorState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -179,10 +186,24 @@ class JdkKernel32Library implements Kernel32Library {
     public boolean SetProcessWorkingSetSize(long processHandle, long minSize, long maxSize) {
         try {
             return (boolean)SetProcessWorkingSetSize$mh.invokeExact(
-                lastErrorState,
                 MemorySegment.ofAddress(processHandle),
                 minSize,
-                maxSize);
+                maxSize,
+                lastErrorState);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int GetCompressedFileSizeW(String lpFileName, IntConsumer lpFileSizeHigh) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment wideFileName = arena.allocateArray(JAVA_BYTE, (lpFileName + "\0").getBytes(StandardCharsets.UTF_16LE));
+            MemorySegment fileSizeHigh = arena.allocate(JAVA_INT);
+
+            int ret = (int)GetCompressedFileSizeW$mh.invokeExact(wideFileName, fileSizeHigh, lastErrorState);
+            lpFileSizeHigh.accept(fileSizeHigh.get(JAVA_INT, 0));
+            return ret;
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

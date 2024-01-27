@@ -10,9 +10,15 @@ package org.elasticsearch.nativeaccess.jna;
 
 import com.sun.jna.Pointer;
 
+import com.sun.jna.WString;
+
+import com.sun.jna.ptr.IntByReference;
+
 import org.elasticsearch.nativeaccess.jna.JnaStaticKernel32Library.JnaMemoryBasicInformation;
 import org.elasticsearch.nativeaccess.jna.JnaStaticKernel32Library.SizeT;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
+
+import java.util.function.IntConsumer;
 
 public class JnaKernel32Library implements Kernel32Library {
 
@@ -55,5 +61,14 @@ public class JnaKernel32Library implements Kernel32Library {
     @Override
     public boolean SetProcessWorkingSetSize(long processHandle, long minSize, long maxSize) {
         return JnaStaticKernel32Library.SetProcessWorkingSetSize(new Pointer(processHandle), new SizeT(minSize), new SizeT(maxSize));
+    }
+
+    @Override
+    public int GetCompressedFileSizeW(String lpFileName, IntConsumer lpFileSizeHigh) {
+        var wideFileName = new WString(lpFileName);
+        var fileSizeHigh = new IntByReference();
+        int ret = JnaStaticKernel32Library.GetCompressedFileSizeW(wideFileName, fileSizeHigh);
+        lpFileSizeHigh.accept(fileSizeHigh.getValue());
+        return ret;
     }
 }

@@ -15,6 +15,7 @@ import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.OptionalLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
 class WindowsNativeAccess extends AbstractNativeAccess {
 
@@ -26,6 +27,8 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     public static final int PAGE_NOACCESS = 0x0001;
     public static final int PAGE_GUARD = 0x0100;
     public static final int MEM_COMMIT = 0x1000;
+
+    private static final int INVALID_FILE_SIZE = -1;
 
     private final Kernel32Library kernel;
 
@@ -53,14 +56,14 @@ class WindowsNativeAccess extends AbstractNativeAccess {
                 var memInfo = kernel.newMemoryBasicInformation();
                 long address = 0;
                 while (kernel.VirtualQueryEx(processHandle, address, memInfo) != 0) {
-                    boolean lockable = memInfo.getState() == MEM_COMMIT
-                        && (memInfo.getProtect() & PAGE_NOACCESS) != PAGE_NOACCESS
-                        && (memInfo.getProtect() & PAGE_GUARD) != PAGE_GUARD;
+                    boolean lockable = memInfo.State() == MEM_COMMIT
+                        && (memInfo.Protect() & PAGE_NOACCESS) != PAGE_NOACCESS
+                        && (memInfo.Protect() & PAGE_GUARD) != PAGE_GUARD;
                     if (lockable) {
-                        kernel.VirtualLock(memInfo.getBaseAddress(), memInfo.getRegionSize());
+                        kernel.VirtualLock(memInfo.BaseAddress(), memInfo.RegionSize());
                     }
                     // Move to the next region
-                    address += memInfo.getRegionSize();
+                    address += memInfo.RegionSize();
                 }
                 memoryLocked = true;
             }
@@ -90,23 +93,20 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     public OptionalLong allocatedSizeInBytes(Path path) {
         assert Files.isRegularFile(path) : path;
         String fileName = "\\\\?\\" + path;
-        final IntByReference lpFileSizeHigh = new IntByReference();
+        AtomicInteger lpFileSizeHigh = new AtomicInteger();
 
-        final int lpFileSizeLow = GetCompressedFileSizeW(fileName, lpFileSizeHigh);
+        final int lpFileSizeLow = kernel.GetCompressedFileSizeW(fileName, lpFileSizeHigh::set);
         if (lpFileSizeLow == INVALID_FILE_SIZE) {
-            final int err = Native.getLastError();
-            if (err != NO_ERROR) {
-                logger.warn("error [{}] when executing native method GetCompressedFileSizeW for file [{}]", err, path);
-                return OptionalLong.empty();
-            }
+            logger.warn("Unable to get allocated size of file [{}]. Error code {}", path, kernel.GetLastError());
+            return OptionalLong.empty();
         }
 
         // convert lpFileSizeLow to unsigned long and combine with signed/shifted lpFileSizeHigh
-        final long allocatedSize = (((long) lpFileSizeHigh.getValue()) << Integer.SIZE) | Integer.toUnsignedLong(lpFileSizeLow);
+        final long allocatedSize = (((long) lpFileSizeHigh.get()) << Integer.SIZE) | Integer.toUnsignedLong(lpFileSizeLow);
         if (logger.isTraceEnabled()) {
             logger.trace(
                 "executing native method GetCompressedFileSizeW returned [high={}, low={}, allocated={}] for file [{}]",
-                lpFileSizeHigh,
+                lpFileSizeHigh.get(),
                 lpFileSizeLow,
                 allocatedSize,
                 path

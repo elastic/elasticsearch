@@ -8,6 +8,8 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
+import java.util.function.IntConsumer;
+
 /**
  * Windows kernel methods.
  */
@@ -26,13 +28,13 @@ public interface Kernel32Library {
      * https://msdn.microsoft.com/en-us/library/windows/desktop/aa366775%28v=vs.85%29.aspx
      */
     interface MemoryBasicInformation {
-        long getBaseAddress();
-        long getAllocationBase();
-        long getAllocationProtect();
-        long getRegionSize();
-        long getState();
-        long getProtect();
-        long getType();
+        long BaseAddress();
+        long AllocationBase();
+        long AllocationProtect();
+        long RegionSize();
+        long State();
+        long Protect();
+        long Type();
     }
 
     MemoryBasicInformation newMemoryBasicInformation();
@@ -81,7 +83,7 @@ public interface Kernel32Library {
      *
      * @param lpFileName the path string
      * @param lpFileSizeHigh pointer to high-order DWORD for compressed file size (or null if not needed)
-     * @return the low-order DWORD for compressed file siz
+     * @return the low-order DWORD for compressed file size
      */
-    int GetCompressedFileSizeW(WString lpFileName, IntByReference lpFileSizeHigh);
+    int GetCompressedFileSizeW(String lpFileName, IntConsumer lpFileSizeHigh);
 }

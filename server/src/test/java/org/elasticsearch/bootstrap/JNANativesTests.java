@@ -12,22 +12,10 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class JNANativesTests extends ESTestCase {
     public void testMlockall() {
         if (Constants.MAC_OS_X) {
             assertFalse("Memory locking is not available on OS X platforms", NativeAccess.instance().isMemoryLocked());
-        }
-    }
-
-    public void testConsoleCtrlHandler() {
-        if (Constants.WINDOWS) {
-            assertNotNull(JNAKernel32Library.getInstance());
-            assertThat(JNAKernel32Library.getInstance().getCallbacks().size(), equalTo(1));
-        } else {
-            assertNotNull(JNAKernel32Library.getInstance());
-            assertThat(JNAKernel32Library.getInstance().getCallbacks().size(), equalTo(0));
         }
     }
 }

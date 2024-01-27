@@ -43,15 +43,23 @@ public interface NativeAccess {
      * @return an {@link OptionalLong} that contains the number of allocated bytes on disk for the file, or empty if the size is invalid
      */
     OptionalLong allocatedSizeInBytes(Path path);
-    /*
 
-
-
+    /**
+     * Retrieves the short path form of the specified path.
+     *
+     * @param path the path
+     * @return the short path name, or the original path name if unsupported or unavailable
+     */
     String getShortPathName(String path);
-    void addConsoleCtrlHandler(ConsoleCtrlHandler handler);
 
+    /**
+     * Adds a Console Ctrl Handler for Windows. On non-windows this is a noop.
+     *
+     * @return true if the handler is correctly set
+     */
+    boolean addConsoleCtrlHandler(ConsoleCtrlHandler handler);
 
-
+    /*
     int preallocate(int fd, long offset, long length);
 */
     /**

@@ -41,28 +41,6 @@ final class Natives {
         JNA_AVAILABLE = v;
     }
 
-    /**
-     * Retrieves the short path form of the specified path.
-     *
-     * @param path the path
-     * @return the short path name (or the original path if getting the short path name fails for any reason)
-     */
-    static String getShortPathName(final String path) {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot obtain short path for [{}] because JNA is not available", path);
-            return path;
-        }
-        return JNANatives.getShortPathName(path);
-    }
-
-    static void addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot register console handler because JNA is not available");
-            return;
-        }
-        JNANatives.addConsoleCtrlHandler(handler);
-    }
-
     static void tryInstallSystemCallFilter(Path tmpFile) {
         if (JNA_AVAILABLE == false) {
             logger.warn("cannot install system call filter because JNA is not available");

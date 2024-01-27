@@ -8,6 +8,9 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.NativeAccess.ConsoleCtrlHandler;
+
 import java.util.function.IntConsumer;
 
 /**
@@ -86,4 +89,25 @@ public interface Kernel32Library {
      * @return the low-order DWORD for compressed file size
      */
     int GetCompressedFileSizeW(String lpFileName, IntConsumer lpFileSizeHigh);
+
+    /**
+     * Retrieves the short path form of the specified path. See
+     * <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa364989.aspx">{@code GetShortPathName}</a>.
+     *
+     * @param lpszLongPath  the path string
+     * @param lpszShortPath a buffer to receive the short name
+     * @param cchBuffer     the size of the buffer
+     * @return the length of the string copied into {@code lpszShortPath}, otherwise zero for failure
+     */
+    int GetShortPathNameW(String lpszLongPath, char[] lpszShortPath, int cchBuffer);
+
+    /**
+     * Native call to the Kernel32 API to set a new Console Ctrl Handler.
+     * <a href="https://learn.microsoft.com/en-us/windows/console/setconsolectrlhandler">{@code SetConsoleCtrlHandler}</a>
+     *
+     * @param handler A callback to handle control events
+     * @param add     True if the handler should be added, false if it should replace existing handlers
+     * @return true if the handler is correctly set
+     */
+    boolean SetConsoleCtrlHandler(ConsoleCtrlHandler handler, boolean add);
 }

@@ -102,6 +102,16 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         }
     }
 
+    @Override
+    public String getShortPathName(String path) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
+        return false;
+    }
+
     String rlimitToString(long value) {
         if (value == RLIMIT_INFINITY) {
             return "unlimited";

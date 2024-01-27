@@ -366,7 +366,7 @@ final class BootstrapChecks {
 
         // visible for testing
         long getMaxNumberOfThreads() {
-            return JNANatives.MAX_NUMBER_OF_THREADS;
+            return NativeAccess.instance().getMaxNumberOfThreads();
         }
 
         @Override
@@ -399,7 +399,7 @@ final class BootstrapChecks {
 
         // visible for testing
         long getMaxSizeVirtualMemory() {
-            return JNANatives.MAX_SIZE_VIRTUAL_MEMORY;
+            return NativeAccess.instance().getMaxVirtualMemorySize();
         }
 
         @Override
@@ -434,7 +434,7 @@ final class BootstrapChecks {
         }
 
         long getMaxFileSize() {
-            return JNANatives.MAX_FILE_SIZE;
+            return NativeAccess.instance().getMaxFileSize();
         }
 
         @Override

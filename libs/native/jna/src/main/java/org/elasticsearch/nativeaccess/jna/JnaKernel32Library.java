@@ -9,18 +9,18 @@
 package org.elasticsearch.nativeaccess.jna;
 
 import com.sun.jna.Pointer;
-
 import com.sun.jna.WString;
-
 import com.sun.jna.ptr.IntByReference;
 
+import org.elasticsearch.nativeaccess.NativeAccess.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.jna.JnaStaticKernel32Library.JnaMemoryBasicInformation;
+import org.elasticsearch.nativeaccess.jna.JnaStaticKernel32Library.NativeHandlerCallback;
 import org.elasticsearch.nativeaccess.jna.JnaStaticKernel32Library.SizeT;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
 import java.util.function.IntConsumer;
 
-public class JnaKernel32Library implements Kernel32Library {
+class JnaKernel32Library implements Kernel32Library {
 
     @Override
     public long GetCurrentProcess() {
@@ -70,5 +70,17 @@ public class JnaKernel32Library implements Kernel32Library {
         int ret = JnaStaticKernel32Library.GetCompressedFileSizeW(wideFileName, fileSizeHigh);
         lpFileSizeHigh.accept(fileSizeHigh.getValue());
         return ret;
+    }
+
+    @Override
+    public int GetShortPathNameW(String lpszLongPath, char[] lpszShortPath, int cchBuffer) {
+        var wideFileName = new WString(lpszLongPath);
+        return JnaStaticKernel32Library.GetShortPathNameW(wideFileName, lpszShortPath, cchBuffer);
+    }
+
+    @Override
+    public boolean SetConsoleCtrlHandler(ConsoleCtrlHandler handler, boolean add) {
+        NativeHandlerCallback callback = new NativeHandlerCallback(handler);
+        return JnaStaticKernel32Library.SetConsoleCtrlHandler(callback, true);
     }
 }

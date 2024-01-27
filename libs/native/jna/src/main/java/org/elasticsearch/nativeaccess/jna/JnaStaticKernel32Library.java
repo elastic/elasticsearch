@@ -18,8 +18,12 @@ import com.sun.jna.WString;
 
 import com.sun.jna.ptr.IntByReference;
 
+import com.sun.jna.win32.StdCallLibrary;
+
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.NativeAccess.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
 import java.util.Arrays;
@@ -100,6 +104,24 @@ class JnaStaticKernel32Library {
     }
 
     /**
+     * Handles consoles event with WIN API
+     * <p>
+     * See http://msdn.microsoft.com/en-us/library/windows/desktop/ms683242%28v=vs.85%29.aspx
+     */
+    static class NativeHandlerCallback implements StdCallLibrary.StdCallCallback {
+
+        private final ConsoleCtrlHandler handler;
+
+        NativeHandlerCallback(ConsoleCtrlHandler handler) {
+            this.handler = handler;
+        }
+
+        public boolean callback(long dwCtrlType) {
+            return handler.handle((int) dwCtrlType);
+        }
+    }
+
+    /**
      * @see Kernel32Library#GetCurrentProcess()
      */
     static native Pointer GetCurrentProcess();
@@ -134,4 +156,15 @@ class JnaStaticKernel32Library {
      */
     static native int GetCompressedFileSizeW(WString lpFileName, IntByReference lpFileSizeHigh);
 
+    /**
+     * @see Kernel32Library#GetShortPathNameW(String, char[], int)
+     */
+    static native int GetShortPathNameW(WString lpszLongPath, char[] lpszShortPath, int cchBuffer);
+
+    /**
+     * Native call to the Kernel32 API to set a new Console Ctrl Handler.
+     *
+     * @return true if the handler is correctly set
+     */
+    static native boolean SetConsoleCtrlHandler(StdCallLibrary.StdCallCallback handler, boolean add);
 }

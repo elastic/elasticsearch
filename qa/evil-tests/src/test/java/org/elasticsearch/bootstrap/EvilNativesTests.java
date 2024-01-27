@@ -47,15 +47,15 @@ public class EvilNativesTests extends ESTestCase {
                 if (line != null && line.startsWith("Max address space")) {
                     final String[] fields = line.split("\\s+");
                     final String limit = fields[3];
-                    assertThat(JNANatives.rlimitToString(JNANatives.MAX_SIZE_VIRTUAL_MEMORY), equalTo(limit));
+                    assertThat(JNANatives.rlimitToString(NativeAccess.instance().getMaxVirtualMemorySize()), equalTo(limit));
                     return;
                 }
             }
             fail("should have read max size virtual memory from /proc/self/limits");
         } else if (Constants.MAC_OS_X) {
-            assertThat(JNANatives.MAX_SIZE_VIRTUAL_MEMORY, anyOf(equalTo(Long.MIN_VALUE), greaterThanOrEqualTo(0L)));
+            assertThat(NativeAccess.instance().getMaxVirtualMemorySize(), anyOf(equalTo(Long.MIN_VALUE), greaterThanOrEqualTo(0L)));
         } else {
-            assertThat(JNANatives.MAX_SIZE_VIRTUAL_MEMORY, equalTo(Long.MIN_VALUE));
+            assertThat(NativeAccess.instance().getMaxVirtualMemorySize(), equalTo(Long.MIN_VALUE));
         }
     }
 
@@ -66,15 +66,15 @@ public class EvilNativesTests extends ESTestCase {
                 if (line != null && line.startsWith("Max file size")) {
                     final String[] fields = line.split("\\s+");
                     final String limit = fields[3];
-                    assertThat(JNANatives.rlimitToString(JNANatives.MAX_FILE_SIZE), equalTo(limit));
+                    assertThat(JNANatives.rlimitToString(NativeAccess.instance().getMaxFileSize()), equalTo(limit));
                     return;
                 }
             }
             fail("should have read max file size from /proc/self/limits");
         } else if (Constants.MAC_OS_X) {
-            assertThat(JNANatives.MAX_FILE_SIZE, anyOf(equalTo(Long.MIN_VALUE), greaterThanOrEqualTo(0L)));
+            assertThat(NativeAccess.instance().getMaxFileSize(), anyOf(equalTo(Long.MIN_VALUE), greaterThanOrEqualTo(0L)));
         } else {
-            assertThat(JNANatives.MAX_FILE_SIZE, equalTo(Long.MIN_VALUE));
+            assertThat(NativeAccess.instance().getMaxFileSize(), equalTo(Long.MIN_VALUE));
         }
     }
 

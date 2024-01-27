@@ -26,11 +26,6 @@ final class JNACLibrary {
 
     private static final Logger logger = LogManager.getLogger(JNACLibrary.class);
 
-    public static final int MCL_CURRENT = 1;
-    public static final int ENOMEM = 12;
-    public static final int RLIMIT_MEMLOCK = Constants.MAC_OS_X ? 6 : 8;
-    public static final int RLIMIT_AS = Constants.MAC_OS_X ? 5 : 9;
-    public static final int RLIMIT_FSIZE = Constants.MAC_OS_X ? 1 : 1;
     public static final long RLIM_INFINITY = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
 
     static {
@@ -41,9 +36,6 @@ final class JNACLibrary {
         }
     }
 
-    static native int mlockall(int flags);
-
-    static native int geteuid();
 
     /** corresponds to struct rlimit */
     public static final class Rlimit extends Structure implements Structure.ByReference {
@@ -55,8 +47,6 @@ final class JNACLibrary {
             return Arrays.asList("rlim_cur", "rlim_max");
         }
     }
-
-    static native int getrlimit(int resource, Rlimit rlimit);
 
     static native int setrlimit(int resource, Rlimit rlimit);
 

@@ -114,4 +114,34 @@ class WindowsNativeAccess extends AbstractNativeAccess {
         }
         return OptionalLong.of(allocatedSize);
     }
+
+    @Override
+    public String getShortPathName(String path) {
+        String longPath = "\\\\?\\" + path;
+        // first we get the length of the buffer needed
+        final int length = kernel.GetShortPathNameW(longPath, null, 0);
+        if (length == 0) {
+            logger.warn("failed to get short path name: {}", kernel.GetLastError());
+            return path;
+        }
+        final char[] shortPath = new char[length];
+        // knowing the length of the buffer, now we get the short name
+        if (kernel.GetShortPathNameW(longPath, shortPath, length) > 0) {
+            assert shortPath[length - 1] == '\0';
+            return new String(shortPath, 0, length - 1);
+        } else {
+            logger.warn("failed to get short path name: {}", kernel.GetLastError());
+            return path;
+        }
+    }
+
+    @Override
+    public boolean addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
+        return kernel.SetConsoleCtrlHandler(dwCtrlType -> {
+            if (logger.isDebugEnabled()) {
+                logger.debug("console control handler received event [{}]", dwCtrlType);
+            }
+            return handler.handle(dwCtrlType);
+        }, true);
+    }
 }

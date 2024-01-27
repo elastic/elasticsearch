@@ -8,6 +8,7 @@
 
 package org.elasticsearch.nativeaccess.ffi;
 
+import org.elasticsearch.nativeaccess.NativeAccess.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
 import java.lang.foreign.Arena;
@@ -28,6 +29,8 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
+import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.upcallHandle;
+import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.upcallStub;
 
 class JdkKernel32Library implements Kernel32Library {
 
@@ -37,6 +40,11 @@ class JdkKernel32Library implements Kernel32Library {
     private static final MethodHandle VirtualQueryEx$mh;
     private static final MethodHandle SetProcessWorkingSetSize$mh;
     private static final MethodHandle GetCompressedFileSizeW$mh;
+    private static final MethodHandle GetShortPathNameW$mh;
+    private static final MethodHandle SetConsoleCtrlHandler$mh;
+
+    private static final MethodHandle ConsoleCtrlHandler_handle$mh;
+    private static final FunctionDescriptor ConsoleCtrlHandler_handle$fd = FunctionDescriptor.of(JAVA_BOOLEAN, JAVA_INT);
 
     static {
         GetCurrentProcess$mh = downcallHandle("GetCurrentProcess", FunctionDescriptor.of(ADDRESS));
@@ -51,6 +59,14 @@ class JdkKernel32Library implements Kernel32Library {
         GetCompressedFileSizeW$mh = downcallHandleWithError(
             "GetCompressedFileSizeW",
             FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+        GetShortPathNameW$mh = downcallHandleWithError(
+            "GetShortPathNameW",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
+        SetConsoleCtrlHandler$mh = downcallHandleWithError(
+            "SetConsoleCtrlHandler",
+            FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_BOOLEAN));
+
+        ConsoleCtrlHandler_handle$mh = upcallHandle(ConsoleCtrlHandler.class, "handle", ConsoleCtrlHandler_handle$fd);
     }
 
     // GetLastError can change from other Java threads so capture it
@@ -198,12 +214,40 @@ class JdkKernel32Library implements Kernel32Library {
     @Override
     public int GetCompressedFileSizeW(String lpFileName, IntConsumer lpFileSizeHigh) {
         try (Arena arena = Arena.ofConfined()) {
+            // TODO: in Java 22 this can use allocateFrom to encode the string
             MemorySegment wideFileName = arena.allocateArray(JAVA_BYTE, (lpFileName + "\0").getBytes(StandardCharsets.UTF_16LE));
             MemorySegment fileSizeHigh = arena.allocate(JAVA_INT);
 
             int ret = (int)GetCompressedFileSizeW$mh.invokeExact(wideFileName, fileSizeHigh, lastErrorState);
             lpFileSizeHigh.accept(fileSizeHigh.get(JAVA_INT, 0));
             return ret;
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int GetShortPathNameW(String lpszLongPath, char[] lpszShortPath, int cchBuffer) {
+        try (Arena arena = Arena.ofConfined()) {
+            // TODO: in Java 22 this can use allocateFrom to encode the string
+            MemorySegment wideFileName = arena.allocateArray(JAVA_BYTE, (lpszLongPath + "\0").getBytes(StandardCharsets.UTF_16LE));
+            MemorySegment shortPath = null;
+            if (lpszShortPath != null) {
+                shortPath = MemorySegment.ofArray(lpszShortPath);
+            }
+
+            return (int)GetShortPathNameW$mh.invokeExact(wideFileName, shortPath, cchBuffer, lastErrorState);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public boolean SetConsoleCtrlHandler(ConsoleCtrlHandler handler, boolean add) {
+        Arena arena = Arena.ofAuto(); // auto arena so it lasts as long as the handler lasts
+        MemorySegment nativeHandler = upcallStub(ConsoleCtrlHandler_handle$mh, handler, ConsoleCtrlHandler_handle$fd, arena);
+        try {
+            return (boolean)SetConsoleCtrlHandler$mh.invokeExact(nativeHandler, add);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

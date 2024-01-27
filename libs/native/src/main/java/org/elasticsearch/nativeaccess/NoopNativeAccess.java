@@ -45,4 +45,16 @@ class NoopNativeAccess extends AbstractNativeAccess {
         logger.warn("Cannot get allocated size of file [" + path + "] because native access is not available");
         return OptionalLong.empty();
     }
+
+    @Override
+    public String getShortPathName(String path) {
+        logger.warn("Cannot get short path name for file [" + path + "] because native access is not available");
+        return path;
+    }
+
+    @Override
+    public boolean addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
+        logger.warn("Cannot register console control handler because native access is not available");
+        return false;
+    }
 }

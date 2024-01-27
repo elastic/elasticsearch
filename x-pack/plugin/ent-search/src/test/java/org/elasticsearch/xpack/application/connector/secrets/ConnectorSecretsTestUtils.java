@@ -28,7 +28,7 @@ public class ConnectorSecretsTestUtils {
     }
 
     public static PostConnectorSecretRequest getRandomPostConnectorSecretRequest() {
-        return new PostConnectorSecretRequest(randomAlphaOfLengthBetween(0, 20));
+        return new PostConnectorSecretRequest(randomAlphaOfLengthBetween(1, 20));
     }
 
     public static PostConnectorSecretResponse getRandomPostConnectorSecretResponse() {

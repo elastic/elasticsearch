@@ -1,0 +1,5 @@
+pr: 104832
+summary: Limit concurrent shards per node for ESQL
+area: ES|QL
+type: bug
+issues: []

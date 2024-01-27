@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.Is.is;
@@ -30,7 +30,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         var httpResponse = mock(HttpResponse.class);
         when(httpResponse.getStatusLine()).thenReturn(statusLine);
 
-        var mockRequest = mock(Request.class);
+        var mockRequest = RequestTests.mockRequest("id");
 
         var httpResult = new HttpResult(httpResponse, new byte[] {});
 
@@ -45,7 +45,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received a rate limit status code for request from model id [null] status [503]")
+            containsString("Received a rate limit status code for request from model id [id] status [503]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 502
@@ -54,7 +54,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received a rate limit status code for request from model id [null] status [502]")
+            containsString("Received a rate limit status code for request from model id [id] status [502]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 429
@@ -63,7 +63,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received a rate limit status code for request from model id [null] status [429]")
+            containsString("Received a rate limit status code for request from model id [id] status [429]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
         // 413
@@ -78,7 +78,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an authentication error status code for request from model id [null] status [401]")
+            containsString("Received an authentication error status code for request from model id [id] status [401]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.UNAUTHORIZED));
         // 300
@@ -87,7 +87,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Unhandled redirection for request from model id [null] status [300]")
+            containsString("Unhandled redirection for request from model id [id] status [300]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
         // 402
@@ -96,7 +96,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request from model id [null] status [402]")
+            containsString("Received an unsuccessful status code for request from model id [id] status [402]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.PAYMENT_REQUIRED));
     }

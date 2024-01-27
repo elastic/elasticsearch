@@ -19,7 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 
 import java.nio.charset.StandardCharsets;
 
@@ -40,7 +40,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         when(header.getElements()).thenReturn(new HeaderElement[] {});
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
 
-        var mockRequest = mock(Request.class);
+        var mockRequest = RequestTests.mockRequest("id");
         var httpResult = new HttpResult(httpResponse, new byte[] {});
         var handler = new OpenAiResponseHandler("", (request, result) -> null);
 
@@ -53,7 +53,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received a server busy error status code for request from model id [null] status [503]")
+            containsString("Received a server busy error status code for request from model id [id] status [503]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 501
@@ -62,7 +62,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received a server error status code for request from model id [null] status [501]")
+            containsString("Received a server error status code for request from model id [id] status [501]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 500
@@ -71,7 +71,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received a server error status code for request from model id [null] status [500]")
+            containsString("Received a server error status code for request from model id [id] status [500]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 429
@@ -100,7 +100,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request from model id [null] status [400]")
+            containsString("Received an unsuccessful status code for request from model id [id] status [400]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 400 is not flagged as a content too large when the error message is different
@@ -112,7 +112,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request from model id [null] status [400]")
+            containsString("Received an unsuccessful status code for request from model id [id] status [400]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 401
@@ -121,7 +121,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an authentication error status code for request from model id [null] status [401]")
+            containsString("Received an authentication error status code for request from model id [id] status [401]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.UNAUTHORIZED));
         // 300
@@ -130,7 +130,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Unhandled redirection for request from model id [null] status [300]")
+            containsString("Unhandled redirection for request from model id [id] status [300]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
         // 402
@@ -139,7 +139,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request from model id [null] status [402]")
+            containsString("Received an unsuccessful status code for request from model id [id] status [402]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.PAYMENT_REQUIRED));
     }

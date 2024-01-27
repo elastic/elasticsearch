@@ -17,8 +17,11 @@ public interface PosixCLibrary {
     /** corresponds to struct rlimit */
     interface RLimit {
         long rlim_cur();
+
         long rlim_max();
+
         void rlim_cur(long v);
+
         void rlim_max(long v);
     }
 

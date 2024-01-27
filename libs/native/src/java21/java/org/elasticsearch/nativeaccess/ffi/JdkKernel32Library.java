@@ -57,31 +57,31 @@ class JdkKernel32Library implements Kernel32Library {
         VirtualLock$mh = downcallHandleWithError("VirtualLock", FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_LONG));
         VirtualQueryEx$mh = downcallHandleWithError(
             "VirtualQueryEx",
-            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_LONG));
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_LONG)
+        );
         SetProcessWorkingSetSize$mh = downcallHandleWithError(
             "SetProcessWorkingSetSize",
-            FunctionDescriptor.of(ADDRESS, JAVA_LONG, JAVA_LONG));
-        GetCompressedFileSizeW$mh = downcallHandleWithError(
-            "GetCompressedFileSizeW",
-            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
-        GetShortPathNameW$mh = downcallHandleWithError(
-            "GetShortPathNameW",
-            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
+            FunctionDescriptor.of(ADDRESS, JAVA_LONG, JAVA_LONG)
+        );
+        GetCompressedFileSizeW$mh = downcallHandleWithError("GetCompressedFileSizeW", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+        GetShortPathNameW$mh = downcallHandleWithError("GetShortPathNameW", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
         SetConsoleCtrlHandler$mh = downcallHandleWithError(
             "SetConsoleCtrlHandler",
-            FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_BOOLEAN));
-        CreateJobObjectW$mh = downcallHandleWithError(
-            "CreateJobObjectW",
-            FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
+            FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_BOOLEAN)
+        );
+        CreateJobObjectW$mh = downcallHandleWithError("CreateJobObjectW", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
         AssignProcessToJobObject$mh = downcallHandleWithError(
             "AssignProcessToJobObject",
-            FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, ADDRESS));
+            FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, ADDRESS)
+        );
         QueryInformationJobObject$mh = downcallHandleWithError(
             "QueryInformationJobObject",
-            FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS));
+            FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS)
+        );
         SetInformationJobObject$mh = downcallHandleWithError(
             "SetInformationJobObject",
-            FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT));
+            FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT)
+        );
 
         ConsoleCtrlHandler_handle$mh = upcallHandle(ConsoleCtrlHandler.class, "handle", ConsoleCtrlHandler_handle$fd);
     }
@@ -110,7 +110,6 @@ class JdkKernel32Library implements Kernel32Library {
             this.address = address;
         }
 
-
         @Override
         public Address add(long offset) {
             return new JdkAddress(MemorySegment.ofAddress(address.address()));
@@ -124,7 +123,8 @@ class JdkKernel32Library implements Kernel32Library {
             JAVA_LONG,
             JAVA_LONG,
             JAVA_LONG,
-            JAVA_LONG);
+            JAVA_LONG
+        );
         private static final VarHandle BaseAddress$vh = layout.varHandle(groupElement(0));
         private static final VarHandle RegionSize$vh = layout.varHandle(groupElement(2));
         private static final VarHandle State$vh = layout.varHandle(groupElement(3));
@@ -141,27 +141,27 @@ class JdkKernel32Library implements Kernel32Library {
 
         @Override
         public Address BaseAddress() {
-            return new JdkAddress((MemorySegment)BaseAddress$vh.get(segment));
+            return new JdkAddress((MemorySegment) BaseAddress$vh.get(segment));
         }
 
         @Override
         public long RegionSize() {
-            return (long)RegionSize$vh.get(segment);
+            return (long) RegionSize$vh.get(segment);
         }
 
         @Override
         public long State() {
-            return (long)State$vh.get(segment);
+            return (long) State$vh.get(segment);
         }
 
         @Override
         public long Protect() {
-            return (long)Protect$vh.get(segment);
+            return (long) Protect$vh.get(segment);
         }
 
         @Override
         public long Type() {
-            return (long)Type$vh.get(segment);
+            return (long) Type$vh.get(segment);
         }
     }
 
@@ -217,7 +217,7 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkHandle = (JdkHandle) handle;
 
         try {
-            return (boolean)CloseHandle$mh.invokeExact(jdkHandle.address, lastErrorState);
+            return (boolean) CloseHandle$mh.invokeExact(jdkHandle.address, lastErrorState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -225,7 +225,7 @@ class JdkKernel32Library implements Kernel32Library {
 
     @Override
     public int GetLastError() {
-        return (int)GetLastError$vh.get(lastErrorState);
+        return (int) GetLastError$vh.get(lastErrorState);
     }
 
     @Override
@@ -239,7 +239,7 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkAddress = (JdkAddress) address;
 
         try {
-            return (boolean)VirtualLock$mh.invokeExact(jdkAddress.address, size, lastErrorState);
+            return (boolean) VirtualLock$mh.invokeExact(jdkAddress.address, size, lastErrorState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -252,15 +252,16 @@ class JdkKernel32Library implements Kernel32Library {
         assert memoryInfo instanceof JdkMemoryBasicInformation;
         var jdkProcess = (JdkHandle) process;
         var jdkAddress = (JdkAddress) address;
-        var jdkMemoryInfo = (JdkMemoryBasicInformation)memoryInfo;
+        var jdkMemoryInfo = (JdkMemoryBasicInformation) memoryInfo;
 
         try {
-            return (int)VirtualQueryEx$mh.invokeExact(
+            return (int) VirtualQueryEx$mh.invokeExact(
                 jdkProcess.address,
                 jdkAddress.address,
                 jdkMemoryInfo.segment,
                 jdkMemoryInfo.segment.byteSize(),
-                lastErrorState);
+                lastErrorState
+            );
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -271,7 +272,7 @@ class JdkKernel32Library implements Kernel32Library {
         assert process instanceof JdkHandle;
         var jdkProcess = (JdkHandle) process;
         try {
-            return (boolean)SetProcessWorkingSetSize$mh.invokeExact(jdkProcess.address, minSize, maxSize, lastErrorState);
+            return (boolean) SetProcessWorkingSetSize$mh.invokeExact(jdkProcess.address, minSize, maxSize, lastErrorState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -284,7 +285,7 @@ class JdkKernel32Library implements Kernel32Library {
             MemorySegment wideFileName = arena.allocateArray(JAVA_BYTE, (lpFileName + "\0").getBytes(StandardCharsets.UTF_16LE));
             MemorySegment fileSizeHigh = arena.allocate(JAVA_INT);
 
-            int ret = (int)GetCompressedFileSizeW$mh.invokeExact(wideFileName, fileSizeHigh, lastErrorState);
+            int ret = (int) GetCompressedFileSizeW$mh.invokeExact(wideFileName, fileSizeHigh, lastErrorState);
             lpFileSizeHigh.accept(fileSizeHigh.get(JAVA_INT, 0));
             return ret;
         } catch (Throwable t) {
@@ -302,7 +303,7 @@ class JdkKernel32Library implements Kernel32Library {
                 shortPath = MemorySegment.ofArray(lpszShortPath);
             }
 
-            return (int)GetShortPathNameW$mh.invokeExact(wideFileName, shortPath, cchBuffer, lastErrorState);
+            return (int) GetShortPathNameW$mh.invokeExact(wideFileName, shortPath, cchBuffer, lastErrorState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -314,7 +315,7 @@ class JdkKernel32Library implements Kernel32Library {
         MemorySegment nativeHandler = upcallStub(ConsoleCtrlHandler_handle$mh, handler, ConsoleCtrlHandler_handle$fd, arena);
 
         try {
-            return (boolean)SetConsoleCtrlHandler$mh.invokeExact(nativeHandler, add);
+            return (boolean) SetConsoleCtrlHandler$mh.invokeExact(nativeHandler, add);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -337,7 +338,7 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkProcess = (JdkHandle) process;
 
         try {
-            return (boolean)AssignProcessToJobObject$mh.invokeExact(jdkJob.address, jdkProcess.address, lastErrorState);
+            return (boolean) AssignProcessToJobObject$mh.invokeExact(jdkJob.address, jdkProcess.address, lastErrorState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -356,13 +357,14 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkInfo = (JdkJobObjectBasicLimitInformation) info;
 
         try {
-            return (boolean)QueryInformationJobObject$mh.invokeExact(
+            return (boolean) QueryInformationJobObject$mh.invokeExact(
                 jdkJob.address,
                 infoClass,
                 jdkInfo.segment,
                 jdkInfo.segment.byteSize(),
                 null,
-                lastErrorState);
+                lastErrorState
+            );
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -376,12 +378,13 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkInfo = (JdkJobObjectBasicLimitInformation) info;
 
         try {
-            return (boolean)SetInformationJobObject$mh.invokeExact(
+            return (boolean) SetInformationJobObject$mh.invokeExact(
                 jdkJob.address,
                 infoClass,
                 jdkInfo.segment,
                 jdkInfo.segment.byteSize(),
-                lastErrorState);
+                lastErrorState
+            );
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

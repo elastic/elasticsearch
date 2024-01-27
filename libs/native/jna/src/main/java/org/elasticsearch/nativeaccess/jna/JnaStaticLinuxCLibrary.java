@@ -20,7 +20,7 @@ class JnaStaticLinuxCLibrary {
     }
 
     /** corresponds to struct statx */
-    @Structure.FieldOrder({"_ignore1", "stx_blocks", "_ignore2"})
+    @Structure.FieldOrder({ "_ignore1", "stx_blocks", "_ignore2" })
     public static final class JnaStatx extends Structure implements Structure.ByReference, statx {
         // ignoring bytes up to stx_blocks, including 2 bytes padding after stx_mode for alignment
         public byte[] _ignore1 = new byte[48];

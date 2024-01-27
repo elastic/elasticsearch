@@ -27,8 +27,7 @@ public class JavaUtil {
 
     public static void stripPreviewFromFiles(Path compileDir) {
         try (Stream<Path> fileStream = Files.walk(compileDir)) {
-            fileStream.filter(p -> p.toString().endsWith(".class"))
-                .forEach(JavaUtil::maybeStripPreview);
+            fileStream.filter(p -> p.toString().endsWith(".class")).forEach(JavaUtil::maybeStripPreview);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

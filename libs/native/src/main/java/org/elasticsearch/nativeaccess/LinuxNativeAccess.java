@@ -16,11 +16,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.OptionalLong;
 
-import static org.elasticsearch.core.Strings.format;
-
 class LinuxNativeAccess extends PosixNativeAccess {
 
-    private static final int STATX_BLOCKS = 0x400;	/* Want/got stx_blocks */
+    private static final int STATX_BLOCKS = 0x400; /* Want/got stx_blocks */
 
     private final LinuxCLibrary linuxLibc;
 
@@ -34,10 +32,10 @@ class LinuxNativeAccess extends PosixNativeAccess {
         // give specific instructions for the linux case to make it easy
         String user = System.getProperty("user.name");
         logger.warn("""
-                        These can be adjusted by modifying /etc/security/limits.conf, for example:
-                        \t# allow user '{}' mlockall
-                        \t{} soft memlock unlimited
-                        \t{} hard memlock unlimited""", user, user, user);
+            These can be adjusted by modifying /etc/security/limits.conf, for example:
+            \t# allow user '{}' mlockall
+            \t{} soft memlock unlimited
+            \t{} hard memlock unlimited""", user, user, user);
         logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
     }
 

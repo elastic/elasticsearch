@@ -19,6 +19,7 @@ public interface NativeAccess {
     boolean definitelyRunningAsRoot();
 
     void tryLockMemory();
+
     boolean isMemoryLocked();
 
     /*public abstract void tryInstallSystemCallFilter(Path tmpFile);
@@ -65,7 +66,7 @@ public interface NativeAccess {
 
     /*
     int preallocate(int fd, long offset, long length);
-*/
+    */
     /**
      * Windows callback for console events
      */

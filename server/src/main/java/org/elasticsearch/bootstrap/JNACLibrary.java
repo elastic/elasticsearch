@@ -35,7 +35,6 @@ final class JNACLibrary {
         }*/
     }
 
-
     /** corresponds to struct rlimit */
     public static final class Rlimit extends Structure implements Structure.ByReference {
         public NativeLong rlim_cur = new NativeLong(0);

@@ -13,16 +13,12 @@ import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
-
 import com.sun.jna.WString;
-
 import com.sun.jna.ptr.IntByReference;
-
 import com.sun.jna.win32.StdCallLibrary;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.NativeAccess.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.jna.JnaKernel32Library.JnaAddress;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
@@ -186,7 +182,10 @@ class JnaStaticKernel32Library {
      *
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147%28v=vs.85%29.aspx
      */
-    static class JnaJobObjectBasicLimitInformation extends Structure implements Structure.ByReference, Kernel32Library.JobObjectBasicLimitInformation {
+    static class JnaJobObjectBasicLimitInformation extends Structure
+        implements
+            Structure.ByReference,
+            Kernel32Library.JobObjectBasicLimitInformation {
         public byte[] _ignore1 = new byte[16];
         public int LimitFlags;
         public byte[] _ignore2 = new byte[16];
@@ -199,13 +198,7 @@ class JnaStaticKernel32Library {
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList(
-                "_ignore1",
-                "LimitFlags",
-                "_ignore2",
-                "ActiveProcessLimit",
-                "_ignore3"
-            );
+            return Arrays.asList("_ignore1", "LimitFlags", "_ignore2", "ActiveProcessLimit", "_ignore3");
         }
 
         @Override
@@ -231,7 +224,13 @@ class JnaStaticKernel32Library {
      * @param returnLength length of data written back to structure (or null if not wanted)
      * @return true if the function succeeds
      */
-    static native boolean QueryInformationJobObject(Pointer job, int infoClass, JnaJobObjectBasicLimitInformation info, int infoLength, Pointer returnLength);
+    static native boolean QueryInformationJobObject(
+        Pointer job,
+        int infoClass,
+        JnaJobObjectBasicLimitInformation info,
+        int infoLength,
+        Pointer returnLength
+    );
 
     /**
      * Set job limit and state information

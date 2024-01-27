@@ -62,11 +62,8 @@ public abstract class NativeLibraryProvider {
     }
 
     private static NativeLibraryProvider loadJnaImpl() {
-        return new ProviderLocator<>(
-            "native-access-jna",
-            NativeLibraryProvider.class,
-            "org.elasticsearch.nativeaccess.jna",
-            Set.of()).get();
+        return new ProviderLocator<>("native-access-jna", NativeLibraryProvider.class, "org.elasticsearch.nativeaccess.jna", Set.of())
+            .get();
     }
 
     private static final class Holder {

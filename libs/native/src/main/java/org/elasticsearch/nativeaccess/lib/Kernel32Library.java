@@ -37,9 +37,13 @@ public interface Kernel32Library {
      */
     interface MemoryBasicInformation {
         Address BaseAddress();
+
         long RegionSize();
+
         long State();
+
         long Protect();
+
         long Type();
     }
 
@@ -142,6 +146,7 @@ public interface Kernel32Library {
      */
     interface JobObjectBasicLimitInformation {
         void setLimitFlags(int v);
+
         void setActiveProcessLimit(int v);
     }
 

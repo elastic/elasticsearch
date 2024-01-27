@@ -22,8 +22,7 @@ class RuntimeHelper {
     private static final MethodHandles.Lookup MH_LOOKUP = MethodHandles.publicLookup();
 
     static MemorySegment functionAddress(String function) {
-        return SYMBOL_LOOKUP.find(function).orElseThrow(
-            () -> new LinkageError("Native function " + function + " could not be found"));
+        return SYMBOL_LOOKUP.find(function).orElseThrow(() -> new LinkageError("Native function " + function + " could not be found"));
     }
 
     static MethodHandle downcallHandle(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {

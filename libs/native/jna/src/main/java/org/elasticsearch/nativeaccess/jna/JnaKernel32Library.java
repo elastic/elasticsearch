@@ -38,7 +38,6 @@ class JnaKernel32Library implements Kernel32Library {
             this.pointer = pointer;
         }
 
-
         @Override
         public Address add(long offset) {
             return new JnaAddress(new Pointer(Pointer.nativeValue(pointer) + offset));
@@ -82,11 +81,7 @@ class JnaKernel32Library implements Kernel32Library {
         var jnaHandle = (JnaHandle) handle;
         var jnaAddress = (JnaAddress) address;
         var jnaMemoryInfo = (JnaMemoryBasicInformation) memoryInfo;
-        return JnaStaticKernel32Library.VirtualQueryEx(
-            jnaHandle.pointer,
-            jnaAddress.pointer,
-            jnaMemoryInfo,
-            jnaMemoryInfo.size());
+        return JnaStaticKernel32Library.VirtualQueryEx(jnaHandle.pointer, jnaAddress.pointer, jnaMemoryInfo, jnaMemoryInfo.size());
     }
 
     @Override

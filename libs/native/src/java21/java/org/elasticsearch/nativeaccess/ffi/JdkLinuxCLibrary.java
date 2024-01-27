@@ -36,7 +36,8 @@ public class JdkLinuxCLibrary implements LinuxCLibrary {
         private static final MemoryLayout layout = MemoryLayout.structLayout(
             MemoryLayout.paddingLayout(48),
             JAVA_LONG,
-            MemoryLayout.paddingLayout(104));
+            MemoryLayout.paddingLayout(104)
+        );
         private static final VarHandle stx_blocks$vh = layout.varHandle(groupElement(1));
 
         private final MemorySegment segment;
@@ -48,7 +49,7 @@ public class JdkLinuxCLibrary implements LinuxCLibrary {
 
         @Override
         public long stx_blocks() {
-            return (long)stx_blocks$vh.get(segment);
+            return (long) stx_blocks$vh.get(segment);
         }
     }
 
@@ -60,10 +61,10 @@ public class JdkLinuxCLibrary implements LinuxCLibrary {
     @Override
     public int statx(int dirfd, String pathname, int flags, int mask, statx statxbuf) {
         assert statxbuf instanceof JdkStatx;
-        var jdkStatxbuf = (JdkStatx)statxbuf;
+        var jdkStatxbuf = (JdkStatx) statxbuf;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment nativePathname = arena.allocateUtf8String(pathname);
-            return (int)statx$mh.invokeExact(dirfd, nativePathname, flags, mask, jdkStatxbuf.segment, errnoState);
+            return (int) statx$mh.invokeExact(dirfd, nativePathname, flags, mask, jdkStatxbuf.segment, errnoState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

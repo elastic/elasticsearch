@@ -38,8 +38,8 @@ public class Preallocate {
         } else if (IS_MACOS) {
             preallocate(cacheFile, fileSize, new MacOsPreallocator());
         } else {*/
-            preallocate(cacheFile, fileSize, new NoNativePreallocator());
-        //}
+        preallocate(cacheFile, fileSize, new NoNativePreallocator());
+        // }
     }
 
     @SuppressForbidden(reason = "need access to fd on FileOutputStream")

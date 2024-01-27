@@ -20,7 +20,7 @@ class JnaLinuxCLibrary implements LinuxCLibrary {
     @Override
     public int statx(int dirfd, String pathname, int flags, int mask, statx statxbuf) {
         assert statxbuf instanceof JnaStatx;
-        var jnaStatxbuf = (JnaStatx)statxbuf;
+        var jnaStatxbuf = (JnaStatx) statxbuf;
         return JnaStaticLinuxCLibrary.statx(dirfd, pathname, flags, mask, jnaStatxbuf);
     }
 }

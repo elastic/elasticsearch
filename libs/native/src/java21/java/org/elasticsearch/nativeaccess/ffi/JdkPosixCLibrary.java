@@ -68,12 +68,12 @@ class JdkPosixCLibrary implements PosixCLibrary {
 
         @Override
         public long rlim_cur() {
-            return (long)rlim_cur$vh.get(segment);
+            return (long) rlim_cur$vh.get(segment);
         }
 
         @Override
         public long rlim_max() {
-            return (long)rlim_max$vh.get(segment);
+            return (long) rlim_max$vh.get(segment);
         }
 
         @Override
@@ -96,13 +96,13 @@ class JdkPosixCLibrary implements PosixCLibrary {
 
     @Override
     public int errno() {
-        return (int)errno$vh.get(errnoState);
+        return (int) errno$vh.get(errnoState);
     }
 
     @Override
     public String strerror(int errno) {
         try {
-            MemorySegment str = (MemorySegment)strerror$mh.invokeExact(errno);
+            MemorySegment str = (MemorySegment) strerror$mh.invokeExact(errno);
             return str.reinterpret(Long.MAX_VALUE).getUtf8String(0);
         } catch (Throwable t) {
             throw new AssertionError(t);
@@ -121,7 +121,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     @Override
     public int mlockall(int flags) {
         try {
-            return (int)mlockall$mh.invokeExact(flags, errnoState);
+            return (int) mlockall$mh.invokeExact(flags, errnoState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -135,9 +135,9 @@ class JdkPosixCLibrary implements PosixCLibrary {
     @Override
     public int getrlimit(int resource, RLimit rlimit) {
         assert rlimit instanceof JdkRLimit;
-        var jdkRlimit = (JdkRLimit)rlimit;
+        var jdkRlimit = (JdkRLimit) rlimit;
         try {
-            return (int)getrlimit$mh.invokeExact(resource, jdkRlimit.segment, errnoState);
+            return (int) getrlimit$mh.invokeExact(resource, jdkRlimit.segment, errnoState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -146,9 +146,9 @@ class JdkPosixCLibrary implements PosixCLibrary {
     @Override
     public int setrlimit(int resource, RLimit rlimit) {
         assert rlimit instanceof JdkRLimit;
-        var jdkRlimit = (JdkRLimit)rlimit;
+        var jdkRlimit = (JdkRLimit) rlimit;
         try {
-            return (int)setrlimit$mh.invokeExact(resource, jdkRlimit.segment, errnoState);
+            return (int) setrlimit$mh.invokeExact(resource, jdkRlimit.segment, errnoState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

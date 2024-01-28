@@ -25,35 +25,12 @@ class JNANatives {
 
     private static final Logger logger = LogManager.getLogger(JNANatives.class);
 
-    // Set to true, in case native system call filter install was successful
-    static boolean LOCAL_SYSTEM_CALL_FILTER = false;
-    // Set to true, in case policy can be applied to all threads of the process (even existing ones)
-    // otherwise they are only inherited for new threads (ES app threads)
-    static boolean LOCAL_SYSTEM_CALL_FILTER_ALL = false;
-
     static String rlimitToString(long value) {
         assert Constants.LINUX || Constants.MAC_OS_X;
         if (value == JNACLibrary.RLIM_INFINITY) {
             return "unlimited";
         } else {
             return Long.toUnsignedString(value);
-        }
-    }
-
-    static void tryInstallSystemCallFilter(Path tmpFile) {
-        try {
-            int ret = SystemCallFilter.init(tmpFile);
-            LOCAL_SYSTEM_CALL_FILTER = true;
-            if (ret == 1) {
-                LOCAL_SYSTEM_CALL_FILTER_ALL = true;
-            }
-        } catch (Exception e) {
-            // this is likely to happen unless the kernel is newish, its a best effort at the moment
-            // so we log stacktrace at debug for now...
-            if (logger.isDebugEnabled()) {
-                logger.debug("unable to install syscall filter", e);
-            }
-            logger.warn("unable to install syscall filter: ", e);
         }
     }
 

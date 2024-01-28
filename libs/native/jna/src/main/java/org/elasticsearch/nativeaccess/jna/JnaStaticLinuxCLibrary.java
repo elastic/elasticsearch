@@ -8,10 +8,21 @@
 
 package org.elasticsearch.nativeaccess.jna;
 
+import com.sun.jna.Memory;
 import com.sun.jna.Native;
+import com.sun.jna.NativeLong;
+import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 
+import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
+import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFProg;
+import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFilter;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.statx;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Arrays;
+import java.util.List;
 
 class JnaStaticLinuxCLibrary {
 
@@ -34,5 +45,46 @@ class JnaStaticLinuxCLibrary {
         }
     }
 
+    static final class JnaSockFProg extends Structure implements Structure.ByReference, SockFProg {
+        public short len;           // number of filters
+        public Pointer filter;        // filters
+
+        JnaSockFProg(SockFilter filters[]) {
+            len = (short) filters.length;
+            // serialize struct sock_filter * explicitly, its less confusing than the JNA magic we would need
+            Memory filter = new Memory(len * 8);
+            ByteBuffer bbuf = filter.getByteBuffer(0, len * 8);
+            bbuf.order(ByteOrder.nativeOrder()); // little endian
+            for (SockFilter f : filters) {
+                bbuf.putShort(f.code());
+                bbuf.put(f.jt());
+                bbuf.put(f.jf());
+                bbuf.putInt(f.k());
+            }
+            this.filter = filter;
+        }
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("len", "filter");
+        }
+
+        @Override
+        public long address() {
+            return Pointer.nativeValue(getPointer());
+        }
+    }
+
     static native int statx(int dirfd, String pathname, int flags, int mask, JnaStatx statxbuf);
+
+    /**
+     * maps to prctl(2)
+     */
+    static native int prctl(int option, NativeLong arg2, NativeLong arg3, NativeLong arg4, NativeLong arg5);
+
+    /**
+     * used to call seccomp(2), its too new...
+     * this is the only way, DON'T use it on some other architecture unless you know wtf you are doing
+     */
+    static native NativeLong syscall(NativeLong number, Object... args);
 }

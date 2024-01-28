@@ -29,7 +29,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
 
     // errno can change between system calls, so we capture it
     private static final StructLayout CAPTURE_ERRNO_LAYOUT = Linker.Option.captureStateLayout();
-    private static final Linker.Option CAPTURE_ERRNO_OPTION = Linker.Option.captureCallState("errno");
+    static final Linker.Option CAPTURE_ERRNO_OPTION = Linker.Option.captureCallState("errno");
     private static final VarHandle errno$vh = CAPTURE_ERRNO_LAYOUT.varHandle(groupElement("errno"));
 
     private static final MethodHandle strerror$mh;

@@ -17,4 +17,30 @@ public interface LinuxCLibrary {
     statx newStatx();
 
     int statx(int dirfd, String pathname, int flags, int mask, statx statxbuf);
+
+    /**
+     * Corresponds to struct sock_filter
+     * @param code insn
+     * @param jt number of insn to jump (skip) if true
+     * @param jf number of insn to jump (skip) if false
+     * @param k additional data
+     */
+    record SockFilter(short code, byte jt, byte jf, int k) {}
+
+    interface SockFProg {
+        long address();
+    }
+
+    SockFProg newSockFProg(SockFilter filters[]);
+
+    /**
+     * maps to prctl(2)
+     */
+    int prctl(int option, long arg2, long arg3, long arg4, long arg5);
+
+    /**
+     * used to call seccomp(2), its too new...
+     * this is the only way, DON'T use it on some other architecture unless you know wtf you are doing
+     */
+    long syscall(long number, int operation, int flags, long address);
 }

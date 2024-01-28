@@ -101,4 +101,6 @@ With this example configuration, if you have two nodes with `node.attr.zone`
 set to `zone1` and an index with `number_of_replicas` set to `1`, {es}
 allocates all the primary shards but none of the replicas. It will assign the
 replica shards once nodes with a different value for `node.attr.zone` join the
-cluster.
+cluster. In contrast, if you do not configure forced awareness, {es} will
+allocate all primaries and replicas to the two nodes even though they are in
+the same zone.

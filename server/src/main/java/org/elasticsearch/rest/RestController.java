@@ -827,7 +827,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     methodHandlers.addResponseStats(response.content().length());
                 } else {
                     final var wrapped = new EncodedLengthTrackingChunkedRestResponseBody(response.chunkedContent(), methodHandlers);
+                    final var headers = response.getHeaders();
                     response = RestResponse.chunked(response.status(), wrapped, Releasables.wrap(wrapped, response));
+                    for (final var header : headers.entrySet()) {
+                        for (final var value : header.getValue()) {
+                            response.addHeader(header.getKey(), value);
+                        }
+                    }
                 }
                 delegate.sendResponse(response);
                 success = true;

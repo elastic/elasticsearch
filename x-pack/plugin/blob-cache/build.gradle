@@ -17,5 +17,4 @@ esplugin {
 
 dependencies {
     compileOnly project(path: ':libs:elasticsearch-native')
-    compileOnly project(path: ':libs:elasticsearch-preallocate')
 }

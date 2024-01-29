@@ -18,7 +18,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.preallocate.Preallocate;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -40,8 +40,6 @@ dependencies {
   api project(":libs:elasticsearch-tdigest")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
-  // no compile dependency by server, but server defines security policy for this codebase so it i>
-  runtimeOnly project(":libs:elasticsearch-preallocate")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -69,7 +67,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // remove once conerted to native access
-  compileOnly "net.java.dev.jna:jna:${versions.jna}"
+  //compileOnly "net.java.dev.jna:jna:${versions.jna}"
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"

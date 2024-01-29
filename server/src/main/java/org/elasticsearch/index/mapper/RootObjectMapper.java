@@ -215,9 +215,15 @@ public class RootObjectMapper extends ObjectMapper {
 
     @Override
     public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
-        final var mergeResult = MergeResult.build(this, mergeWith, reason, parentMergeContext);
+        if (mergeWith instanceof RootObjectMapper == false) {
+            MapperErrors.throwObjectMappingConflictError(mergeWith.name());
+        }
+        return merge((RootObjectMapper) mergeWith, reason, parentMergeContext);
+    }
+
+    RootObjectMapper merge(RootObjectMapper mergeWithObject, MergeReason reason, MapperMergeContext parentMergeContext) {
+        final var mergeResult = MergeResult.build(this, mergeWithObject, reason, parentMergeContext);
         final Explicit<Boolean> numericDetection;
-        RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (mergeWithObject.numericDetection.explicit()) {
             numericDetection = mergeWithObject.numericDetection;
         } else {

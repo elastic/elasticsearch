@@ -28,19 +28,12 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class EsqlQueryTranslators {
-    public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = new ArrayList<>();
-
-    static {
-        QUERY_TRANSLATORS.add(new TrivialBinaryComparisons());
-        QUERY_TRANSLATORS.addAll(ExpressionTranslators.QUERY_TRANSLATORS);
-    }
 
     public static class TrivialBinaryComparisons extends ExpressionTranslator<BinaryComparison> {
         @Override

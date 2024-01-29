@@ -91,13 +91,14 @@ public class RandomSamplerIT extends ESIntegTestCase {
         long[] sampledDocCount = new long[1];
         // initialize the values
         assertResponse(
-            prepareSearch("idx").addAggregation(
-                new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
-                    .setSeed(0)
-                    .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
-                    .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
-                    .setShardSeed(42)
-            ),
+            prepareSearch("idx").setPreference("shard:0")
+                .addAggregation(
+                    new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
+                        .setSeed(0)
+                        .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
+                        .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
+                        .setShardSeed(42)
+                ),
             response -> {
                 InternalRandomSampler sampler = response.getAggregations().get("sampler");
                 sampleMonotonicValue[0] = ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
@@ -108,13 +109,14 @@ public class RandomSamplerIT extends ESIntegTestCase {
 
         for (int i = 0; i < NUM_SAMPLE_RUNS; i++) {
             assertResponse(
-                prepareSearch("idx").addAggregation(
-                    new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
-                        .setSeed(0)
-                        .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
-                        .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
-                        .setShardSeed(42)
-                ),
+                prepareSearch("idx").setPreference("shard:0")
+                    .addAggregation(
+                        new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
+                            .setSeed(0)
+                            .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
+                            .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
+                            .setShardSeed(42)
+                    ),
                 response -> {
                     InternalRandomSampler sampler = response.getAggregations().get("sampler");
                     assertThat(((Avg) sampler.getAggregations().get("mean_monotonic")).getValue(), equalTo(sampleMonotonicValue[0]));

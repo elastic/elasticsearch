@@ -228,12 +228,9 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         for (Enrich.Mode mode : List.of(Enrich.Mode.ANY, Enrich.Mode.REMOTE)) {
             var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("address", mode)));
             assertNull(resolution.getResolvedPolicy("address", mode));
-            assertThat(
-                resolution.getError("address", mode),
-                equalTo(
-                    "enrich policy [address] has different enrich fields across clusters; these fields are missing in some policies: [state]"
-                )
-            );
+            var msg = "enrich policy [address] has different enrich fields across clusters; "
+                + "these fields are missing in some policies: [state]";
+            assertThat(resolution.getError("address", mode), equalTo(msg));
         }
     }
 

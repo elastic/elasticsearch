@@ -247,7 +247,7 @@ public final class DocumentParser {
     }
 
     static Mapping createDynamicUpdate(DocumentParserContext context) {
-        if (context.getDynamicMappers().isEmpty() && context.getDynamicRuntimeFields().isEmpty()) {
+        if (context.hasDynamicMappersOrRuntimeFields() == false) {
             return null;
         }
         RootObjectMapper.Builder rootBuilder = context.updateRoot();
@@ -822,7 +822,7 @@ public final class DocumentParser {
         }
 
         @Override
-        public ObjectMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
+        public ObjectMapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
             return this;
         }
     }

@@ -413,7 +413,7 @@ public interface Client extends ElasticsearchClient {
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      * @throws UnsupportedOperationException if this functionality is not available on this client.
      */
-    default Client getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
+    default RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
         throw new UnsupportedOperationException("this client doesn't support remote cluster connections");
     }
 }

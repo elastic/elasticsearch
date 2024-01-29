@@ -681,9 +681,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 return 0;
             }
 
-            long threshold = diskThresholdSettings.getFreeBytesThresholdHighStage(ByteSizeValue.ofBytes(diskUsage.getTotalBytes()))
-                .getBytes();
-            long missing = threshold - diskUsage.getFreeBytes();
+            long threshold = diskThresholdSettings.getFreeBytesThresholdHighStage(ByteSizeValue.ofBytes(diskUsage.totalBytes())).getBytes();
+            long missing = threshold - diskUsage.freeBytes();
             return Math.max(missing, shards.stream().mapToLong(this::sizeOf).min().orElseThrow());
         }
 
@@ -980,7 +979,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         static final int MAX_AMOUNT_OF_SHARDS = 512;
         private static final TransportVersion SHARD_IDS_OUTPUT_VERSION = TransportVersions.V_8_4_0;
-        private static final TransportVersion UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = TransportVersions.V_8_500_020;
+        private static final TransportVersion UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = TransportVersions.V_8_9_X;
 
         private final String reason;
         private final long unassigned;

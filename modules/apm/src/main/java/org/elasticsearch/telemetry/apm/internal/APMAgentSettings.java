@@ -93,6 +93,11 @@ public class APMAgentSettings {
         });
     }
 
+    private static final String TELEMETRY_SETTING_PREFIX = "telemetry.";
+
+    // The old legacy prefix
+    private static final String LEGACY_TRACING_APM_SETTING_PREFIX = "tracing.apm.";
+
     /**
      * Allow-list of APM agent config keys users are permitted to configure.
      * @see <a href="https://www.elastic.co/guide/en/apm/agent/java/current/configuration.html">APM Java Agent Configuration</a>
@@ -220,17 +225,14 @@ public class APMAgentSettings {
         "span_stack_trace_min_duration"
     );
 
-    private static final String APM_SETTING_PREFIX = "tracing.apm.";
-
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
-        APM_SETTING_PREFIX + "agent.",
-        (qualifiedKey) -> {
-            final String[] parts = qualifiedKey.split("\\.");
-            final String key = parts[parts.length - 1];
+        TELEMETRY_SETTING_PREFIX + "agent.",
+        LEGACY_TRACING_APM_SETTING_PREFIX + "agent.",
+        (namespace, qualifiedKey) -> {
             return new Setting<>(qualifiedKey, "", (value) -> {
-                if (qualifiedKey.equals("_na_") == false && PERMITTED_AGENT_KEYS.contains(key) == false) {
+                if (qualifiedKey.equals("_na_") == false && PERMITTED_AGENT_KEYS.contains(namespace) == false) {
                     // TODO figure out why those settings are kept, these should be reformatted / removed by now
-                    if (qualifiedKey.startsWith("tracing.apm.agent.global_labels.")) {
+                    if (qualifiedKey.startsWith(LEGACY_TRACING_APM_SETTING_PREFIX + "agent.global_labels.")) {
                         return value;
                     }
                     throw new IllegalArgumentException("Configuration [" + qualifiedKey + "] is either prohibited or unknown.");
@@ -245,14 +247,14 @@ public class APMAgentSettings {
      */
     @Deprecated
     public static final Setting<List<String>> TRACING_APM_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
-        "tracing.apm.names.include",
+        LEGACY_TRACING_APM_SETTING_PREFIX + "names.include",
         OperatorDynamic,
         NodeScope,
         DeprecatedWarning
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
-        "telemetry.tracing.names.include",
+        TELEMETRY_SETTING_PREFIX + "tracing.names.include",
         TRACING_APM_NAMES_INCLUDE_SETTING,
         Function.identity(),
         OperatorDynamic,
@@ -264,14 +266,14 @@ public class APMAgentSettings {
      */
     @Deprecated
     public static final Setting<List<String>> TRACING_APM_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
-        "tracing.apm.names.exclude",
+        LEGACY_TRACING_APM_SETTING_PREFIX + "names.exclude",
         OperatorDynamic,
         NodeScope,
         DeprecatedWarning
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING = Setting.listSetting(
-        "telemetry.tracing.names.exclude",
+        TELEMETRY_SETTING_PREFIX + "tracing.names.exclude",
         TRACING_APM_NAMES_EXCLUDE_SETTING,
         Function.identity(),
         OperatorDynamic,
@@ -283,7 +285,7 @@ public class APMAgentSettings {
      */
     @Deprecated
     public static final Setting<List<String>> TRACING_APM_SANITIZE_FIELD_NAMES = Setting.stringListSetting(
-        "tracing.apm.sanitize_field_names",
+        LEGACY_TRACING_APM_SETTING_PREFIX + "sanitize_field_names",
         List.of(
             "password",
             "passwd",
@@ -304,7 +306,7 @@ public class APMAgentSettings {
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_SANITIZE_FIELD_NAMES = Setting.listSetting(
-        "telemetry.tracing.sanitize_field_names",
+        TELEMETRY_SETTING_PREFIX + "tracing.sanitize_field_names",
         TRACING_APM_SANITIZE_FIELD_NAMES,
         Function.identity(),
         OperatorDynamic,
@@ -316,7 +318,7 @@ public class APMAgentSettings {
      */
     @Deprecated
     public static final Setting<Boolean> TRACING_APM_ENABLED_SETTING = Setting.boolSetting(
-        "tracing.apm.enabled",
+        LEGACY_TRACING_APM_SETTING_PREFIX + "enabled",
         false,
         OperatorDynamic,
         NodeScope,
@@ -324,14 +326,14 @@ public class APMAgentSettings {
     );
 
     public static final Setting<Boolean> TELEMETRY_TRACING_ENABLED_SETTING = Setting.boolSetting(
-        "telemetry.tracing.enabled",
+        TELEMETRY_SETTING_PREFIX + "tracing.enabled",
         TRACING_APM_ENABLED_SETTING,
         OperatorDynamic,
         NodeScope
     );
 
     public static final Setting<Boolean> TELEMETRY_METRICS_ENABLED_SETTING = Setting.boolSetting(
-        "telemetry.metrics.enabled",
+        TELEMETRY_SETTING_PREFIX + "metrics.enabled",
         false,
         OperatorDynamic,
         NodeScope
@@ -342,13 +344,13 @@ public class APMAgentSettings {
      */
     @Deprecated
     public static final Setting<SecureString> TRACING_APM_SECRET_TOKEN_SETTING = SecureSetting.secureString(
-        "tracing.apm.secret_token",
+        LEGACY_TRACING_APM_SETTING_PREFIX + "secret_token",
         null,
         DeprecatedWarning
     );
 
     public static final Setting<SecureString> TELEMETRY_SECRET_TOKEN_SETTING = SecureSetting.secureString(
-        "telemetry.secret_token",
+        TELEMETRY_SETTING_PREFIX + "secret_token",
         TRACING_APM_SECRET_TOKEN_SETTING
     );
 
@@ -357,13 +359,13 @@ public class APMAgentSettings {
      */
     @Deprecated
     public static final Setting<SecureString> TRACING_APM_API_KEY_SETTING = SecureSetting.secureString(
-        "tracing.apm.api_key",
+        LEGACY_TRACING_APM_SETTING_PREFIX + "api_key",
         null,
         DeprecatedWarning
     );
 
     public static final Setting<SecureString> TELEMETRY_API_KEY_SETTING = SecureSetting.secureString(
-        "telemetry.api_key",
+        TELEMETRY_SETTING_PREFIX + "api_key",
         TRACING_APM_API_KEY_SETTING
     );
 }

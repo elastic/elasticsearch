@@ -36,14 +36,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class PutConnectorAction extends ActionType<PutConnectorAction.Response> {
+public class PutConnectorAction {
 
-    public static final PutConnectorAction INSTANCE = new PutConnectorAction();
     public static final String NAME = "cluster:admin/xpack/connector/put";
+    public static final ActionType<PutConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public PutConnectorAction() {
-        super(NAME, PutConnectorAction.Response::new);
-    }
+    private PutConnectorAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
 

@@ -34,7 +34,7 @@ import java.util.List;
  * make this approach difficult to the point of impossibility.
  * <p>
  * All settings are found under the <code>tracing.apm.</code> prefix. Any setting under
- * the <code>tracing.apm.agent.</code> prefix will be forwarded on to the APM Java agent
+ * the <code>telemetry.agent.</code> prefix will be forwarded on to the APM Java agent
  * by setting appropriate system properties. Some settings can only be set once, and must be
  * set when the agent starts. We therefore also create and configure a config file in
  * the {@code APMJvmOptions} class, which we then delete when Elasticsearch starts, so that

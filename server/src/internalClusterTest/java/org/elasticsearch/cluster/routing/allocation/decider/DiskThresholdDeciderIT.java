@@ -196,7 +196,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
         // reduce disk size of node 0 so that only 1 of 2 smallest shards can be allocated
         var usableSpace = shardSizes.sizes().get(1).size();
-        getTestFileStore(dataNodeName).setTotalSpace(usableSpace + WATERMARK_BYTES + 1L);
+        getTestFileStore(dataNodeName).setTotalSpace(usableSpace + WATERMARK_BYTES);
         refreshDiskUsage();
 
         final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("repo", "snap")
@@ -301,7 +301,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             .getNodeMostAvailableDiskUsages()
             .values()
             .stream()
-            .allMatch(e -> e.getFreeBytes() > WATERMARK_BYTES)) {
+            .allMatch(e -> e.freeBytes() > WATERMARK_BYTES)) {
             assertAcked(clusterAdmin().prepareReroute());
         }
 

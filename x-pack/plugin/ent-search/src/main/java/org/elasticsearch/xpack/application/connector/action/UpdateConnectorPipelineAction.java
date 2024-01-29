@@ -31,14 +31,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class UpdateConnectorPipelineAction extends ActionType<ConnectorUpdateActionResponse> {
+public class UpdateConnectorPipelineAction {
 
-    public static final UpdateConnectorPipelineAction INSTANCE = new UpdateConnectorPipelineAction();
     public static final String NAME = "cluster:admin/xpack/connector/update_pipeline";
+    public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
-    public UpdateConnectorPipelineAction() {
-        super(NAME);
-    }
+    private UpdateConnectorPipelineAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
 

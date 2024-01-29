@@ -85,6 +85,24 @@ public class ConnectorConfigurationTests extends ESTestCase {
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
+    public void testToXContentCrawlerConfig() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+               "label": "nextSyncConfig",
+               "value": null
+            }
+            """);
+
+        ConnectorConfiguration configuration = ConnectorConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        boolean humanReadable = true;
+        BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        ConnectorConfiguration parsed;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+            parsed = ConnectorConfiguration.fromXContent(parser);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+    }
+
     public void testToXContentWithMultipleConstraintTypes() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {

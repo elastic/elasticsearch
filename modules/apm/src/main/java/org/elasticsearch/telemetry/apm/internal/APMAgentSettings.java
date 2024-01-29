@@ -228,18 +228,17 @@ public class APMAgentSettings {
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
         TELEMETRY_SETTING_PREFIX + "agent.",
         LEGACY_TRACING_APM_SETTING_PREFIX + "agent.",
-        (namespace, qualifiedKey) -> {
-            return new Setting<>(qualifiedKey, "", (value) -> {
-                if (qualifiedKey.equals("_na_") == false && PERMITTED_AGENT_KEYS.contains(namespace) == false) {
-                    // TODO figure out why those settings are kept, these should be reformatted / removed by now
-                    if (qualifiedKey.startsWith(LEGACY_TRACING_APM_SETTING_PREFIX + "agent.global_labels.")) {
-                        return value;
-                    }
-                    throw new IllegalArgumentException("Configuration [" + qualifiedKey + "] is either prohibited or unknown.");
+        (namespace, qualifiedKey) -> new Setting<>(qualifiedKey, "", (value) -> {
+            if (qualifiedKey.equals("_na_") == false && PERMITTED_AGENT_KEYS.contains(namespace) == false) {
+                if (namespace.startsWith("global_labels.")) {
+                    // The nested labels syntax is transformed in APMJvmOptions.
+                    // Ignore these here to not fail if not correctly removed.
+                    return value;
                 }
-                return value;
-            }, Setting.Property.NodeScope, Setting.Property.OperatorDynamic);
-        }
+                throw new IllegalArgumentException("Configuration [" + qualifiedKey + "] is either prohibited or unknown.");
+            }
+            return value;
+        }, Setting.Property.NodeScope, Setting.Property.OperatorDynamic)
     );
 
     /**

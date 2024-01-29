@@ -74,50 +74,40 @@ public class APMAgentSettingsTests extends ESTestCase {
             .build();
         apmAgentSettings.syncAgentSystemProperties(settings);
 
+        verify(apmAgentSettings).setAgentSetting("recording", "true");
         verify(apmAgentSettings).setAgentSetting("span_compression_enabled", "true");
     }
 
-    public void testSetAgentsSettingsWithTelemetryPrefix() {
+    public void testSetAgentsSettingsWithLegacyPrefix() {
         APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
         Settings settings = Settings.builder()
-            .put("tracing.apm.enabled", true)
-            .put("telemetry.metrics.enabled", true)
-            .put("telemetry.agent.server_url", "https://my-apm-server.example.com")
-            .put("telemetry.agent.metrics_interval", "1s")
+            .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
+            .put("tracing.apm.agent.span_compression_enabled", "true")
             .build();
         apmAgentSettings.syncAgentSystemProperties(settings);
 
         verify(apmAgentSettings).setAgentSetting("recording", "true");
-        verify(apmAgentSettings).setAgentSetting("metrics_interval", "1s");
-        verify(apmAgentSettings).setAgentSetting("server_url", "https://my-apm-server.example.com");
+        verify(apmAgentSettings).setAgentSetting("span_compression_enabled", "true");
     }
 
     /**
      * Check that invalid or forbidden APM agent settings are rejected.
      */
-    public void testRejectForbiddenOrUnknownSettings() {
-<<<<<<< HEAD
-        Settings settings = Settings.builder().put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "unknown", "true").build();
-=======
-        Exception exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(
-                Settings.builder()
-                    .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
-                    .put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "unknown", "true")
-                    .build()
-            )
-        );
-        assertThat(exception.getMessage(), containsString("[telemetry.agent.unknown]"));
->>>>>>> main
-
-        exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(
-                Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).put("tracing.apm.agent.unknown", "true").build()
-            )
-        );
-        assertThat(exception.getMessage(), containsString("[tracing.apm.agent.unknown]"));
+    public void testRejectForbiddenOrUnknownAgentSettings() {
+        List<String> prefixes = List.of(APMAgentSettings.APM_AGENT_SETTINGS.getKey(), "tracing.apm.agent.");
+        for (String prefix : prefixes) {
+            Settings settings = Settings.builder().put(prefix + "unknown", "true").build();
+            Exception exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(settings)
+            );
+            assertThat(exception.getMessage(), containsString("[" + prefix + "unknown]"));
+        }
+        // though, accept / ignore nested global_labels
+        for (String prefix : prefixes) {
+            Settings settings = Settings.builder().put(prefix + "global_labels." + randomAlphaOfLength(5), "123").build();
+            APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(settings);
+        }
     }
 
     public void testTelemetryTracingNamesIncludeFallback() {

@@ -31,7 +31,7 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
     public static final String NAME = "cluster:admin/xpack/application/analytics/put";
 
     public PutAnalyticsCollectionAction() {
-        super(NAME, PutAnalyticsCollectionAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {

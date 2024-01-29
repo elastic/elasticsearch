@@ -582,7 +582,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104343")
     public void testDesiredBalanceShouldConvergeInABigCluster() {
         var nodes = randomIntBetween(3, 7);
         var nodeIds = new ArrayList<String>(nodes);
@@ -640,13 +639,39 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 if (primaryNodeId != null) {
                     dataPath.put(new NodeAndShard(primaryNodeId, shardId), "/data");
                     usedDiskSpace.compute(primaryNodeId, (k, v) -> v + thisShardSize);
+                    indexRoutingTableBuilder.addShard(
+                        aShardRouting(shardId, primaryNodeId, true, STARTED).withAllocationId(
+                            AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1)))
+                        ).build()
+                    );
+                } else {
+                    var lastAllocatedNodeId = randomFrom(remainingNodeIds);
+                    assertThat(lastAllocatedNodeId, notNullValue());// the only null was picked as primaryNodeId
+                    dataPath.put(new NodeAndShard(lastAllocatedNodeId, shardId), "/data");
+                    usedDiskSpace.compute(lastAllocatedNodeId, (k, v) -> v + thisShardSize);
+                    indexRoutingTableBuilder.addShard(
+                        aShardRouting(shardId, null, true, UNASSIGNED).withRecoverySource(
+                            RecoverySource.ExistingStoreRecoverySource.INSTANCE
+                        )
+                            .withUnassignedInfo(
+                                new UnassignedInfo(
+                                    UnassignedInfo.Reason.NODE_LEFT,
+                                    null,
+                                    null,
+                                    0,
+                                    0,
+                                    0,
+                                    false,
+                                    UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                                    Set.of(),
+                                    lastAllocatedNodeId
+                                )
+                            )
+                            .withAllocationId(AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1))))
+                            .build()
+                    );
                 }
 
-                indexRoutingTableBuilder.addShard(
-                    aShardRouting(shardId, primaryNodeId, true, primaryNodeId == null ? UNASSIGNED : STARTED).withAllocationId(
-                        AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1)))
-                    ).build()
-                );
                 for (int replica = 0; replica < replicas; replica++) {
                     var replicaNodeId = primaryNodeId == null ? null : pickAndRemoveRandomValueFrom(remainingNodeIds);
                     shardSizes.put(shardIdentifierFromRouting(shardId, false), thisShardSize);
@@ -1154,7 +1179,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
     @Deprecated
     private static ClusterInfo createClusterInfo(List<DiskUsage> diskUsages, Map<String, Long> shardSizes) {
-        var diskUsage = diskUsages.stream().collect(toMap(DiskUsage::getNodeId, Function.identity()));
+        var diskUsage = diskUsages.stream().collect(toMap(usage -> usage.nodeId(), Function.identity()));
         return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of());
     }
 

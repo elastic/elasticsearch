@@ -32,7 +32,7 @@ public class DeleteAnalyticsCollectionAction extends ActionType<AcknowledgedResp
     public static final String NAME = "cluster:admin/xpack/application/analytics/delete";
 
     private DeleteAnalyticsCollectionAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {

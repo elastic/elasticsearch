@@ -30,7 +30,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
@@ -65,16 +64,16 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final BytesStreamOutput output = new BytesStreamOutput();
         final List<Symbol> expectations = new ArrayList<>(count);
 
-        for(int i = 0; i < count;i++){
-            String name = randomAlphaOfLengthBetween(1, 100 );
+        for (int i = 0; i < count; i++) {
+            String name = randomAlphaOfLengthBetween(1, 100);
             expectations.add(Symbol.ofConstant(name));
             // serialization is compatible with toString (ASCII only!)
-            if(randomBoolean()) expectations.get(i).writeTo(output);
+            if (randomBoolean()) expectations.get(i).writeTo(output);
             else output.writeString(name);
         }
 
         final StreamInput input = getStreamInput(output.bytes());
-        for(int i = 0; i < count;i++){
+        for (int i = 0; i < count; i++) {
             assertSame(expectations.get(i), input.readSymbol());
         }
     }

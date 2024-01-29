@@ -172,8 +172,7 @@ class S3RetryingInputStream extends InputStream {
 
     private void reopenStreamOrFail(IOException e) throws IOException {
         final long meaningfulProgressSize = Math.max(1L, blobStore.bufferSizeInBytes() / 100L);
-        final long currentStreamProgress = Math.subtractExact(Math.addExact(start, currentOffset), currentStreamFirstOffset);
-        if (currentStreamProgress >= meaningfulProgressSize) {
+        if (currentStreamProgress() >= meaningfulProgressSize) {
             failuresAfterMeaningfulProgress += 1;
         }
         final long delayInMillis = maybeLogAndComputeRetryDelay("reading", e);
@@ -232,12 +231,16 @@ class S3RetryingInputStream extends InputStream {
                 start + currentOffset,
                 purpose.getKey(),
                 attempt,
-                Math.subtractExact(Math.addExact(start, currentOffset), currentStreamFirstOffset),
+                currentStreamProgress(),
                 failuresAfterMeaningfulProgress,
                 maxRetriesForNoMeaningfulProgress()
             ),
             e
         );
+    }
+
+    private long currentStreamProgress() {
+        return Math.subtractExact(Math.addExact(start, currentOffset), currentStreamFirstOffset);
     }
 
     private boolean shouldRetry(int attempt) {

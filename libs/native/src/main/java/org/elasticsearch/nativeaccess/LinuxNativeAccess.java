@@ -13,8 +13,8 @@ import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFProg;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFilter;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.statx;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+import org.elasticsearch.nativeaccess.lib.SystemdLibrary;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -91,10 +91,12 @@ class LinuxNativeAccess extends PosixNativeAccess {
     }
 
     private final LinuxCLibrary linuxLibc;
+    private final SystemdLibrary systemd;
 
     LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
         super(libraryProvider, 8, -1L, 9, 144, 48);
         this.linuxLibc = libraryProvider.getLibrary(LinuxCLibrary.class);
+        this.systemd = libraryProvider.getLibrary(SystemdLibrary.class);
     }
 
     @Override
@@ -332,5 +334,10 @@ class LinuxNativeAccess extends PosixNativeAccess {
 
         logger.debug("Linux seccomp filter installation successful, threads: [{}]", method == 1 ? "all" : "app");
         execSandboxState = method == 1 ? ExecSandboxState.ALL_THREADS : ExecSandboxState.EXISTING_THREADS;
+    }
+
+    @Override
+    public int sd_notify(int unset_environment, String state) {
+        return systemd.sd_notify(unset_environment, state);
     }
 }

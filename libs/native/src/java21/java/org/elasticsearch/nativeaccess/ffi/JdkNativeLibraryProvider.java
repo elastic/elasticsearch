@@ -13,6 +13,7 @@ import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
+import org.elasticsearch.nativeaccess.lib.SystemdLibrary;
 
 import java.util.Map;
 
@@ -28,7 +29,9 @@ public class JdkNativeLibraryProvider extends NativeLibraryProvider {
                 MacCLibrary.class,
                 JdkMacCLibrary::new,
                 Kernel32Library.class,
-                JdkKernel32Library::new
+                JdkKernel32Library::new,
+                SystemdLibrary.class,
+                JdkSystemdLibrary::new
             )
         );
     }

@@ -191,4 +191,9 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     public long getRlimitInfinity() {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    public int sd_notify(int unset_environment, String state) {
+        throw new UnsupportedOperationException();
+    }
 }

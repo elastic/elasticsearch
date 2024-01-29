@@ -85,6 +85,11 @@ class MacNativeAccess extends PosixNativeAccess {
     }
 
     @Override
+    public int sd_notify(int unset_environment, String state) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void tryInstallExecSandbox() {
         initBsdSandbox();
         initMacSandbox();

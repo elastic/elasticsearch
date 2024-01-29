@@ -6,12 +6,13 @@
  * Side Public License, v 1.
  */
 
-esplugin {
-  description 'Integrates Elasticsearch with systemd'
-  classname 'org.elasticsearch.systemd.SystemdPlugin'
-}
+package org.elasticsearch.nativeaccess.jna;
 
-dependencies {
-  implementation project(":libs:elasticsearch-native")
-}
+import org.elasticsearch.nativeaccess.lib.SystemdLibrary;
 
+public class JnaSystemdLibrary implements SystemdLibrary {
+    @Override
+    public int sd_notify(int unset_environment, String state) {
+        return JnaStaticSystemdLibrary.sd_notify(unset_environment, state);
+    }
+}

@@ -6,7 +6,8 @@
  * Side Public License, v 1.
  */
 
-grant codeBase "${codebase.systemd}" {
-  // for registering native methods
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-};
+package org.elasticsearch.nativeaccess.lib;
+
+public interface SystemdLibrary {
+    int sd_notify(int unset_environment, String state);
+}

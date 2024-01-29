@@ -72,4 +72,9 @@ class NoopNativeAccess extends AbstractNativeAccess {
     public long getRlimitInfinity() {
         return -1L;
     }
+
+    @Override
+    public int sd_notify(int unset_environment, String state) {
+        throw new UnsupportedOperationException();
+    }
 }

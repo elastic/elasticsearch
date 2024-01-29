@@ -14,6 +14,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.Scheduler;
@@ -87,7 +88,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
     }
 
     int sd_notify(@SuppressWarnings("SameParameterValue") final int unset_environment, final String state) {
-        final int rc = Libsystemd.sd_notify(unset_environment, state);
+        final int rc = NativeAccess.instance().sd_notify(unset_environment, state);
         logger.trace("sd_notify({}, {}) returned [{}]", unset_environment, state, rc);
         return rc;
     }

@@ -69,6 +69,16 @@ public interface NativeAccess {
 
     long getRlimitInfinity();
 
+    /**
+     * Notify systemd of state changes.
+     *
+     * @param unset_environment if non-zero, the NOTIFY_SOCKET environment variable will be unset before returning and further calls to
+     *                          sd_notify will fail
+     * @param state             a new-line separated list of variable assignments; some assignments are understood directly by systemd
+     * @return a negative error code on failure, and positive if status was successfully sent
+     */
+    int sd_notify(int unset_environment, String state);
+
     /*
     int preallocate(int fd, long offset, long length);
     */

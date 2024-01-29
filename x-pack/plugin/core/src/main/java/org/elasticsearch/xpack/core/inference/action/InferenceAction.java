@@ -56,22 +56,28 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), TASK_SETTINGS);
         }
 
-        public static Request parseRequest(String modelId, String taskType, XContentParser parser) {
+        public static Request parseRequest(String inferenceEntityId, String taskType, XContentParser parser) {
             Request.Builder builder = PARSER.apply(parser, null);
-            builder.setModelId(modelId);
+            builder.setInferenceEntityId(inferenceEntityId);
             builder.setTaskType(taskType);
             return builder.build();
         }
 
         private final TaskType taskType;
-        private final String modelId;
+        private final String inferenceEntityId;
         private final List<String> input;
         private final Map<String, Object> taskSettings;
         private final InputType inputType;
 
-        public Request(TaskType taskType, String modelId, List<String> input, Map<String, Object> taskSettings, InputType inputType) {
+        public Request(
+            TaskType taskType,
+            String inferenceEntityId,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType
+        ) {
             this.taskType = taskType;
-            this.modelId = modelId;
+            this.inferenceEntityId = inferenceEntityId;
             this.input = input;
             this.taskSettings = taskSettings;
             this.inputType = inputType;
@@ -80,7 +86,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.taskType = TaskType.fromStream(in);
-            this.modelId = in.readString();
+            this.inferenceEntityId = in.readString();
             if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
                 this.input = in.readStringCollectionAsList();
             } else {
@@ -98,8 +104,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             return taskType;
         }
 
-        public String getModelId() {
-            return modelId;
+        public String getInferenceEntityId() {
+            return inferenceEntityId;
         }
 
         public List<String> getInput() {
@@ -133,7 +139,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             taskType.writeTo(out);
-            out.writeString(modelId);
+            out.writeString(inferenceEntityId);
             if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
                 out.writeStringCollection(input);
             } else {
@@ -151,7 +157,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return taskType == request.taskType
-                && Objects.equals(modelId, request.modelId)
+                && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && Objects.equals(input, request.input)
                 && Objects.equals(taskSettings, request.taskSettings)
                 && Objects.equals(inputType, request.inputType);
@@ -159,20 +165,20 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, modelId, input, taskSettings, inputType);
+            return Objects.hash(taskType, inferenceEntityId, input, taskSettings, inputType);
         }
 
         public static class Builder {
 
             private TaskType taskType;
-            private String modelId;
+            private String inferenceEntityId;
             private List<String> input;
             private Map<String, Object> taskSettings = Map.of();
 
             private Builder() {}
 
-            public Builder setModelId(String modelId) {
-                this.modelId = Objects.requireNonNull(modelId);
+            public Builder setInferenceEntityId(String inferenceEntityId) {
+                this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
                 return this;
             }
 
@@ -197,7 +203,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
 
             public Request build() {
-                return new Request(taskType, modelId, input, taskSettings, InputType.INGEST);
+                return new Request(taskType, inferenceEntityId, input, taskSettings, InputType.INGEST);
             }
         }
     }

@@ -180,12 +180,14 @@ public class EnrichPolicyResolver {
         for (Map.Entry<String, ResolvedEnrichPolicy> e : policies.entrySet()) {
             ResolvedEnrichPolicy curr = e.getValue();
             if (last != null && last.matchField().equals(curr.matchField()) == false) {
-                String detailed = "[" + last.matchField() + "] vs [" + curr.matchField() + "]";
-                return Tuple.tuple(null, "enrich policy [" + policyName + "] has different match_field across clusters " + detailed);
+                String error = "enrich policy [" + policyName + "] has different match field ";
+                error += "[" + last.matchField() + ", " + curr.matchField() + "] across clusters";
+                return Tuple.tuple(null, error);
             }
             if (last != null && last.matchType().equals(curr.matchType()) == false) {
-                String detailed = "[" + last.matchType() + "] vs [" + curr.matchType() + "]";
-                return Tuple.tuple(null, "enrich policy [" + policyName + "] has different match_type across clusters " + detailed);
+                String error = "enrich policy [" + policyName + "] has different match type ";
+                error += "[" + last.matchType() + ", " + curr.matchType() + "] across clusters";
+                return Tuple.tuple(null, error);
             }
             // merge mappings
             for (Map.Entry<String, EsField> m : curr.mapping().entrySet()) {
@@ -199,8 +201,9 @@ public class EnrichPolicyResolver {
                 );
                 EsField old = mappings.putIfAbsent(m.getKey(), field);
                 if (old != null && old.getDataType().equals(field.getDataType()) == false) {
-                    String detailed = "[" + old.getDataType() + "] vs [" + field.getDataType() + "]";
-                    return Tuple.tuple(null, "enrich policy [" + policyName + "] has different mapping across clusters " + detailed);
+                    String error = "field [" + m.getKey() + "] of enrich policy [" + policyName + "] has different data types ";
+                    error += "[" + old.getDataType() + ", " + field.getDataType() + "] across clusters";
+                    return Tuple.tuple(null, error);
                 }
             }
             if (last != null) {

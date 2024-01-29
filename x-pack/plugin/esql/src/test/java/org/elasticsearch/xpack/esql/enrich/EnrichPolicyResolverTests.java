@@ -281,7 +281,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
-                equalTo("enrich policy [author] has different match_type across clusters [match] vs [range]")
+                equalTo("enrich policy [author] has different match type [match, range] across clusters")
             );
         }
         {
@@ -305,7 +305,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
-                equalTo("enrich policy [author] has different mapping across clusters [KEYWORD] vs [LONG]")
+                equalTo("field [author] of enrich policy [author] has different data types [KEYWORD, LONG] across clusters")
             );
         }
         {
@@ -329,7 +329,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
-                equalTo("enrich policy [author] has different match_type across clusters [match] vs [range]")
+                equalTo("enrich policy [author] has different match type [match, range] across clusters")
             );
         }
         {
@@ -338,7 +338,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
-                equalTo("enrich policy [author] has different match_type across clusters [range] vs [match]")
+                equalTo("enrich policy [author] has different match type [range, match] across clusters")
             );
         }
     }
@@ -351,7 +351,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
-                equalTo("enrich policy [author] has different mapping across clusters [KEYWORD] vs [LONG]")
+                equalTo("field [author] of enrich policy [author] has different data types [KEYWORD, LONG] across clusters")
             );
         }
         {
@@ -360,7 +360,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
-                equalTo("enrich policy [author] has different mapping across clusters [KEYWORD] vs [LONG]")
+                equalTo("field [author] of enrich policy [author] has different data types [KEYWORD, LONG] across clusters")
             );
         }
     }

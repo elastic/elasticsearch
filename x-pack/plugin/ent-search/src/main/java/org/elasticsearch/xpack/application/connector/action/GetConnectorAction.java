@@ -27,14 +27,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class GetConnectorAction extends ActionType<GetConnectorAction.Response> {
+public class GetConnectorAction {
 
-    public static final GetConnectorAction INSTANCE = new GetConnectorAction();
     public static final String NAME = "cluster:admin/xpack/connector/get";
+    public static final ActionType<GetConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    private GetConnectorAction() {
-        super(NAME);
-    }
+    private GetConnectorAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
 

@@ -670,6 +670,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private record IngestPipelinesExecutionResult(boolean success, boolean shouldKeep, Exception exception, String failedIndex) {
+
         private static final IngestPipelinesExecutionResult SUCCESSFUL_RESULT = new IngestPipelinesExecutionResult(true, true, null, null);
         private static final IngestPipelinesExecutionResult DISCARD_RESULT = new IngestPipelinesExecutionResult(true, true, null, null);
         private static IngestPipelinesExecutionResult failAndStoreFor(String index, Exception e) {
@@ -954,9 +955,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             )
                         );
                         if (shouldStoreFailure.test(originalIndex)) {
-                            listener.onResponse(
-                                IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, ex)
-                            );
+                            listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, ex));
                         } else {
                             listener.onFailure(ex);
                         }

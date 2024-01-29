@@ -112,7 +112,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private boolean requireDataStream;
 
-
     /**
      * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
      */

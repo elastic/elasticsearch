@@ -87,7 +87,7 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
             )
             .toList();
 
-        if (isMixedCluster() || isUpgradedCluster()) {
+        if (isMixedCluster()) {
             updateDesiredNodes(desiredNodes, desiredNodesVersion - 1);
         }
         for (int i = 0; i < 2; i++) {

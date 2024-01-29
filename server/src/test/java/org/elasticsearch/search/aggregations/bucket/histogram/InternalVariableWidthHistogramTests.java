@@ -93,11 +93,6 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
     }
 
     @Override
-    protected Class<ParsedVariableWidthHistogram> implementationClass() {
-        return ParsedVariableWidthHistogram.class;
-    }
-
-    @Override
     protected InternalVariableWidthHistogram mutateInstance(InternalVariableWidthHistogram instance) {
         String name = instance.getName();
         List<InternalVariableWidthHistogram.Bucket> buckets = instance.getBuckets();

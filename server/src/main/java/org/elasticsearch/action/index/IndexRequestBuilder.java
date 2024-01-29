@@ -29,15 +29,23 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     implements
         WriteRequestBuilder<IndexRequestBuilder> {
     private String id = null;
+    /*
+     * The following variables hold information about the source of the request. Only one of sourceMap, sourceArray, sourceString,
+     * sourceBytesReference, or sourceBytes can actually be used. When request() is called it makes sure that only one is set.
+     */
     private Map<String, ?> sourceMap;
     private Object[] sourceArray;
     private XContentBuilder sourceXContentBuilder;
     private String sourceString;
     private BytesReference sourceBytesReference;
     private byte[] sourceBytes;
+    // Optionally used with sourceBytes:
     private Integer sourceOffset;
+    // Optionally used with sourceBytes:
     private Integer sourceLength;
+    // Optionally used with sourceMap, sourceArray, sourceString, sourceBytesReference, or sourceBytes:
     private XContentType sourceContentType;
+
     private String pipeline;
     private Boolean requireAlias;
     private Boolean requireDataStream;
@@ -179,6 +187,9 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * </p>
      */
     public IndexRequestBuilder setSource(XContentType xContentType, Object... source) {
+        if (source.length % 2 != 0) {
+            throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
+        }
         this.sourceArray = source;
         this.sourceContentType = xContentType;
         return this;
@@ -277,6 +288,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
 
     @Override
     public void apply(IndexRequest request) {
+        validateSource();
         super.apply(request);
         request.id(id);
         if (sourceMap != null) {
@@ -348,6 +360,35 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         if (versionType != null) {
             request.versionType(versionType);
         }
+    }
+
+    /*
+     * This method checks that exactly one setSource() method has been called, and throws an IllegalStateException otherwise.
+     */
+    private void validateSource() throws IllegalStateException {
+        int sourceFieldsSet = countSourceFieldsSet();
+        if (sourceFieldsSet > 1) {
+            throw new IllegalStateException("Only one setSource() method may be called, but " + sourceFieldsSet + " have been");
+        } else if (sourceFieldsSet == 0) {
+            throw new IllegalStateException("setSource() must be called before building the request");
+        }
+    }
+
+    /*
+     * Returns the number of the source fields that are non-null (ideally this will be 1).
+     */
+    private int countSourceFieldsSet() {
+        return countNonNullObjects(sourceMap, sourceArray, sourceXContentBuilder, sourceString, sourceBytesReference, sourceBytes);
+    }
+
+    private int countNonNullObjects(Object... objects) {
+        int sum = 0;
+        for (Object object : objects) {
+            if (object != null) {
+                sum++;
+            }
+        }
+        return sum;
     }
 
     @Override

@@ -65,7 +65,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
@@ -1175,12 +1174,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 )
             )
         );
-    }
-
-    @Deprecated
-    private static ClusterInfo createClusterInfo(List<DiskUsage> diskUsages, Map<String, Long> shardSizes) {
-        var diskUsage = diskUsages.stream().collect(toMap(usage -> usage.nodeId(), Function.identity()));
-        return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of());
     }
 
     private static class ClusterInfoTestBuilder {

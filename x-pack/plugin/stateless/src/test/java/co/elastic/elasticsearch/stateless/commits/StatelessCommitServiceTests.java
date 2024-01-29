@@ -58,7 +58,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -106,6 +105,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -895,14 +896,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             assertThat(deletedCommits, empty());
 
-            var unassignedSearchShard = TestShardRouting.newShardRouting(
-                shardId,
-                null,
-                null,
-                false,
-                ShardRoutingState.UNASSIGNED,
+            var unassignedSearchShard = shardRoutingBuilder(shardId, null, false, ShardRoutingState.UNASSIGNED).withRole(
                 ShardRouting.Role.SEARCH_ONLY
-            );
+            ).build();
 
             var clusterStateWithUnassignedSearchShard = ClusterState.builder(state)
                 .routingTable(
@@ -1686,7 +1682,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.MASTER_ROLE)
         );
 
-        var primaryShard = TestShardRouting.newShardRouting(shardId, indexNode.getId(), true, ShardRoutingState.STARTED);
+        var primaryShard = newShardRouting(shardId, indexNode.getId(), true, ShardRoutingState.STARTED);
 
         var discoveryNodes = DiscoveryNodes.builder().add(indexNode).localNodeId(indexNode.getId()).masterNodeId(indexNode.getId());
 
@@ -1702,14 +1698,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             discoveryNodes.add(searchNode);
 
             indexRoutingTable.addShard(
-                TestShardRouting.newShardRouting(
-                    shardId,
-                    searchNode.getId(),
-                    null,
-                    false,
-                    ShardRoutingState.STARTED,
-                    ShardRouting.Role.SEARCH_ONLY
-                )
+                shardRoutingBuilder(shardId, searchNode.getId(), false, ShardRoutingState.STARTED).withRole(ShardRouting.Role.SEARCH_ONLY)
+                    .build()
             );
         }
 

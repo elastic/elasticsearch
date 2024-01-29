@@ -2697,7 +2697,14 @@ public class InternalEngine extends Engine {
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setCodec(engineConfig.getCodec());
-        iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
+        boolean useCompoundFile = engineConfig.getUseCompoundFile();
+        iwc.setUseCompoundFile(useCompoundFile);
+        if (useCompoundFile == false) {
+            logger.warn(
+                "[{}] is set to false, this should only be used in tests and can cause serious problems in production environments",
+                EngineConfig.USE_COMPOUND_FILE
+            );
+        }
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
         }

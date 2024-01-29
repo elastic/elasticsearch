@@ -16,6 +16,6 @@ public class AddIndexBlockAction extends ActionType<AddIndexBlockResponse> {
     public static final String NAME = "indices:admin/block/add";
 
     private AddIndexBlockAction() {
-        super(NAME, AddIndexBlockResponse::new);
+        super(NAME);
     }
 }

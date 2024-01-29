@@ -203,9 +203,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private class TestFieldExtractOperatorFactory implements Operator.OperatorFactory {
         final Operator op;
+        private String columnName;
 
         TestFieldExtractOperatorFactory(Attribute attr, MappedFieldType.FieldExtractPreference extractPreference) {
             this.op = new TestFieldExtractOperator(attr.name(), attr.dataType(), extractPreference);
+            this.columnName = attr.name();
         }
 
         @Override
@@ -215,7 +217,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
         @Override
         public String describe() {
-            return "TestFieldExtractOperator";
+            return "TestFieldExtractOperator(" + columnName + ")";
         }
     }
 

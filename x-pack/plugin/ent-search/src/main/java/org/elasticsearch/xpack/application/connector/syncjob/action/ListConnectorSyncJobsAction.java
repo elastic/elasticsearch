@@ -30,14 +30,12 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class ListConnectorSyncJobsAction extends ActionType<ListConnectorSyncJobsAction.Response> {
+public class ListConnectorSyncJobsAction {
 
-    public static final ListConnectorSyncJobsAction INSTANCE = new ListConnectorSyncJobsAction();
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/list";
+    public static final ActionType<ListConnectorSyncJobsAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public ListConnectorSyncJobsAction() {
-        super(NAME, ListConnectorSyncJobsAction.Response::new);
-    }
+    private ListConnectorSyncJobsAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
         public static final ParseField CONNECTOR_ID_FIELD = new ParseField("connector_id");

@@ -859,7 +859,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
+        public Executor executor() {
             // we do some heavy work like refreshes in the response so fork off to the generic threadpool
             return threadPool.generic();
         }

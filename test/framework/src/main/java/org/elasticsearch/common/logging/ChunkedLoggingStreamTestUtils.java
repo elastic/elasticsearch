@@ -28,7 +28,12 @@ import java.util.zip.GZIPInputStream;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+/**
+ * Utility for capturing and decoding the data logged by a {@link ChunkedLoggingStream}.
+ */
 public class ChunkedLoggingStreamTestUtils {
+
+    private ChunkedLoggingStreamTestUtils() {/* no instances */}
 
     /**
      * Test utility function which captures the logged output from a {@link ChunkedLoggingStream}, combines the chunks, Base64-decodes it

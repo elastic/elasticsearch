@@ -245,7 +245,11 @@ public class ServiceUtils {
     }
 
     public static String parsePersistedConfigErrorMsg(String inferenceEntityId, String serviceName) {
-        return format("Failed to parse stored model [%s] for [%s] service, please delete and add the service again", inferenceEntityId, serviceName);
+        return format(
+            "Failed to parse stored model [%s] for [%s] service, please delete and add the service again",
+            inferenceEntityId,
+            serviceName
+        );
     }
 
     public static ElasticsearchStatusException createInvalidModelException(Model model) {

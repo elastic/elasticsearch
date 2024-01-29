@@ -85,11 +85,6 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
     }
 
     @Override
-    protected Class<ParsedFilters> implementationClass() {
-        return ParsedFilters.class;
-    }
-
-    @Override
     protected InternalFilters mutateInstance(InternalFilters instance) {
         String name = instance.getName();
         List<InternalBucket> buckets = instance.getBuckets();

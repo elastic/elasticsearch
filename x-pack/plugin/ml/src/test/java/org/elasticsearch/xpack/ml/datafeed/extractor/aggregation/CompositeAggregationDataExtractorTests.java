@@ -345,7 +345,11 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private SearchResponse createSearchResponse(String aggName, List<InternalComposite.InternalBucket> buckets, Map<String, Object> afterKey) {
+    private SearchResponse createSearchResponse(
+        String aggName,
+        List<InternalComposite.InternalBucket> buckets,
+        Map<String, Object> afterKey
+    ) {
         InternalComposite compositeAggregation = mock(InternalComposite.class);
         when(compositeAggregation.getName()).thenReturn(aggName);
         when(compositeAggregation.afterKey()).thenReturn(afterKey);

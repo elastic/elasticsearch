@@ -36,8 +36,7 @@ curl -X GET -u elastic:password "localhost:9200/demo/_search?pretty" -H 'Content
             "num_candidates": 10
           }
         }
-      ],
-      "fields":["kw"]
+      ]
     }
   }
 }

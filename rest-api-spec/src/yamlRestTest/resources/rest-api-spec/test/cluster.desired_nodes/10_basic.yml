@@ -9,9 +9,9 @@ teardown:
       _internal.delete_desired_nodes: {}
 ---
 "Test update desired nodes":
-  - requires:
+  - skip:
       reason: "contains is a newly added assertion"
-      test_runner_features: contains
+      features: contains
   - do:
       cluster.state: {}
 
@@ -60,9 +60,9 @@ teardown:
   - contains: { nodes: { settings: { node: { name: "instance-000188" } }, processors: 16.0, memory: "128gb", storage: "1tb" } }
 ---
 "Test update desired nodes with node_version generates a warning":
-  - requires:
+  - skip:
       reason: "contains is a newly added assertion"
-      test_runner_features: ["contains", "allowed_warnings"]
+      features: ["contains", "allowed_warnings"]
   - do:
       cluster.state: {}
 
@@ -200,8 +200,8 @@ teardown:
   - match: { status: 404 }
 ---
 "Test delete desired nodes with node_version generates a warning":
-  - requires:
-      test_runner_features: allowed_warnings
+  - skip:
+      features: allowed_warnings
   - do:
       cluster.state: {}
 

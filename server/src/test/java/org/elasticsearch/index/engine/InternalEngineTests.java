@@ -175,7 +175,7 @@ import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.shuffle;
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
@@ -2671,8 +2671,9 @@ public class InternalEngineTests extends EngineTestCase {
 
         try {
             initialEngine = createEngine(defaultSettings, store, createTempDir(), newLogMergePolicy(), null);
-            final ShardRouting primary = aShardRouting(shardId, "node1", true, ShardRoutingState.STARTED).withAllocationId(allocationId)
-                .build();
+            final ShardRouting primary = shardRoutingBuilder(shardId, "node1", true, ShardRoutingState.STARTED).withAllocationId(
+                allocationId
+            ).build();
             final ShardRouting initializingReplica = TestShardRouting.newShardRouting(
                 shardId,
                 "node2",

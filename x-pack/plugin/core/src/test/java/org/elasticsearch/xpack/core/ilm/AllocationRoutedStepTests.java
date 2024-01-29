@@ -30,8 +30,8 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.buildUnassignedInfo;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.allShardsActiveAllocationInfo;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
 
@@ -416,7 +416,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
             .addShard(
-                aShardRouting(new ShardId(index, 1), null, true, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
+                shardRoutingBuilder(new ShardId(index, 1), null, true, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                     buildUnassignedInfo("the shard is intentionally unassigned")
                 ).build()
             );
@@ -469,7 +469,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
             .addShard(
-                aShardRouting(new ShardId(index, 0), null, false, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
+                shardRoutingBuilder(new ShardId(index, 0), null, false, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                     new UnassignedInfo(Reason.REPLICA_ADDED, "no attempt")
                 ).build()
             );

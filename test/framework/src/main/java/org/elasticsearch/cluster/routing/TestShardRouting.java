@@ -33,11 +33,11 @@ import static org.junit.Assert.assertNotEquals;
  */
 public class TestShardRouting {
 
-    public static Builder aShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
-        return new Builder(new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId), currentNodeId, primary, state);
+    public static Builder shardRoutingBuilder(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+        return shardRoutingBuilder(new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId), currentNodeId, primary, state);
     }
 
-    public static Builder aShardRouting(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+    public static Builder shardRoutingBuilder(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
         return new Builder(shardId, currentNodeId, primary, state);
     }
 

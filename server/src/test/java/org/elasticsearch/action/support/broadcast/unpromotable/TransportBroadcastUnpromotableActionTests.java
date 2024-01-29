@@ -48,7 +48,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas;
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
@@ -309,7 +309,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         for (int i = 0; i < routingTable.size(); i++) {
             ShardRouting shardRouting = routingTable.shard(i);
             String currentNodeId = shardRouting.currentNodeId() + randomIntBetween(10, 100);
-            ShardRouting wrongShardRouting = aShardRouting(shardId, currentNodeId, shardRouting.primary(), shardRouting.state())
+            ShardRouting wrongShardRouting = shardRoutingBuilder(shardId, currentNodeId, shardRouting.primary(), shardRouting.state())
                 .withRelocatingNodeId(shardRouting.relocatingNodeId())
                 .withUnassignedInfo(shardRouting.unassignedInfo())
                 .withRole(shardRouting.role())

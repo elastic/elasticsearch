@@ -101,7 +101,7 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -251,7 +251,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final RecoverySource recoverySource = primary
             ? RecoverySource.EmptyStoreRecoverySource.INSTANCE
             : RecoverySource.PeerRecoverySource.INSTANCE;
-        final ShardRouting shardRouting = aShardRouting(shardId, randomAlphaOfLength(10), primary, ShardRoutingState.INITIALIZING)
+        final ShardRouting shardRouting = shardRoutingBuilder(shardId, randomAlphaOfLength(10), primary, ShardRoutingState.INITIALIZING)
             .withRecoverySource(recoverySource)
             .build();
         return newShard(shardRouting, settings, engineFactory, listeners);
@@ -307,7 +307,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param listeners an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, IndexingOperationListener... listeners) throws IOException {
-        ShardRouting shardRouting = aShardRouting(shardId, randomAlphaOfLength(5), primary, ShardRoutingState.INITIALIZING)
+        ShardRouting shardRouting = shardRoutingBuilder(shardId, randomAlphaOfLength(5), primary, ShardRoutingState.INITIALIZING)
             .withRecoverySource(primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE)
             .build();
         return newShard(shardRouting, Settings.EMPTY, new InternalEngineFactory(), listeners);
@@ -347,7 +347,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
         GlobalCheckpointSyncer globalCheckpointSyncer
     ) throws IOException {
-        ShardRouting shardRouting = aShardRouting(shardId, nodeId, primary, ShardRoutingState.INITIALIZING).withRecoverySource(
+        ShardRouting shardRouting = shardRoutingBuilder(shardId, nodeId, primary, ShardRoutingState.INITIALIZING).withRecoverySource(
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
         ).build();
         return newShard(
@@ -879,7 +879,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected void promoteReplica(IndexShard replica, Set<String> inSyncIds, IndexShardRoutingTable routingTable) throws IOException {
         assertThat(inSyncIds, contains(replica.routingEntry().allocationId().getId()));
-        final ShardRouting routingEntry = aShardRouting(
+        final ShardRouting routingEntry = shardRoutingBuilder(
             replica.routingEntry().shardId(),
             replica.routingEntry().currentNodeId(),
             true,
@@ -1069,9 +1069,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
             version,
             indexId
         );
-        final ShardRouting shardRouting = aShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING).withRecoverySource(
-            recoverySource
-        ).build();
+        final ShardRouting shardRouting = shardRoutingBuilder(shardId, node.getId(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(recoverySource)
+            .build();
         shard.markAsRecovering("from snapshot", new RecoveryState(shardRouting, node, null));
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         repository.restoreShard(shard.store(), snapshot.getSnapshotId(), indexId, shard.shardId(), shard.recoveryState(), future);

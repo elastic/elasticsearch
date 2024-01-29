@@ -42,7 +42,7 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -80,7 +80,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
 
         // promote the replica to primary:
         final ShardRouting replicaRouting = indexShard.routingEntry();
-        final ShardRouting primaryRouting = aShardRouting(
+        final ShardRouting primaryRouting = shardRoutingBuilder(
             replicaRouting.shardId(),
             replicaRouting.currentNodeId(),
             true,

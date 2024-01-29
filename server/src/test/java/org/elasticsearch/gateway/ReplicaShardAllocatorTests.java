@@ -61,7 +61,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -617,7 +617,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                     .addIndexShard(
                         new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard)
                             .addShard(
-                                aShardRouting(shardId, node2.getId(), false, ShardRoutingState.INITIALIZING).withUnassignedInfo(
+                                shardRoutingBuilder(shardId, node2.getId(), false, ShardRoutingState.INITIALIZING).withUnassignedInfo(
                                     unassignedInfo
                                 ).build()
                             )

@@ -97,7 +97,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -214,7 +214,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         private ShardRouting createShardRouting(String nodeId, boolean isPrimary) {
-            return aShardRouting(shardId, nodeId, isPrimary, ShardRoutingState.INITIALIZING).withRecoverySource(
+            return shardRoutingBuilder(shardId, nodeId, isPrimary, ShardRoutingState.INITIALIZING).withRecoverySource(
                 isPrimary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
             ).build();
         }
@@ -345,9 +345,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public synchronized IndexShard addReplicaWithExistingPath(final ShardPath shardPath, final String nodeId) throws IOException {
-            final ShardRouting shardRouting = aShardRouting(shardId, nodeId, false, ShardRoutingState.INITIALIZING).withRecoverySource(
-                RecoverySource.PeerRecoverySource.INSTANCE
-            ).build();
+            final ShardRouting shardRouting = shardRoutingBuilder(shardId, nodeId, false, ShardRoutingState.INITIALIZING)
+                .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+                .build();
 
             final IndexShard newReplica = newShard(
                 shardRouting,

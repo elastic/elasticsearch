@@ -23,7 +23,7 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public abstract class ReplicationTrackerTestCase extends ESTestCase {
@@ -54,7 +54,7 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase {
 
     static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final AllocationId primaryId) {
         final ShardId shardId = new ShardId("test", "_na_", 0);
-        final ShardRouting primaryShard = aShardRouting(shardId, nodeIdFromAllocationId(primaryId), true, ShardRoutingState.STARTED)
+        final ShardRouting primaryShard = shardRoutingBuilder(shardId, nodeIdFromAllocationId(primaryId), true, ShardRoutingState.STARTED)
             .withAllocationId(primaryId)
             .build();
         return routingTable(initializingIds, primaryShard);
@@ -66,9 +66,9 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase {
         final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shardId);
         for (final AllocationId initializingId : initializingIds) {
             builder.addShard(
-                aShardRouting(shardId, nodeIdFromAllocationId(initializingId), false, ShardRoutingState.INITIALIZING).withAllocationId(
-                    initializingId
-                ).build()
+                shardRoutingBuilder(shardId, nodeIdFromAllocationId(initializingId), false, ShardRoutingState.INITIALIZING)
+                    .withAllocationId(initializingId)
+                    .build()
             );
         }
 

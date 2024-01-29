@@ -29,7 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -57,7 +57,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
             true,
             ShardRoutingState.INITIALIZING
         );
-        final ShardRouting relocatingShard = aShardRouting(new ShardId(index, 1), "node1", true, ShardRoutingState.RELOCATING)
+        final ShardRouting relocatingShard = shardRoutingBuilder(new ShardId(index, 1), "node1", true, ShardRoutingState.RELOCATING)
             .withRelocatingNodeId("node2")
             .withAllocationId(allocationId)
             .build();
@@ -121,11 +121,11 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).add(newNode("node4")))
             .metadata(Metadata.builder().put(indexMetadata, false));
 
-        final ShardRouting relocatingPrimary = aShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.RELOCATING)
+        final ShardRouting relocatingPrimary = shardRoutingBuilder(new ShardId(index, 0), "node1", true, ShardRoutingState.RELOCATING)
             .withRelocatingNodeId("node2")
             .withAllocationId(primaryId)
             .build();
-        final ShardRouting replica = aShardRouting(
+        final ShardRouting replica = shardRoutingBuilder(
             new ShardId(index, 0),
             "node3",
             false,

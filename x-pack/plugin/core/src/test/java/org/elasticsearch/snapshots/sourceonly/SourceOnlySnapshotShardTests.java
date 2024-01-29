@@ -89,12 +89,12 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 
 public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
     public void testSourceIncomplete() throws IOException {
-        ShardRouting shardRouting = aShardRouting(
+        ShardRouting shardRouting = shardRoutingBuilder(
             new ShardId("index", "_na_", 0),
             randomAlphaOfLength(10),
             true,
@@ -351,7 +351,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
         }
         shard.refresh("test");
-        ShardRouting shardRouting = aShardRouting(
+        ShardRouting shardRouting = shardRoutingBuilder(
             new ShardId("index", "_na_", 0),
             randomAlphaOfLength(10),
             true,
@@ -446,7 +446,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     }
 
     public IndexShard reindex(DirectoryReader reader, MappingMetadata mapping) throws IOException {
-        ShardRouting targetShardRouting = aShardRouting(
+        ShardRouting targetShardRouting = shardRoutingBuilder(
             new ShardId("target", "_na_", 0),
             randomAlphaOfLength(10),
             true,

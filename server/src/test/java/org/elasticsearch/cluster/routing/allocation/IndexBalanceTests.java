@@ -34,7 +34,7 @@ import java.util.function.IntFunction;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -498,7 +498,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
             indexRoutingTableBuilder.addShard(
-                aShardRouting(new ShardId(indexId, shardId), assignmentFunction.apply(shardId), true, ShardRoutingState.STARTED)
+                shardRoutingBuilder(new ShardId(indexId, shardId), assignmentFunction.apply(shardId), true, ShardRoutingState.STARTED)
                     .withAllocationId(AllocationId.newInitializing(inSyncIds.get(shardId)))
                     .build()
             );

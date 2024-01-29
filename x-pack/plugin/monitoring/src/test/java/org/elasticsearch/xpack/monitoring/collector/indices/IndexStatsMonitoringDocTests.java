@@ -47,7 +47,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToJson;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStepTests.randomUnassignedInfo;
@@ -465,7 +465,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                     state = ShardRoutingState.UNASSIGNED;
                 }
 
-                shard.addShard(aShardRouting(shardId, nodeId, true, state).withUnassignedInfo(unassignedInfo).build());
+                shard.addShard(shardRoutingBuilder(shardId, nodeId, true, state).withUnassignedInfo(unassignedInfo).build());
 
                 // mark all as unassigned
                 for (int j = 0; j < replicas; ++j) {

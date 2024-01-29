@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
@@ -680,7 +680,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             cacheService.start();
             assertThat(directory.getStats(fileName), nullValue());
 
-            ShardRouting shardRouting = aShardRouting(
+            ShardRouting shardRouting = shardRoutingBuilder(
                 new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), 0),
                 randomAlphaOfLength(10),
                 true,

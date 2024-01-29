@@ -72,8 +72,8 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -639,7 +639,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     dataPath.put(new NodeAndShard(primaryNodeId, shardId), "/data");
                     usedDiskSpace.compute(primaryNodeId, (k, v) -> v + thisShardSize);
                     indexRoutingTableBuilder.addShard(
-                        aShardRouting(shardId, primaryNodeId, true, STARTED).withAllocationId(
+                        shardRoutingBuilder(shardId, primaryNodeId, true, STARTED).withAllocationId(
                             AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1)))
                         ).build()
                     );
@@ -649,7 +649,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     dataPath.put(new NodeAndShard(lastAllocatedNodeId, shardId), "/data");
                     usedDiskSpace.compute(lastAllocatedNodeId, (k, v) -> v + thisShardSize);
                     indexRoutingTableBuilder.addShard(
-                        aShardRouting(shardId, null, true, UNASSIGNED).withRecoverySource(
+                        shardRoutingBuilder(shardId, null, true, UNASSIGNED).withRecoverySource(
                             RecoverySource.ExistingStoreRecoverySource.INSTANCE
                         )
                             .withUnassignedInfo(
@@ -681,7 +681,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     }
 
                     indexRoutingTableBuilder.addShard(
-                        aShardRouting(shardId, replicaNodeId, false, replicaNodeId == null ? UNASSIGNED : STARTED).withAllocationId(
+                        shardRoutingBuilder(shardId, replicaNodeId, false, replicaNodeId == null ? UNASSIGNED : STARTED).withAllocationId(
                             AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1) + 1 + replica))
                         ).build()
                     );
@@ -920,8 +920,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 routingTableBuilder.add(
                     IndexRoutingTable.builder(indexMetadata2.getIndex())
                         .addShard(
-                            aShardRouting(index2ShardId, "node-1", true, INITIALIZING).withRecoverySource(index2SnapshotRecoverySource)
-                                .build()
+                            shardRoutingBuilder(index2ShardId, "node-1", true, INITIALIZING).withRecoverySource(
+                                index2SnapshotRecoverySource
+                            ).build()
                         )
                 );
                 if (randomBoolean()) {
@@ -937,8 +938,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 routingTableBuilder.add(
                     IndexRoutingTable.builder(indexMetadata2.getIndex())
                         .addShard(
-                            aShardRouting(index2ShardId, "node-2", true, INITIALIZING).withRecoverySource(index2SnapshotRecoverySource)
-                                .build()
+                            shardRoutingBuilder(index2ShardId, "node-2", true, INITIALIZING).withRecoverySource(
+                                index2SnapshotRecoverySource
+                            ).build()
                         )
                 );
                 if (randomBoolean()) {

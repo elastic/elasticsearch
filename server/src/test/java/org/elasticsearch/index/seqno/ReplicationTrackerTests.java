@@ -47,7 +47,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
@@ -931,8 +931,12 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         activeAllocationIds.remove(primaryId);
         activeAllocationIds.add(relocatingId);
         final ShardId shardId = new ShardId("test", "_na_", 0);
-        final ShardRouting primaryShard = aShardRouting(shardId, nodeIdFromAllocationId(relocatingId), true, ShardRoutingState.RELOCATING)
-            .withRelocatingNodeId(nodeIdFromAllocationId(AllocationId.newInitializing(relocatingId.getRelocationId())))
+        final ShardRouting primaryShard = shardRoutingBuilder(
+            shardId,
+            nodeIdFromAllocationId(relocatingId),
+            true,
+            ShardRoutingState.RELOCATING
+        ).withRelocatingNodeId(nodeIdFromAllocationId(AllocationId.newInitializing(relocatingId.getRelocationId())))
             .withAllocationId(relocatingId)
             .build();
 

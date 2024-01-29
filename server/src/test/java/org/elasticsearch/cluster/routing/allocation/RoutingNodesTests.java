@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
@@ -434,8 +434,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
         var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
-            .addShard(aShardRouting(shardId, "node-1", true, STARTED).withRole(primaryRole).build())
-            .addShard(aShardRouting(shardId, "node-2", false, STARTED).withRole(replicaRole).build())
+            .addShard(shardRoutingBuilder(shardId, "node-1", true, STARTED).withRole(primaryRole).build())
+            .addShard(shardRoutingBuilder(shardId, "node-2", false, STARTED).withRole(replicaRole).build())
             .build();
 
         var node1 = newNode("node-1");

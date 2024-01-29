@@ -61,7 +61,7 @@ public class SymbolTests extends ESTestCase {
 
         Symbol symbol1 = Symbol.ofConstant(constant);
         Symbol symbol2 = Symbol.lookup(constant.getBytes(UTF_8), 0, constant.length());
-        Symbol symbol3 = Symbol.lookup((ignore + constant + ignore).getBytes(), ignore.length(), ignore.length() + constant.length());
+        Symbol symbol3 = Symbol.lookup((ignore + constant + ignore).getBytes(UTF_8), ignore.length(), ignore.length() + constant.length());
 
         Symbol unknown = Symbol.lookup((constant + "x").getBytes(UTF_8), 0, constant.length() + 1);
 

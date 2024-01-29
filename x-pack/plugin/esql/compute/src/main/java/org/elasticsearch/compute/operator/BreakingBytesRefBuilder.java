@@ -74,16 +74,6 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
         setCapacity(newCapacity);
     }
 
-    /**
-     * Make sure the underlying bytes have exactly the required capacity to hold the current {@link #length()} number of bytes.
-     */
-    public void shrinkToFit() {
-        if (bytes.length == bytes.bytes.length) {
-            return;
-        }
-        setCapacity(bytes.length);
-    }
-
     private void setCapacity(int capacity) {
         int oldCapacity = bytes.bytes.length;
         breaker.addEstimateBytesAndMaybeBreak(

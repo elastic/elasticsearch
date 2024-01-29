@@ -21,7 +21,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class BreakingBytesRefBuilderTests extends ESTestCase {
     public void testBreakOnBuild() {
@@ -95,31 +94,6 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
                 oracle.grow(oracle.length() + length);
                 oracle.bytes()[oracle.length()] = b;
                 oracle.setLength(oracle.length() + length);
-            }
-        });
-    }
-
-    public void testShrinkToFit() {
-        testAgainstOracle(() -> new TestIteration() {
-            int length = between(2, 100);
-            byte b = randomByte();
-
-            @Override
-            public int size() {
-                return length;
-            }
-
-            @Override
-            public void applyToBuilder(BreakingBytesRefBuilder builder) {
-                builder.grow(builder.length() + length);
-                builder.append(b);
-                builder.shrinkToFit();
-                assertThat(builder.bytes().length, is(builder.length()));
-            }
-
-            @Override
-            public void applyToOracle(BytesRefBuilder oracle) {
-                oracle.append(b);
             }
         });
     }

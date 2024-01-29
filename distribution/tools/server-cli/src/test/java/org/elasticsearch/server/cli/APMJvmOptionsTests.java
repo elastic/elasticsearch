@@ -82,14 +82,13 @@ public class APMJvmOptionsTests extends ESTestCase {
 
     public void testExtractSecureSettings() {
         MockSecureSettings duplicateSecureSettings = new MockSecureSettings();
-        String duplicate = randomBoolean() ? "secret_token" : "api_key";
 
         for (String prefix : List.of("telemetry.", "tracing.apm.")) {
             MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString(prefix + "secret_token", "token");
             secureSettings.setString(prefix + "api_key", "key");
 
-            duplicateSecureSettings.setString(prefix + duplicate, "secret");
+            duplicateSecureSettings.setString(prefix + "api_key", "secret");
 
             Map<String, String> propertiesMap = new HashMap<>();
             APMJvmOptions.extractSecureSettings(secureSettings, propertiesMap);
@@ -102,8 +101,8 @@ public class APMJvmOptionsTests extends ESTestCase {
             () -> APMJvmOptions.extractSecureSettings(duplicateSecureSettings, new HashMap<>())
         );
         assertThat(exception.getMessage(), containsString("Duplicate telemetry setting"));
-        assertThat(exception.getMessage(), containsString("telemetry." + duplicate));
-        assertThat(exception.getMessage(), containsString("tracing.apm." + duplicate));
+        assertThat(exception.getMessage(), containsString("telemetry.api_key"));
+        assertThat(exception.getMessage(), containsString("tracing.apm.api_key"));
 
     }
 

@@ -180,12 +180,12 @@ public class EnrichPolicyResolver {
         for (Map.Entry<String, ResolvedEnrichPolicy> e : policies.entrySet()) {
             ResolvedEnrichPolicy curr = e.getValue();
             if (last != null && last.matchField().equals(curr.matchField()) == false) {
-                String error = "enrich policy [" + policyName + "] has different match field ";
+                String error = "enrich policy [" + policyName + "] has different match fields ";
                 error += "[" + last.matchField() + ", " + curr.matchField() + "] across clusters";
                 return Tuple.tuple(null, error);
             }
             if (last != null && last.matchType().equals(curr.matchType()) == false) {
-                String error = "enrich policy [" + policyName + "] has different match type ";
+                String error = "enrich policy [" + policyName + "] has different match types ";
                 error += "[" + last.matchType() + ", " + curr.matchType() + "] across clusters";
                 return Tuple.tuple(null, error);
             }

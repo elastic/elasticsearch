@@ -281,7 +281,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
-                equalTo("enrich policy [author] has different match type [match, range] across clusters")
+                equalTo("enrich policy [author] has different match types [match, range] across clusters")
             );
         }
         {
@@ -329,7 +329,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
-                equalTo("enrich policy [author] has different match type [match, range] across clusters")
+                equalTo("enrich policy [author] has different match types [match, range] across clusters")
             );
         }
         {
@@ -338,7 +338,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
-                equalTo("enrich policy [author] has different match type [range, match] across clusters")
+                equalTo("enrich policy [author] has different match types [range, match] across clusters")
             );
         }
     }

@@ -37,14 +37,18 @@ public class ServerProcess {
     private final Process jvmProcess;
 
     // the thread pumping stderr watching for state change messages
-    private final ErrorPumpThread errorPump;
+    private final PumpThread errorPump;
+
+    // the thread pumping stdout
+    private final PumpThread stdoutPump;
 
     // a flag marking whether the streams of the java subprocess have been closed
     private volatile boolean detached = false;
 
-    ServerProcess(Process jvmProcess, ErrorPumpThread errorPump) {
+    ServerProcess(Process jvmProcess, PumpThread errorPump, PumpThread stdoutPump) {
         this.jvmProcess = jvmProcess;
         this.errorPump = errorPump;
+        this.stdoutPump = stdoutPump;
     }
 
     /**
@@ -57,20 +61,37 @@ public class ServerProcess {
     /**
      * Detaches the server process from the current process, enabling the current process to exit.
      *
-     * @throws IOException If an I/O error occurred while reading stderr or closing any of the standard streams
+     * @throws IOException If an I/O error occurred while reading stdout / stderr or closing any of the standard streams
      */
     public synchronized void detach() throws IOException {
-        errorPump.drain();
-        IOUtils.close(jvmProcess.getOutputStream(), jvmProcess.getInputStream(), jvmProcess.getErrorStream());
+        IOUtils.close(
+            // included here to not swallow any IO failures while draining the pumps
+            errorPump::drain,
+            stdoutPump::drain,
+            // once both bumps are drained, close streams
+            jvmProcess.getOutputStream(),
+            jvmProcess.getInputStream(),
+            jvmProcess.getErrorStream()
+        );
         detached = true;
     }
 
     /**
      * Waits for the subprocess to exit.
      */
-    public int waitFor() {
-        errorPump.drain();
-        return nonInterruptible(jvmProcess::waitFor);
+    public int waitFor() throws IOException {
+        IOException ioFailure = null;
+        try {
+            // Just gather IO failures when draining the pumps
+            IOUtils.close(errorPump::drain, stdoutPump::drain);
+        } catch (IOException e) {
+            ioFailure = e;
+        }
+        Integer exitCode = nonInterruptible(jvmProcess::waitFor);
+        if (ioFailure != null) {
+            throw ioFailure;
+        }
+        return exitCode;
     }
 
     /**
@@ -81,7 +102,7 @@ public class ServerProcess {
      *
      * <p> Note that if {@link #detach()} has been called, this method is a no-op.
      */
-    public synchronized void stop() {
+    public synchronized void stop() throws IOException {
         if (detached) {
             return;
         }

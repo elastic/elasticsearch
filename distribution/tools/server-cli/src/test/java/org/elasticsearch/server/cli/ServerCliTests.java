@@ -461,7 +461,7 @@ public class ServerCliTests extends CommandTestCase {
         boolean stopCalled = false;
 
         MockServerProcess() {
-            super(null, null);
+            super(null, null, null);
         }
 
         @Override

@@ -396,7 +396,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
 
-      noCache = BuildParams.isCi
+      noCache = BuildParams.isCi()
       tags = generateTags(base, architecture)
       platforms.add(architecture.dockerPlatform)
 
@@ -465,7 +465,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
 
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
 
-      noCache = BuildParams.isCi
+      noCache = BuildParams.isCi()
       baseImages = []
       tags = generateTags(base, architecture)
       platforms.add(architecture.dockerPlatform)

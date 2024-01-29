@@ -9,9 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.InternalStatsBucket;
-import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 
 import java.util.List;
 import java.util.Map;
@@ -39,11 +37,5 @@ public class InternalStatsBucketTests extends InternalStatsTests {
     @Override
     protected void assertReduced(InternalStats reduced, List<InternalStats> inputs) {
         // no test since reduce operation is unsupported
-    }
-
-    @Override
-    protected void assertFromXContent(InternalStats aggregation, ParsedAggregation parsedAggregation) {
-        super.assertFromXContent(aggregation, parsedAggregation);
-        assertTrue(parsedAggregation instanceof ParsedStatsBucket);
     }
 }

@@ -137,9 +137,9 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     @Override
-    public <C> Symbol readSymbol() throws IOException {
+    public Symbol readSymbol() throws IOException {
         final int length = readArraySize();
-        if (slice.hasArray() && slice.remaining() + 1 >= length) {
+        if (slice.hasArray() && slice.remaining() >= length) {
             int start = slice.position() + slice.arrayOffset();
             int end = start + length;
             Symbol symbol = Symbol.lookup(slice.array(), start, end);

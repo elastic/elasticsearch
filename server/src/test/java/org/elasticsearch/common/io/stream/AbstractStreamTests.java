@@ -30,6 +30,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
@@ -58,6 +59,25 @@ import static org.hamcrest.Matchers.nullValue;
 public abstract class AbstractStreamTests extends ESTestCase {
 
     protected abstract StreamInput getStreamInput(BytesReference bytesReference) throws IOException;
+
+    public void testSymbolSerialization() throws IOException {
+        final int count = randomIntBetween(10, 1000);
+        final BytesStreamOutput output = new BytesStreamOutput();
+        final List<Symbol> expectations = new ArrayList<>(count);
+
+        for(int i = 0; i < count;i++){
+            String name = randomAlphaOfLengthBetween(1, 100 );
+            expectations.add(Symbol.ofConstant(name));
+            // serialization is compatible with toString (ASCII only!)
+            if(randomBoolean()) expectations.get(i).writeTo(output);
+            else output.writeString(name);
+        }
+
+        final StreamInput input = getStreamInput(output.bytes());
+        for(int i = 0; i < count;i++){
+            assertSame(expectations.get(i), input.readSymbol());
+        }
+    }
 
     public void testBooleanSerialization() throws IOException {
         final BytesStreamOutput output = new BytesStreamOutput();

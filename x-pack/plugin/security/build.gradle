@@ -32,7 +32,6 @@ dependencies {
   testImplementation project(path: ':modules:reindex')
   testImplementation project(':modules:data-streams')
   testImplementation project(':modules:rest-root')
-  testImplementation project(":client:rest-high-level")
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))

@@ -22,10 +22,6 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-dependencies {
-  testImplementation project(":client:rest-high-level")
-}
-
 def ccsSupportedVersion = bwcVersion -> {
   def currentVersion = Version.fromString(project.version)
   // in case the current version is the first in a new major series, all wire compatible versions (i.e. last minor of previous major)

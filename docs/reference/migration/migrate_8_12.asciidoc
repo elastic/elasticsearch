@@ -9,9 +9,6 @@ your application to {es} 8.12.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming::[8.12.0]
-
-
 [discrete]
 [[breaking-changes-8.12]]
 === Breaking changes
@@ -69,7 +66,7 @@ Plugins that override createComponents will need to be refactored to override th
 [%collapsible]
 ====
 *Details* +
-In ES|QL, the pow function no longer returns the type of its inputs, instead always returning a double.
+This corrects an earlier mistake in the ES|QL language design. Initially we had thought to have pow return the same type as its inputs, but in practice even for integer inputs this quickly grows out of the representable range, and we returned null much of the time. This also created a lot of edge cases around casting to/from doubles (which the underlying java function uses). The version in this PR follows the java spec, by always casting its inputs to doubles, and returning a double. Doing it this way also allows for a rather significant reduction in lines of code.
 
 *Impact* +
 low. Most queries should continue to function with the change.

@@ -32,7 +32,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
     public static final String NAME = "indices:admin/index_template/get";
 
     private GetComposableIndexTemplateAction() {
-        super(NAME, GetComposableIndexTemplateAction.Response::new);
+        super(NAME);
     }
 
     /**

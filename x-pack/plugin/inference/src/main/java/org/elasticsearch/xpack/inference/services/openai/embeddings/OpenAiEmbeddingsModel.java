@@ -52,29 +52,11 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
     }
 
     private OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiEmbeddingsTaskSettings taskSettings) {
-        super(
-            new ModelConfigurations(
-                originalModel.getConfigurations().getModelId(),
-                originalModel.getConfigurations().getTaskType(),
-                originalModel.getConfigurations().getService(),
-                originalModel.getServiceSettings(),
-                taskSettings
-            ),
-            new ModelSecrets(originalModel.getSecretSettings())
-        );
+        super(originalModel, taskSettings);
     }
 
     public OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiServiceSettings serviceSettings) {
-        super(
-            new ModelConfigurations(
-                originalModel.getConfigurations().getModelId(),
-                originalModel.getConfigurations().getTaskType(),
-                originalModel.getConfigurations().getService(),
-                serviceSettings,
-                originalModel.getTaskSettings()
-            ),
-            new ModelSecrets(originalModel.getSecretSettings())
-        );
+        super(originalModel, serviceSettings);
     }
 
     @Override

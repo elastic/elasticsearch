@@ -6,7 +6,7 @@
 
 [source,esql]
 ----
-COUNT_DISTINCT(column[, precision])
+COUNT_DISTINCT(column[, precision_threshold])
 ----
 
 *Parameters*
@@ -14,8 +14,10 @@ COUNT_DISTINCT(column[, precision])
 `column`::
 Column for which to count the number of distinct values.
 
-`precision`::
-Precision. Refer to <<esql-agg-count-distinct-approximate>>.
+`precision_threshold`::
+Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The
+maximum supported value is 40000. Thresholds above this number will have the
+same effect as a threshold of 40000. The default value is 3000.
 
 *Description*
 
@@ -37,8 +39,12 @@ properties:
 
 include::../../aggregations/metrics/cardinality-aggregation.asciidoc[tag=explanation]
 
-The `COUNT_DISTINCT` function takes an optional second parameter to configure the
-precision.
+The `COUNT_DISTINCT` function takes an optional second parameter to configure
+the precision threshold. The precision_threshold options allows to trade memory
+for accuracy, and defines a unique count below which counts are expected to be
+close to accurate. Above this value, counts might become a bit more fuzzy. The
+maximum supported value is 40000, thresholds above this number will have the
+same effect as a threshold of 40000. The default value is `3000`.
 
 *Supported types*
 
@@ -55,7 +61,7 @@ include::{esql-specs}/stats_count_distinct.csv-spec[tag=count-distinct]
 include::{esql-specs}/stats_count_distinct.csv-spec[tag=count-distinct-result]
 |===
 
-With the optional second parameter to configure the precision:
+With the optional second parameter to configure the precision threshold:
 
 [source.merge.styled,esql]
 ----

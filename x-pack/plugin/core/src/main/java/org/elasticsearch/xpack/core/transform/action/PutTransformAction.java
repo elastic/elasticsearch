@@ -35,7 +35,7 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
     private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);
 
     private PutTransformAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

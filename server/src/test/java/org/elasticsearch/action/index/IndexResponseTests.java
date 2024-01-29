@@ -51,7 +51,7 @@ public class IndexResponseTests extends ESTestCase {
         {
             IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "id", -1, 17, 7, true);
             indexResponse.setForcedRefresh(true);
-            indexResponse.setShardInfo(new ReplicationResponse.ShardInfo(10, 5));
+            indexResponse.setShardInfo(ReplicationResponse.ShardInfo.of(10, 5));
             String output = Strings.toString(indexResponse);
             assertEquals(XContentHelper.stripWhitespace("""
                 {

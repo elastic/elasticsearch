@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -734,7 +735,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeMap(dynamicTemplates, StreamOutput::writeString);
         } else {
             if (dynamicTemplates.isEmpty() == false) {
-                throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on 7.13.0 or later");
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "[dynamic_templates] parameter requires all nodes on %s or later",
+                        TransportVersions.toReleaseVersion(TransportVersions.V_7_13_0)
+                    )
+                );
             }
         }
         if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {

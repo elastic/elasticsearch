@@ -101,12 +101,8 @@ public final class ExpressionTranslators {
     }
 
     public static Query toQuery(Expression e, TranslatorHandler handler) {
-        return toQuery(e, handler, QUERY_TRANSLATORS);
-    }
-
-    public static Query toQuery(Expression e, TranslatorHandler handler, List<ExpressionTranslator<?>> queryTranslators) {
         Query translation = null;
-        for (ExpressionTranslator<?> translator : queryTranslators) {
+        for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
             translation = translator.translate(e, handler);
             if (translation != null) {
                 return translation;

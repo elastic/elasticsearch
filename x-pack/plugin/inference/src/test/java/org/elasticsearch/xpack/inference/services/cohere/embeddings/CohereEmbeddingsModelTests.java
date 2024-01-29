@@ -27,14 +27,14 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
     public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty_AndInputTypeIsInvalid() {
         var model = createModel("url", "api_key", null, null, null);
 
-        var overriddenModel = model.overrideWith(Map.of(), InputType.UNSPECIFIED);
+        var overriddenModel = CohereEmbeddingsModel.of(model, Map.of(), InputType.UNSPECIFIED);
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
     public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull_AndInputTypeIsInvalid() {
         var model = createModel("url", "api_key", null, null, null);
 
-        var overriddenModel = model.overrideWith(null, InputType.UNSPECIFIED);
+        var overriddenModel = CohereEmbeddingsModel.of(model, null, InputType.UNSPECIFIED);
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
@@ -49,7 +49,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             CohereEmbeddingType.FLOAT
         );
 
-        var overriddenModel = model.overrideWith(getTaskSettingsMap(null, null), InputType.INGEST);
+        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(null, null), InputType.INGEST);
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -73,7 +73,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             CohereEmbeddingType.FLOAT
         );
 
-        var overriddenModel = model.overrideWith(getTaskSettingsMap(null, null), InputType.SEARCH);
+        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(null, null), InputType.SEARCH);
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -97,7 +97,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             CohereEmbeddingType.FLOAT
         );
 
-        var overriddenModel = model.overrideWith(getTaskSettingsMap(InputType.INGEST, null), InputType.SEARCH);
+        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(InputType.INGEST, null), InputType.SEARCH);
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -121,7 +121,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             CohereEmbeddingType.FLOAT
         );
 
-        var overriddenModel = model.overrideWith(getTaskSettingsMap(InputType.SEARCH, null), InputType.UNSPECIFIED);
+        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(InputType.SEARCH, null), InputType.UNSPECIFIED);
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -145,7 +145,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             CohereEmbeddingType.FLOAT
         );
 
-        var overriddenModel = model.overrideWith(getTaskSettingsMap(null, null), InputType.UNSPECIFIED);
+        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(null, null), InputType.UNSPECIFIED);
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -169,7 +169,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             CohereEmbeddingType.FLOAT
         );
 
-        var overriddenModel = model.overrideWith(getTaskSettingsMap(null, null), InputType.UNSPECIFIED);
+        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(null, null), InputType.UNSPECIFIED);
         var expectedModel = createModel(
             "url",
             "api_key",

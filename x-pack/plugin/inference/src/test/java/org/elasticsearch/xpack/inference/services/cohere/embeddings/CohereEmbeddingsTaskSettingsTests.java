@@ -13,7 +13,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
@@ -92,47 +91,36 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         MatcherAssert.assertThat(thrownException.getMessage(), CoreMatchers.is("received invalid input type value [unspecified]"));
     }
 
-    public void testOverrideWith_KeepsOriginalValuesWhenOverridesAreNull() {
-        var taskSettings = CohereEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(CohereServiceSettings.MODEL, "model", CohereServiceFields.TRUNCATE, CohereTruncation.END.toString()))
+    public void testOf_KeepsOriginalValuesWhenRequestSettingsAreNull_AndRequestInputTypeIsInvalid() {
+        var taskSettings = new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.NONE);
+        var overriddenTaskSettings = CohereEmbeddingsTaskSettings.of(
+            taskSettings,
+            CohereEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            InputType.UNSPECIFIED
         );
-
-        var overriddenTaskSettings = taskSettings.overrideWith(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS);
         MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
     }
 
-    public void testOverrideWith_UsesOverriddenSettings() {
-        var taskSettings = CohereEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(CohereServiceFields.TRUNCATE, CohereTruncation.END.toString()))
+    public void testOf_UsesRequestTaskSettings() {
+        var taskSettings = new CohereEmbeddingsTaskSettings(null, CohereTruncation.NONE);
+        var overriddenTaskSettings = CohereEmbeddingsTaskSettings.of(
+            taskSettings,
+            new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.END),
+            InputType.UNSPECIFIED
         );
 
-        var requestTaskSettings = CohereEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(CohereServiceFields.TRUNCATE, CohereTruncation.START.toString()))
-        );
-
-        var overriddenTaskSettings = taskSettings.overrideWith(requestTaskSettings);
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new CohereEmbeddingsTaskSettings(null, CohereTruncation.START)));
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.END)));
     }
 
-    public void testSetInputType_SetsInputType() {
-        MatcherAssert.assertThat(
-            new CohereEmbeddingsTaskSettings(InputType.INGEST, null).setInputType(InputType.SEARCH),
-            is(new CohereEmbeddingsTaskSettings(InputType.SEARCH, null))
+    public void testOf_UsesRequestTaskSettings_AndRequestInputType() {
+        var taskSettings = new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE);
+        var overriddenTaskSettings = CohereEmbeddingsTaskSettings.of(
+            taskSettings,
+            new CohereEmbeddingsTaskSettings(null, CohereTruncation.END),
+            InputType.INGEST
         );
-    }
 
-    public void testSetIfAbsent_DoesNotSetInputType_IfInputTypeIsInvalid() {
-        MatcherAssert.assertThat(
-            new CohereEmbeddingsTaskSettings(null, null).setInputType(InputType.UNSPECIFIED),
-            is(new CohereEmbeddingsTaskSettings(null, null))
-        );
-    }
-
-    public void testSetIfAbsent_SetsInputType_IfFieldIsNull() {
-        MatcherAssert.assertThat(
-            new CohereEmbeddingsTaskSettings(null, null).setInputType(InputType.INGEST),
-            is(new CohereEmbeddingsTaskSettings(InputType.INGEST, null))
-        );
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.END)));
     }
 
     @Override

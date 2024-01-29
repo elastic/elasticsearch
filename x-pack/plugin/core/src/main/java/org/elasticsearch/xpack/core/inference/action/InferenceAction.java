@@ -61,6 +61,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             Request.Builder builder = PARSER.apply(parser, null);
             builder.setInferenceEntityId(inferenceEntityId);
             builder.setTaskType(taskType);
+            // For rest requests we won't know what the input type is
+            builder.setInputType(InputType.UNSPECIFIED);
             return builder.build();
         }
 
@@ -185,6 +187,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private TaskType taskType;
             private String inferenceEntityId;
             private List<String> input;
+            private InputType inputType = InputType.UNSPECIFIED;
             private Map<String, Object> taskSettings = Map.of();
 
             private Builder() {}
@@ -209,13 +212,18 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
+            public Builder setInputType(InputType inputType) {
+                this.inputType = inputType;
+                return this;
+            }
+
             public Builder setTaskSettings(Map<String, Object> taskSettings) {
                 this.taskSettings = taskSettings;
                 return this;
             }
 
             public Request build() {
-                return new Request(taskType, inferenceEntityId, input, taskSettings, InputType.UNSPECIFIED);
+                return new Request(taskType, inferenceEntityId, input, taskSettings, inputType);
             }
         }
     }

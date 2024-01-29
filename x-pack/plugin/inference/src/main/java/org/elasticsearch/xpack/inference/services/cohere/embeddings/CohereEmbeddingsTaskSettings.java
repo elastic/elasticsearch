@@ -75,6 +75,52 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
         return new CohereEmbeddingsTaskSettings(inputType, truncation);
     }
 
+    /**
+     * Creates a new {@link CohereEmbeddingsTaskSettings} by preferring non-null fields from the provided parameters.
+     * For the input type, preference is given to requestInputType if it is not null and not UNSPECIFIED.
+     * Then preference is given to the requestTaskSettings and finally to originalSettings even if the value is null.
+     *
+     * Similarly, for the truncation field preference is given to requestTaskSettings if it is not null and then to
+     * originalSettings.
+     * @param originalSettings the settings stored as part of the inference entity configuration
+     * @param requestTaskSettings the settings passed in within the task_settings field of the request
+     * @param requestInputType the input type passed in the request parameters
+     * @return a constructed {@link CohereEmbeddingsTaskSettings}
+     */
+    public static CohereEmbeddingsTaskSettings of(
+        CohereEmbeddingsTaskSettings originalSettings,
+        CohereEmbeddingsTaskSettings requestTaskSettings,
+        InputType requestInputType
+    ) {
+        var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings, requestInputType);
+        var truncationToUse = getValidTruncation(originalSettings, requestTaskSettings);
+
+        return new CohereEmbeddingsTaskSettings(inputTypeToUse, truncationToUse);
+    }
+
+    private static InputType getValidInputType(
+        CohereEmbeddingsTaskSettings originalSettings,
+        CohereEmbeddingsTaskSettings requestTaskSettings,
+        InputType requestInputType
+    ) {
+        InputType inputTypeToUse = originalSettings.inputType;
+
+        if (VALID_INPUT_VALUES_LIST.contains(requestInputType)) {
+            inputTypeToUse = requestInputType;
+        } else if (requestTaskSettings.inputType != null) {
+            inputTypeToUse = requestTaskSettings.inputType;
+        }
+
+        return inputTypeToUse;
+    }
+
+    private static CohereTruncation getValidTruncation(
+        CohereEmbeddingsTaskSettings originalSettings,
+        CohereEmbeddingsTaskSettings requestTaskSettings
+    ) {
+        return requestTaskSettings.getTruncation() == null ? originalSettings.truncation : requestTaskSettings.getTruncation();
+    }
+
     private final InputType inputType;
     private final CohereTruncation truncation;
 
@@ -139,36 +185,12 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CohereEmbeddingsTaskSettings that = (CohereEmbeddingsTaskSettings) o;
-        return inputType == that.inputType && truncation == that.truncation;
+        return Objects.equals(inputType, that.inputType) && Objects.equals(truncation, that.truncation);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(inputType, truncation);
-    }
-
-    public CohereEmbeddingsTaskSettings overrideWith(CohereEmbeddingsTaskSettings requestTaskSettings) {
-        if (requestTaskSettings.equals(EMPTY_SETTINGS)) {
-            return this;
-        }
-
-        var inputTypeToUse = requestTaskSettings.getInputType() == null ? inputType : requestTaskSettings.getInputType();
-        var truncationToUse = requestTaskSettings.getTruncation() == null ? truncation : requestTaskSettings.getTruncation();
-
-        return new CohereEmbeddingsTaskSettings(inputTypeToUse, truncationToUse);
-    }
-
-    /**
-     * Sets the input type field for the task settings if input type value is valid.
-     * @param inputType the new input type to use
-     * @return newly updated task settings
-     */
-    public CohereEmbeddingsTaskSettings setInputType(InputType inputType) {
-        if (VALID_INPUT_VALUES_LIST.contains(inputType) == false) {
-            return this;
-        }
-
-        return new CohereEmbeddingsTaskSettings(inputType, truncation);
     }
 
     public static String invalidInputTypeMessage(InputType inputType) {

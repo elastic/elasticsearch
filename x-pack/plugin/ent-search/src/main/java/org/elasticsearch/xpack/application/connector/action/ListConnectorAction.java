@@ -28,14 +28,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class ListConnectorAction extends ActionType<ListConnectorAction.Response> {
+public class ListConnectorAction {
 
-    public static final ListConnectorAction INSTANCE = new ListConnectorAction();
     public static final String NAME = "cluster:admin/xpack/connector/list";
+    public static final ActionType<ListConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public ListConnectorAction() {
-        super(NAME, ListConnectorAction.Response::new);
-    }
+    private ListConnectorAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
 

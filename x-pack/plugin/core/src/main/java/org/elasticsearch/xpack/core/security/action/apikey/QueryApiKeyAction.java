@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public final class QueryApiKeyAction extends ActionType<QueryApiKeyResponse> {
 
@@ -16,7 +15,7 @@ public final class QueryApiKeyAction extends ActionType<QueryApiKeyResponse> {
     public static final QueryApiKeyAction INSTANCE = new QueryApiKeyAction();
 
     private QueryApiKeyAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
 }

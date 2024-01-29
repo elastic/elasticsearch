@@ -73,7 +73,7 @@ public class CO2CalculatorTests extends ESTestCase {
         CO2Calculator co2Calculator = new CO2Calculator(hostsTable, samplingDurationInSeconds, null, null, null, null);
 
         checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_A, samples), annualCoreHours, 1.135d, 0.0002786d, 7.0d);
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_B, samples), annualCoreHours, 1.1d, 0.00004452d, 7.0d);
+        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_B, samples), annualCoreHours, 1.1d, 0.0000198d, 7.0d);
         checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_C, samples), annualCoreHours, 1.185d, 0.000410608d, 2.8d);
         checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_D, samples), annualCoreHours, 1.7d, 0.000379069d, 2.8d);
     }

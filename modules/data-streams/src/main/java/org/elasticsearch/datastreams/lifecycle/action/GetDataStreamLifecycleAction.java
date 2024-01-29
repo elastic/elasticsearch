@@ -37,8 +37,7 @@ import java.util.Objects;
 public class GetDataStreamLifecycleAction {
 
     public static final ActionType<GetDataStreamLifecycleAction.Response> INSTANCE = new ActionType<>(
-        "indices:admin/data_stream/lifecycle/get",
-        Response::new
+        "indices:admin/data_stream/lifecycle/get"
     );
 
     private GetDataStreamLifecycleAction() {/* no instances */}

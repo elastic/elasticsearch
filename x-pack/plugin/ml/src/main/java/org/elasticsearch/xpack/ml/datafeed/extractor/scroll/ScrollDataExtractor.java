@@ -25,9 +25,9 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 
 import java.io.IOException;
@@ -158,7 +158,7 @@ class ScrollDataExtractor implements DataExtractor {
     private SearchRequestBuilder buildSearchRequest(long start) {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(context.scrollSize)
             .sort(context.extractedFields.timeField(), SortOrder.ASC)
-            .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.extractedFields.timeField(), start, context.end))
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.extractedFields.timeField(), start, context.end))
             .runtimeMappings(context.runtimeMappings);
 
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client).setScroll(SCROLL_TIMEOUT)

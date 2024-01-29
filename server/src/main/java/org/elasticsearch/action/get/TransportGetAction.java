@@ -54,7 +54,7 @@ import java.util.concurrent.Executor;
  */
 public class TransportGetAction extends TransportSingleShardAction<GetRequest, GetResponse> {
 
-    public static final ActionType<GetResponse> TYPE = new ActionType<>("indices:data/read/get", GetResponse::new);
+    public static final ActionType<GetResponse> TYPE = new ActionType<>("indices:data/read/get");
     private static final Logger logger = LogManager.getLogger(TransportGetAction.class);
 
     private final IndicesService indicesService;

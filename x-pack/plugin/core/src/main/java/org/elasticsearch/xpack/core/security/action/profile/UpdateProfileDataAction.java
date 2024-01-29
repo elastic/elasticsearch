@@ -16,6 +16,6 @@ public class UpdateProfileDataAction extends ActionType<AcknowledgedResponse> {
     public static final UpdateProfileDataAction INSTANCE = new UpdateProfileDataAction();
 
     public UpdateProfileDataAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 }

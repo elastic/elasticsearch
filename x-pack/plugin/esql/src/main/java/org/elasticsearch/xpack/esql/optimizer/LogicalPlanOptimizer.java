@@ -184,14 +184,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             // first pass to check existing aggregates (to avoid duplication and alias waste)
             for (NamedExpression agg : aggs) {
-                if (agg instanceof Alias a && a.child() instanceof AggregateFunction af && af instanceof SurrogateExpression == false) {
-                    aggFuncToAttr.put(af, a.toAttribute());
+                if (Alias.unwrap(agg) instanceof AggregateFunction af && af instanceof SurrogateExpression == false) {
+                    aggFuncToAttr.put(af, agg.toAttribute());
                 }
             }
 
             // 0. check list of surrogate expressions
             for (NamedExpression agg : aggs) {
-                Expression e = agg instanceof Alias a ? a.child() : agg;
+                Expression e = Alias.unwrap(agg);
                 if (e instanceof SurrogateExpression sf) {
                     changed = true;
                     Expression s = sf.surrogate();
@@ -406,17 +406,25 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
             var collectRefs = new AttributeMap<Expression>();
-            // collect aliases
+
+            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
+
+            // collect aliases bottom-up
             plan.forEachExpressionUp(Alias.class, a -> {
                 var c = a.child();
-                if (c.foldable()) {
-                    collectRefs.put(a.toAttribute(), c);
+                boolean shouldCollect = c.foldable();
+                // try to resolve the expression based on an existing foldables
+                if (shouldCollect == false) {
+                    c = c.transformUp(ReferenceAttribute.class, replaceReference);
+                    shouldCollect = c.foldable();
+                }
+                if (shouldCollect) {
+                    collectRefs.put(a.toAttribute(), Literal.of(c));
                 }
             });
             if (collectRefs.isEmpty()) {
                 return plan;
             }
-            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
 
             plan = plan.transformUp(p -> {
                 // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
@@ -661,7 +669,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             int i = 0;
             for (var agg : aggs) {
                 // there needs to be an alias
-                if (agg instanceof Alias a && a.child() instanceof AggregateFunction aggFunc) {
+                if (Alias.unwrap(agg) instanceof AggregateFunction aggFunc) {
                     aggOutput(agg, aggFunc, blockFactory, blocks);
                 } else {
                     throw new EsqlIllegalArgumentException("Did not expect a non-aliased aggregation {}", agg);
@@ -1133,7 +1141,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                                 return newAlias.toAttribute();
                             });
                             // replace field with attribute
-                            result = af.replaceChildren(Collections.singletonList(attr));
+                            List<Expression> newChildren = new ArrayList<>(af.children());
+                            newChildren.set(0, attr);
+                            result = af.replaceChildren(newChildren);
                         }
                         return result;
                     });
@@ -1286,20 +1296,19 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         private static LogicalPlan normalize(Aggregate aggregate, AttributeMap<Expression> aliases) {
             var aggs = aggregate.aggregates();
             List<NamedExpression> newAggs = new ArrayList<>(aggs.size());
-            boolean changed = false;
+            final Holder<Boolean> changed = new Holder<>(false);
 
             for (NamedExpression agg : aggs) {
-                if (agg instanceof Alias as && as.child() instanceof AggregateFunction af) {
+                var newAgg = (NamedExpression) agg.transformDown(AggregateFunction.class, af -> {
                     // replace field reference
                     if (af.field() instanceof NamedExpression ne) {
                         Attribute attr = ne.toAttribute();
                         var resolved = aliases.resolve(attr, attr);
                         if (resolved != attr) {
-                            changed = true;
+                            changed.set(true);
                             var newChildren = CollectionUtils.combine(Collections.singletonList(resolved), af.parameters());
                             // update the reference so Count can pick it up
                             af = (AggregateFunction) af.replaceChildren(newChildren);
-                            agg = as.replaceChild(af);
                         }
                     }
                     // handle Count(*)
@@ -1308,16 +1317,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         if (field.foldable()) {
                             var fold = field.fold();
                             if (fold != null && StringUtils.WILDCARD.equals(fold) == false) {
-                                changed = true;
+                                changed.set(true);
                                 var source = count.source();
-                                agg = as.replaceChild(new Count(source, new Literal(source, StringUtils.WILDCARD, DataTypes.KEYWORD)));
+                                af = new Count(source, new Literal(source, StringUtils.WILDCARD, DataTypes.KEYWORD));
                             }
                         }
                     }
-                }
-                newAggs.add(agg);
+                    return af;
+                });
+                newAggs.add(newAgg);
             }
-            return changed ? new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs) : aggregate;
+            return changed.get() ? new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs) : aggregate;
         }
     }
 

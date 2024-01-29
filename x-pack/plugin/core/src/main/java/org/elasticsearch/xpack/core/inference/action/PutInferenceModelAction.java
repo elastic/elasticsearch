@@ -32,7 +32,7 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
     public static final String NAME = "cluster:admin/xpack/inference/put";
 
     public PutInferenceModelAction() {
-        super(NAME, PutInferenceModelAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

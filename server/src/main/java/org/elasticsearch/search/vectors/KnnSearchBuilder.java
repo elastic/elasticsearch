@@ -247,6 +247,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return queryVector;
     }
 
+    public String getField() {
+        return field;
+    }
+
     public KnnSearchBuilder addFilterQuery(QueryBuilder filterQuery) {
         Objects.requireNonNull(filterQuery);
         this.filterQueries.add(filterQuery);
@@ -265,6 +269,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public KnnSearchBuilder boost(float boost) {
         this.boost = boost;
         return this;
+    }
+
+    public float boost() {
+        return boost;
     }
 
     public KnnSearchBuilder innerHit(InnerHitBuilder innerHitBuilder) {

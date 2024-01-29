@@ -32,7 +32,7 @@ import static org.elasticsearch.action.admin.indices.mapping.put.TransportPutMap
 
 public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNodeAction<PutMappingRequest> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("indices:admin/mapping/auto_put");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/mapping/auto_put");
     private static final Logger logger = LogManager.getLogger(TransportAutoPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
@@ -93,7 +93,7 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
             return;
         }
 
-        performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
+        performMappingUpdate(concreteIndices, request, listener, metadataMappingService, true);
     }
 
 }

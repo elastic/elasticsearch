@@ -344,7 +344,7 @@ public class LocalExecutionPlanner {
                 case "version" -> TopNEncoder.VERSION;
                 case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
                     "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
-                case "geo_point", "cartesian_point" -> TopNEncoder.DEFAULT_UNSORTABLE;
+                case "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" -> TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case "unsupported" -> TopNEncoder.UNSUPPORTED;
                 default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
@@ -512,7 +512,7 @@ public class LocalExecutionPlanner {
         for (int index = 0, size = projections.size(); index < size; index++) {
             NamedExpression ne = projections.get(index);
 
-            NameId inputId;
+            NameId inputId = null;
             if (ne instanceof Alias a) {
                 inputId = ((NamedExpression) a.child()).id();
             } else {
@@ -627,6 +627,11 @@ public class LocalExecutionPlanner {
                 Stream.concat(Stream.of(sourceOperatorFactory), intermediateOperatorFactories.stream()),
                 Stream.of(sinkOperatorFactory)
             ).map(Describable::describe).collect(joining("\n\\_", "\\_", ""));
+        }
+
+        @Override
+        public String toString() {
+            return describe();
         }
     }
 

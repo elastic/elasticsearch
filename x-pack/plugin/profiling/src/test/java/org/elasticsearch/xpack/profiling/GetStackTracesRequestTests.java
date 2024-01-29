@@ -44,7 +44,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             GetStackTracesRequest request = new GetStackTracesRequest();
             request.parseXContent(content);
 
-            assertEquals(Integer.valueOf(500), request.getSampleSize());
+            assertEquals(500, request.getSampleSize());
             assertEquals(Double.valueOf(100.54d), request.getRequestedDuration());
             // a basic check suffices here
             assertEquals("@timestamp", ((RangeQueryBuilder) request.getQuery()).fieldName());
@@ -81,7 +81,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             GetStackTracesRequest request = new GetStackTracesRequest();
             request.parseXContent(content);
 
-            assertEquals(Integer.valueOf(2000), request.getSampleSize());
+            assertEquals(2000, request.getSampleSize());
             assertEquals("my-traces", request.getIndices());
             assertEquals("stacktraces", request.getStackTraceIds());
             // a basic check suffices here
@@ -124,7 +124,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             GetStackTracesRequest request = new GetStackTracesRequest();
             request.parseXContent(content);
 
-            assertEquals(Integer.valueOf(2000), request.getSampleSize());
+            assertEquals(2000, request.getSampleSize());
             assertEquals(Double.valueOf(100.54d), request.getRequestedDuration());
             assertEquals(Double.valueOf(7.3d), request.getAwsCostFactor());
             assertEquals(Double.valueOf(22.4d), request.getCustomCO2PerKWH());

@@ -1,6 +1,0 @@
-pr: 102811
-summary: Split comma-separated source index strings into separate indices
-area: Transform
-type: bug
-issues:
- - 99564

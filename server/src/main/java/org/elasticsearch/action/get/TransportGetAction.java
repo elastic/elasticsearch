@@ -250,6 +250,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                         l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
                     }
                 });
+            } else {
+                l.onFailure(e);
             }
         }));
     }

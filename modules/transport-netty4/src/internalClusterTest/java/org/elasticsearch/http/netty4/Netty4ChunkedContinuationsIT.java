@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ESNetty4IntegTestCase;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -226,6 +227,26 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
             assertEquals("{}", Netty4Utils.toBytesReference(responses.get(2).content()).utf8ToString());
             assertEquals(expectedBody, Netty4Utils.toBytesReference(responses.get(3).content()).utf8ToString());
             assertEquals("{}", Netty4Utils.toBytesReference(responses.get(4).content()).utf8ToString());
+        } finally {
+            internalCluster().fullRestart(); // reset countdown listener
+        }
+    }
+
+    public void testContinuationFailure() throws Exception {
+        // TODO when https://github.com/netty/netty/issues/13816 addressed, verify that we see the failure properly and no later responses
+        try (var ignored = withRequestTracker(); var nettyClient = new Netty4HttpClient()) {
+            final var responses = nettyClient.get(
+                randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses()).address(),
+                YieldsContinuationsPlugin.ROUTE,
+                YieldsContinuationsPlugin.ROUTE + "?" + YieldsContinuationsPlugin.FAIL_INDEX_PARAM + "=1"
+            );
+
+            assertEquals(expectedBody, Netty4Utils.toBytesReference(responses.get(0).content()).utf8ToString());
+            assertEquals("""
+                batch-0-chunk-0
+                batch-0-chunk-1
+                batch-0-chunk-2
+                """, Netty4Utils.toBytesReference(responses.get(1).content()).utf8ToString());
         }
     }
 
@@ -289,6 +310,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
     public static class YieldsContinuationsPlugin extends Plugin implements ActionPlugin, HasRequestRefs {
         static final String ROUTE = "/_test/yields_continuations";
+        static final String FAIL_INDEX_PARAM = "fail_index";
 
         private static final ActionType<YieldsContinuationsPlugin.Response> TYPE = new ActionType<>("test:yields_continuations");
 
@@ -305,6 +327,12 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         }
 
         public static class Request extends ActionRequest {
+            final int failIndex;
+
+            public Request(int failIndex) {
+                this.failIndex = failIndex;
+            }
+
             @Override
             public ActionRequestValidationException validate() {
                 return null;
@@ -312,10 +340,12 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         }
 
         public static class Response extends ActionResponse {
+            private final int failIndex;
             private final Executor executor;
             private final TestRefCounted requestRefs;
 
-            public Response(Executor executor, TestRefCounted requestRefs) {
+            public Response(int failIndex, Executor executor, TestRefCounted requestRefs) {
+                this.failIndex = failIndex;
                 this.executor = executor;
                 this.requestRefs = requestRefs;
             }
@@ -330,6 +360,9 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
             }
 
             private ChunkedRestResponseBody getChunkBatch(int batchIndex) {
+                if (batchIndex == failIndex) {
+                    throw new ElasticsearchException("simulated failure");
+                }
                 return new ChunkedRestResponseBody() {
 
                     private final Iterator<String> lines = Iterators.forRange(0, 3, i -> "batch-" + batchIndex + "-chunk-" + i + "\n");
@@ -396,7 +429,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
             @Override
             protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-                executor.execute(ActionRunnable.supply(listener, () -> new Response(executor, requestRefs)));
+                executor.execute(ActionRunnable.supply(listener, () -> new Response(request.failIndex, executor, requestRefs)));
             }
         }
 
@@ -424,6 +457,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
                 @Override
                 protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                    final var failIndex = request.paramAsInt(FAIL_INDEX_PARAM, Integer.MAX_VALUE);
                     final var localRequestRefs = requestRefs;
                     localRequestRefs.mustIncRef();
                     return new RestChannelConsumer() {
@@ -436,7 +470,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                         @Override
                         public void accept(RestChannel channel) {
                             localRequestRefs.mustIncRef();
-                            client.execute(TYPE, new Request(), new RestActionListener<>(channel) {
+                            client.execute(TYPE, new Request(failIndex), new RestActionListener<>(channel) {
                                 @Override
                                 protected void processResponse(Response response) {
                                     channel.sendResponse(

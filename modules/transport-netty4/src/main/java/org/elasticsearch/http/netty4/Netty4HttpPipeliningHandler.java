@@ -282,9 +282,10 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                         Strings.format("failed to get continuation of HTTP response body for [%s], closing connection", channel),
                         e
                     );
-                    finishingWrite.combiner().add(channel.newFailedFuture(e));
-                    finishingWrite.combiner().finish(finishingWrite.onDone());
-                    channel.close();
+                    channel.close().addListener(ignored -> {
+                        finishingWrite.combiner().add(channel.newFailedFuture(e));
+                        finishingWrite.combiner().finish(finishingWrite.onDone());
+                    });
                 }
             }), finishingWrite.responseBody()::getContinuation);
         }

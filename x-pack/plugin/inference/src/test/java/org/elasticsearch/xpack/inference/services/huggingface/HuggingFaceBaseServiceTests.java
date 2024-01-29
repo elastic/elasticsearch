@@ -100,7 +100,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
 
         @Override
         protected HuggingFaceModel createModel(
-            String modelId,
+            String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> serviceSettings,
             Map<String, Object> secretSettings,

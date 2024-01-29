@@ -51,7 +51,7 @@ public class OpenAiService extends SenderService {
 
     @Override
     public OpenAiModel parseRequestConfig(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Set<String> platformArchitectures
@@ -60,7 +60,7 @@ public class OpenAiService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
         OpenAiModel model = createModel(
-            modelId,
+            inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
@@ -76,7 +76,7 @@ public class OpenAiService extends SenderService {
     }
 
     private static OpenAiModel createModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
@@ -84,14 +84,21 @@ public class OpenAiService extends SenderService {
         String failureMessage
     ) {
         return switch (taskType) {
-            case TEXT_EMBEDDING -> new OpenAiEmbeddingsModel(modelId, taskType, NAME, serviceSettings, taskSettings, secretSettings);
+            case TEXT_EMBEDDING -> new OpenAiEmbeddingsModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings
+            );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
 
     @Override
     public OpenAiModel parsePersistedConfigWithSecrets(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
@@ -101,21 +108,28 @@ public class OpenAiService extends SenderService {
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
         return createModel(
-            modelId,
+            inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
     }
 
     @Override
-    public OpenAiModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+    public OpenAiModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        return createModel(modelId, taskType, serviceSettingsMap, taskSettingsMap, null, parsePersistedConfigErrorMsg(modelId, NAME));
+        return createModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            null,
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+        );
     }
 
     @Override

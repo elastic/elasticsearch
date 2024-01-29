@@ -148,16 +148,7 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         Map<String, List<DataStreamAlias>> result = new HashMap<>();
         List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
 
-        Map<String, List<DataStreamAlias>> dsAliases = state.metadata()
-            .findDataStreamAliases(request.aliases(), requestedDataStreams.toArray(new String[0]));
-
-        for (String requestedDataStream : requestedDataStreams) {
-            if (dsAliases.containsKey(requestedDataStream)) {
-                result.put(requestedDataStream, dsAliases.get(requestedDataStream));
-            }
-        }
-
-        return result;
+        return state.metadata().findDataStreamAliases(request.aliases(), requestedDataStreams.toArray(new String[0]));
     }
 
     private static void checkSystemIndexAccess(

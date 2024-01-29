@@ -837,7 +837,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         ImmutableOpenMap.Builder<String, List<DataStreamAlias>> mapBuilder = ImmutableOpenMap.builder();
         Map<String, List<DataStreamAlias>> dataStreamAliases = dataStreamAliasesByDataStream();
 
-        AliasInfoGetter getter = dataStream -> dataStreamAliases.getOrDefault(dataStream, new ArrayList<>());
+        AliasInfoGetter getter = dataStream -> dataStreamAliases.getOrDefault(dataStream, Collections.emptyList());
 
         AliasInfoSetter setter = (dataStream, foundAliases) -> {
             List<DataStreamAlias> dsAliases = new ArrayList<>();

@@ -77,8 +77,8 @@ teardown:
 ---
 "Test Fail Processor with Upsert (bulk)":
   - skip:
-      version: ' - 8.12.99'
-      reason: 'https://github.com/elastic/elasticsearch/issues/36746 fixed in 8.13.0'
+      version: ' - 7.17.17'
+      reason: 'https://github.com/elastic/elasticsearch/issues/36746 fixed in 7.17.18'
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"

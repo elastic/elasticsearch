@@ -67,12 +67,12 @@ public class OpenAiEmbeddingsRequest implements Request {
             httpPost.setHeader(createOrgHeader(org));
         }
 
-        return new HttpRequest(httpPost, getModelId());
+        return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
     @Override
-    public String getModelId() {
-        return model.getModelId();
+    public String getInferenceEntityId() {
+        return model.getInferenceEntityId();
     }
 
     @Override

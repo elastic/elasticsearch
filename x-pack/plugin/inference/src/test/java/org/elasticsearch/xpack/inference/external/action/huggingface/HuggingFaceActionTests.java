@@ -77,7 +77,7 @@ public class HuggingFaceActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any());
 
-        var action = createAction(URL, sender, "modelId");
+        var action = createAction(URL, sender, "inferenceEntityId");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);
@@ -86,7 +86,7 @@ public class HuggingFaceActionTests extends ESTestCase {
 
         assertThat(
             thrownException.getMessage(),
-            is(format("Failed to send Hugging Face test action request from model id [%s]", "modelId"))
+            is(format("Failed to send Hugging Face test action request from inference entity id [%s]", "inferenceEntityId"))
         );
     }
 
@@ -94,7 +94,7 @@ public class HuggingFaceActionTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any());
 
-        var action = createAction(URL, sender, "modelId");
+        var action = createAction(URL, sender, "inferenceEntityId");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);
@@ -103,7 +103,7 @@ public class HuggingFaceActionTests extends ESTestCase {
 
         assertThat(
             thrownException.getMessage(),
-            is(format("Failed to send Hugging Face test action request from model id [%s]", "modelId"))
+            is(format("Failed to send Hugging Face test action request from inference entity id [%s]", "inferenceEntityId"))
         );
     }
 

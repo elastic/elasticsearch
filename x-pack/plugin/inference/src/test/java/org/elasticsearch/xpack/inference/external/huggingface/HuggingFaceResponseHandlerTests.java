@@ -45,7 +45,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received a rate limit status code for request from model id [id] status [503]")
+            containsString("Received a rate limit status code for request from inference entity id [id] status [503]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 502
@@ -54,7 +54,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received a rate limit status code for request from model id [id] status [502]")
+            containsString("Received a rate limit status code for request from inference entity id [id] status [502]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 429
@@ -63,7 +63,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertTrue(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received a rate limit status code for request from model id [id] status [429]")
+            containsString("Received a rate limit status code for request from inference entity id [id] status [429]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
         // 413
@@ -78,7 +78,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an authentication error status code for request from model id [id] status [401]")
+            containsString("Received an authentication error status code for request from inference entity id [id] status [401]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.UNAUTHORIZED));
         // 300
@@ -87,7 +87,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Unhandled redirection for request from model id [id] status [300]")
+            containsString("Unhandled redirection for request from inference entity id [id] status [300]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
         // 402
@@ -96,7 +96,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request from model id [id] status [402]")
+            containsString("Received an unsuccessful status code for request from inference entity id [id] status [402]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.PAYMENT_REQUIRED));
     }

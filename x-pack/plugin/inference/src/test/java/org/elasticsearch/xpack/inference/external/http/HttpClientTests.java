@@ -105,7 +105,7 @@ public class HttpClientTests extends ESTestCase {
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 AssertionError.class,
-                () -> httpClient.send(HttpRequestTests.createMock("modelId"), HttpClientContext.create(), listener)
+                () -> httpClient.send(HttpRequestTests.createMock("inferenceEntityId"), HttpClientContext.create(), listener)
             );
 
             assertThat(thrownException.getMessage(), is("call start() before attempting to send a request"));
@@ -154,7 +154,10 @@ public class HttpClientTests extends ESTestCase {
             client.send(httpPost, HttpClientContext.create(), listener);
 
             var thrownException = expectThrows(CancellationException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(thrownException.getMessage(), is(Strings.format("Request from model id [%s] was cancelled", httpPost.modelId())));
+            assertThat(
+                thrownException.getMessage(),
+                is(Strings.format("Request from inference entity id [%s] was cancelled", httpPost.inferenceEntityId()))
+            );
         }
     }
 
@@ -216,7 +219,7 @@ public class HttpClientTests extends ESTestCase {
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        return new HttpRequest(httpPost, "modelId");
+        return new HttpRequest(httpPost, "inferenceEntityId");
     }
 
     public static PoolingNHttpClientConnectionManager createConnectionManager() throws IOReactorException {

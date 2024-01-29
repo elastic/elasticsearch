@@ -57,16 +57,21 @@ public abstract class BaseResponseHandler implements ResponseHandler {
 
         if (errorEntityMsg == null) {
             return new ElasticsearchStatusException(
-                format("%s for request from model id [%s] status [%s]", message, request.getModelId(), responseStatusCode),
+                format(
+                    "%s for request from inference entity id [%s] status [%s]",
+                    message,
+                    request.getInferenceEntityId(),
+                    responseStatusCode
+                ),
                 toRestStatus(responseStatusCode)
             );
         }
 
         return new ElasticsearchStatusException(
             format(
-                "%s for request from model id [%s] status [%s]. Error message: [%s]",
+                "%s for request from inference entity id [%s] status [%s]. Error message: [%s]",
                 message,
-                request.getModelId(),
+                request.getInferenceEntityId(),
                 responseStatusCode,
                 errorEntityMsg.getErrorMessage()
             ),

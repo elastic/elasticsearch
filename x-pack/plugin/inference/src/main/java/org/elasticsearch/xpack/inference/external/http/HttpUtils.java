@@ -30,14 +30,14 @@ public class HttpUtils {
 
         if (statusCode >= 400) {
             return format(
-                "Received a failure status code for request from model id [%s] status [%s]",
-                request.getModelId(),
+                "Received a failure status code for request from inference entity id [%s] status [%s]",
+                request.getInferenceEntityId(),
                 result.response().getStatusLine().getStatusCode()
             );
         } else if (statusCode >= 300) {
             return format(
-                "Unhandled redirection for request from model id [%s] status [%s]",
-                request.getModelId(),
+                "Unhandled redirection for request from inference entity id [%s] status [%s]",
+                request.getInferenceEntityId(),
                 result.response().getStatusLine().getStatusCode()
             );
         } else {
@@ -47,7 +47,7 @@ public class HttpUtils {
 
     public static void checkForEmptyBody(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result) {
         if (result.isBodyEmpty()) {
-            String message = format("Response body was empty for request from model id [%s]", request.getModelId());
+            String message = format("Response body was empty for request from inference entity id [%s]", request.getInferenceEntityId());
             throttlerManager.warn(logger, message);
             throw new IllegalStateException(message);
         }

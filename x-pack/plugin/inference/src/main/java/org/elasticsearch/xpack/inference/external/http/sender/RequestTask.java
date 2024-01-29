@@ -74,7 +74,11 @@ class RequestTask extends HttpTask {
     private void onTimeout() {
         assert timeout != null : "timeout must be defined to use a timeout handler";
         logger.debug(
-            () -> format("Request from model id [%s] timed out after [%s] while waiting to be executed", request.modelId(), timeout)
+            () -> format(
+                "Request from inference entity id [%s] timed out after [%s] while waiting to be executed",
+                request.inferenceEntityId(),
+                timeout
+            )
         );
         notifyOfResult(
             () -> listener.onFailure(
@@ -100,7 +104,7 @@ class RequestTask extends HttpTask {
         try {
             command.run();
         } catch (Exception e) {
-            String message = format("Failed while executing request from model id [%s]", request.modelId());
+            String message = format("Failed while executing request from inference entity id [%s]", request.inferenceEntityId());
             logger.warn(message, e);
             onFailure(new ElasticsearchException(message, e));
         }
@@ -113,7 +117,7 @@ class RequestTask extends HttpTask {
 
     @Override
     public String toString() {
-        return request.modelId();
+        return request.inferenceEntityId();
     }
 
     private static Scheduler.Cancellable createDefaultHandler() {
@@ -142,9 +146,15 @@ class RequestTask extends HttpTask {
             try {
                 httpClient.send(requestToSend, context, resultListener);
             } catch (Exception e) {
-                logger.warn(format("Failed to send request from model id [%s] via the http client", requestToSend.modelId()), e);
+                logger.warn(
+                    format("Failed to send request from inference entity id [%s] via the http client", requestToSend.inferenceEntityId()),
+                    e
+                );
                 resultListener.onFailure(
-                    new ElasticsearchException(format("Failed to send request from model id [%s]", requestToSend.modelId()), e)
+                    new ElasticsearchException(
+                        format("Failed to send request from inference entity id [%s]", requestToSend.inferenceEntityId()),
+                        e
+                    )
                 );
             }
         }

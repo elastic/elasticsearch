@@ -148,7 +148,7 @@ public class RetryingHttpSender implements Retrier {
 
         throttlerManager.warn(
             logger,
-            format("Failed while sending request from model id [%s] of type [%s]", request.getModelId(), requestType),
+            format("Failed while sending request from inference entity id [%s] of type [%s]", request.getInferenceEntityId(), requestType),
             causeException
         );
     }
@@ -159,8 +159,8 @@ public class RetryingHttpSender implements Retrier {
         throttlerManager.warn(
             logger,
             format(
-                "Failed to process the response for request from model id [%s] of type [%s] with status [%s] [%s]",
-                request.getModelId(),
+                "Failed to process the response for request from inference entity id [%s] of type [%s] with status [%s] [%s]",
+                request.getInferenceEntityId(),
                 requestType,
                 result.response().getStatusLine().getStatusCode(),
                 result.response().getStatusLine().getReasonPhrase()

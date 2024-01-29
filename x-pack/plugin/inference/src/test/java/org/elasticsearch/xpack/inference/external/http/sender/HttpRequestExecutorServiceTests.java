@@ -61,7 +61,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
 
     public void testQueueSize_IsOne() {
         var service = new HttpRequestExecutorService(getTestName(), mock(HttpClient.class), threadPool, null);
-        service.send(HttpRequestTests.createMock("modelId"), null, new PlainActionFuture<>());
+        service.send(HttpRequestTests.createMock("inferenceEntityId"), null, new PlainActionFuture<>());
 
         assertThat(service.queueSize(), is(1));
     }
@@ -114,7 +114,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
         });
 
         PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-        service.send(HttpRequestTests.createMock("modelId"), null, listener);
+        service.send(HttpRequestTests.createMock("inferenceEntityId"), null, listener);
 
         service.start();
 
@@ -134,7 +134,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
         service.shutdown();
 
         var listener = new PlainActionFuture<HttpResult>();
-        service.send(HttpRequestTests.createMock("modelId"), null, listener);
+        service.send(HttpRequestTests.createMock("inferenceEntityId"), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -147,9 +147,9 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     public void testSend_Throws_WhenQueueIsFull() {
         var service = new HttpRequestExecutorService("test_service", mock(HttpClient.class), threadPool, 1, null);
 
-        service.send(HttpRequestTests.createMock("modelId"), null, new PlainActionFuture<>());
+        service.send(HttpRequestTests.createMock("inferenceEntityId"), null, new PlainActionFuture<>());
         var listener = new PlainActionFuture<HttpResult>();
-        service.send(HttpRequestTests.createMock("modelId"), null, listener);
+        service.send(HttpRequestTests.createMock("inferenceEntityId"), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -176,7 +176,10 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
         service.start();
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(thrownException.getMessage(), is(format("Failed to send request from model id [%s]", request.modelId())));
+        assertThat(
+            thrownException.getMessage(),
+            is(format("Failed to send request from inference entity id [%s]", request.inferenceEntityId()))
+        );
         assertThat(thrownException.getCause(), instanceOf(IllegalArgumentException.class));
         assertTrue(service.isTerminated());
     }
@@ -197,7 +200,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
         var service = new HttpRequestExecutorService("test_service", mock(HttpClient.class), threadPool, null);
 
         var listener = new PlainActionFuture<HttpResult>();
-        service.send(HttpRequestTests.createMock("modelId"), TimeValue.timeValueNanos(1), listener);
+        service.send(HttpRequestTests.createMock("inferenceEntityId"), TimeValue.timeValueNanos(1), listener);
 
         var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -211,7 +214,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
         var service = new HttpRequestExecutorService("test_service", mock(HttpClient.class), threadPool, null);
 
         var listener = new PlainActionFuture<HttpResult>();
-        service.send(HttpRequestTests.createMock("modelId"), null, listener);
+        service.send(HttpRequestTests.createMock("inferenceEntityId"), null, listener);
         service.shutdown();
         service.start();
 

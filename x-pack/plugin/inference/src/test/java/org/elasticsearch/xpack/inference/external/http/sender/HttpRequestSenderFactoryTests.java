@@ -106,7 +106,10 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
 
         try (var sender = senderFactory.createSender("test_service")) {
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            var thrownException = expectThrows(AssertionError.class, () -> sender.send(HttpRequestTests.createMock("modelId"), listener));
+            var thrownException = expectThrows(
+                AssertionError.class,
+                () -> sender.send(HttpRequestTests.createMock("inferenceEntityId"), listener)
+            );
             assertThat(thrownException.getMessage(), is("call start() before sending a request"));
         }
     }
@@ -125,7 +128,7 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
             sender.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            sender.send(HttpRequestTests.createMock("modelId"), TimeValue.timeValueNanos(1), listener);
+            sender.send(HttpRequestTests.createMock("inferenceEntityId"), TimeValue.timeValueNanos(1), listener);
 
             var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 

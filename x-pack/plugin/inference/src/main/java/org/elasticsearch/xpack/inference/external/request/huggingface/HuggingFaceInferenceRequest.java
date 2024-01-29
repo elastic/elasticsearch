@@ -53,7 +53,7 @@ public class HuggingFaceInferenceRequest implements Request {
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
 
-        return new HttpRequest(httpPost, getModelId());
+        return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
     public URI getURI() {
@@ -61,8 +61,8 @@ public class HuggingFaceInferenceRequest implements Request {
     }
 
     @Override
-    public String getModelId() {
-        return model.getModelId();
+    public String getInferenceEntityId() {
+        return model.getInferenceEntityId();
     }
 
     @Override

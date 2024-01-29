@@ -13,7 +13,7 @@ import static org.mockito.Mockito.when;
 public class RequestTests {
     public static Request mockRequest(String modelId) {
         var request = mock(Request.class);
-        when(request.getModelId()).thenReturn(modelId);
+        when(request.getInferenceEntityId()).thenReturn(modelId);
 
         return request;
     }

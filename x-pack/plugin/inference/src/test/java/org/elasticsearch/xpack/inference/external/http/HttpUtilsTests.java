@@ -36,7 +36,7 @@ public class HttpUtilsTests extends ESTestCase {
             () -> checkForFailureStatusCode(mockThrottlerManager(), mock(Logger.class), mockRequest("id"), result)
         );
 
-        assertThat(thrownException.getMessage(), is("Unhandled redirection for request from model id [id] status [300]"));
+        assertThat(thrownException.getMessage(), is("Unhandled redirection for request from inference entity id [id] status [300]"));
     }
 
     public void testCheckForFailureStatusCode_DoesNotThrowWhenStatusCodeIs200() {
@@ -71,6 +71,6 @@ public class HttpUtilsTests extends ESTestCase {
             () -> checkForEmptyBody(mockThrottlerManager(), mock(Logger.class), mockRequest("id"), result)
         );
 
-        assertThat(thrownException.getMessage(), is("Response body was empty for request from model id [id]"));
+        assertThat(thrownException.getMessage(), is("Response body was empty for request from inference entity id [id]"));
     }
 }

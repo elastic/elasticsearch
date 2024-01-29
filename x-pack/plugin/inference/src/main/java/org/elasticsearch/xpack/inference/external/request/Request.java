@@ -30,5 +30,5 @@ public interface Request {
      * Provides access to an identifier to determine which inference configuration this request originated from.
      * @return the unique identifier for the inference entity configuration
      */
-    String getModelId();
+    String getInferenceEntityId();
 }

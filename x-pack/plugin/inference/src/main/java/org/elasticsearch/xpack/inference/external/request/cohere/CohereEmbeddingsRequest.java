@@ -48,7 +48,7 @@ public class CohereEmbeddingsRequest implements Request {
         taskSettings = embeddingsModel.getTaskSettings();
         model = embeddingsModel.getServiceSettings().getCommonSettings().getModel();
         embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
-        modelId = embeddingsModel.getModelId();
+        modelId = embeddingsModel.getInferenceEntityId();
     }
 
     @Override
@@ -63,11 +63,11 @@ public class CohereEmbeddingsRequest implements Request {
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
 
-        return new HttpRequest(httpPost, getModelId());
+        return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
     @Override
-    public String getModelId() {
+    public String getInferenceEntityId() {
         return modelId;
     }
 

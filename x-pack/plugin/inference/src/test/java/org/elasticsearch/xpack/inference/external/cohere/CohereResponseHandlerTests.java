@@ -39,7 +39,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Received a server error status code for request from model id [id] status [503]")
+            containsString("Received a server error status code for request from inference entity id [id] status [503]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
@@ -49,7 +49,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Received a rate limit status code for request from model id [id] status [429]")
+            containsString("Received a rate limit status code for request from inference entity id [id] status [429]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
@@ -59,7 +59,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request from model id [id] status [400]")
+            containsString("Received an unsuccessful status code for request from inference entity id [id] status [400]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
@@ -72,17 +72,19 @@ public class CohereResponseHandlerTests extends ESTestCase {
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Received a texts array too large response for request from model id [id] status [400]")
+            containsString("Received a texts array too large response for request from inference entity id [id] status [400]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
     public void testCheckForFailureStatusCode_ThrowsFor401() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(401, "modelId"));
+        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(401, "inferenceEntityId"));
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Received an authentication error status code for request from model id [modelId] status [401]")
+            containsString(
+                "Received an authentication error status code for request from inference entity id [inferenceEntityId] status [401]"
+            )
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
     }
@@ -92,7 +94,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Unhandled redirection for request from model id [id] status [300]")
+            containsString("Unhandled redirection for request from inference entity id [id] status [300]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
     }
@@ -118,7 +120,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
             """, errorMessage);
 
         var mockRequest = mock(Request.class);
-        when(mockRequest.getModelId()).thenReturn(modelId);
+        when(mockRequest.getInferenceEntityId()).thenReturn(modelId);
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : responseJson.getBytes(StandardCharsets.UTF_8));
         var handler = new CohereResponseHandler("", (request, result) -> null);
 

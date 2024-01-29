@@ -111,7 +111,10 @@ public class RequestTaskTests extends ESTestCase {
         requestTask.doRun();
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(thrownException.getMessage(), is(format("Failed to send request from model id [%s]", httpPost.modelId())));
+        assertThat(
+            thrownException.getMessage(),
+            is(format("Failed to send request from inference entity id [%s]", httpPost.inferenceEntityId()))
+        );
     }
 
     public void testRequest_DoesNotCallOnFailureForTimeout_AfterSendThrowsIllegalArgumentException() throws Exception {
@@ -139,7 +142,10 @@ public class RequestTaskTests extends ESTestCase {
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
-        assertThat(argument.getValue().getMessage(), is(format("Failed to send request from model id [%s]", httpPost.modelId())));
+        assertThat(
+            argument.getValue().getMessage(),
+            is(format("Failed to send request from inference entity id [%s]", httpPost.inferenceEntityId()))
+        );
         assertThat(argument.getValue(), instanceOf(ElasticsearchException.class));
         assertThat(argument.getValue().getCause(), instanceOf(IllegalArgumentException.class));
 
@@ -152,7 +158,7 @@ public class RequestTaskTests extends ESTestCase {
 
         PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
         var requestTask = new RequestTask(
-            HttpRequestTests.createMock("modelId"),
+            HttpRequestTests.createMock("inferenceEntityId"),
             httpClient,
             HttpClientContext.create(),
             TimeValue.timeValueMillis(1),
@@ -186,7 +192,7 @@ public class RequestTaskTests extends ESTestCase {
         }).when(listener).onFailure(any());
 
         var requestTask = new RequestTask(
-            HttpRequestTests.createMock("modelId"),
+            HttpRequestTests.createMock("inferenceEntityId"),
             httpClient,
             HttpClientContext.create(),
             TimeValue.timeValueMillis(1),
@@ -226,7 +232,7 @@ public class RequestTaskTests extends ESTestCase {
         }).when(listener).onFailure(any());
 
         var requestTask = new RequestTask(
-            HttpRequestTests.createMock("modelId"),
+            HttpRequestTests.createMock("inferenceEntityId"),
             httpClient,
             HttpClientContext.create(),
             TimeValue.timeValueMillis(1),
@@ -263,7 +269,7 @@ public class RequestTaskTests extends ESTestCase {
         ActionListener<HttpResult> listener = mock(ActionListener.class);
 
         var requestTask = new RequestTask(
-            HttpRequestTests.createMock("modelId"),
+            HttpRequestTests.createMock("inferenceEntityId"),
             httpClient,
             HttpClientContext.create(),
             TimeValue.timeValueMillis(1),
@@ -297,7 +303,7 @@ public class RequestTaskTests extends ESTestCase {
         ActionListener<HttpResult> listener = mock(ActionListener.class);
 
         var requestTask = new RequestTask(
-            HttpRequestTests.createMock("modelId"),
+            HttpRequestTests.createMock("inferenceEntityId"),
             httpClient,
             HttpClientContext.create(),
             TimeValue.timeValueMillis(1),

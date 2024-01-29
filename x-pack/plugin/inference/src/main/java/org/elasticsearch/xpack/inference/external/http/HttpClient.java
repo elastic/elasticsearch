@@ -95,14 +95,14 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                throttlerManager.warn(logger, format("Request from model id [%s] failed", request.modelId()), ex);
+                throttlerManager.warn(logger, format("Request from inference entity id [%s] failed", request.inferenceEntityId()), ex);
                 failUsingUtilityThread(ex, listener);
             }
 
             @Override
             public void cancelled() {
                 failUsingUtilityThread(
-                    new CancellationException(format("Request from model id [%s] was cancelled", request.modelId())),
+                    new CancellationException(format("Request from inference entity id [%s] was cancelled", request.inferenceEntityId())),
                     listener
                 );
             }
@@ -114,7 +114,11 @@ public class HttpClient implements Closeable {
             try {
                 listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response));
             } catch (Exception e) {
-                throttlerManager.warn(logger, format("Failed to create http result from model id [%s]", request.modelId()), e);
+                throttlerManager.warn(
+                    logger,
+                    format("Failed to create http result from inference entity id [%s]", request.inferenceEntityId()),
+                    e
+                );
                 listener.onFailure(e);
             }
         });

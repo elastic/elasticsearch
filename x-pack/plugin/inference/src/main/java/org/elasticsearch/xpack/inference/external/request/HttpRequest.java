@@ -12,11 +12,11 @@ import org.apache.http.client.methods.HttpRequestBase;
 import java.util.Objects;
 
 /**
- * Provides a thin wrapper to give access the model id that manages the settings for this request.
+ * Provides a thin wrapper to give access the inference entity id that manages the settings for this request.
  */
-public record HttpRequest(HttpRequestBase httpRequestBase, String modelId) {
+public record HttpRequest(HttpRequestBase httpRequestBase, String inferenceEntityId) {
     public HttpRequest {
         Objects.requireNonNull(httpRequestBase);
-        Objects.requireNonNull(modelId);
+        Objects.requireNonNull(inferenceEntityId);
     }
 }

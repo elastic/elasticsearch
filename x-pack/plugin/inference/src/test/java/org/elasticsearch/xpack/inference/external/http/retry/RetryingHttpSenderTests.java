@@ -542,7 +542,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
     private static Request mockRequest() {
         var request = mock(Request.class);
         when(request.truncate()).thenReturn(request);
-        when(request.createHttpRequest()).thenReturn(HttpRequestTests.createMock("modelId"));
+        when(request.createHttpRequest()).thenReturn(HttpRequestTests.createMock("inferenceEntityId"));
 
         return request;
     }

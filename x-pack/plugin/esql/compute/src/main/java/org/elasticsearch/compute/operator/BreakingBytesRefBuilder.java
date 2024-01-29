@@ -76,21 +76,10 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
             return;
         }
         assert incResizes();
-        int newCapacity = ArrayUtil.oversize(capacity, Byte.BYTES);
-        setCapacity(newCapacity);
-    }
+        int oversizedCapacity = ArrayUtil.oversize(capacity, Byte.BYTES);
+        breaker.addEstimateBytesAndMaybeBreak(bytesArrayRamBytesUsed(oversizedCapacity), label);
 
-    private void setCapacity(int capacity) {
-        int oldCapacity = bytes.bytes.length;
-        breaker.addEstimateBytesAndMaybeBreak(
-            bytesArrayRamBytesUsed(capacity),
-            label
-        );
-
-        final byte[] copy = new byte[capacity];
-        System.arraycopy(bytes.bytes, 0, copy, 0, Math.min(capacity, bytes.bytes.length));
-        bytes.bytes = copy;
-
+        bytes.bytes = ArrayUtil.growExact(bytes.bytes, oversizedCapacity);
         breaker.addWithoutBreaking(-bytesArrayRamBytesUsed(oldCapacity));
     }
 

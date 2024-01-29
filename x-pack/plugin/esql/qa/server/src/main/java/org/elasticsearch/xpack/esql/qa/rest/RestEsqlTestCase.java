@@ -76,8 +76,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static final String MAPPING_ALL_TYPES;
 
     static {
-        try {
-            InputStream mappingPropertiesStream = RestEsqlTestCase.class.getResourceAsStream("/mapping-all-types.json");
+        try (InputStream mappingPropertiesStream = RestEsqlTestCase.class.getResourceAsStream("/mapping-all-types.json")) {
             String properties = new String(mappingPropertiesStream.readAllBytes(), StandardCharsets.UTF_8);
             MAPPING_ALL_TYPES = "{\"mappings\": " + properties + "}";
         } catch (IOException ex) {

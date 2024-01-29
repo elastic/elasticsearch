@@ -26,7 +26,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.settings.Setting.Property.DeprecatedWarning;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
 
@@ -242,14 +241,12 @@ public class APMAgentSettings {
     );
 
     /**
-     * @deprecated in favor of TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.
+     * To be deprecated in favor of TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.
      */
-    @Deprecated
     public static final Setting<List<String>> TRACING_APM_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
         LEGACY_TRACING_APM_SETTING_PREFIX + "names.include",
         OperatorDynamic,
-        NodeScope,
-        DeprecatedWarning
+        NodeScope
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
@@ -261,14 +258,12 @@ public class APMAgentSettings {
     );
 
     /**
-     * @deprecated in favor of TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.
+     * To be deprecated in favor of TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.
      */
-    @Deprecated
     public static final Setting<List<String>> TRACING_APM_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
         LEGACY_TRACING_APM_SETTING_PREFIX + "names.exclude",
         OperatorDynamic,
-        NodeScope,
-        DeprecatedWarning
+        NodeScope
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING = Setting.listSetting(
@@ -280,9 +275,8 @@ public class APMAgentSettings {
     );
 
     /**
-     * @deprecated in favor of TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.
+     * To be deprecated in favor of TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.
      */
-    @Deprecated
     public static final Setting<List<String>> TRACING_APM_SANITIZE_FIELD_NAMES = Setting.stringListSetting(
         LEGACY_TRACING_APM_SETTING_PREFIX + "sanitize_field_names",
         List.of(
@@ -300,8 +294,7 @@ public class APMAgentSettings {
             "set-cookie"
         ),
         OperatorDynamic,
-        NodeScope,
-        DeprecatedWarning
+        NodeScope
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_SANITIZE_FIELD_NAMES = Setting.listSetting(
@@ -313,15 +306,13 @@ public class APMAgentSettings {
     );
 
     /**
-     * @deprecated in favor of TELEMETRY_TRACING_ENABLED_SETTING.
+     * To be deprecated in favor of TELEMETRY_TRACING_ENABLED_SETTING.
      */
-    @Deprecated
     public static final Setting<Boolean> TRACING_APM_ENABLED_SETTING = Setting.boolSetting(
         LEGACY_TRACING_APM_SETTING_PREFIX + "enabled",
         false,
         OperatorDynamic,
-        NodeScope,
-        DeprecatedWarning
+        NodeScope
     );
 
     public static final Setting<Boolean> TELEMETRY_TRACING_ENABLED_SETTING = Setting.boolSetting(
@@ -339,13 +330,11 @@ public class APMAgentSettings {
     );
 
     /**
-     * @deprecated in favor of TELEMETRY_SECRET_TOKEN_SETTING.
+     * To be deprecated in favor of TELEMETRY_SECRET_TOKEN_SETTING.
      */
-    @Deprecated
     public static final Setting<SecureString> TRACING_APM_SECRET_TOKEN_SETTING = SecureSetting.secureString(
         LEGACY_TRACING_APM_SETTING_PREFIX + "secret_token",
-        null,
-        DeprecatedWarning
+        null
     );
 
     public static final Setting<SecureString> TELEMETRY_SECRET_TOKEN_SETTING = SecureSetting.secureString(
@@ -354,13 +343,11 @@ public class APMAgentSettings {
     );
 
     /**
-     * @deprecated in favor of TELEMETRY_API_KEY_SETTING.
+     * To be deprecated in favor of TELEMETRY_API_KEY_SETTING.
      */
-    @Deprecated
     public static final Setting<SecureString> TRACING_APM_API_KEY_SETTING = SecureSetting.secureString(
         LEGACY_TRACING_APM_SETTING_PREFIX + "api_key",
-        null,
-        DeprecatedWarning
+        null
     );
 
     public static final Setting<SecureString> TELEMETRY_API_KEY_SETTING = SecureSetting.secureString(

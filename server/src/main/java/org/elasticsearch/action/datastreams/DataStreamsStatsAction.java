@@ -32,7 +32,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
     public static final String NAME = "indices:monitor/data_stream/stats";
 
     public DataStreamsStatsAction() {
-        super(NAME, DataStreamsStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BroadcastRequest<Request> {

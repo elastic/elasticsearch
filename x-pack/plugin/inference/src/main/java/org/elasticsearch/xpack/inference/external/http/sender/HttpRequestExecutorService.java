@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -222,7 +222,7 @@ class HttpRequestExecutorService implements ExecutorService {
      *                If null, then the request will wait forever
      * @param listener an {@link ActionListener<HttpResult>} for the response or failure
      */
-    public void send(HttpRequestBase request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
+    public void send(HttpRequest request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
         RequestTask task = new RequestTask(request, httpClient, httpContext, timeout, threadPool, listener);
 
         if (isShutdown()) {

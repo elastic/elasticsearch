@@ -265,6 +265,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         client = mock(Client.class);
         threadPool = new ThreadPool(
             settings,
+            MeterRegistry.NOOP,
             new FixedExecutorBuilder(
                 settings,
                 THREAD_POOL_NAME,
@@ -575,7 +576,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
 
         verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
-        verify(firstRealm, times(2)).name(); // used above one time
+        verify(firstRealm, times(4)).name(); // used above one time plus two times for authc result and time metrics
+        verify(firstRealm, times(2)).type(); // used two times to collect authc result and time metrics
         verify(secondRealm, times(2)).realmRef(); // also used in license tracking
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
@@ -583,6 +585,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(secondRealm, times(2)).supports(token);
         verify(firstRealm).authenticate(eq(token), anyActionListener());
         verify(secondRealm, times(2)).authenticate(eq(token), anyActionListener());
+        verify(secondRealm, times(4)).name(); // called two times for every authenticate call to collect authc result and time metrics
+        verify(secondRealm, times(4)).type(); // called two times for every authenticate call to collect authc result and time metrics
         verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
 
         // Now assume some change in the backend system so that 2nd realm no longer has the user, but the 1st realm does.
@@ -711,7 +715,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
         }, this::logAndFail));
         verify(auditTrail, times(2)).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
-        verify(firstRealm, times(3)).name(); // used above one time
+        verify(firstRealm, times(7)).name(); // used above one time plus two times for every call to collect success and time metrics
+        verify(firstRealm, times(4)).type(); // used two times for every call to collect authc result and time metrics
         verify(secondRealm, times(2)).realmRef();
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
@@ -719,6 +724,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(secondRealm, times(2)).supports(token);
         verify(firstRealm, times(2)).authenticate(eq(token), anyActionListener());
         verify(secondRealm, times(2)).authenticate(eq(token), anyActionListener());
+        verify(secondRealm, times(4)).name(); // called two times for every authenticate call to collect authc result and time metrics
+        verify(secondRealm, times(4)).type(); // called two times for every authenticate call to collect authc result and time metrics
         verifyNoMoreInteractions(auditTrail, firstRealm, secondRealm);
     }
 

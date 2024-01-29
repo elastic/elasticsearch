@@ -13,10 +13,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.ql.SpecReader;
@@ -28,8 +33,13 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
+import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertData;
@@ -161,7 +171,38 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         Logger logger
     ) {
         assertMetadata(expected, actualColumns, logger);
-        assertData(expected, actualValues, testCase.ignoreOrder, logger, value -> value == null ? "null" : value.toString());
+        assertData(expected, actualValues, testCase.ignoreOrder, logger, EsqlSpecTestCase::valueMapper);
+    }
+
+    private static Object valueMapper(CsvTestUtils.Type type, Object value) {
+        if (value == null) {
+            return "null";
+        }
+        if (type == CsvTestUtils.Type.GEO_POINT || type == CsvTestUtils.Type.CARTESIAN_POINT) {
+            // Point tests are failing in clustered integration tests because of tiny precision differences at very small scales
+            if (value instanceof String wkt) {
+                try {
+                    Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+                    if (geometry instanceof Point point) {
+                        return normalizedPoint(type, point.getX(), point.getY());
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+        return value.toString();
+    }
+
+    private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {
+        if (type == CsvTestUtils.Type.GEO_POINT) {
+            return normalizedGeoPoint(x, y);
+        }
+        return String.format(Locale.ROOT, "POINT (%f %f)", (float) x, (float) y);
+    }
+
+    private static String normalizedGeoPoint(double x, double y) {
+        x = decodeLongitude(encodeLongitude(x));
+        y = decodeLatitude(encodeLatitude(y));
+        return String.format(Locale.ROOT, "POINT (%f %f)", x, y);
     }
 
     private Throwable reworkException(Throwable th) {

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.regex.PatternSyntaxException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -79,24 +80,31 @@ public class ReplaceTests extends AbstractFunctionTestCase {
             )
         );
 
-        // a syntactically wrong regex should yield null. And a warning header
-        // but for now we are letting the exception pass through. See also https://github.com/elastic/elasticsearch/issues/100038
-        // suppliers.add(new TestCaseSupplier("invalid_regex", () -> {
-        // String text = randomAlphaOfLength(10);
-        // String invalidRegex = "[";
-        // String newStr = randomAlphaOfLength(5);
-        // return new TestCaseSupplier.TestCase(
-        // List.of(
-        // new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-        // new TestCaseSupplier.TypedData(new BytesRef(invalidRegex), DataTypes.KEYWORD, "oldStr"),
-        // new TestCaseSupplier.TypedData(new BytesRef(newStr), DataTypes.KEYWORD, "newStr")
-        // ),
-        // "ReplaceEvaluator[str=Attribute[channel=0], regex=Attribute[channel=1], newStr=Attribute[channel=2]]",
-        // DataTypes.KEYWORD,
-        // equalTo(null)
-        // ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-        // .withWarning("java.util.regex.PatternSyntaxException: Unclosed character class near index 0\r\n[\r\n^");
-        // }));
+        suppliers.add(new TestCaseSupplier("syntax error", List.of(DataTypes.KEYWORD, DataTypes.KEYWORD, DataTypes.KEYWORD), () -> {
+            String text = randomAlphaOfLength(10);
+            String invalidRegex = "[";
+            String newStr = randomAlphaOfLength(5);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(invalidRegex), DataTypes.KEYWORD, "oldStr"),
+                    new TestCaseSupplier.TypedData(new BytesRef(newStr), DataTypes.KEYWORD, "newStr")
+                ),
+                "ReplaceEvaluator[str=Attribute[channel=0], regex=Attribute[channel=1], newStr=Attribute[channel=2]]",
+                DataTypes.KEYWORD,
+                equalTo(null)
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning(
+                    "Line -1:-1: java.util.regex.PatternSyntaxException: Unclosed character class near index 0\n[\n^".replaceAll(
+                        "\n",
+                        System.lineSeparator()
+                    )
+                )
+                .withFoldingException(
+                    PatternSyntaxException.class,
+                    "Unclosed character class near index 0\n[\n^".replaceAll("\n", System.lineSeparator())
+                );
+        }));
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }
 

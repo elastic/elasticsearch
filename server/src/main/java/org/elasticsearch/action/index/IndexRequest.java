@@ -44,7 +44,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -74,7 +73,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
-    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_500_061;
+    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_10_X;
 
     /**
      * Max length of the source document to include into string()
@@ -109,6 +108,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private boolean isPipelineResolved;
 
     private boolean requireAlias;
+
+    private boolean requireDataStream;
+
 
     /**
      * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
@@ -196,6 +198,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                     : new ArrayList<>(possiblyImmutableExecutedPipelines);
             }
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+            requireDataStream = in.readBoolean();
+        } else {
+            requireDataStream = false;
+        }
     }
 
     public IndexRequest() {
@@ -273,17 +280,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
-        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > MAX_DOCUMENT_ID_LENGTH_IN_BYTES) {
-            validationException = addValidationError(
-                "id ["
-                    + id
-                    + "] is too long, must be no longer than "
-                    + MAX_DOCUMENT_ID_LENGTH_IN_BYTES
-                    + " bytes but was: "
-                    + id.getBytes(StandardCharsets.UTF_8).length,
-                validationException
-            );
-        }
+        validationException = DocWriteRequest.validateDocIdLength(id, validationException);
 
         if (pipeline != null && pipeline.isEmpty()) {
             validationException = addValidationError("pipeline cannot be an empty string", validationException);
@@ -757,6 +754,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
             }
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+            out.writeBoolean(requireDataStream);
+        }
     }
 
     @Override
@@ -810,6 +810,19 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public boolean isRequireAlias() {
         return requireAlias;
+    }
+
+    @Override
+    public boolean isRequireDataStream() {
+        return requireDataStream;
+    }
+
+    /**
+     * Set whether this IndexRequest requires a data stream. The data stream may be pre-existing or to-be-created.
+     */
+    public IndexRequest setRequireDataStream(boolean requireDataStream) {
+        this.requireDataStream = requireDataStream;
+        return this;
     }
 
     @Override

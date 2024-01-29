@@ -848,6 +848,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static String createDocument(int i) {
         return LoggerMessageFormat.format(
+            null,
             DOCUMENT_TEMPLATE,
             i,
             ((i & 1) == 0),
@@ -871,6 +872,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static String createDocumentWithMVs(int i) {
         return LoggerMessageFormat.format(
+            null,
             DOCUMENT_TEMPLATE,
             i,
             repeatValueAsMV((i & 1) == 0),
@@ -893,9 +895,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static String createDocumentWithNulls(int i) {
-        return LoggerMessageFormat.format("""
-            {"index":{"_id":"{}"}}
-            {}
+        return LoggerMessageFormat.format(null, """
+                {"index":{"_id":"{}"}}
+                {}
             """, i);
     }
 

@@ -82,7 +82,8 @@ public final class IndexPrivilege extends Privilege {
         // cross clusters query for ESQL
         "internal:data/read/esql/open_exchange",
         "internal:data/read/esql/exchange",
-        "indices:data/read/esql/cluster"
+        "indices:data/read/esql/cluster",
+        "cluster:monitor/xpack/enrich/esql/resolve_policy"
     );
     private static final Automaton CREATE_AUTOMATON = patterns(
         "indices:data/write/index*",

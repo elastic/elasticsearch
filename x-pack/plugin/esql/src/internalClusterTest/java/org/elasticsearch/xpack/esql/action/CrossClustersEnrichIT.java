@@ -55,9 +55,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
+
     @Override
     protected Collection<String> remoteClusterAlias() {
         return List.of("c1", "c2");
+    }
+
+    protected Collection<String> allClusters() {
+        return CollectionUtils.appendToCopy(remoteClusterAlias(), LOCAL_CLUSTER);
     }
 
     @Override
@@ -100,7 +105,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             "192.168.1.11",
             "Windows"
         );
-        for (String cluster : List.of("", "c1", "c2")) {
+        for (String cluster : allClusters()) {
             Client client = client(cluster);
             client.admin().indices().prepareCreate("hosts").setMapping("ip", "type=ip", "os", "type=keyword").get();
             for (Map.Entry<String, String> h : allHosts.entrySet()) {
@@ -147,7 +152,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             new Event(3, "park", "192.168.1.2"),
             new Event(4, "kevin", "192.168.1.3")
         );
-        for (var c : Map.of("", e0, "c1", e1, "c2", e2).entrySet()) {
+        for (var c : Map.of(LOCAL_CLUSTER, e0, "c1", e1, "c2", e2).entrySet()) {
             Client client = client(c.getKey());
             client.admin()
                 .indices()
@@ -163,7 +168,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
 
     @After
     public void wipeEnrichPolicies() {
-        for (String cluster : CollectionUtils.appendToCopy(remoteClusterAlias(), LOCAL_CLUSTER)) {
+        for (String cluster : allClusters()) {
             cluster(cluster).wipe(Set.of());
             for (String policy : List.of("hosts")) {
                 client(cluster).execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(policy));

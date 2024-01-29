@@ -38,7 +38,7 @@ import static org.objectweb.asm.Opcodes.V_PREVIEW;
 
 public class MrjarPlugin implements Plugin<Project> {
 
-    private static final Pattern JAVA_SOURCESET_PATTERN = Pattern.compile("java(\\d{2})");
+    private static final Pattern MRJAR_SOURCESET_PATTERN = Pattern.compile("main(\\d{2})");
 
     private final JavaToolchainService javaToolchains;
 
@@ -55,8 +55,9 @@ public class MrjarPlugin implements Plugin<Project> {
         var srcDir = project.getProjectDir().toPath().resolve("src");
         try (var subdirStream = Files.list(srcDir)) {
             for (Path sourceset : subdirStream.toList()) {
+                assert Files.isDirectory(sourceset);
                 String sourcesetName = sourceset.getFileName().toString();
-                Matcher sourcesetMatcher = JAVA_SOURCESET_PATTERN.matcher(sourcesetName);
+                Matcher sourcesetMatcher = MRJAR_SOURCESET_PATTERN.matcher(sourcesetName);
                 if (sourcesetMatcher.matches()) {
                     int javaVersion = Integer.parseInt(sourcesetMatcher.group(1));
                     addMrjarSourceset(project, javaExtension, sourcesetName, javaVersion);
@@ -71,25 +72,26 @@ public class MrjarPlugin implements Plugin<Project> {
         SourceSet sourceSet = javaExtension.getSourceSets().maybeCreate(sourcesetName);
         GradleUtils.extendSourceSet(project, SourceSet.MAIN_SOURCE_SET_NAME, sourcesetName);
 
-        Jar jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME).get();
-        jarTask.dependsOn(sourceSet.getCompileJavaTaskName());
-        jarTask.into("META-INF/versions/" + javaVersion, copySpec -> copySpec.from(sourceSet.getOutput()));
-        jarTask.manifest(manifest -> {
-            manifest.attributes(Map.of("Multi-Release", "true"));
+        project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME).configure(jarTask -> {
+            jarTask.into("META-INF/versions/" + javaVersion, copySpec -> copySpec.from(sourceSet.getOutput()));
+            jarTask.manifest(manifest -> {
+                manifest.attributes(Map.of("Multi-Release", "true"));
+            });
         });
 
-        JavaCompile compileTask = project.getTasks().withType(JavaCompile.class).named(sourceSet.getCompileJavaTaskName()).get();
-        compileTask.getJavaCompiler().set(javaToolchains.compilerFor(spec -> {
-            spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion));
-        }));
-        compileTask.setSourceCompatibility(Integer.toString(javaVersion));
-        CompileOptions compileOptions = compileTask.getOptions();
-        compileOptions.getRelease().set(javaVersion);
-        compileOptions.getCompilerArgs().add("--enable-preview");
-        compileOptions.getCompilerArgs().add("-Xlint:-preview");
+        project.getTasks().withType(JavaCompile.class).named(sourceSet.getCompileJavaTaskName()).configure(compileTask -> {
+            compileTask.getJavaCompiler().set(javaToolchains.compilerFor(spec -> {
+                spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion));
+            }));
+            compileTask.setSourceCompatibility(Integer.toString(javaVersion));
+            CompileOptions compileOptions = compileTask.getOptions();
+            compileOptions.getRelease().set(javaVersion);
+            compileOptions.getCompilerArgs().add("--enable-preview");
+            compileOptions.getCompilerArgs().add("-Xlint:-preview");
 
-        compileTask.doLast(t -> {
-            stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath());
+            compileTask.doLast(t -> {
+                stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath());
+            });
         });
     }
 

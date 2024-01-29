@@ -36,6 +36,16 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
      * @param label the label reported by the breaker when it breaks
      */
     public BreakingBytesRefBuilder(CircuitBreaker breaker, String label) {
+        this(breaker, label, 0);
+    }
+
+    /**
+     * Build.
+     * @param breaker the {@link CircuitBreaker} to check on resize
+     * @param label the label reported by the breaker when it breaks
+     * @param initialCapacity the number of bytes initially allocated
+     */
+    public BreakingBytesRefBuilder(CircuitBreaker breaker, String label, int initialCapacity) {
         /*
          * We initialize BytesRef to a shared empty bytes array as is tradition.
          * It's a good tradition. We don't know how big the thing will ultimately
@@ -46,21 +56,12 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
          * last long so it isn't worth making the accounting more complex to get it
          * perfect. And overcounting in general isn't too bad compared to undercounting.
          */
-        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE + bytesArrayRamBytesUsed(0), label);
-        this.bytes = new BytesRef();
-        this.breaker = breaker;
-        this.label = label;
-    }
-
-    /**
-     * Build.
-     * @param breaker the {@link CircuitBreaker} to check on resize
-     * @param label the label reported by the breaker when it breaks
-     * @param initialCapacity the number of bytes initially allocated
-     */
-    public BreakingBytesRefBuilder(CircuitBreaker breaker, String label, int initialCapacity) {
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE + bytesArrayRamBytesUsed(initialCapacity), label);
-        this.bytes = new BytesRef(initialCapacity);
+        if (initialCapacity == 0) {
+            this.bytes = new BytesRef();
+        } else {
+            this.bytes = new BytesRef(initialCapacity);
+        }
         this.breaker = breaker;
         this.label = label;
     }

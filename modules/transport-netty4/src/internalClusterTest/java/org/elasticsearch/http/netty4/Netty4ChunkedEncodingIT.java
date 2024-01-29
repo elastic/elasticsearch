@@ -76,8 +76,8 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
         getAndCheckBodyContents(YieldsChunksPlugin.EMPTY_ROUTE, "");
     }
 
-    private static void getAndCheckBodyContents(String chunksRoute, String expectedBody) throws IOException {
-        final var response = getRestClient().performRequest(new Request("GET", chunksRoute));
+    private static void getAndCheckBodyContents(String route, String expectedBody) throws IOException {
+        final var response = getRestClient().performRequest(new Request("GET", route));
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertThat(response.getEntity().getContentType().toString(), containsString(TEXT_CONTENT_TYPE));
         if (Strings.hasLength(expectedBody)) {

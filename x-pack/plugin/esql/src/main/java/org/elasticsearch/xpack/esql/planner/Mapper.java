@@ -100,7 +100,8 @@ public class Mapper {
             var child = map(ua.child());
             if (child instanceof FragmentExec) {
                 // COORDINATOR enrich must not be included to the fragment as it has to be executed on the coordinating node
-                if (localMode == false && p instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
+                if (p instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
+                    assert localMode == false : "coordinator enrich must not be included to a fragment and re-planned locally";
                     child = addExchangeForFragment(enrich.child(), child);
                     return map(enrich, child);
                 }

@@ -30,16 +30,46 @@ class MacNativeAccess extends PosixNativeAccess {
     // not a standard limit, means something different on linux, etc!
     static final int RLIMIT_NPROC = 7;
 
+    private static final int F_PREALLOCATE = 42;
+    private static final int F_ALLOCATECONTIG = 0x2; // allocate contiguous space
+    private static final int F_ALLOCATEALL = 0x4; // allocate all the requested space or no space at all
+    private static final int F_PEOFPOSMODE = 3; // allocate from the physical end of the file
+
     private final MacCLibrary macLibc;
 
     MacNativeAccess(NativeLibraryProvider libraryProvider) {
-        super(libraryProvider, 6, 9223372036854775807L, 5);
+        super(libraryProvider, 6, 9223372036854775807L, 5, 144, 96);
         this.macLibc = libraryProvider.getLibrary(MacCLibrary.class);
     }
 
     @Override
     protected void logMemoryLimitInstructions() {
         // we don't have instructions for macos
+    }
+
+    @Override
+    protected boolean nativePreallocate(int fd, long currentSize, long newSize) {
+        var fst = macLibc.newFStore();
+        fst.set_flags(F_ALLOCATECONTIG);
+        fst.set_posmode(F_PEOFPOSMODE);
+        fst.set_offset(0);
+        fst.set_length(newSize);
+        // first, try allocating contiguously
+        if (macLibc.fcntl(fd, F_PREALLOCATE, fst) != 0) {
+            // TODO: log warning?
+            // that failed, so let us try allocating non-contiguously
+            fst.set_flags(F_ALLOCATEALL);
+            if (macLibc.fcntl(fd, F_PREALLOCATE, fst) != 0) {
+                // i'm afraid captain dale had to bail
+                logger.warn("Could not allocate non-contiguous size: " + libc.strerror(libc.errno()));
+                return false;
+            }
+        }
+        if (macLibc.ftruncate(fd, newSize) != 0) {
+            logger.warn("Could not truncate file: " + libc.strerror(libc.errno()));
+            return false;
+        }
+        return true;
     }
 
     @Override

@@ -23,4 +23,18 @@ public interface MacCLibrary {
      * releases memory when an error occurs during initialization (e.g. syntax bug)
      */
     void sandbox_free_error(ErrorReference errorbuf);
+
+    interface FStore {
+        void set_flags(int flags);     /* IN: flags word */
+        void set_posmode(int posmode); /* IN: indicates offset field */
+        void set_offset(long offset);  /* IN: start of the region */
+        void set_length(long length);  /* IN: size of the region */
+        long bytesalloc();             /* OUT: number of bytes allocated */
+    }
+
+    FStore newFStore();
+
+    int fcntl(int fd, int cmd, FStore fst);
+
+    int ftruncate(int fd, long length);
 }

@@ -37,6 +37,9 @@ class JdkPosixCLibrary implements PosixCLibrary {
     private static final MethodHandle mlockall$mh;
     private static final MethodHandle getrlimit$mh;
     private static final MethodHandle setrlimit$mh;
+    private static final MethodHandle open$mh;
+    private static final MethodHandle close$mh;
+    private static final MethodHandle fstat$mh;
 
     static {
         Arena arena = Arena.ofAuto();
@@ -48,6 +51,9 @@ class JdkPosixCLibrary implements PosixCLibrary {
         var rlimitDesc = FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS);
         getrlimit$mh = downcallHandleWithErrno("getrlimit", rlimitDesc);
         setrlimit$mh = downcallHandleWithErrno("setrlimit", rlimitDesc);
+        open$mh = downcallHandleWithErrno("open", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT));
+        close$mh = downcallHandleWithErrno("close", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        fstat$mh = downcallHandleWithErrno("fstat", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
     }
 
     static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor) {
@@ -92,6 +98,23 @@ class JdkPosixCLibrary implements PosixCLibrary {
         }
     }
 
+    class JdkStat implements Stat {
+
+        private final MemorySegment segment;
+        private final int stSizeOffset;
+
+        JdkStat(int sizeof, int stSizeOffset) {
+            var arena = Arena.ofAuto();
+            this.segment = arena.allocate(sizeof, 8);
+            this.stSizeOffset = stSizeOffset;
+        }
+
+        @Override
+        public long st_size() {
+            return segment.get(JAVA_LONG, stSizeOffset);
+        }
+    }
+
     static final MemorySegment errnoState;
 
     @Override
@@ -133,6 +156,11 @@ class JdkPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
+    public Stat newStat(int sizeof, int stSizeOffset) {
+        return null;
+    }
+
+    @Override
     public int getrlimit(int resource, RLimit rlimit) {
         assert rlimit instanceof JdkRLimit;
         var jdkRlimit = (JdkRLimit) rlimit;
@@ -149,6 +177,36 @@ class JdkPosixCLibrary implements PosixCLibrary {
         var jdkRlimit = (JdkRLimit) rlimit;
         try {
             return (int) setrlimit$mh.invokeExact(resource, jdkRlimit.segment, errnoState);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int open(String pathname, int flags, int mode) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment nativePathname = arena.allocateUtf8String(pathname);
+            return (int) open$mh.invokeExact(nativePathname, flags, mode, errnoState);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int close(int fd) {
+        try {
+            return (int) close$mh.invokeExact(fd, errnoState);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int fstat(int fd, Stat stat) {
+        assert stat instanceof JdkStat;
+        var jdkStat = (JdkStat) stat;
+        try {
+            return (int) fstat$mh.invokeExact(fd, jdkStat.segment, errnoState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

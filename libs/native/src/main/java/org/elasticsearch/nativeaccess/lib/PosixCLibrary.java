@@ -27,9 +27,22 @@ public interface PosixCLibrary {
 
     RLimit newRLimit();
 
+    /** corresponds to struct stat64 */
+    interface Stat {
+        long st_size();
+    }
+
+    Stat newStat(int sizeof, int stSizeOffset);
+
     int getrlimit(int resource, RLimit rlimit);
 
     int setrlimit(int resource, RLimit rlimit);
+
+    int open(String pathname, int flags, int mode);
+
+    int close(int fd);
+
+    int fstat(int fd, Stat stats);
 
     String strerror(int errno);
 

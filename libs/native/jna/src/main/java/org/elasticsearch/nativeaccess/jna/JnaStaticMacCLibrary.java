@@ -9,12 +9,15 @@
 package org.elasticsearch.nativeaccess.jna;
 
 import com.sun.jna.Native;
+import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
+import com.sun.jna.Structure;
 import com.sun.jna.ptr.PointerByReference;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary.ErrorReference;
+import org.elasticsearch.nativeaccess.lib.MacCLibrary.FStore;
 
 class JnaStaticMacCLibrary {
 
@@ -51,4 +54,42 @@ class JnaStaticMacCLibrary {
      * releases memory when an error occurs during initialization (e.g. syntax bug)
      */
     static native void sandbox_free_error(Pointer errorbuf);
+
+    public static class JnaFStore extends Structure implements Structure.ByReference, FStore {
+
+        public int fst_flags = 0;
+        public int fst_posmode = 0;
+        public NativeLong fst_offset = new NativeLong(0);
+        public NativeLong fst_length = new NativeLong(0);
+        public NativeLong fst_bytesalloc = new NativeLong(0);
+
+        @Override
+        public void set_flags(int flags) {
+            this.fst_flags = flags;
+        }
+
+        @Override
+        public void set_posmode(int posmode) {
+            this.fst_posmode = posmode;
+        }
+
+        @Override
+        public void set_offset(long offset) {
+            fst_offset.setValue(offset);
+        }
+
+        @Override
+        public void set_length(long length) {
+            fst_length.setValue(length);
+        }
+
+        @Override
+        public long bytesalloc() {
+            return fst_bytesalloc.longValue();
+        }
+    }
+
+    static native int fcntl(int fd, int cmd, JnaFStore fst);
+
+    static native int ftruncate(int fd, NativeLong length);
 }

@@ -14,7 +14,9 @@ import com.sun.jna.Structure;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary.Stat;
 
 import java.util.Arrays;
 import java.util.List;
@@ -74,11 +76,33 @@ final class JnaStaticPosixCLibrary {
         }
     }
 
+    public static final class JnaStat extends Structure implements Structure.ByReference, Stat {
+        public byte[] _ignore1;
+        public NativeLong st_size = new NativeLong(0);
+        public byte[] _ignore2;
+
+        JnaStat(int sizeof, int stSizeOffset) {
+            this._ignore1 = new byte[stSizeOffset];
+            this._ignore2 = new byte[sizeof - stSizeOffset - 8];
+        }
+
+        @Override
+        public long st_size() {
+            return st_size.longValue();
+        }
+    }
+
     static native int getrlimit(int resource, JnaRLimit rlimit);
 
     static native int setrlimit(int resource, JnaRLimit rlimit);
 
     static native String strerror(int errno);
+
+    static native int open(String filename, int flags, int mode);
+
+    static native int close(int fd);
+
+    static native int fstat(int fd, Stat stat);
 
     private JnaStaticPosixCLibrary() {}
 }

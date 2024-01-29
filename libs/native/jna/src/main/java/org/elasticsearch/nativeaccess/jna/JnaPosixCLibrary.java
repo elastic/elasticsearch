@@ -12,6 +12,7 @@ import com.sun.jna.Native;
 
 import org.elasticsearch.jdk.JdkUtils;
 import org.elasticsearch.nativeaccess.jna.JnaStaticPosixCLibrary.JnaRLimit;
+import org.elasticsearch.nativeaccess.jna.JnaStaticPosixCLibrary.JnaStat;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 class JnaPosixCLibrary implements PosixCLibrary {
@@ -36,6 +37,11 @@ class JnaPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
+    public Stat newStat(int sizeof, int stSizeOffset) {
+        return new JnaStat(sizeof, stSizeOffset);
+    }
+
+    @Override
     public int getrlimit(int resource, RLimit rlimit) {
         assert rlimit instanceof JnaRLimit;
         var jnaRlimit = (JnaRLimit) rlimit;
@@ -47,6 +53,21 @@ class JnaPosixCLibrary implements PosixCLibrary {
         assert rlimit instanceof JnaRLimit;
         var jnaRlimit = (JnaRLimit) rlimit;
         return JnaStaticPosixCLibrary.setrlimit(resource, jnaRlimit);
+    }
+
+    @Override
+    public int open(String pathname, int flags, int mode) {
+        return JnaStaticPosixCLibrary.open(pathname, flags, mode);
+    }
+
+    @Override
+    public int close(int fd) {
+        return JnaStaticPosixCLibrary.close(fd);
+    }
+
+    @Override
+    public int fstat(int fd, Stat stats) {
+        return JnaStaticPosixCLibrary.fstat(fd, stats);
     }
 
     @Override

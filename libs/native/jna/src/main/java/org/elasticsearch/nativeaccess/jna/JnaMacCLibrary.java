@@ -8,7 +8,10 @@
 
 package org.elasticsearch.nativeaccess.jna;
 
+import com.sun.jna.NativeLong;
+
 import org.elasticsearch.nativeaccess.jna.JnaStaticMacCLibrary.JnaErrorReference;
+import org.elasticsearch.nativeaccess.jna.JnaStaticMacCLibrary.JnaFStore;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
 
 class JnaMacCLibrary implements MacCLibrary {
@@ -29,5 +32,22 @@ class JnaMacCLibrary implements MacCLibrary {
         assert errorbuf instanceof JnaErrorReference;
         var jnaErrorbuf = (JnaErrorReference) errorbuf;
         JnaStaticMacCLibrary.sandbox_free_error(jnaErrorbuf.ref.getValue());
+    }
+
+    @Override
+    public FStore newFStore() {
+        return new JnaFStore();
+    }
+
+    @Override
+    public int fcntl(int fd, int cmd, FStore fst) {
+        assert fst instanceof JnaFStore;
+        var jnaFst = (JnaFStore) fst;
+        return JnaStaticMacCLibrary.fcntl(fd, cmd, jnaFst);
+    }
+
+    @Override
+    public int ftruncate(int fd, long length) {
+        return JnaStaticMacCLibrary.ftruncate(fd, new NativeLong(length));
     }
 }

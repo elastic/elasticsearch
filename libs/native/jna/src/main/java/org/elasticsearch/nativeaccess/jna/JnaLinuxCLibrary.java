@@ -43,4 +43,9 @@ class JnaLinuxCLibrary implements LinuxCLibrary {
     public long syscall(long number, int operation, int flags, long address) {
         return JnaStaticLinuxCLibrary.syscall(new NativeLong(number), operation, flags, address).longValue();
     }
+
+    @Override
+    public int fallocate(int fd, int mode, long offset, long length) {
+        return JnaStaticLinuxCLibrary.fallocate(fd, mode, offset, length);
+    }
 }

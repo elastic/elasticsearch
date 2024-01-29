@@ -62,4 +62,9 @@ class NoopNativeAccess extends AbstractNativeAccess {
         logger.warn("Cannot register console control handler because native access is not available");
         return false;
     }
+
+    @Override
+    public void tryPreallocate(Path file, long size) {
+        logger.warn("Cannot preallocate file size because native access is not available");
+    }
 }

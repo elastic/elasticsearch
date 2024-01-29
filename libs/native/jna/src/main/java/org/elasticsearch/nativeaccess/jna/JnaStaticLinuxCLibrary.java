@@ -87,4 +87,6 @@ class JnaStaticLinuxCLibrary {
      * this is the only way, DON'T use it on some other architecture unless you know wtf you are doing
      */
     static native NativeLong syscall(NativeLong number, Object... args);
+
+    static native int fallocate(int fd, int mode, long offset, long length);
 }

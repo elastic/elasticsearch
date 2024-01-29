@@ -14,6 +14,7 @@ import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFilter;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.statx;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -92,7 +93,7 @@ class LinuxNativeAccess extends PosixNativeAccess {
     private final LinuxCLibrary linuxLibc;
 
     LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
-        super(libraryProvider, 8, -1L, 9);
+        super(libraryProvider, 8, -1L, 9, 144, 48);
         this.linuxLibc = libraryProvider.getLibrary(LinuxCLibrary.class);
     }
 
@@ -106,6 +107,16 @@ class LinuxNativeAccess extends PosixNativeAccess {
             \t{} soft memlock unlimited
             \t{} hard memlock unlimited""", user, user, user);
         logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
+    }
+
+    @Override
+    protected boolean nativePreallocate(int fd, long currentSize, long newSize) {
+        final int rc = linuxLibc.fallocate(fd, 0, currentSize, newSize - currentSize);
+        if (rc != 0) {
+            logger.warn("fallocate failed: " + libc.strerror(libc.errno()));
+            return false;
+        }
+        return true;
     }
 
     @Override

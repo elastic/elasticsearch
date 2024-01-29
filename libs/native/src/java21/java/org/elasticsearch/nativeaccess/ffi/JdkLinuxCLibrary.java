@@ -39,6 +39,9 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
         "syscall",
         FunctionDescriptor.of(JAVA_LONG, JAVA_LONG, JAVA_INT, JAVA_INT, JAVA_LONG),
         CAPTURE_ERRNO_OPTION, Linker.Option.firstVariadicArg(1));
+    private static final MethodHandle fallocate$mh = downcallHandleWithErrno(
+        "fallocate",
+        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG));
 
     static {
         statx$mh = downcallHandleWithErrno("statx", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS));
@@ -131,6 +134,15 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     public long syscall(long number, int operation, int flags, long address) {
         try {
             return (long)syscall$mh.invokeExact(number, operation, flags, address);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int fallocate(int fd, int mode, long offset, long length) {
+        try {
+            return (int)fallocate$mh.invokeExact(fd, mode, offset, length);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

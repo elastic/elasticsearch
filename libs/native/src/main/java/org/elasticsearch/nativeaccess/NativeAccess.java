@@ -8,6 +8,7 @@
 
 package org.elasticsearch.nativeaccess;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.OptionalLong;
 
@@ -63,6 +64,8 @@ public interface NativeAccess {
      * @return true if the handler is correctly set
      */
     boolean addConsoleCtrlHandler(ConsoleCtrlHandler handler);
+
+    void tryPreallocate(Path file, long size);
 
     /*
     int preallocate(int fd, long offset, long length);

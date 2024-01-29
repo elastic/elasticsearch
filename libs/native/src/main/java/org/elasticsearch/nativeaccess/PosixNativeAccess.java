@@ -11,6 +11,10 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
+import java.lang.reflect.Field;
+import java.nio.file.Path;
+import java.security.AccessController;
+
 abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     // libc constants
@@ -21,14 +25,19 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     protected final long RLIMIT_INFINITY;
     protected final int RLIMIT_AS;
     protected final int RLIMIT_FSIZE = 1; // same on mac and linux
+    protected final int SIZEOF_STAT;
+    protected final int STAT_ST_SIZE_OFFSET;
 
     protected final PosixCLibrary libc;
 
-    PosixNativeAccess(NativeLibraryProvider libraryProvider, int RLIMIT_MEMLOCK, long RLIMIT_INFINITY, int RLIMIT_AS) {
+    PosixNativeAccess(NativeLibraryProvider libraryProvider, int RLIMIT_MEMLOCK, long RLIMIT_INFINITY, int RLIMIT_AS, int SIZEOF_STAT,
+                      int STAT_ST_SIZE_OFFSET) {
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
         this.RLIMIT_MEMLOCK = RLIMIT_MEMLOCK;
         this.RLIMIT_INFINITY = RLIMIT_INFINITY;
         this.RLIMIT_AS = RLIMIT_AS;
+        this.SIZEOF_STAT = SIZEOF_STAT;
+        this.STAT_ST_SIZE_OFFSET = STAT_ST_SIZE_OFFSET;
     }
 
     @Override
@@ -119,4 +128,32 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
             return Long.toUnsignedString(value);
         }
     }
+
+    private static int O_WRONLY = 1;
+
+    @Override
+    public void tryPreallocate(Path file, long newSize) {
+        // get fd and current size, then pass to OS variant
+        // TODO: figure out mode flags to open with
+        int fd = libc.open(file.toAbsolutePath().toString(), O_WRONLY, 0);
+        if (fd == -1) {
+            logger.warn("Could not open file [" + file + "] to preallocate size: " + libc.strerror(libc.errno()));
+            return;
+        }
+
+        var stats = libc.newStat(SIZEOF_STAT, STAT_ST_SIZE_OFFSET);
+        if (libc.fstat(fd, stats) != 0) {
+            logger.warn("Could not get stats for file [" + file + "] to preallocate size: " + libc.strerror(libc.errno()));
+        } else {
+            if (nativePreallocate(fd, stats.st_size(), newSize)) {
+                logger.debug("pre-allocated file [{}] to {} bytes", file, newSize);
+            } // OS specific preallocate logs its own errors
+        }
+
+        if (libc.close(fd) != 0) {
+            logger.warn("Could not close file [" + file + "] after trying to preallocate size: " + libc.strerror(libc.errno()));
+        }
+    }
+
+    protected abstract boolean nativePreallocate(int fd, long currentSize, long newSize);
 }

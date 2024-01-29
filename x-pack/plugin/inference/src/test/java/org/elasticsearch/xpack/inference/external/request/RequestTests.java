@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
-import org.elasticsearch.test.ESTestCase;
-
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RequestTests extends ESTestCase {
+public class RequestTests {
     public static Request mockRequest(String modelId) {
         var request = mock(Request.class);
         when(request.getModelId()).thenReturn(modelId);

@@ -86,12 +86,7 @@ class RequestTask extends HttpTask {
     private void notifyOfResult(Runnable runnable) {
         if (notified.compareAndSet(false, true)) {
             runnable.run();
-            return;
         }
-
-        logger.debug(
-            () -> format("Attempting to notify of result after already doing so for request from model id [%s]", request.modelId())
-        );
     }
 
     @Override

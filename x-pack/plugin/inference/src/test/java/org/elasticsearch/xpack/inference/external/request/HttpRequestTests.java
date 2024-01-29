@@ -8,11 +8,10 @@
 package org.elasticsearch.xpack.inference.external.request;
 
 import org.apache.http.client.methods.HttpRequestBase;
-import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Mockito.mock;
 
-public class HttpRequestTests extends ESTestCase {
+public class HttpRequestTests {
     public static HttpRequest createMock(String modelId) {
         return new HttpRequest(mock(HttpRequestBase.class), modelId);
     }

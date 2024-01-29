@@ -38,14 +38,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants.EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE;
 
-public class UpdateConnectorSyncJobIngestionStatsAction extends ActionType<ConnectorUpdateActionResponse> {
+public class UpdateConnectorSyncJobIngestionStatsAction {
 
-    public static final UpdateConnectorSyncJobIngestionStatsAction INSTANCE = new UpdateConnectorSyncJobIngestionStatsAction();
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/update_stats";
+    public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
-    public UpdateConnectorSyncJobIngestionStatsAction() {
-        super(NAME);
-    }
+    private UpdateConnectorSyncJobIngestionStatsAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
         public static final ParseField CONNECTOR_SYNC_JOB_ID_FIELD = new ParseField("connector_sync_job_id");

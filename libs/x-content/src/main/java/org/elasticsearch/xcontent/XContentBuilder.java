@@ -1187,12 +1187,35 @@ public final class XContentBuilder implements Closeable, Flushable {
     //////////////////////////////////
 
     /**
+     * Guess the xcontent-type from a stream
+     * @deprecated avoid content type auto-detection and use overloads that accept a {@link XContentType} parameter
+     */
+    @Deprecated
+    public XContentType guessContentTypeFromRawContent(InputStream content) throws IOException {
+        return generator.guessContentTypeFromRawContent(content);
+    }
+
+    public boolean supportsRawContent(XContentType contentType) {
+        return generator.mayWriteRawData(contentType);
+    }
+
+    /**
      * Writes a raw field with the value taken from the bytes in the stream
      * @deprecated use {@link #rawField(String, InputStream, XContentType)} to avoid content type auto-detection
      */
     @Deprecated
     public XContentBuilder rawField(String name, InputStream value) throws IOException {
         generator.writeRawField(name, value);
+        return this;
+    }
+
+    public XContentBuilder startRaw(String name) throws IOException {
+        generator.writeStartRaw(name);
+        return this;
+    }
+
+    public XContentBuilder endRaw() {
+        generator.writeEndRaw();
         return this;
     }
 
@@ -1209,6 +1232,26 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     public XContentBuilder rawValue(InputStream stream, XContentType contentType) throws IOException {
         generator.writeRawValue(stream, contentType);
+        return this;
+    }
+
+    /**
+     * Writes a value with the source coming directly from the bytes in the stream
+     * This method is meant to be used in conjunction with (surrounded by) {@link XContentBuilder#startRaw(String)} and
+     * {@link XContentBuilder#endRaw()}
+     */
+    public XContentBuilder bareRawValue(InputStream stream, XContentType contentType) throws IOException {
+        generator.writeBareRawValue(stream, contentType);
+        return this;
+    }
+
+    /**
+     * Writes a value with the source coming directly from the bytes in the array.
+     * This method is meant to be used in conjunction with (surrounded by) {@link XContentBuilder#startRaw(String)} and
+     * {@link XContentBuilder#endRaw()}
+     */
+    public XContentBuilder bareRawValue(byte[] array, int offset, int length, XContentType contentType) throws IOException {
+        generator.writeBareRawValue(array, offset, length, contentType);
         return this;
     }
 

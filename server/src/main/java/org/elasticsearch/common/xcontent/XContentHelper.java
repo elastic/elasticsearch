@@ -600,6 +600,29 @@ public class XContentHelper {
     }
 
     /**
+     * Writes a "raw" value, handling cases where the bytes are compressed, and tries to optimize writing using
+     * {@link XContentBuilder#bareRawValue(byte[], int, int, XContentType)} or
+     * {@link XContentBuilder#bareRawValue(InputStream, XContentType)}.
+     */
+    public static void writeBareRawValue(BytesReference source, XContentType xContentType, XContentBuilder builder) throws IOException {
+        Objects.requireNonNull(xContentType);
+        Compressor compressor = CompressorFactory.compressor(source);
+        if (compressor != null) {
+            try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
+                builder.bareRawValue(compressedStreamInput, xContentType);
+            }
+        } else {
+            if (source.hasArray()) {
+                builder.bareRawValue(source.array(), source.arrayOffset(), source.length(), xContentType);
+            } else {
+                try (InputStream stream = source.streamInput()) {
+                    builder.rawValue(stream, xContentType);
+                }
+            }
+        }
+    }
+
+    /**
      * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
      * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
      * by the {@link ToXContent#isFragment()} method returns.

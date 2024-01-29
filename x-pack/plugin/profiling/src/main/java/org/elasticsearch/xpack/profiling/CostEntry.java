@@ -7,13 +7,9 @@
 
 package org.elasticsearch.xpack.profiling;
 
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
 import java.util.Map;
 
-final class CostEntry implements ToXContentObject {
+final class CostEntry {
     final double usd_per_hour;
 
     CostEntry(double usdPerHour) {
@@ -34,13 +30,5 @@ final class CostEntry implements ToXContentObject {
 
         // Likely an unexpected null value.
         return new CostEntry(CostCalculator.DEFAULT_COST_USD_PER_CORE_HOUR * HostMetadata.DEFAULT_PROFILING_NUM_CORES);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("usd_per_hour", this.usd_per_hour);
-        builder.endObject();
-        return builder;
     }
 }

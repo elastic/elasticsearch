@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -50,5 +51,16 @@ public class SearchException extends ElasticsearchException implements Elasticse
 
     public SearchShardTarget shard() {
         return this.shardTarget;
+    }
+
+    @Override
+    public RestStatus status() {
+        if (getCause() == null) {
+            // we use SearchException to return errors about input validation in some cases. Those don’t have a root cause,
+            // so status code should be 400 when the root cause is missing
+            return RestStatus.BAD_REQUEST;
+        } else {
+            return super.status();
+        }
     }
 }

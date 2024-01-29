@@ -21,9 +21,7 @@ import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
 
 public class JdkSystemdLibrary implements SystemdLibrary {
 
-    private static final MethodHandle sd_notify$mh = downcallHandle(
-        "sd_notify",
-        FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+    private static final MethodHandle sd_notify$mh = downcallHandle("sd_notify", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
 
     @Override
     public int sd_notify(int unset_environment, String state) {

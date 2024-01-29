@@ -32,14 +32,8 @@ class JdkMacCLibrary implements MacCLibrary {
         FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS)
     );
     private static final MethodHandle sandbox_free_error$mh = downcallHandle("sandbox_free_error", FunctionDescriptor.ofVoid(ADDRESS));
-    private static final MethodHandle fcntl$mh = downcallHandle(
-        "fcntl",
-        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS)
-    );
-    private static final MethodHandle ftruncate$mh = downcallHandle(
-        "ftruncate",
-        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG)
-    );
+    private static final MethodHandle fcntl$mh = downcallHandle("fcntl", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS));
+    private static final MethodHandle ftruncate$mh = downcallHandle("ftruncate", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG));
 
     private static class JdkErrorReference implements ErrorReference {
         final Arena arena = Arena.ofConfined();
@@ -120,7 +114,7 @@ class JdkMacCLibrary implements MacCLibrary {
 
         @Override
         public long bytesalloc() {
-            return (long)st_bytesalloc$vh.get(segment);
+            return (long) st_bytesalloc$vh.get(segment);
         }
     }
 
@@ -134,7 +128,7 @@ class JdkMacCLibrary implements MacCLibrary {
         assert fst instanceof JdkFStore;
         var jdkFst = (JdkFStore) fst;
         try {
-            return (int)fcntl$mh.invokeExact(fd, cmd, jdkFst.segment, errnoState);
+            return (int) fcntl$mh.invokeExact(fd, cmd, jdkFst.segment, errnoState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -143,7 +137,7 @@ class JdkMacCLibrary implements MacCLibrary {
     @Override
     public int ftruncate(int fd, long length) {
         try {
-            return (int)ftruncate$mh.invokeExact(fd, length, errnoState);
+            return (int) ftruncate$mh.invokeExact(fd, length, errnoState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

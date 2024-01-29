@@ -308,18 +308,12 @@ class LinuxNativeAccess extends PosixNativeAccess {
             method = 0;
             int errno1 = libc.errno();
             if (logger.isDebugEnabled()) {
-                logger.debug(
-                    "seccomp(SECCOMP_SET_MODE_FILTER): {}, falling back to prctl(PR_SET_SECCOMP)...",
-                    libc.strerror(errno1)
-                );
+                logger.debug("seccomp(SECCOMP_SET_MODE_FILTER): {}, falling back to prctl(PR_SET_SECCOMP)...", libc.strerror(errno1));
             }
             if (linuxLibc.prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, prog.address(), 0, 0) != 0) {
                 int errno2 = libc.errno();
                 throw new UnsupportedOperationException(
-                    "seccomp(SECCOMP_SET_MODE_FILTER): "
-                        + libc.strerror(errno1)
-                        + ", prctl(PR_SET_SECCOMP): "
-                        + libc.strerror(errno2)
+                    "seccomp(SECCOMP_SET_MODE_FILTER): " + libc.strerror(errno1) + ", prctl(PR_SET_SECCOMP): " + libc.strerror(errno2)
                 );
             }
         }
@@ -327,8 +321,7 @@ class LinuxNativeAccess extends PosixNativeAccess {
         // now check that the filter was really installed, we should be in filter mode.
         if (linuxLibc.prctl(PR_GET_SECCOMP, 0, 0, 0, 0) != 2) {
             throw new UnsupportedOperationException(
-                "seccomp filter installation did not really succeed. seccomp(PR_GET_SECCOMP): "
-                    + libc.strerror(libc.errno())
+                "seccomp filter installation did not really succeed. seccomp(PR_GET_SECCOMP): " + libc.strerror(libc.errno())
             );
         }
 

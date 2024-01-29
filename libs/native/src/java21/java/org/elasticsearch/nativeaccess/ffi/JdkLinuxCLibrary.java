@@ -34,14 +34,18 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     private static final MethodHandle statx$mh;
     private static final MethodHandle prctl$mh = downcallHandleWithErrno(
         "prctl",
-        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG, JAVA_LONG, JAVA_LONG));
+        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG, JAVA_LONG, JAVA_LONG)
+    );
     private static final MethodHandle syscall$mh = downcallHandle(
         "syscall",
         FunctionDescriptor.of(JAVA_LONG, JAVA_LONG, JAVA_INT, JAVA_INT, JAVA_LONG),
-        CAPTURE_ERRNO_OPTION, Linker.Option.firstVariadicArg(1));
+        CAPTURE_ERRNO_OPTION,
+        Linker.Option.firstVariadicArg(1)
+    );
     private static final MethodHandle fallocate$mh = downcallHandleWithErrno(
         "fallocate",
-        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG));
+        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG)
+    );
 
     static {
         statx$mh = downcallHandleWithErrno("statx", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS));
@@ -69,10 +73,7 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     }
 
     private static class JdkSockFProg implements SockFProg {
-        private static final MemoryLayout layout = MemoryLayout.structLayout(
-            JAVA_SHORT,
-            ADDRESS
-        );
+        private static final MemoryLayout layout = MemoryLayout.structLayout(JAVA_SHORT, ADDRESS);
 
         private final MemorySegment segment;
 
@@ -124,7 +125,7 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     @Override
     public int prctl(int option, long arg2, long arg3, long arg4, long arg5) {
         try {
-            return (int)prctl$mh.invokeExact(option, arg2, arg3, arg4, arg5);
+            return (int) prctl$mh.invokeExact(option, arg2, arg3, arg4, arg5);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -133,7 +134,7 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     @Override
     public long syscall(long number, int operation, int flags, long address) {
         try {
-            return (long)syscall$mh.invokeExact(number, operation, flags, address);
+            return (long) syscall$mh.invokeExact(number, operation, flags, address);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -142,7 +143,7 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     @Override
     public int fallocate(int fd, int mode, long offset, long length) {
         try {
-            return (int)fallocate$mh.invokeExact(fd, mode, offset, length);
+            return (int) fallocate$mh.invokeExact(fd, mode, offset, length);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

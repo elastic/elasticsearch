@@ -153,8 +153,8 @@ public class SharedBytes extends AbstractRefCounted {
             }
         } catch (final Exception e) {
             logger.warn(() -> "failed to pre-allocate cache file [" + cacheFile + "] using setLength method", e);
-                // if anything goes wrong, delete the potentially created file to not waste disk space
-                Files.deleteIfExists(cacheFile);
+            // if anything goes wrong, delete the potentially created file to not waste disk space
+            Files.deleteIfExists(cacheFile);
         }
     }
 

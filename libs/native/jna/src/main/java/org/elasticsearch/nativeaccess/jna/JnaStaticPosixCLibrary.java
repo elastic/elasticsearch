@@ -14,7 +14,6 @@ import com.sun.jna.Structure;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary.Stat;
 

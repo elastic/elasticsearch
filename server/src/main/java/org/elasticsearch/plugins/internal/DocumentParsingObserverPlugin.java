@@ -8,8 +8,6 @@
 
 package org.elasticsearch.plugins.internal;
 
-import java.util.function.Supplier;
-
 /**
  * An internal plugin that will return a supplier of DocumentParsingObserver.
  */

@@ -12,18 +12,24 @@ package org.elasticsearch.plugins.internal;
 public interface DocumentParsingObserverSupplier {
     DocumentParsingObserverSupplier EMPTY_INSTANCE = new DocumentParsingObserverSupplier() {
         @Override
-        public DocumentParsingObserver get() {
+        public DocumentParsingObserver getNewObserver() {
             return DocumentParsingObserver.EMPTY_INSTANCE;
         }
 
         @Override
-        public DocumentParsingObserver forAlreadyParsedInIngest(String indexName, long normalisedBytesParsed) {
+        public DocumentParsingObserver forAlreadyParsedInIngest(long normalisedBytesParsed) {
             return DocumentParsingObserver.EMPTY_INSTANCE;
         }
+
+        @Override
+        public DocumentParsingReporter getDocumentParsingReporter() {
+            return DocumentParsingReporter.EMPTY_INSTANCE;
+        }
     };
-    DocumentParsingObserver get();
 
-    DocumentParsingObserver forAlreadyParsedInIngest(String indexName, long normalisedBytesParsed);
+    DocumentParsingObserver getNewObserver();
 
+    DocumentParsingObserver forAlreadyParsedInIngest(long normalisedBytesParsed);
 
+    DocumentParsingReporter getDocumentParsingReporter();
 }

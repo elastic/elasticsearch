@@ -95,7 +95,8 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                         XContentHelper.xContentType(index.source()),
                         index.routing(),
                         Map.of(),
-                        DocumentParsingObserver.EMPTY_INSTANCE),
+                        DocumentParsingObserver.EMPTY_INSTANCE
+                    ),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),

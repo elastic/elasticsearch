@@ -1172,18 +1172,13 @@ public class IngestServiceTests extends ESTestCase {
          */
         AtomicInteger setNameCalledCount = new AtomicInteger(0);
         AtomicInteger closeCalled = new AtomicInteger(0);
-        DocumentParsingObserverSupplier documentParsingObserverSupplier = new DocumentParsingObserverSupplier(){
+        DocumentParsingObserverSupplier documentParsingObserverSupplier = new DocumentParsingObserverSupplier() {
             @Override
-            public DocumentParsingObserver get() {
+            public DocumentParsingObserver getNewObserver() {
                 return new DocumentParsingObserver() {
                     @Override
                     public XContentParser wrapParser(XContentParser xContentParser) {
                         return xContentParser;
-                    }
-
-                    @Override
-                    public void close(String indexName) {
-                        closeCalled.incrementAndGet();
                     }
 
                     @Override
@@ -1195,10 +1190,10 @@ public class IngestServiceTests extends ESTestCase {
             }
 
             @Override
-            public DocumentParsingObserver forAlreadyParsedInIngest(String indexName, long normalisedBytesParsed) {
+            public DocumentParsingObserver forAlreadyParsedInIngest(long normalisedBytesParsed) {
                 return null;
             }
-        } ;
+        };
         IngestService ingestService = createWithProcessors(
             Map.of("mock", (factories, tag, description, config) -> mockCompoundProcessor()),
             documentParsingObserverSupplier

@@ -201,10 +201,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper
         );
-        this.documentParser = new DocumentParser(
-            parserConfiguration,
-            this.mappingParserContextSupplier.get()
-        );
+        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );

@@ -95,7 +95,8 @@ public class ParsedDocument {
         List<LuceneDocument> documents,
         BytesReference source,
         XContentType xContentType,
-        Mapping dynamicMappingsUpdate) {
+        Mapping dynamicMappingsUpdate
+    ) {
         this.version = version;
         this.seqID = seqID;
         this.id = id;
@@ -172,7 +173,7 @@ public class ParsedDocument {
         return "id";
     }
 
-    public long getNormalisedBytesParsed(){
-        return  0L;
+    public long getNormalisedBytesParsed() {
+        return 0L;
     }
 }

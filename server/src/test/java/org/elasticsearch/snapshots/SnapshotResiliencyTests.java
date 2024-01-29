@@ -159,7 +159,6 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingObserverSupplier;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -1957,7 +1956,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     actionFilters,
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,
-                    DocumentParsingObserverSupplier.EMPTY_INSTANCE);
+                    DocumentParsingObserverSupplier.EMPTY_INSTANCE
+                );
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
                     clusterService,

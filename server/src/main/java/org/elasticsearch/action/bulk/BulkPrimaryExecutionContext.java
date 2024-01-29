@@ -19,6 +19,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentParsingReporter;
 
 import java.util.Arrays;
 import java.util.List;
@@ -371,11 +372,12 @@ class BulkPrimaryExecutionContext {
         }
         return true;
     }
+
     public void setDocumentParsingObserver(DocumentParsingObserver documentParsingObserver) {
         this.documentParsingObserver = documentParsingObserver;
     }
 
-    public void onDocumentParsingCompleted(String index){
-        documentParsingObserver.close(index);
+    public DocumentParsingObserver getDocumentParsingObserver() {
+        return documentParsingObserver;
     }
 }

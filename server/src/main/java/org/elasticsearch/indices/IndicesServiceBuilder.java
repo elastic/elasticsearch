@@ -29,7 +29,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingObserverSupplier;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -44,7 +43,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class IndicesServiceBuilder {

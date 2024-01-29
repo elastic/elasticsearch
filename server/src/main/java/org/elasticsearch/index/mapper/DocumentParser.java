@@ -40,7 +40,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
@@ -55,10 +54,7 @@ public final class DocumentParser {
     private final XContentParserConfiguration parserConfiguration;
     private final MappingParserContext mappingParserContext;
 
-    DocumentParser(
-        XContentParserConfiguration parserConfiguration,
-        MappingParserContext mappingParserContext
-    ) {
+    DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
     }

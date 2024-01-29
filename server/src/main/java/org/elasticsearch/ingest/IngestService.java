@@ -731,7 +731,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             totalMetrics.postIngest(ingestTimeInNanos);
                             ref.close();
                         });
-                        DocumentParsingObserver documentParsingObserver = documentParsingObserverSupplier.get();
+                        DocumentParsingObserver documentParsingObserver = documentParsingObserverSupplier.getNewObserver();
 
                         IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
 
@@ -739,7 +739,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         indexRequest.setNormalisedBytesParsed(documentParsingObserver.getNormalisedBytesParsed());
 
                         assert actionRequest.index() != null;
-
 
                         i++;
                     }

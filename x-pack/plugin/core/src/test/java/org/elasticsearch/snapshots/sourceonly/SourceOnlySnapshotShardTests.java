@@ -488,7 +488,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                                 XContentHelper.xContentType(source),
                                 rootFieldsVisitor.routing(),
                                 Map.of(),
-                                DocumentParsingObserver.EMPTY_INSTANCE),
+                                DocumentParsingObserver.EMPTY_INSTANCE
+                            ),
                             SequenceNumbers.UNASSIGNED_SEQ_NO,
                             0,
                             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,

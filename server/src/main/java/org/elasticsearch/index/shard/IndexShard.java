@@ -1922,7 +1922,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         XContentHelper.xContentType(index.source()),
                         index.routing(),
                         Map.of(),
-                        DocumentParsingObserver.EMPTY_INSTANCE)
+                        DocumentParsingObserver.EMPTY_INSTANCE
+                    )
                 );
             }
             case DELETE -> {

@@ -156,7 +156,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserverSupplier;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;

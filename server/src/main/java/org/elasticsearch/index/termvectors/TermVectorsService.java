@@ -311,7 +311,8 @@ public class TermVectorsService {
             request.xContentType(),
             request.routing(),
             Map.of(),
-            DocumentParsingObserver.EMPTY_INSTANCE);
+            DocumentParsingObserver.EMPTY_INSTANCE
+        );
         DocumentParser documentParser = indexShard.mapperService().documentParser();
         MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
         ParsedDocument parsedDocument = documentParser.parseDocument(source, mappingLookup);

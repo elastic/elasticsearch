@@ -73,7 +73,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
-    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_500_061;
+    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_10_X;
 
     /**
      * Max length of the source document to include into string()
@@ -140,7 +140,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
      */
     private Object rawTimestamp;
-    private long normalisedBytesParsed;
+    private long normalisedBytesParsed = -1;
+
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
     }
@@ -179,8 +180,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
             dynamicTemplates = in.readMap(StreamInput::readString);
         }
-        if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED) && in.getTransportVersion().before(NORMALISED_BYTES_PARSED)) {
-           in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
+            && in.getTransportVersion().before(NORMALISED_BYTES_PARSED)) {
+            in.readBoolean();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
             this.listExecutedPipelines = in.readBoolean();
@@ -196,7 +198,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             requireDataStream = false;
         }
-        if(in.getTransportVersion().onOrAfter(NORMALISED_BYTES_PARSED)) {
+        if (in.getTransportVersion().onOrAfter(NORMALISED_BYTES_PARSED)) {
             normalisedBytesParsed = in.readLong();
         }
     }
@@ -741,8 +743,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later");
             }
         }
-        if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED) && out.getTransportVersion().before(NORMALISED_BYTES_PARSED)) {
-            out.writeBoolean(normalisedBytesParsed != 0);
+        if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
+            && out.getTransportVersion().before(NORMALISED_BYTES_PARSED)) {
+            out.writeBoolean(normalisedBytesParsed != -1L);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
             out.writeBoolean(listExecutedPipelines);
@@ -751,7 +754,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
         }
 
-        if(out.getTransportVersion().onOrAfter(NORMALISED_BYTES_PARSED)){
+        if (out.getTransportVersion().onOrAfter(NORMALISED_BYTES_PARSED)) {
             out.writeLong(normalisedBytesParsed);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {

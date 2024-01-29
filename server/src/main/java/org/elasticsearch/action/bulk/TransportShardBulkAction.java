@@ -60,6 +60,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingObserverSupplier;
+import org.elasticsearch.plugins.internal.DocumentParsingReporter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -87,6 +88,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private final Consumer<Runnable> postWriteAction;
 
     private final DocumentParsingObserverSupplier documentParsingObserverSupplier;
+
     @Inject
     public TransportShardBulkAction(
         Settings settings,
@@ -100,7 +102,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionFilters actionFilters,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        DocumentParsingObserverSupplier documentParsingObserverSupplier) {
+        DocumentParsingObserverSupplier documentParsingObserverSupplier
+    ) {
         super(
             settings,
             ACTION_NAME,
@@ -177,7 +180,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return request.items().length;
     }
 
-    //TODO PG this is just for testing?
+    // TODO PG this is just for testing?
     public static void performOnPrimary(
         BulkShardRequest request,
         IndexShard primary,
@@ -201,7 +204,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             executorName,
             null,
             null,
-            DocumentParsingObserverSupplier.EMPTY_INSTANCE);
+            DocumentParsingObserverSupplier.EMPTY_INSTANCE
+        );
     }
 
     public static void performOnPrimary(
@@ -216,7 +220,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         String executorName,
         @Nullable PostWriteRefresh postWriteRefresh,
         @Nullable Consumer<Runnable> postWriteAction,
-        DocumentParsingObserverSupplier documentParsingObserverSupplier) {
+        DocumentParsingObserverSupplier documentParsingObserverSupplier
+    ) {
         new ActionRunnable<>(listener) {
 
             private final Executor executor = threadPool.executor(executorName);
@@ -237,7 +242,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                         ActionListener.wrap(v -> executor.execute(this), this::onRejection),
                         documentParsingObserverSupplier
-                        ) == false) {
+                    ) == false) {
                         // We are waiting for a mapping update on another thread, that will invoke this action again once its done
                         // so we just break out here.
                         return;
@@ -270,8 +275,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                     docWriteRequest.id()
                                 ),
                                 context,
-                                null
-                            );
+                                null,
+                                documentParsingObserverSupplier);
                         }
                         finishRequest();
                     }
@@ -312,7 +317,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         MappingUpdatePerformer mappingUpdater,
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<Void> itemDoneListener,
-        DocumentParsingObserverSupplier documentParsingObserverSupplier) throws Exception {
+        DocumentParsingObserverSupplier documentParsingObserverSupplier
+    ) throws Exception {
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
         // Translate update requests into index or delete requests which can be executed directly
@@ -358,10 +364,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
         } else {
             final IndexRequest request = context.getRequestToExecute();
-            DocumentParsingObserver documentParsingObserver = request.getNormalisedBytesParsed() != 0L ?
-                documentParsingObserverSupplier.forAlreadyParsedInIngest(request.index(), request.getNormalisedBytesParsed())
-                :
-                documentParsingObserverSupplier.get();
+            DocumentParsingObserver documentParsingObserver = request.getNormalisedBytesParsed() != -1L
+                ? documentParsingObserverSupplier.forAlreadyParsedInIngest(request.getNormalisedBytesParsed())
+                : documentParsingObserverSupplier.getNewObserver();
+
             context.setDocumentParsingObserver(documentParsingObserver);
             final SourceToParse sourceToParse = new SourceToParse(
                 request.id(),
@@ -369,7 +375,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
-                documentParsingObserver);
+                documentParsingObserver
+            );
             result = primary.applyIndexOperationOnPrimary(
                 version,
                 request.versionType(),
@@ -379,7 +386,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.getAutoGeneratedTimestamp(),
                 request.isRetry()
             );
-
 
         }
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
@@ -403,7 +409,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             } catch (Exception e) {
                 logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
                 assert result.getId() != null;
-                onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
+                onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult, documentParsingObserverSupplier);
                 return true;
             }
 
@@ -427,7 +433,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                 @Override
                 public void onFailure(Exception e) {
-                    onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
+                    onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult, documentParsingObserverSupplier);
                     // Requesting mapping update failed, so we don't have to wait for a cluster state update
                     assert context.isInitial();
                     itemDoneListener.onResponse(null);
@@ -435,7 +441,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             });
             return false;
         } else {
-            onComplete(result, context, updateResult);
+            onComplete(result, context, updateResult, documentParsingObserverSupplier);
         }
         return true;
     }
@@ -445,15 +451,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return isDelete ? primary.getFailedDeleteResult(e, version, id) : primary.getFailedIndexResult(e, version, id);
     }
 
-    private static void onComplete(Engine.Result r, BulkPrimaryExecutionContext context, UpdateHelper.Result updateResult) {
+    private static void onComplete(Engine.Result r, BulkPrimaryExecutionContext context, UpdateHelper.Result updateResult,
+                                   DocumentParsingObserverSupplier documentParsingObserverSupplier) {
         context.markOperationAsExecuted(r);
         final DocWriteRequest<?> docWriteRequest = context.getCurrent();
         final DocWriteRequest.OpType opType = docWriteRequest.opType();
         final boolean isUpdate = opType == DocWriteRequest.OpType.UPDATE;
         final BulkItemResponse executionResult = context.getExecutionResult();
         final boolean isFailed = executionResult.isFailed();
-        if(isFailed == false) {
-            context.onDocumentParsingCompleted(docWriteRequest.index());
+        if (isFailed == false) {
+            DocumentParsingReporter documentParsingReporter = documentParsingObserverSupplier.getDocumentParsingReporter();
+            DocumentParsingObserver documentParsingObserver = context.getDocumentParsingObserver();
+            documentParsingReporter.onCompleted(docWriteRequest.index(), documentParsingObserver.getNormalisedBytesParsed());
         }
         if (isUpdate
             && isFailed
@@ -652,7 +661,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     indexRequest.getContentType(),
                     indexRequest.routing(),
                     Map.of(),
-                    DocumentParsingObserver.EMPTY_INSTANCE);
+                    DocumentParsingObserver.EMPTY_INSTANCE
+                );
                 result = replica.applyIndexOperationOnReplica(
                     primaryResponse.getSeqNo(),
                     primaryResponse.getPrimaryTerm(),

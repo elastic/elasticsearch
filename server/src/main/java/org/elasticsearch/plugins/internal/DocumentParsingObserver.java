@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.XContentParser;
  * A default implementation returns a noop DocumentParsingObserver - does not wrap a XContentParser and
  * does not do anything upon finishing parsing.
  */
-public interface DocumentParsingObserver  {
+public interface DocumentParsingObserver {
     /**
      * a default noop implementation
      */
@@ -24,10 +24,6 @@ public interface DocumentParsingObserver  {
         public XContentParser wrapParser(XContentParser xContentParser) {
             return xContentParser;
         }
-
-        @Override
-        public void close(String indexName) {}
-
 
         @Override
         public long getNormalisedBytesParsed() {
@@ -45,12 +41,6 @@ public interface DocumentParsingObserver  {
      * @return a decorator xContentParser
      */
     XContentParser wrapParser(XContentParser xContentParser);
-
-    /**
-     * An action to be performed upon finished parsing.
-     */
-    void close(String indexName);
-
 
     long getNormalisedBytesParsed();
 }

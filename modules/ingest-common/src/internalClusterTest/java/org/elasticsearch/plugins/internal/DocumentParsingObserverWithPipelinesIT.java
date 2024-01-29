@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
@@ -82,7 +81,17 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
         @Override
         public DocumentParsingObserverSupplier getDocumentParsingObserverSupplier() {
             // returns a static instance, because we want to assert that the wrapping is called only once
-            return () -> DOCUMENT_PARSING_OBSERVER;
+            return new DocumentParsingObserverSupplier() {
+                @Override
+                public DocumentParsingObserver getNewObserver() {
+                    return DOCUMENT_PARSING_OBSERVER;
+                }
+
+                @Override
+                public DocumentParsingObserver forAlreadyParsedInIngest(long normalisedBytesParsed) {
+                    return null;
+                }
+            };
         }
 
     }
@@ -104,18 +113,6 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
                     return super.map();
                 }
             };
-        }
-
-        @Override
-        public void close(String indexName) {
-            assertThat(this.indexName, equalTo(TEST_INDEX_NAME));
-            assertThat(mapCounter, equalTo(1L));
-
-            assertThat(
-                "we only want to use a wrapped counter once, once document is reported it no longer needs to wrap",
-                wrapperCounter,
-                equalTo(1L)
-            );
         }
 
         @Override

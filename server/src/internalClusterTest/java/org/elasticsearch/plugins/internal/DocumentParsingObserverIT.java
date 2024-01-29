@@ -22,7 +22,6 @@ import java.util.List;
 
 import static org.elasticsearch.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class DocumentParsingObserverIT extends ESIntegTestCase {
@@ -75,15 +74,20 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
         public DocumentParsingObserverSupplier getDocumentParsingObserverSupplier() {
             return new DocumentParsingObserverSupplier() {
                 @Override
-                public DocumentParsingObserver get() {
+                public DocumentParsingObserver getNewObserver() {
                     return new TestDocumentParsingObserver();
                 }
 
                 @Override
-                public DocumentParsingObserver forAlreadyParsedInIngest(String indexName, long normalisedBytesParsed) {
+                public DocumentParsingObserver forAlreadyParsedInIngest(long normalisedBytesParsed) {
                     return null;
                 }
-            } ;
+
+                @Override
+                public DocumentParsingReporter getDocumentParsingReporter() {
+                    return null;
+                }
+            };
         }
     }
 
@@ -101,12 +105,6 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
                     return super.nextToken();
                 }
             };
-        }
-
-        @Override
-        public void close(String indexName) {
-            assertThat(this.indexName, equalTo(TEST_INDEX_NAME));
-            assertThat(counter, equalTo(5L));
         }
 
         @Override

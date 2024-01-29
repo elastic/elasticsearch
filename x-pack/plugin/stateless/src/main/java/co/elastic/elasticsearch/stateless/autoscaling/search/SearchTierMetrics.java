@@ -51,7 +51,7 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
 
     public SearchTierMetrics(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_500_063)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_11_X)) {
             this.memoryMetrics = new MemoryMetrics(in);
             this.maxShardCopies = new MaxShardCopies(in);
             this.storageMetrics = new StorageMetrics(in);
@@ -78,7 +78,7 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_500_063)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_11_X)) {
             memoryMetrics.writeTo(out);
             maxShardCopies.writeTo(out);
             storageMetrics.writeTo(out);

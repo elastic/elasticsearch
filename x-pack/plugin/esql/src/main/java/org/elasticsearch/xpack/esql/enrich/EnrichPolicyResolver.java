@@ -183,12 +183,12 @@ public class EnrichPolicyResolver {
         for (Map.Entry<String, ResolvedEnrichPolicy> e : policies.entrySet()) {
             ResolvedEnrichPolicy curr = e.getValue();
             if (last != null && last.matchField().equals(curr.matchField()) == false) {
-                String error = "enrich policy [" + policyName + "] has different match_field across clusters";
-                return Tuple.tuple(null, error);
+                String detailed = "[" + last.matchField() + "] vs [" + curr.matchField() + "]";
+                return Tuple.tuple(null, "enrich policy [" + policyName + "] has different match_field across clusters " + detailed);
             }
             if (last != null && last.matchType().equals(curr.matchType()) == false) {
-                String error = "enrich policy [" + policyName + "] has different match_type across clusters";
-                return Tuple.tuple(null, error);
+                String detailed = "[" + last.matchType() + "] vs [" + curr.matchType() + "]";
+                return Tuple.tuple(null, "enrich policy [" + policyName + "] has different match_type across clusters " + detailed);
             }
             // merge mappings
             for (Map.Entry<String, EsField> m : curr.mapping().entrySet()) {
@@ -202,16 +202,16 @@ public class EnrichPolicyResolver {
                 );
                 EsField old = mappings.putIfAbsent(m.getKey(), field);
                 if (old != null && old.equals(field) == false) {
-                    String error = "enrich policy [" + policyName + "] has different mapping across clusters";
-                    return Tuple.tuple(null, error);
+                    String detailed = "[" + old.getDataType() + "] vs [" + field.getDataType() + "]";
+                    return Tuple.tuple(null, "enrich policy [" + policyName + "] has different mapping across clusters " + detailed);
                 }
             }
             // merge enrich fields
             if (unresolved.mode == Enrich.Mode.ANY
                 && enrichFields.isEmpty() == false
                 && enrichFields.equals(new HashSet<>(curr.enrichFields())) == false) {
-                String error = "enrich policy [" + policyName + "] has different enrich fields across clusters";
-                return Tuple.tuple(null, error);
+                String detailed = enrichFields + " vs " + curr.enrichFields();
+                return Tuple.tuple(null, "enrich policy [" + policyName + "] has different enrich fields across clusters " + detailed);
             }
             enrichFields.addAll(curr.enrichFields());
             // merge concrete indices

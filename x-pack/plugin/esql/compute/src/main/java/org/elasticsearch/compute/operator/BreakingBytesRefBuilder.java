@@ -60,9 +60,7 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
      */
     public BreakingBytesRefBuilder(CircuitBreaker breaker, String label, int initialCapacity) {
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE + bytesArrayRamBytesUsed(initialCapacity), label);
-        final byte[] bytes = new byte[initialCapacity];
-
-        this.bytes = new BytesRef(bytes);
+        this.bytes = new BytesRef(initialCapacity);
         this.breaker = breaker;
         this.label = label;
     }

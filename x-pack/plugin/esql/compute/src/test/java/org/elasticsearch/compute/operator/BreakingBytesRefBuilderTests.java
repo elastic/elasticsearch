@@ -99,30 +99,29 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
         });
     }
 
-    public void testShrunkCopy() {
-        int limit = between(1_000, 10_000);
-        String label = randomAlphaOfLength(4);
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+    public void testShrinkToFit() {
+        testAgainstOracle(() -> new TestIteration() {
+            int length = between(2, 100);
+            byte b = randomByte();
 
-        try (BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, label)) {
-            int length = between(1, 100);
-            int capacity = between(length, length + 100);
-
-            builder.grow(capacity);
-            for (int i = 0; i < length; i++) {
-                builder.append(randomByte());
+            @Override
+            public int size() {
+                return length;
             }
 
-            BreakingBytesRefBuilder copy = builder.shrunkCopy();
-            assertThat(copy.bytes().length, is(copy.length()));
-            assertThat(copy.bytesRefView(), equalTo(builder.bytesRefView()));
+            @Override
+            public void applyToBuilder(BreakingBytesRefBuilder builder) {
+                builder.grow(builder.length() + length);
+                builder.append(b);
+                builder.shrinkToFit();
+                assertThat(builder.bytes().length, is(builder.length()));
+            }
 
-            assertThat(breaker.getUsed(), equalTo(builder.ramBytesUsed() + copy.ramBytesUsed()));
-            assertThat(copy.ramBytesUsed(), equalTo(expectedRamUsage(copy, breaker, label)));
-
-            copy.close();
-        }
-        assertThat(breaker.getUsed(), equalTo(0L));
+            @Override
+            public void applyToOracle(BytesRefBuilder oracle) {
+                oracle.append(b);
+            }
+        });
     }
 
     interface TestIteration {
@@ -158,7 +157,11 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
                 iteration.applyToBuilder(builder);
                 iteration.applyToOracle(oracle);
                 assertThat(builder.bytesRefView(), equalTo(oracle.get()));
-                assertThat(builder.ramBytesUsed(), equalTo(expectedRamUsage(builder, breaker, label)));
+                assertThat(
+                    builder.ramBytesUsed(),
+                    // Label and breaker aren't counted in ramBytesUsed because they are usually shared with other instances.
+                    equalTo(RamUsageTester.ramUsed(builder) - RamUsageTester.ramUsed(label) - RamUsageTester.ramUsed(breaker))
+                );
                 assertThat(builder.ramBytesUsed(), equalTo(breaker.getUsed()));
             }
         }
@@ -167,10 +170,5 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
 
     private long ramForArray(int length) {
         return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + length);
-    }
-
-    private long expectedRamUsage(BreakingBytesRefBuilder builder, CircuitBreaker breaker, String label) {
-        // Label and breaker aren't counted in ramBytesUsed because they are usually shared with other instances.
-        return RamUsageTester.ramUsed(builder) - RamUsageTester.ramUsed(label) - RamUsageTester.ramUsed(breaker);
     }
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -65,6 +64,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -461,45 +461,31 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 String comparison = testCase.fieldName + truePredicate;
                 var query = "from test | where " + comparison;
                 Source expectedSource = new Source(1, 18, comparison);
-                String expectedLuceneQuery = LoggerMessageFormat.format(null, """
-                    {
-                      "esql_single_value" : {
-                        "field" : "{}",
-                        "next" : {
-                          "match_all" : {
-                            "boost" : 1.0
-                          }
-                        },
-                        "source" : "{}"
-                      }
-                    }""", testCase.fieldName, expectedSource);
-                doTestOutOfRangeFilterPushdown(query, expectedLuceneQuery);
+
+                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query);
+
+                assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
+                var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
+                assertThat(actualLuceneQuery.field(), equalTo(testCase.fieldName));
+                assertThat(actualLuceneQuery.source(), equalTo(expectedSource));
+
+                assertThat(actualLuceneQuery.next(), equalTo(QueryBuilders.matchAllQuery()));
             }
 
             for (String falsePredicate : alwaysFalsePredicates) {
                 String comparison = testCase.fieldName + falsePredicate;
                 var query = "from test | where " + comparison;
                 Source expectedSource = new Source(1, 18, comparison);
-                String expectedLuceneQuery = LoggerMessageFormat.format(null, """
-                    {
-                      "esql_single_value" : {
-                        "field" : "{}",
-                        "next" : {
-                          "bool" : {
-                            "must_not" : [
-                              {
-                                "match_all" : {
-                                  "boost" : 1.0
-                                }
-                              }
-                            ],
-                            "boost" : 1.0
-                          }
-                        },
-                        "source" : "{}"
-                      }
-                    }""", testCase.fieldName, expectedSource);
-                doTestOutOfRangeFilterPushdown(query, expectedLuceneQuery);
+
+                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query);
+
+                assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
+                var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
+                assertThat(actualLuceneQuery.field(), equalTo(testCase.fieldName));
+                assertThat(actualLuceneQuery.source(), equalTo(expectedSource));
+
+                var expectedInnerQuery = QueryBuilders.boolQuery().mustNot(QueryBuilders.matchAllQuery());
+                assertThat(actualLuceneQuery.next(), equalTo(expectedInnerQuery));
             }
         }
     }
@@ -512,7 +498,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *     \_FieldExtractExec[!alias_integer, boolean{f}#190, byte{f}#191, consta..][]
      *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"byte","next":{"match_all":{"boost":1.0}},...}}]
      */
-    private void doTestOutOfRangeFilterPushdown(String query, String expectedLuceneQuery) {
+    private EsQueryExec doTestOutOfRangeFilterPushdown(String query) {
         var analyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
 
         var plan = plan(query, EsqlTestUtils.TEST_SEARCH_STATS, analyzer);
@@ -523,7 +509,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var luceneQuery = as(fieldExtract.child(), EsQueryExec.class);
 
-        assertThat(luceneQuery.query().toString(), is(expectedLuceneQuery));
+        return luceneQuery;
     }
 
     /**

@@ -109,11 +109,13 @@ The following request lists all users, assuming you have the
 ----
 GET /_security/_query/user
 ----
+// TEST[setup:jacknich_user]
+// TEST[setup:sandrakn_user]
 
 A successful call returns a JSON structure that contains the information
 retrieved from one or more users:
 
-[source,js]
+[source,console-result]
 ----
 {
     "total": 2,
@@ -122,8 +124,9 @@ retrieved from one or more users:
         {
             "username": "jacknich",
             "roles": [
-                "superuser",
-                "other_role1"
+                "admin",
+                "other_role1",
+                ""
             ],
             "full_name": "Jack Nicholson",
             "email": "jacknich@example.com",
@@ -135,7 +138,7 @@ retrieved from one or more users:
         {
             "username": "sandrakn",
             "roles": [
-                "superuser",
+                "admin",
                 "other_role2"
             ],
             "full_name": "Sandra Knight",

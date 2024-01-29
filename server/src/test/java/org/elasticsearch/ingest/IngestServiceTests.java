@@ -55,6 +55,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingObserverSupplier;
+import org.elasticsearch.plugins.internal.DocumentParsingReporter;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -1170,19 +1171,21 @@ public class IngestServiceTests extends ESTestCase {
          * This test makes sure that for both insert and upsert requests, when we call executeBulkRequest DocumentParsingObserver is
          * called using a non-null index name.
          */
-        AtomicInteger setNameCalledCount = new AtomicInteger(0);
-        AtomicInteger closeCalled = new AtomicInteger(0);
+        AtomicInteger wrappedObserverWasUsed = new AtomicInteger(0);
+        AtomicInteger parsedValueWasUsed = new AtomicInteger(0);
         DocumentParsingObserverSupplier documentParsingObserverSupplier = new DocumentParsingObserverSupplier() {
             @Override
             public DocumentParsingObserver getNewObserver() {
                 return new DocumentParsingObserver() {
                     @Override
                     public XContentParser wrapParser(XContentParser xContentParser) {
+                        wrappedObserverWasUsed.incrementAndGet();
                         return xContentParser;
                     }
 
                     @Override
                     public long getNormalisedBytesParsed() {
+                        parsedValueWasUsed.incrementAndGet();
                         return 0;
                     }
 
@@ -1191,6 +1194,11 @@ public class IngestServiceTests extends ESTestCase {
 
             @Override
             public DocumentParsingObserver forAlreadyParsedInIngest(long normalisedBytesParsed) {
+                return null;
+            }
+
+            @Override
+            public DocumentParsingReporter getDocumentParsingReporter() {
                 return null;
             }
         };
@@ -1227,8 +1235,8 @@ public class IngestServiceTests extends ESTestCase {
             completionHandler,
             Names.WRITE
         );
-        assertThat(setNameCalledCount.get(), equalTo(2));
-        assertThat(closeCalled.get(), equalTo(2));
+        assertThat(wrappedObserverWasUsed.get(), equalTo(2));
+        assertThat(parsedValueWasUsed.get(), equalTo(2));
     }
 
     public void testExecuteSuccess() {

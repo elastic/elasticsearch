@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
@@ -74,8 +75,6 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
 
     public static class TestDocumentParsingObserverPlugin extends Plugin implements DocumentParsingObserverPlugin, IngestPlugin {
 
-        private static final TestDocumentParsingObserver DOCUMENT_PARSING_OBSERVER = new TestDocumentParsingObserver();
-
         public TestDocumentParsingObserverPlugin() {}
 
         @Override
@@ -84,22 +83,37 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
             return new DocumentParsingObserverSupplier() {
                 @Override
                 public DocumentParsingObserver getNewObserver() {
-                    return DOCUMENT_PARSING_OBSERVER;
+                    return new TestDocumentParsingObserver(0L);
                 }
 
                 @Override
                 public DocumentParsingObserver forAlreadyParsedInIngest(long normalisedBytesParsed) {
-                    return null;
+                    return new TestDocumentParsingObserver(normalisedBytesParsed);
+                }
+
+                @Override
+                public DocumentParsingReporter getDocumentParsingReporter() {
+                    return new TestDocumentParsingReporter();
                 }
             };
         }
+    }
 
+    public static class TestDocumentParsingReporter implements DocumentParsingReporter {
+        @Override
+        public void onCompleted(String indexName, long normalizedBytesParsed) {
+            assertThat(indexName, equalTo(TEST_INDEX_NAME));
+            assertThat(normalizedBytesParsed, equalTo(1L));
+        }
     }
 
     public static class TestDocumentParsingObserver implements DocumentParsingObserver {
         long mapCounter = 0;
         long wrapperCounter = 0;
-        String indexName;
+
+        public TestDocumentParsingObserver(long mapCounter) {
+            this.mapCounter = mapCounter;
+        }
 
         @Override
         public XContentParser wrapParser(XContentParser xContentParser) {
@@ -117,7 +131,7 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
 
         @Override
         public long getNormalisedBytesParsed() {
-            return 0;
+            return mapCounter;
         }
     }
 

@@ -22,6 +22,7 @@ import java.util.List;
 
 import static org.elasticsearch.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class DocumentParsingObserverIT extends ESIntegTestCase {
@@ -85,15 +86,23 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
 
                 @Override
                 public DocumentParsingReporter getDocumentParsingReporter() {
-                    return null;
+                    return new TestDocumentParsingReporter();
                 }
             };
         }
     }
 
+    public static class TestDocumentParsingReporter implements DocumentParsingReporter {
+
+        @Override
+        public void onCompleted(String indexName, long normalizedBytesParsed) {
+            assertThat(indexName, equalTo(TEST_INDEX_NAME));
+            assertThat(normalizedBytesParsed, equalTo(5L));
+        }
+    }
+
     public static class TestDocumentParsingObserver implements DocumentParsingObserver {
         long counter = 0;
-        String indexName;
 
         @Override
         public XContentParser wrapParser(XContentParser xContentParser) {
@@ -109,7 +118,7 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
 
         @Override
         public long getNormalisedBytesParsed() {
-            return 0;
+            return counter;
         }
     }
 }

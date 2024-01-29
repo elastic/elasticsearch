@@ -24,7 +24,6 @@ public interface DocumentParsingReporter {
 
     };
 
-
     /**
      * An action to be performed upon finished parsing.
      */

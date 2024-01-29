@@ -276,7 +276,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                 ),
                                 context,
                                 null,
-                                documentParsingObserverSupplier);
+                                documentParsingObserverSupplier
+                            );
                         }
                         finishRequest();
                     }
@@ -409,7 +410,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             } catch (Exception e) {
                 logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
                 assert result.getId() != null;
-                onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult, documentParsingObserverSupplier);
+                onComplete(
+                    exceptionToResult(e, primary, isDelete, version, result.getId()),
+                    context,
+                    updateResult,
+                    documentParsingObserverSupplier
+                );
                 return true;
             }
 
@@ -433,7 +439,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                 @Override
                 public void onFailure(Exception e) {
-                    onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult, documentParsingObserverSupplier);
+                    onComplete(
+                        exceptionToResult(e, primary, isDelete, version, result.getId()),
+                        context,
+                        updateResult,
+                        documentParsingObserverSupplier
+                    );
                     // Requesting mapping update failed, so we don't have to wait for a cluster state update
                     assert context.isInitial();
                     itemDoneListener.onResponse(null);
@@ -451,8 +462,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return isDelete ? primary.getFailedDeleteResult(e, version, id) : primary.getFailedIndexResult(e, version, id);
     }
 
-    private static void onComplete(Engine.Result r, BulkPrimaryExecutionContext context, UpdateHelper.Result updateResult,
-                                   DocumentParsingObserverSupplier documentParsingObserverSupplier) {
+    private static void onComplete(
+        Engine.Result r,
+        BulkPrimaryExecutionContext context,
+        UpdateHelper.Result updateResult,
+        DocumentParsingObserverSupplier documentParsingObserverSupplier
+    ) {
         context.markOperationAsExecuted(r);
         final DocWriteRequest<?> docWriteRequest = context.getCurrent();
         final DocWriteRequest.OpType opType = docWriteRequest.opType();

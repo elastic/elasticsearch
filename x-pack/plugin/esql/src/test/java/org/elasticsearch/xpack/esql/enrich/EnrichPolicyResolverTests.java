@@ -225,26 +225,12 @@ public class EnrichPolicyResolverTests extends ESTestCase {
 
     public void testRemoteAddress() {
         Set<String> clusters = Set.of("cluster_a", "cluster_b");
-        {
-            var mode = Enrich.Mode.ANY;
+        for (Enrich.Mode mode : List.of(Enrich.Mode.ANY, Enrich.Mode.REMOTE)) {
             var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("address", mode)));
             assertNull(resolution.getResolvedPolicy("address", mode));
             assertThat(
                 resolution.getError("address", mode),
-                equalTo("enrich policy [address] has different enrich fields across clusters")
-            );
-        }
-        {
-            var mode = Enrich.Mode.REMOTE;
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("address", mode)));
-            ResolvedEnrichPolicy resolved = resolution.getResolvedPolicy("address", mode);
-            assertNotNull(resolved);
-            assertThat(resolved.matchField(), equalTo("emp_id"));
-            assertThat(resolved.enrichFields(), equalTo(List.of("country", "city", "state")));
-            assertThat(resolved.mapping().keySet(), containsInAnyOrder("emp_id", "country", "city", "state"));
-            assertThat(
-                resolved.concreteIndices(),
-                equalTo(Map.of("cluster_a", ".enrich-address-1002", "cluster_b", ".enrich-address-1003"))
+                equalTo("enrich policy [address] has different enrich fields across clusters; offending fields: [state]")
             );
         }
     }
@@ -294,7 +280,10 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             var mode = Enrich.Mode.ANY;
             var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
             assertNull(resolution.getResolvedPolicy("author", mode));
-            assertThat(resolution.getError("author", mode), equalTo("enrich policy [author] has different match_type across clusters"));
+            assertThat(
+                resolution.getError("author", mode),
+                equalTo("enrich policy [author] has different match_type across clusters [match] vs [range]")
+            );
         }
         {
             var mode = Enrich.Mode.REMOTE;
@@ -315,7 +304,10 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             var mode = Enrich.Mode.ANY;
             var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
             assertNull(resolution.getResolvedPolicy("author", mode));
-            assertThat(resolution.getError("author", mode), equalTo("enrich policy [author] has different mapping across clusters"));
+            assertThat(
+                resolution.getError("author", mode),
+                equalTo("enrich policy [author] has different mapping across clusters [KEYWORD] vs [LONG]")
+            );
         }
         {
             var mode = Enrich.Mode.REMOTE;
@@ -336,13 +328,19 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             var mode = Enrich.Mode.ANY;
             var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
             assertNull(resolution.getResolvedPolicy("author", mode));
-            assertThat(resolution.getError("author", mode), equalTo("enrich policy [author] has different match_type across clusters"));
+            assertThat(
+                resolution.getError("author", mode),
+                equalTo("enrich policy [author] has different match_type across clusters [match] vs [range]")
+            );
         }
         {
             var mode = Enrich.Mode.REMOTE;
             var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
             assertNull(resolution.getResolvedPolicy("author", mode));
-            assertThat(resolution.getError("author", mode), equalTo("enrich policy [author] has different match_type across clusters"));
+            assertThat(
+                resolution.getError("author", mode),
+                equalTo("enrich policy [author] has different match_type across clusters [range] vs [match]")
+            );
         }
     }
 
@@ -352,13 +350,19 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             var mode = Enrich.Mode.ANY;
             var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
             assertNull(resolution.getResolvedPolicy("author", mode));
-            assertThat(resolution.getError("author", mode), equalTo("enrich policy [author] has different mapping across clusters"));
+            assertThat(
+                resolution.getError("author", mode),
+                equalTo("enrich policy [author] has different mapping across clusters [KEYWORD] vs [LONG]")
+            );
         }
         {
             var mode = Enrich.Mode.REMOTE;
             var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
             assertNull(resolution.getResolvedPolicy("author", mode));
-            assertThat(resolution.getError("author", mode), equalTo("enrich policy [author] has different mapping across clusters"));
+            assertThat(
+                resolution.getError("author", mode),
+                equalTo("enrich policy [author] has different mapping across clusters [KEYWORD] vs [LONG]")
+            );
         }
     }
 

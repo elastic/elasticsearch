@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,7 +51,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -139,8 +139,6 @@ public class EnrichPolicyResolver {
 
     /**
      * Resolve an enrich policy by merging the lookup responses from the target clusters.
-     * In ANY mode, the exact enrich fields across policies are required,
-     * while in REMOTE mode, a superset of enrich fields is used for the combined policy.
      * @return a resolved enrich policy or an error
      */
     private Tuple<ResolvedEnrichPolicy, String> mergeLookupResults(
@@ -177,7 +175,6 @@ public class EnrichPolicyResolver {
             return Tuple.tuple(null, reason);
         }
         Map<String, EsField> mappings = new HashMap<>();
-        Collection<String> enrichFields = new LinkedHashSet<>();
         Map<String, String> concreteIndices = new HashMap<>();
         ResolvedEnrichPolicy last = null;
         for (Map.Entry<String, ResolvedEnrichPolicy> e : policies.entrySet()) {
@@ -206,26 +203,25 @@ public class EnrichPolicyResolver {
                     return Tuple.tuple(null, "enrich policy [" + policyName + "] has different mapping across clusters " + detailed);
                 }
             }
-            // merge enrich fields
-            if (unresolved.mode == Enrich.Mode.ANY
-                && enrichFields.isEmpty() == false
-                && enrichFields.equals(new HashSet<>(curr.enrichFields())) == false) {
-                String detailed = enrichFields + " vs " + curr.enrichFields();
-                return Tuple.tuple(null, "enrich policy [" + policyName + "] has different enrich fields across clusters " + detailed);
+            if (last != null) {
+                final Set<String> first = Sets.newHashSet(last.enrichFields());
+                final Set<String> second = Sets.newHashSet(curr.enrichFields());
+                if (first.equals(second) == false) {
+                    Collection<String> diff = Sets.union(Sets.difference(first, second), Sets.difference(second, first))
+                        .stream()
+                        .sorted()
+                        .limit(20)
+                        .toList();
+                    String detailed = "; offending fields: " + diff;
+                    return Tuple.tuple(null, "enrich policy [" + policyName + "] has different enrich fields across clusters" + detailed);
+                }
             }
-            enrichFields.addAll(curr.enrichFields());
             // merge concrete indices
             concreteIndices.putAll(curr.concreteIndices());
             last = curr;
         }
         assert last != null;
-        var resolved = new ResolvedEnrichPolicy(
-            last.matchField(),
-            last.matchType(),
-            new ArrayList<>(enrichFields),
-            concreteIndices,
-            mappings
-        );
+        var resolved = new ResolvedEnrichPolicy(last.matchField(), last.matchType(), last.enrichFields(), concreteIndices, mappings);
         return Tuple.tuple(resolved, null);
     }
 

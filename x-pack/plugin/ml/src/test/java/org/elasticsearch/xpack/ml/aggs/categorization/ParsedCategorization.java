@@ -12,7 +12,8 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -137,7 +138,7 @@ class ParsedCategorization extends ParsedMultiBucketAggregation<ParsedCategoriza
             XContentParser.Token token;
             String currentFieldName = parser.currentName();
 
-            List<Aggregation> aggregations = new ArrayList<>();
+            List<InternalAggregation> aggregations = new ArrayList<>();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -160,13 +161,13 @@ class ParsedCategorization extends ParsedMultiBucketAggregation<ParsedCategoriza
                         XContentParserUtils.parseTypedKeysObject(
                             parser,
                             Aggregation.TYPED_KEYS_DELIMITER,
-                            Aggregation.class,
+                            InternalAggregation.class,
                             aggregations::add
                         );
                     }
                 }
             }
-            bucket.setAggregations(new Aggregations(aggregations));
+            bucket.setAggregations(InternalAggregations.from(aggregations));
             return bucket;
         }
 

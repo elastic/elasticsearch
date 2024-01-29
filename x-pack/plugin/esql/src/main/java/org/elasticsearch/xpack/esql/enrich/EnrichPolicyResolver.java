@@ -244,8 +244,8 @@ public class EnrichPolicyResolver {
                 + missingClusters.stream().map(c -> c.isEmpty() ? "_local" : c).collect(Collectors.joining(", "))
                 + "]";
         }
-        var allPolices = counts.entrySet().stream().filter(e -> e.getValue() == missingClusters.size()).map(Map.Entry::getKey).toList();
-        List<String> potentialMatches = StringUtils.findSimilar(policyName, allPolices);
+        var allPolicies = counts.entrySet().stream().filter(e -> e.getValue() == missingClusters.size()).map(Map.Entry::getKey).toList();
+        List<String> potentialMatches = StringUtils.findSimilar(policyName, allPolicies);
         if (potentialMatches.isEmpty() == false) {
             // TODO: Should we remove this suggestion?
             var suggestion = potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]" : "any of " + potentialMatches;
@@ -386,12 +386,12 @@ public class EnrichPolicyResolver {
                             refs.acquire(indexResult -> {
                                 if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
                                     EsIndex esIndex = indexResult.get();
-                                    var concreteIndies = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));
+                                    var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));
                                     var resolved = new ResolvedEnrichPolicy(
                                         p.getMatchField(),
                                         p.getType(),
                                         p.getEnrichFields(),
-                                        concreteIndies,
+                                        concreteIndices,
                                         esIndex.mapping()
                                     );
                                     resolvedPolices.put(policyName, resolved);

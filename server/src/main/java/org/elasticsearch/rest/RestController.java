@@ -908,10 +908,22 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public boolean isEndOfResponse() {
+            return delegate.isEndOfResponse();
+        }
+
+        @Override
+        public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
+            delegate.getContinuation(
+                listener.map(continuation -> new EncodedLengthTrackingChunkedRestResponseBody(continuation, responseLengthRecorder))
+            );
+        }
+
+        @Override
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
             final ReleasableBytesReference bytesReference = delegate.encodeChunk(sizeHint, recycler);
             responseLengthRecorder.addChunkLength(bytesReference.length());
-            if (isDone()) {
+            if (isDone() && isEndOfResponse()) {
                 responseLengthRecorder.close();
             }
             return bytesReference;

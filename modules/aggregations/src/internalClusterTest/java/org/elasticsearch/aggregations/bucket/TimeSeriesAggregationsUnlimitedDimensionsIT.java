@@ -109,7 +109,6 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
                 .put("index.number_of_replicas", randomIntBetween(1, 3))
                 .put("time_series.start_time", startMillis)
                 .put("time_series.end_time", endMillis)
-                .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), numberOfDimensions + 1)
                 .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), 4192)
                 .build()
         ).setMapping(mapping).get();

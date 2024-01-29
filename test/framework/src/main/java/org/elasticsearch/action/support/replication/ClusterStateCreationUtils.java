@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.test.ESTestCase.indexSettings;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
@@ -174,8 +175,7 @@ public class ClusterStateCreationUtils {
             unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
         }
         indexShardRoutingBuilder.addShard(
-            TestShardRouting.shardRoutingBuilder(index, 0, primaryNode, true, primaryState)
-                .withRelocatingNodeId(relocatingNode)
+            shardRoutingBuilder(index, 0, primaryNode, true, primaryState).withRelocatingNodeId(relocatingNode)
                 .withUnassignedInfo(unassignedInfo)
                 .withRole(primaryRole)
                 .build()
@@ -195,8 +195,7 @@ public class ClusterStateCreationUtils {
                 unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
             }
             indexShardRoutingBuilder.addShard(
-                TestShardRouting.shardRoutingBuilder(index, shardId.id(), replicaNode, false, replicaState.v1())
-                    .withRelocatingNodeId(relocatingNode)
+                shardRoutingBuilder(index, shardId.id(), replicaNode, false, replicaState.v1()).withRelocatingNodeId(relocatingNode)
                     .withUnassignedInfo(unassignedInfo)
                     .withRole(replicaState.v2())
                     .build()
@@ -398,9 +397,9 @@ public class ClusterStateCreationUtils {
                 );
                 for (int replica = 0; replica < replicaRoles.size(); replica++) {
                     indexShardRoutingBuilder.addShard(
-                        TestShardRouting.shardRoutingBuilder(index, i, newNode(replica + 1).getId(), false, ShardRoutingState.STARTED)
-                            .withRole(replicaRoles.get(replica))
-                            .build()
+                        shardRoutingBuilder(index, i, newNode(replica + 1).getId(), false, ShardRoutingState.STARTED).withRole(
+                            replicaRoles.get(replica)
+                        ).build()
                     );
                 }
                 indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);

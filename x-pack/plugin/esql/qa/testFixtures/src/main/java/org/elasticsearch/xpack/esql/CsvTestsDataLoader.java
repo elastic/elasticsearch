@@ -243,6 +243,7 @@ public class CsvTestsDataLoader {
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
         Logger logger
     ) throws IOException {
+        // The indexName is optional for a bulk request, but we use it for routing in MultiClusterSpecIT.
         Request request = new Request("POST", "/" + indexName + "/_bulk");
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(resource)) {

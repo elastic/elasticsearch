@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.ml.datafeed.extractor;
+package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -23,7 +23,7 @@ import java.time.ZoneOffset;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class ExtractorUtilsTests extends ESTestCase {
+public class DatafeedConfigUtilsTests extends ESTestCase {
 
     public void testGetHistogramAggregation_DateHistogramHasSibling() {
         AvgAggregationBuilder avg = AggregationBuilders.avg("avg");
@@ -31,7 +31,7 @@ public class ExtractorUtilsTests extends ESTestCase {
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> ExtractorUtils.getHistogramAggregation(
+            () -> DatafeedConfigUtils.getHistogramAggregation(
                 new AggregatorFactories.Builder().addAggregator(avg).addAggregator(dateHistogram).getAggregatorFactories()
             )
         );
@@ -42,7 +42,9 @@ public class ExtractorUtilsTests extends ESTestCase {
         terms.subAggregation(avg);
         e = expectThrows(
             ElasticsearchException.class,
-            () -> ExtractorUtils.getHistogramAggregation(new AggregatorFactories.Builder().addAggregator(terms).getAggregatorFactories())
+            () -> DatafeedConfigUtils.getHistogramAggregation(
+                new AggregatorFactories.Builder().addAggregator(terms).getAggregatorFactories()
+            )
         );
         assertEquals("The date_histogram (or histogram) aggregation cannot have sibling aggregations", e.getMessage());
     }
@@ -52,20 +54,20 @@ public class ExtractorUtilsTests extends ESTestCase {
         TermsAggregationBuilder nestedTerms = AggregationBuilders.terms("nested_terms");
 
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time");
-        AggregationBuilder histogramAggregationBuilder = ExtractorUtils.getHistogramAggregation(
+        AggregationBuilder histogramAggregationBuilder = DatafeedConfigUtils.getHistogramAggregation(
             new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories()
         );
         assertEquals(dateHistogram, histogramAggregationBuilder);
 
         dateHistogram.subAggregation(avg).subAggregation(nestedTerms);
-        histogramAggregationBuilder = ExtractorUtils.getHistogramAggregation(
+        histogramAggregationBuilder = DatafeedConfigUtils.getHistogramAggregation(
             new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories()
         );
         assertEquals(dateHistogram, histogramAggregationBuilder);
 
         TermsAggregationBuilder toplevelTerms = AggregationBuilders.terms("top_level");
         toplevelTerms.subAggregation(dateHistogram);
-        histogramAggregationBuilder = ExtractorUtils.getHistogramAggregation(
+        histogramAggregationBuilder = DatafeedConfigUtils.getHistogramAggregation(
             new AggregatorFactories.Builder().addAggregator(toplevelTerms).getAggregatorFactories()
         );
 
@@ -76,7 +78,9 @@ public class ExtractorUtilsTests extends ESTestCase {
         TermsAggregationBuilder terms = AggregationBuilders.terms("top_level");
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> ExtractorUtils.getHistogramAggregation(new AggregatorFactories.Builder().addAggregator(terms).getAggregatorFactories())
+            () -> DatafeedConfigUtils.getHistogramAggregation(
+                new AggregatorFactories.Builder().addAggregator(terms).getAggregatorFactories()
+            )
         );
         assertEquals("A date_histogram (or histogram) aggregation is required", e.getMessage());
     }
@@ -90,7 +94,7 @@ public class ExtractorUtilsTests extends ESTestCase {
             .subAggregation(maxTime);
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> ExtractorUtils.getHistogramIntervalMillis(dateHistogram)
+            () -> DatafeedConfigUtils.getHistogramIntervalMillis(dateHistogram)
         );
 
         assertThat(e.getMessage(), equalTo("ML requires date_histogram.time_zone to be UTC"));
@@ -104,7 +108,7 @@ public class ExtractorUtilsTests extends ESTestCase {
             .fixedInterval(new DateHistogramInterval(300000L + "ms"))
             .timeZone(zone)
             .subAggregation(maxTime);
-        assertThat(ExtractorUtils.getHistogramIntervalMillis(dateHistogram), is(300_000L));
+        assertThat(DatafeedConfigUtils.getHistogramIntervalMillis(dateHistogram), is(300_000L));
     }
 
     public void testGetHistogramIntervalMillis_GivenUtcTimeZones() {
@@ -115,22 +119,22 @@ public class ExtractorUtilsTests extends ESTestCase {
             .fixedInterval(new DateHistogramInterval("300000ms"))
             .timeZone(zone)
             .subAggregation(maxTime);
-        assertThat(ExtractorUtils.getHistogramIntervalMillis(dateHistogram), is(300_000L));
+        assertThat(DatafeedConfigUtils.getHistogramIntervalMillis(dateHistogram), is(300_000L));
     }
 
     public void testIsHistogram() {
-        assertTrue(ExtractorUtils.isHistogram(AggregationBuilders.dateHistogram("time")));
-        assertTrue(ExtractorUtils.isHistogram(AggregationBuilders.histogram("time")));
-        assertFalse(ExtractorUtils.isHistogram(AggregationBuilders.max("time")));
+        assertTrue(DatafeedConfigUtils.isHistogram(AggregationBuilders.dateHistogram("time")));
+        assertTrue(DatafeedConfigUtils.isHistogram(AggregationBuilders.histogram("time")));
+        assertFalse(DatafeedConfigUtils.isHistogram(AggregationBuilders.max("time")));
     }
 
     public void testValidateAndGetCalendarInterval() {
-        assertEquals(300 * 1000L, ExtractorUtils.validateAndGetCalendarInterval("5m"));
-        assertEquals(7200 * 1000L, ExtractorUtils.validateAndGetCalendarInterval("2h"));
-        assertEquals(86400L * 1000L, ExtractorUtils.validateAndGetCalendarInterval("1d"));
+        assertEquals(300 * 1000L, DatafeedConfigUtils.validateAndGetCalendarInterval("5m"));
+        assertEquals(7200 * 1000L, DatafeedConfigUtils.validateAndGetCalendarInterval("2h"));
+        assertEquals(86400L * 1000L, DatafeedConfigUtils.validateAndGetCalendarInterval("1d"));
     }
 
     public void testValidateAndGetCalendarInterval_intervalIsLongerThanAWeek() {
-        expectThrows(ElasticsearchException.class, () -> ExtractorUtils.validateAndGetCalendarInterval("8d"));
+        expectThrows(ElasticsearchException.class, () -> DatafeedConfigUtils.validateAndGetCalendarInterval("8d"));
     }
 }

@@ -21,7 +21,7 @@ result. This API is only for <<native-realm,native users>>.
 [[security-api-query-user-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the  `read_security` cluster privileges.
+* To use this API, you must have at least the  `read_security` cluster privilege.
 
 [[security-api-query-user-desc]]
 ==== {api-description-title}

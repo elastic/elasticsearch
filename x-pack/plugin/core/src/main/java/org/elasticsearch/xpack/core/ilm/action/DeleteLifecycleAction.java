@@ -24,7 +24,7 @@ public class DeleteLifecycleAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/ilm/delete";
 
     protected DeleteLifecycleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

@@ -29,7 +29,7 @@ public class GetSecuritySettingsAction extends ActionType<GetSecuritySettingsAct
     public static final String NAME = "cluster:admin/xpack/security/settings/get";
 
     public GetSecuritySettingsAction() {
-        super(NAME, GetSecuritySettingsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<GetSecuritySettingsAction.Request> {

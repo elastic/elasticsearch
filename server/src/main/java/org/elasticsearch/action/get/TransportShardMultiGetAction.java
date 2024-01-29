@@ -48,7 +48,7 @@ import static org.elasticsearch.core.Strings.format;
 public class TransportShardMultiGetAction extends TransportSingleShardAction<MultiGetShardRequest, MultiGetShardResponse> {
 
     private static final String ACTION_NAME = TransportMultiGetAction.NAME + "[shard]";
-    public static final ActionType<MultiGetShardResponse> TYPE = new ActionType<>(ACTION_NAME, MultiGetShardResponse::new);
+    public static final ActionType<MultiGetShardResponse> TYPE = new ActionType<>(ACTION_NAME);
     private static final Logger logger = LogManager.getLogger(TransportShardMultiGetAction.class);
 
     private final IndicesService indicesService;

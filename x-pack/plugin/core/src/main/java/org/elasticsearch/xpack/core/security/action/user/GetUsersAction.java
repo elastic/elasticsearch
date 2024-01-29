@@ -17,6 +17,6 @@ public class GetUsersAction extends ActionType<GetUsersResponse> {
     public static final String NAME = "cluster:admin/xpack/security/user/get";
 
     protected GetUsersAction() {
-        super(NAME, GetUsersResponse::new);
+        super(NAME);
     }
 }

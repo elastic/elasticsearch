@@ -39,7 +39,7 @@ public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope
     );
 
-    public static final ActionType<SeekStatsResponse> SEEK_STATS_ACTION = ActionType.localOnly("cluster:monitor/seek_stats");
+    public static final ActionType<SeekStatsResponse> SEEK_STATS_ACTION = new ActionType<>("cluster:monitor/seek_stats");
 
     private final SeekStatsService seekStatsService = new SeekStatsService();
     private final boolean enabled;

@@ -221,7 +221,7 @@ public final class RemoteClusterLicenseChecker {
             request.setCategories(EnumSet.of(XPackInfoRequest.Category.LICENSE));
             try {
                 client.getRemoteClusterClient(clusterAlias, remoteClientResponseExecutor)
-                    .execute(XPackInfoAction.INSTANCE, request, contextPreservingActionListener);
+                    .execute(XPackInfoAction.REMOTE_TYPE, request, contextPreservingActionListener);
             } catch (final Exception e) {
                 contextPreservingActionListener.onFailure(e);
             }

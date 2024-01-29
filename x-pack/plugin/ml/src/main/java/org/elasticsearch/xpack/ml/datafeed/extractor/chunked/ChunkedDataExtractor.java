@@ -21,11 +21,11 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 
 import java.io.IOException;
@@ -178,6 +178,22 @@ public class ChunkedDataExtractor implements DataExtractor {
             if (isNewSearch && hasNext()) {
                 // If it was a new search it means it returned 0 results. Thus,
                 // we reconfigure and jump to the next time interval where there are data.
+                // In theory, if everything is consistent, it would be sufficient to call
+                // setUpChunkedSearch() here. However, the way that works is to take the
+                // query from the datafeed config and add on some simple aggregations.
+                // These aggregations are completely separate from any that might be defined
+                // in the datafeed config. It is possible that the aggregations in the
+                // datafeed config rather than the query are responsible for no data being
+                // found. For example, "filter" or "bucket_selector" aggregations can do this.
+                // Originally we thought this situation would never happen, with the query
+                // selecting data and the aggregations just grouping it, but recently we've
+                // seen cases of users filtering in the aggregations. Therefore, we
+                // unconditionally advance the start time by one chunk here. setUpChunkedSearch()
+                // might then advance substantially further, but in the pathological cases
+                // where setUpChunkedSearch() thinks data exists at the current start time
+                // while the datafeed's own aggregation doesn't, at least we'll step forward
+                // a little bit rather than go into an infinite loop.
+                currentStart += chunkSpan;
                 setUpChunkedSearch();
             }
         }
@@ -287,7 +303,7 @@ public class ChunkedDataExtractor implements DataExtractor {
 
         private SearchSourceBuilder rangeSearchBuilder() {
             return new SearchSourceBuilder().size(0)
-                .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, currentStart, context.end))
+                .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, currentStart, context.end))
                 .runtimeMappings(context.runtimeMappings)
                 .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))
                 .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.timeField));

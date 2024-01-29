@@ -197,7 +197,7 @@ public class MetadataTests extends ESTestCase {
             Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index", "d2" });
             assertEquals(1, aliases.size());
             List<DataStreamAlias> found = aliases.get("d2");
-            assertThat(found, transformedItemsMatch(DataStreamAlias::getAlias, contains("alias2", "alias2-part2")));
+            assertThat(found, transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
         }
 
         // test exclusion
@@ -207,12 +207,12 @@ public class MetadataTests extends ESTestCase {
                 request.aliases(),
                 new String[] { "index", "d1", "d2", "d3", "d4" }
             );
-            assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, contains("alias2", "alias2-part2")));
+            assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
             assertThat(aliases.get("d1"), transformedItemsMatch(DataStreamAlias::getAlias, contains("alias1")));
 
             request.aliases("*", "-alias1");
             aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index", "d1", "d2", "d3", "d4" });
-            assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, contains("alias2", "alias2-part2")));
+            assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
             assertNull(aliases.get("d1"));
         }
     }
@@ -241,7 +241,7 @@ public class MetadataTests extends ESTestCase {
         assertEquals(1, aliases.get("d1").size());
         assertEquals(2, aliases.get("d2").size());
 
-        assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, contains("alias2", "alias2-part2")));
+        assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
     }
 
     public void testFindAliasWithExclusion() {

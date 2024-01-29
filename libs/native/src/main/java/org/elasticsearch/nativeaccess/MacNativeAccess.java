@@ -9,6 +9,7 @@
 package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
@@ -96,11 +97,16 @@ class MacNativeAccess extends PosixNativeAccess {
         execSandboxState = ExecSandboxState.ALL_THREADS;
     }
 
+    @SuppressForbidden(reason = "Java tmp dir is ok")
+    private static Path createTempRulesFile() throws IOException {
+        return Files.createTempFile("es", "sb");
+    }
+
     private void initMacSandbox() {
         // write rules to a temporary file, which will be passed to sandbox_init()
         Path rules;
         try {
-            rules = Files.createTempFile("es", "sb");
+            rules = createTempRulesFile();
             Files.write(rules, Collections.singleton(SANDBOX_RULES));
         } catch (IOException e) {
             throw new UncheckedIOException(e);

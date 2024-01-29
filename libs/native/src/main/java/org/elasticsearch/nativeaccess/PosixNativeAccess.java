@@ -99,7 +99,6 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         var rlimit = libc.newRLimit();
         if (libc.getrlimit(RLIMIT_AS, rlimit) == 0) {
             maxVirtualMemorySize = rlimit.rlim_cur();
-            System.out.println("retrieved rlimit=" + rlimit);
         } else {
             logger.warn("unable to retrieve max size virtual memory [" + libc.strerror(libc.errno()) + "]");
         }

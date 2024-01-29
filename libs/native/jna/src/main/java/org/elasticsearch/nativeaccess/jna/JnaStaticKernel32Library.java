@@ -23,6 +23,7 @@ import org.elasticsearch.nativeaccess.NativeAccess.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.jna.JnaKernel32Library.JnaAddress;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library.Address;
+import org.elasticsearch.nativeaccess.lib.Kernel32Library.MemoryBasicInformation;
 
 import java.util.Arrays;
 import java.util.List;
@@ -35,20 +36,20 @@ class JnaStaticKernel32Library {
         Native.register("kernel32");
     }
 
-    static class SizeT extends IntegerType {
+    public static class SizeT extends IntegerType {
         // JNA requires this no-arg constructor to be public,
         // otherwise it fails to register kernel32 library
         public SizeT() {
             this(0);
         }
 
-        SizeT(long value) {
+        public SizeT(long value) {
             super(Native.SIZE_T_SIZE, value);
         }
     }
 
     /**
-     * @see org.elasticsearch.nativeaccess.lib.Kernel32Library.MemoryBasicInformation
+     * @see Kernel32Library.MemoryBasicInformation
      */
     static class JnaMemoryBasicInformation extends Structure implements Kernel32Library.MemoryBasicInformation {
         // note: these members must be public for jna to set them
@@ -124,12 +125,12 @@ class JnaStaticKernel32Library {
     static native int GetLastError();
 
     /**
-     * @see org.elasticsearch.nativeaccess.lib.Kernel32Library#VirtualLock(Address, long)
+     * @see Kernel32Library#VirtualLock(Address, long)
      */
     static native boolean VirtualLock(Pointer address, SizeT size);
 
     /**
-     * @see org.elasticsearch.nativeaccess.lib.Kernel32Library#VirtualQueryEx(Kernel32Library.Handle, Address, Kernel32Library.MemoryBasicInformation)
+     * @see Kernel32Library#VirtualQueryEx(Kernel32Library.Handle, Address, MemoryBasicInformation)
      */
     static native int VirtualQueryEx(Pointer handle, Pointer address, JnaMemoryBasicInformation memoryInfo, int length);
 

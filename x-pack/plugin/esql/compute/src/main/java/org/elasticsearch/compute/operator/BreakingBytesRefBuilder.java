@@ -99,6 +99,26 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     }
 
     /**
+     * Return a (deep) copy whose capacity matches its {@link #length()}.
+     */
+    public BreakingBytesRefBuilder shrunkCopy() {
+        BreakingBytesRefBuilder copy = new BreakingBytesRefBuilder(breaker, label);
+        copy.bytes.length = length();
+
+        breaker.addEstimateBytesAndMaybeBreak(
+            RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + length() * Byte.BYTES),
+            label
+        );
+        final byte[] bytesCopy = new byte[length()];
+
+        System.arraycopy(bytes.bytes, 0, bytesCopy, 0, length());
+        copy.bytes.bytes = bytesCopy;
+        breaker.addWithoutBreaking(-RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER));
+
+        return copy;
+    }
+
+    /**
      * Return the underlying bytes being built for direct manipulation.
      * Callers will typically use this in combination with {@link #grow},
      * {@link #length} and {@link #setLength} like this:

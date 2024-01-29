@@ -791,10 +791,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 if (response.isChunked() == false) {
                     methodHandlers.addResponseStats(response.content().length());
                 } else {
-                    response = RestResponse.chunked(
-                        response.status(),
-                        new EncodedLengthTrackingChunkedRestResponseBody(response.chunkedContent(), methodHandlers)
-                    );
+                    final var wrapped = new EncodedLengthTrackingChunkedRestResponseBody(response.chunkedContent(), methodHandlers);
+                    final var headers = response.getHeaders();
+                    response = RestResponse.chunked(response.status(), wrapped);
+                    for (final var header : headers.entrySet()) {
+                        for (final var value : header.getValue()) {
+                            response.addHeader(header.getKey(), value);
+                        }
+                    }
                 }
                 delegate.sendResponse(response);
                 success = true;

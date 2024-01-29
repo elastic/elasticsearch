@@ -165,6 +165,7 @@ public class TransportVersions {
     public static final TransportVersion REQUIRE_DATA_STREAM_ADDED = def(8_578_00_0);
     public static final TransportVersion ML_INFERENCE_COHERE_EMBEDDINGS_ADDED = def(8_579_00_0);
     public static final TransportVersion DESIRED_NODE_VERSION_OPTIONAL_STRING = def(8_580_00_0);
+    public static final TransportVersion TRANSFORM_GET_BASIC_STATS = def(8_581_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

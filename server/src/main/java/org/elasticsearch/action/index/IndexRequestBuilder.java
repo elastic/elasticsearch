@@ -363,14 +363,12 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /*
-     * This method checks that exactly one setSource() method has been called, and throws an IllegalStateException otherwise.
+     * This method checks that no more than one setSource() method has been called, and throws an IllegalStateException otherwise.
      */
     private void validateSource() throws IllegalStateException {
         int sourceFieldsSet = countSourceFieldsSet();
         if (sourceFieldsSet > 1) {
             throw new IllegalStateException("Only one setSource() method may be called, but " + sourceFieldsSet + " have been");
-        } else if (sourceFieldsSet == 0) {
-            throw new IllegalStateException("setSource() must be called before building the request");
         }
     }
 

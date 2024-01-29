@@ -77,7 +77,7 @@ public class HuggingFaceActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any());
 
-        var action = createAction(URL, sender, "modelIdF");
+        var action = createAction(URL, sender, "modelId");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);

@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceModelAction.Request> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutInferenceModelAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportDeleteInferenceModelAction.class);
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;

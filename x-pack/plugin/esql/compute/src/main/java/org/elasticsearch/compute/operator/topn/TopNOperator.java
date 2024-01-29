@@ -71,15 +71,12 @@ public class TopNOperator implements Operator, Accountable {
          */
         final BreakingBytesRefBuilder values;
 
-        Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedValueSize) {
+        Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedKeysSize, int preAllocatedValueSize) {
             boolean success = false;
             try {
-                keys = new BreakingBytesRefBuilder(breaker, "topn");
-                values = new BreakingBytesRefBuilder(breaker, "topn");
+                keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
+                values = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedValueSize);
                 bytesOrder = new BytesOrder(sortOrders, breaker, "topn");
-                if (preAllocatedValueSize > 0) {
-                    values.grow(preAllocatedValueSize);
-                }
                 success = true;
             } finally {
                 if (success == false) {
@@ -280,7 +277,8 @@ public class TopNOperator implements Operator, Accountable {
      * Esp. in case of many fields, a row's values can become quite large; growing from an empty row every time is expensive due
      * to lots of allocations. Instead, keep track of the last row's actual size and use that to pre-allocate memory for the next row.
      */
-    private int lastSeenRowValuesSize = 32;
+    private int lastSeenRowValuesSize = 0;
+    private int lastSeenRowKeysSize = 0;
 
     private Iterator<Page> output;
 
@@ -358,14 +356,17 @@ public class TopNOperator implements Operator, Accountable {
 
             for (int i = 0; i < page.getPositionCount(); i++) {
                 if (spare == null) {
-                    spare = new Row(breaker, sortOrders, lastSeenRowValuesSize);
+                    spare = new Row(breaker, sortOrders, lastSeenRowKeysSize, lastSeenRowValuesSize);
                 } else {
                     spare.keys.clear();
                     spare.values.clear();
                 }
                 rowFiller.row(i, spare);
                 // We may have over-allocated memory based on the last row's size.
+                spare.keys.shrinkToFit();
                 spare.values.shrinkToFit();
+
+                lastSeenRowKeysSize = spare.keys.length();
                 lastSeenRowValuesSize = spare.values.length();
 
                 spare = inputQueue.insertWithOverflow(spare);

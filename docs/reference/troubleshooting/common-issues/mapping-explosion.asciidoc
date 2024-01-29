@@ -49,7 +49,7 @@ If your index mapped fields expect to contain a large, arbitrary set of
 keys, you may instead consider:
 
 * Setting <<mapping-settings-limit,`index.mapping.total_fields.ignore_dynamic_beyond_limit`>> to `true`.
-Instead of rejecting documents that exceed the field limit, this will avoid adding dynamic fields once the limit is reached.
+Instead of rejecting documents that exceed the field limit, this will ignore dynamic fields once the limit is reached.
 
 * Using the <<flattened,flattened>> data type. Please note,
 however, that flattened objects is link:https://github.com/elastic/kibana/issues/25820[not fully supported in {kib}] yet. For example, this could apply to sub-mappings like { `host.name` ,

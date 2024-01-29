@@ -1,10 +1,30 @@
 [discrete]
 [[esql-date_diff]]
 === `DATE_DIFF`
-Subtract the second argument from the third argument and return their difference in multiples of the unit specified in the first argument.
-If the second argument (start) is greater than the third argument (end), then negative values are returned.
 
-[cols="^,^"]
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/date_diff.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`unit`::
+Time difference unit.
+
+`startTimestamp`::
+Start timestamp.
+
+`endTimestamp`::
+End timestamp.
+
+*Description*
+
+Subtracts the `startTimestamp` from the `endTimestamp` and returns the
+difference in multiples of `unit`. If `startTimestamp` is later than the
+`endTimestamp`, negative values are returned.
+
+[cols="^,^",role="styled"]
 |===
 2+h|Datetime difference units
 
@@ -26,12 +46,18 @@ s|abbreviations
 | nanosecond  | nanoseconds, ns
 |===
 
+*Supported types*
+
+include::types/date_diff.asciidoc[]
+
+*Example*
+
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=dateDiff]
+include::{esql-specs}/date.csv-spec[tag=docsDateDiff]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs.csv-spec[tag=dateDiff-result]
+include::{esql-specs}/date.csv-spec[tag=docsDateDiff-result]
 |===
 

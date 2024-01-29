@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -24,7 +23,7 @@ public class DeleteInferenceModelAction extends ActionType<AcknowledgedResponse>
     public static final String NAME = "cluster:admin/xpack/inference/delete";
 
     public DeleteInferenceModelAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<DeleteInferenceModelAction.Request> {
@@ -41,11 +40,6 @@ public class DeleteInferenceModelAction extends ActionType<AcknowledgedResponse>
             super(in);
             this.modelId = in.readString();
             this.taskType = TaskType.fromStream(in);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         public String getModelId() {

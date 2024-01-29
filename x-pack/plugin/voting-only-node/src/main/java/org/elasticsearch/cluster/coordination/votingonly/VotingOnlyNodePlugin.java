@@ -200,8 +200,8 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
                         }
 
                         @Override
-                        public Executor executor(ThreadPool threadPool) {
-                            return handler.executor(threadPool);
+                        public Executor executor() {
+                            return handler.executor();
                         }
 
                         @Override

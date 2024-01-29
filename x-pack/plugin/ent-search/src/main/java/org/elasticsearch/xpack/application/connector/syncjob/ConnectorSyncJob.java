@@ -25,15 +25,15 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorConfiguration;
-import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
+import org.elasticsearch.xpack.application.connector.ConnectorUtils;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -265,19 +265,19 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
     static {
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> parseNullableInstant(p),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, CANCELATION_REQUESTED_AT_FIELD.getPreferredName()),
             CANCELATION_REQUESTED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> parseNullableInstant(p),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, CANCELED_AT_FIELD.getPreferredName()),
             CANCELED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> parseNullableInstant(p),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, COMPLETED_AT_FIELD.getPreferredName()),
             COMPLETED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -287,7 +287,12 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             CONNECTOR_FIELD,
             ObjectParser.ValueType.OBJECT
         );
-        PARSER.declareField(constructorArg(), (p, c) -> Instant.parse(p.text()), CREATED_AT_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> ConnectorUtils.parseInstant(p, CREATED_AT_FIELD.getPreferredName()),
+            CREATED_AT_FIELD,
+            ObjectParser.ValueType.STRING
+        );
         PARSER.declareLong(constructorArg(), DELETED_DOCUMENT_COUNT_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ERROR_FIELD);
         PARSER.declareString(constructorArg(), ID_FIELD);
@@ -299,11 +304,16 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             JOB_TYPE_FIELD,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareField(constructorArg(), (p, c) -> parseNullableInstant(p), LAST_SEEN_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, LAST_SEEN_FIELD.getPreferredName()),
+            LAST_SEEN_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
         PARSER.declareField(constructorArg(), (p, c) -> p.map(), METADATA_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> parseNullableInstant(p),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, STARTED_AT_FIELD.getPreferredName()),
             STARTED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -323,10 +333,6 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
         PARSER.declareStringOrNull(optionalConstructorArg(), WORKER_HOSTNAME_FIELD);
     }
 
-    private static Instant parseNullableInstant(XContentParser p) throws IOException {
-        return p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text());
-    }
-
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Connector, String> SYNC_JOB_CONNECTOR_PARSER = new ConstructingObjectParser<>(
         "sync_job_connector",
@@ -343,7 +349,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             String syncJobConnectorId = Strings.isNullOrEmpty(connectorId) ? parsedConnectorId : connectorId;
 
             return new Connector.Builder().setConnectorId(syncJobConnectorId)
-                .setFiltering((List<ConnectorFiltering>) args[i++])
+                .setSyncJobFiltering((FilteringRules) args[i++])
                 .setIndexName((String) args[i++])
                 .setLanguage((String) args[i++])
                 .setPipeline((ConnectorIngestPipeline) args[i++])
@@ -355,9 +361,10 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
     static {
         SYNC_JOB_CONNECTOR_PARSER.declareString(optionalConstructorArg(), Connector.ID_FIELD);
-        SYNC_JOB_CONNECTOR_PARSER.declareObjectArray(
+        SYNC_JOB_CONNECTOR_PARSER.declareObjectOrNull(
             optionalConstructorArg(),
-            (p, c) -> ConnectorFiltering.fromXContent(p),
+            (p, c) -> FilteringRules.fromXContent(p),
+            null,
             Connector.FILTERING_FIELD
         );
         SYNC_JOB_CONNECTOR_PARSER.declareStringOrNull(optionalConstructorArg(), Connector.INDEX_NAME_FIELD);
@@ -491,8 +498,8 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
                 if (connector.getConnectorId() != null) {
                     builder.field(Connector.ID_FIELD.getPreferredName(), connector.getConnectorId());
                 }
-                if (connector.getFiltering() != null) {
-                    builder.field(Connector.FILTERING_FIELD.getPreferredName(), connector.getFiltering());
+                if (connector.getSyncJobFiltering() != null) {
+                    builder.field(Connector.FILTERING_FIELD.getPreferredName(), connector.getSyncJobFiltering());
                 }
                 if (connector.getIndexName() != null) {
                     builder.field(Connector.INDEX_NAME_FIELD.getPreferredName(), connector.getIndexName());

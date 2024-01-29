@@ -82,11 +82,9 @@ public class Verifier {
             // handle aggregate first to disambiguate between missing fields or incorrect function declaration
             if (p instanceof Aggregate aggregate) {
                 for (NamedExpression agg : aggregate.aggregates()) {
-                    if (agg instanceof Alias as) {
-                        var child = as.child();
-                        if (child instanceof UnresolvedAttribute u) {
-                            failures.add(fail(child, "invalid stats declaration; [{}] is not an aggregate function", child.sourceText()));
-                        }
+                    var child = Alias.unwrap(agg);
+                    if (child instanceof UnresolvedAttribute) {
+                        failures.add(fail(child, "invalid stats declaration; [{}] is not an aggregate function", child.sourceText()));
                     }
                 }
             }
@@ -149,16 +147,13 @@ public class Verifier {
         if (p instanceof Aggregate agg) {
             // check aggregates
             agg.aggregates().forEach(e -> {
-                var exp = e instanceof Alias a ? a.child() : e;
+                var exp = Alias.unwrap(e);
                 if (exp instanceof AggregateFunction af) {
                     af.field().forEachDown(AggregateFunction.class, f -> {
                         failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
                     });
                 } else {
-                    if (Expressions.match(agg.groupings(), g -> {
-                        Expression to = g instanceof Alias al ? al.child() : g;
-                        return to.semanticEquals(exp);
-                    }) == false) {
+                    if (Expressions.match(agg.groupings(), g -> Alias.unwrap(g).semanticEquals(exp)) == false) {
                         failures.add(
                             fail(
                                 exp,

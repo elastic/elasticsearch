@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
@@ -18,6 +20,8 @@ import org.hamcrest.Matcher;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -538,5 +542,130 @@ public class EsExecutorsTests extends ESTestCase {
         } finally {
             ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
         }
+    }
+
+    public void testScalingDropOnShutdown() {
+        final var executor = EsExecutors.newScaling(
+            getName(),
+            0,
+            between(1, 5),
+            60,
+            TimeUnit.SECONDS,
+            false,
+            EsExecutors.daemonThreadFactory(getName()),
+            new ThreadContext(Settings.EMPTY)
+        );
+        ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        executor.execute(() -> fail("should not run")); // no-op
+        executor.execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                fail("should not call onFailure");
+            }
+
+            @Override
+            protected void doRun() {
+                fail("should not call doRun");
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return randomBoolean();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                fail("should not call onRejection");
+            }
+
+            @Override
+            public void onAfter() {
+                fail("should not call onAfter");
+            }
+        });
+    }
+
+    public void testScalingRejectOnShutdown() {
+        runRejectOnShutdownTest(
+            EsExecutors.newScaling(
+                getName(),
+                0,
+                between(1, 5),
+                60,
+                TimeUnit.SECONDS,
+                true,
+                EsExecutors.daemonThreadFactory(getName()),
+                new ThreadContext(Settings.EMPTY)
+            )
+        );
+    }
+
+    public void testFixedBoundedRejectOnShutdown() {
+        runRejectOnShutdownTest(
+            EsExecutors.newFixed(
+                getName(),
+                between(1, 5),
+                between(1, 5),
+                EsExecutors.daemonThreadFactory(getName()),
+                threadContext,
+                randomFrom(DEFAULT, DO_NOT_TRACK)
+            )
+        );
+    }
+
+    public void testFixedUnboundedRejectOnShutdown() {
+        runRejectOnShutdownTest(
+            EsExecutors.newFixed(
+                getName(),
+                between(1, 5),
+                -1,
+                EsExecutors.daemonThreadFactory(getName()),
+                threadContext,
+                randomFrom(DEFAULT, DO_NOT_TRACK)
+            )
+        );
+    }
+
+    private static void runRejectOnShutdownTest(ExecutorService executor) {
+        for (int i = between(0, 10); i > 0; i--) {
+            final var delayMillis = between(0, 100);
+            executor.execute(ActionRunnable.wrap(ActionListener.noop(), l -> safeSleep(delayMillis)));
+        }
+        try {
+            executor.shutdown();
+            assertShutdownAndRejectingTasks(executor);
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+        assertShutdownAndRejectingTasks(executor);
+    }
+
+    private static void assertShutdownAndRejectingTasks(Executor executor) {
+        final var rejected = new AtomicBoolean();
+        final var shouldBeRejected = new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                fail("should not call onFailure");
+            }
+
+            @Override
+            protected void doRun() {
+                fail("should not call doRun");
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return randomBoolean();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                assertTrue(asInstanceOf(EsRejectedExecutionException.class, e).isExecutorShutdown());
+                assertTrue(rejected.compareAndSet(false, true));
+            }
+        };
+        assertTrue(expectThrows(EsRejectedExecutionException.class, () -> executor.execute(shouldBeRejected::doRun)).isExecutorShutdown());
+        executor.execute(shouldBeRejected);
+        assertTrue(rejected.get());
     }
 }

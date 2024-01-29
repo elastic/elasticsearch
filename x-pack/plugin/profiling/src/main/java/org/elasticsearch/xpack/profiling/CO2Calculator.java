@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.profiling;
 
 import java.util.Map;
 
-import static java.util.Map.entry;
-
 final class CO2Calculator {
     private static final double DEFAULT_SAMPLING_FREQUENCY = 20.0d;
     private static final double DEFAULT_CO2_TONS_PER_KWH = 0.000379069d; // unit: metric tons / kWh
@@ -51,12 +49,7 @@ final class CO2Calculator {
             return DEFAULT_KILOWATTS_PER_CORE * customCO2PerKWH * annualCoreHours * customDatacenterPUE;
         }
 
-        CostEntry costs = InstanceTypeService.getCosts(host.instanceType);
-        if (costs == null) {
-            return getKiloWattsPerCore(host) * getCO2TonsPerKWH(host) * annualCoreHours * getDatacenterPUE(host);
-        }
-
-        return annualCoreHours * costs.co2Factor; // unit: metric tons
+        return getKiloWattsPerCore(host) * getCO2TonsPerKWH(host) * annualCoreHours * getDatacenterPUE(host);
     }
 
     private double getKiloWattsPerCore(HostMetadata host) {
@@ -71,150 +64,10 @@ final class CO2Calculator {
     }
 
     private double getCO2TonsPerKWH(HostMetadata host) {
-        Provider provider = PROVIDERS.get(host.instanceType.provider);
-        return provider == null ? customCO2PerKWH : provider.co2TonsPerKWH.getOrDefault(host.instanceType.region, customCO2PerKWH);
+        return CloudProviders.getCO2TonsPerKWHOrDefault(host.instanceType.provider, host.instanceType.region, customCO2PerKWH);
     }
 
     private double getDatacenterPUE(HostMetadata host) {
-        Provider provider = PROVIDERS.get(host.instanceType.provider);
-        return provider == null ? customDatacenterPUE : provider.pue;
-    }
-
-    private record Provider(double pue, Map<String, Double> co2TonsPerKWH) {}
-
-    // values are taken from https://www.cloudcarbonfootprint.org/docs/methodology/
-    private static final Map<String, Provider> PROVIDERS;
-    static {
-        // noinspection (explicit type arguments speedup compilation and analysis time)
-        PROVIDERS = Map.of(
-            "aws",
-            new Provider(
-                1.135d,
-                Map.ofEntries(
-                    entry("us-east-1", 0.000379069d),
-                    entry("us-east-2", 0.000410608d),
-                    entry("us-west-1", 0.000322167d),
-                    entry("us-west-2", 0.000322167d),
-                    entry("us-gov-east-1", 0.000379069d),
-                    entry("us-gov-west-1", 0.000322167d),
-                    entry("af-south-1", 0.0009006d),
-                    entry("ap-east-1", 0.00071d),
-                    entry("ap-south-1", 0.0007082d),
-                    entry("ap-northeast-3", 0.0004658d),
-                    entry("ap-northeast-2", 0.0004156d),
-                    entry("ap-southeast-1", 0.000408d),
-                    entry("ap-southeast-2", 0.00076d),
-                    entry("ap-northeast-1", 0.0004658d),
-                    entry("ca-central-1", 0.00012d),
-                    entry("cn-north-1", 0.0005374d),
-                    entry("cn-northwest-1", 0.0005374d),
-                    entry("eu-central-1", 0.000311d),
-                    entry("eu-west-1", 0.0002786d),
-                    entry("eu-west-2", 0.000225d),
-                    entry("eu-south-1", 0.0002134d),
-                    entry("eu-west-3", 0.0000511d),
-                    entry("eu-north-1", 0.0000088d),
-                    entry("me-south-1", 0.0005059d),
-                    entry("sa-east-1", 0.0000617d)
-                )
-            ),
-            // noinspection (explicit type arguments speedup compilation and analysis time)
-            "gcp",
-            new Provider(
-                1.1d,
-                Map.ofEntries(
-                    entry("us-central1", 0.00003178d),
-                    entry("us-east1", 0.0003504d),
-                    entry("us-east4", 0.00015162d),
-                    entry("us-west1", 0.0000078d),
-                    entry("us-west2", 0.00011638d),
-                    entry("us-west3", 0.00038376d),
-                    entry("us-west4", 0.00036855d),
-                    entry("asia-east1", 0.0004428d),
-                    entry("asia-east2", 0.000453d),
-                    entry("asia-northeast1", 0.00048752d),
-                    entry("asia-northeast2", 0.00048752d),
-                    entry("asia-northeast3", 0.00031533d),
-                    entry("asia-south1", 0.00063448d),
-                    entry("asia-south2", 0.000657d),
-                    entry("asia-southeast1", 0.00047328d),
-                    entry("asia-southeast2", 0.000647d),
-                    entry("australia-southeast1", 0.00064703d),
-                    entry("australia-southeast2", 0.000691d),
-                    entry("europe-central2", 0.000622d),
-                    entry("europe-north1", 0.00000798d),
-                    entry("europe-west1", 0.00004452d),
-                    entry("europe-west2", 0.00009471d),
-                    entry("europe-west3", 0.000108),
-                    entry("europe-west4", 0.000164d),
-                    entry("europe-west6", 0.000087d),
-                    entry("northamerica-northeast1", 0.000027d),
-                    entry("southamerica-east1", 0.00001236d)
-                )
-            ),
-            "azure",
-            new Provider(
-                1.185d,
-                Map.<String, Double>ofEntries(
-                    entry("centralus", 0.000426254d),
-                    entry("eastus", 0.000379069d),
-                    entry("eastus2", 0.000379069d),
-                    entry("eastus3", 0.000379069d),
-                    entry("northcentralus", 0.000410608d),
-                    entry("southcentralus", 0.000373231d),
-                    entry("westcentralusS", 0.000322167d),
-                    entry("westus", 0.000322167d),
-                    entry("westus2", 0.000322167d),
-                    entry("westus3", 0.000322167d),
-                    entry("eastasia", 0.00071d),
-                    entry("southeastasia", 0.000408d),
-                    entry("southafricanorth", 0.0009006d),
-                    entry("southafricawest", 0.0009006d),
-                    entry("southafrica", 0.0009006d),
-                    entry("australia", 0.00079d),
-                    entry("australiacentral", 0.00079d),
-                    entry("australiacentral2", 0.00079d),
-                    entry("australiaeast", 0.00079d),
-                    entry("australiasoutheast", 0.00096d),
-                    entry("japan", 0.0004658d),
-                    entry("japanwest", 0.0004658d),
-                    entry("japaneast", 0.0004658d),
-                    entry("korea", 0.0004156d),
-                    entry("koreaeast", 0.0004156d),
-                    entry("koreasouth", 0.0004156d),
-                    entry("india", 0.0007082d),
-                    entry("indiawest", 0.0007082d),
-                    entry("indiacentral", 0.0007082d),
-                    entry("indiasouth", 0.0007082d),
-                    entry("northeurope", 0.0002786d),
-                    entry("westeurope", 0.0003284d),
-                    entry("france", 0.00005128d),
-                    entry("francecentral", 0.00005128d),
-                    entry("francesouth", 0.00005128d),
-                    entry("swedencentral", 0.00000567d),
-                    entry("switzerland", 0.00000567d),
-                    entry("switzerlandnorth", 0.00000567d),
-                    entry("switzerlandwest", 0.00000567d),
-                    entry("uk", 0.000225d),
-                    entry("uksouth", 0.000225d),
-                    entry("ukwest", 0.000228d),
-                    entry("germany", 0.00033866d),
-                    entry("germanynorth", 0.00033866d),
-                    entry("germanywestcentral", 0.00033866d),
-                    entry("norway", 0.00000762d),
-                    entry("norwayeast", 0.00000762d),
-                    entry("norwaywest", 0.00000762d),
-                    entry("unitedarabemirates", 0.0004041d),
-                    entry("unitedarabemiratesnorth", 0.0004041d),
-                    entry("unitedarabemiratescentral", 0.0004041d),
-                    entry("canada", 0.00012d),
-                    entry("canadacentral", 0.00012d),
-                    entry("canadaeast", 0.00012d),
-                    entry("brazil", 0.0000617d),
-                    entry("brazilsouth", 0.0000617d),
-                    entry("brazilsoutheast", 0.0000617d)
-                )
-            )
-        );
+        return CloudProviders.getPUEOrDefault(host.instanceType.provider, customDatacenterPUE);
     }
 }

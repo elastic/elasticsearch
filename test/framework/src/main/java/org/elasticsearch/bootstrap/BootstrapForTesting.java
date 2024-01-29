@@ -86,7 +86,7 @@ public class BootstrapForTesting {
                                                                                               // setting
         // some tests need the ability to disable system call filters (so they can fork other processes as part of test execution)
         final boolean systemCallFilter = Booleans.parseBoolean(System.getProperty("tests.system_call_filter", "true"));
-        Elasticsearch.initializeNatives(javaTmpDir, memoryLock, systemCallFilter, true);
+        Elasticsearch.initializeNatives(memoryLock, systemCallFilter, true);
 
         // initialize probes
         Elasticsearch.initializeProbes();

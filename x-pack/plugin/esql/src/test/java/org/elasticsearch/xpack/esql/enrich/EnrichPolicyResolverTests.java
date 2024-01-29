@@ -230,7 +230,9 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             assertNull(resolution.getResolvedPolicy("address", mode));
             assertThat(
                 resolution.getError("address", mode),
-                equalTo("enrich policy [address] has different enrich fields across clusters; offending fields: [state]")
+                equalTo(
+                    "enrich policy [address] has different enrich fields across clusters; these fields are missing in some policies: [state]"
+                )
             );
         }
     }

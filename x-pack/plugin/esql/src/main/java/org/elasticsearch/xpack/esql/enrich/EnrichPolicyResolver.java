@@ -17,10 +17,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -204,16 +204,14 @@ public class EnrichPolicyResolver {
                 }
             }
             if (last != null) {
-                final Set<String> first = Sets.newHashSet(last.enrichFields());
-                final Set<String> second = Sets.newHashSet(curr.enrichFields());
-                if (first.equals(second) == false) {
-                    Collection<String> diff = Sets.union(Sets.difference(first, second), Sets.difference(second, first))
-                        .stream()
-                        .sorted()
-                        .limit(20)
-                        .toList();
-                    String detailed = "; offending fields: " + diff;
-                    return Tuple.tuple(null, "enrich policy [" + policyName + "] has different enrich fields across clusters" + detailed);
+                Map<String, Integer> counts = Maps.newMapWithExpectedSize(last.enrichFields().size());
+                last.enrichFields().forEach(f -> counts.put(f, 1));
+                curr.enrichFields().forEach(f -> counts.compute(f, (k, v) -> v == null ? 1 : v + 1));
+                // should be sorted-then-limit, but this sorted is for testing only
+                var diff = counts.entrySet().stream().filter(f -> f.getValue() < 2).map(Map.Entry::getKey).limit(20).sorted().toList();
+                if (diff.isEmpty() == false) {
+                    String detailed = "these fields are missing in some policies: " + diff;
+                    return Tuple.tuple(null, "enrich policy [" + policyName + "] has different enrich fields across clusters; " + detailed);
                 }
             }
             // merge concrete indices

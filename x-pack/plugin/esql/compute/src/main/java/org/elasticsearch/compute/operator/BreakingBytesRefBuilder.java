@@ -31,6 +31,16 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
      * @param label the label reported by the breaker when it breaks
      */
     public BreakingBytesRefBuilder(CircuitBreaker breaker, String label) {
+        this(breaker, label, 0);
+    }
+
+    /**
+     * Build.
+     * @param breaker the {@link CircuitBreaker} to check on resize
+     * @param label the label reported by the breaker when it breaks
+     * @param initialCapacity the number of bytes initially allocated
+     */
+    public BreakingBytesRefBuilder(CircuitBreaker breaker, String label, int initialCapacity) {
         /*
          * We initialize BytesRef to a shared empty bytes array as is tradition.
          * It's a good tradition. We don't know how big the thing will ultimately
@@ -45,6 +55,10 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
         this.bytes = new BytesRef();
         this.breaker = breaker;
         this.label = label;
+
+        if (initialCapacity > 0) {
+            setCapacity(initialCapacity);
+        }
     }
 
     /**
@@ -60,6 +74,9 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
         setCapacity(newCapacity);
     }
 
+    /**
+     * Make sure the underlying bytes have exactly the required capacity to hold the current {@link #length()} number of bytes.
+     */
     public void shrinkToFit() {
         if (bytes.length == bytes.bytes.length) {
             return;
@@ -70,7 +87,7 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     private void setCapacity(int capacity) {
         int oldCapacity = bytes.bytes.length;
         breaker.addEstimateBytesAndMaybeBreak(
-            RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + capacity),
+            RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + capacity * Byte.BYTES),
             label
         );
 
@@ -78,7 +95,7 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
         System.arraycopy(bytes.bytes, 0, copy, 0, Math.min(capacity, bytes.bytes.length));
         bytes.bytes = copy;
 
-        breaker.addWithoutBreaking(-RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + oldCapacity));
+        breaker.addWithoutBreaking(-RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + oldCapacity * Byte.BYTES));
     }
 
     /**

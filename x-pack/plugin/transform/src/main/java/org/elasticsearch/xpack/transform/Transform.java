@@ -404,7 +404,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
         }, unsetResetModeListener::onFailure);
 
-        ActionListener<StopTransformAction.Response> afterStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {
+        ActionListener<StopTransformAction.Response> afterForceStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {
             if (stopTransformsResponse.isAcknowledged()
                 && stopTransformsResponse.getTaskFailures().isEmpty()
                 && stopTransformsResponse.getNodeFailures().isEmpty()) {
@@ -439,12 +439,28 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             }
         }, unsetResetModeListener::onFailure);
 
+        ActionListener<StopTransformAction.Response> afterStoppingTransforms = ActionListener.wrap(
+            afterForceStoppingTransforms::onResponse,
+            e -> {
+                logger.warn("Exception while trying to stop the transforms, will try again with force=true", e);
+                StopTransformAction.Request forceStopTransformsRequest = new StopTransformAction.Request(
+                    Metadata.ALL,
+                    true,
+                    true,
+                    null,
+                    true,
+                    false
+                );
+                client.execute(StopTransformAction.INSTANCE, forceStopTransformsRequest, afterForceStoppingTransforms);
+            }
+        );
+
         ActionListener<AcknowledgedResponse> afterResetModeSet = ActionListener.wrap(response -> {
             StopTransformAction.Request stopTransformsRequest = new StopTransformAction.Request(
                 Metadata.ALL,
                 true,
-                true,
-                null,
+                false,
+                TimeValue.timeValueSeconds(10),
                 true,
                 false
             );

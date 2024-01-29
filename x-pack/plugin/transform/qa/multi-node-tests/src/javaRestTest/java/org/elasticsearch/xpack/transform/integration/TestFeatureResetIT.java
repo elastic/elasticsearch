@@ -57,7 +57,6 @@ public class TestFeatureResetIT extends TransformRestTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104825")
     @SuppressWarnings("unchecked")
     public void testTransformFeatureReset() throws Exception {
         String indexName = "basic-crud-reviews";
@@ -90,6 +89,9 @@ public class TestFeatureResetIT extends TransformRestTestCase {
             .build();
 
         putTransform(continuousTransformId, Strings.toString(config), RequestOptions.DEFAULT);
+
+        Thread.sleep(randomLongBetween(0, 5_000));
+
         startTransform(continuousTransformId, RequestOptions.DEFAULT);
 
         assertOK(client().performRequest(new Request(HttpPost.METHOD_NAME, "/_features/_reset")));

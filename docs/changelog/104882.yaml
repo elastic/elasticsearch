@@ -1,0 +1,5 @@
+pr: 104882
+summary: Fix incorrect logger for class `TransportDeleteInferenceModelAction`
+area: Machine Learning
+type: bug
+issues: []

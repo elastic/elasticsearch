@@ -43,6 +43,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -241,12 +242,12 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
                     @Override
                     public void onClusterServiceClose() {
-                        l.onFailure(new ElasticsearchException("cs observer closed"));
+                        l.onFailure(new NodeClosedException(clusterService.localNode()));
                     }
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        l.onFailure(new ElasticsearchException("cs observer timed out", cause));
+                        l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
                     }
                 });
             }

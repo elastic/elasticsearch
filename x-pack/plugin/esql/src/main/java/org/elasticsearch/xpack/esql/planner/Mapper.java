@@ -98,14 +98,18 @@ public class Mapper {
 
         if (p instanceof UnaryPlan ua) {
             var child = map(ua.child());
-            PhysicalPlan plan = null;
-            // in case of a fragment, push to it any current streaming operator
-            if (child instanceof FragmentExec && isPipelineBreaker(p) == false) {
-                plan = new FragmentExec(p);
-            } else {
-                plan = map(ua, child);
+            if (child instanceof FragmentExec) {
+                // COORDINATOR enrich must not be included to the fragment as it has to be executed on the coordinating node
+                if (localMode == false && p instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
+                    child = addExchangeForFragment(enrich.child(), child);
+                    return map(enrich, child);
+                }
+                // in case of a fragment, push to it any current streaming operator
+                if (isPipelineBreaker(p) == false) {
+                    return new FragmentExec(p);
+                }
             }
-            return plan;
+            return map(ua, child);
         }
 
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");

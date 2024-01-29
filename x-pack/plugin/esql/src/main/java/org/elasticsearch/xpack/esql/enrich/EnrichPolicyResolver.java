@@ -201,7 +201,7 @@ public class EnrichPolicyResolver {
                     field.isAlias()
                 );
                 EsField old = mappings.putIfAbsent(m.getKey(), field);
-                if (old != null && old.equals(field) == false) {
+                if (old != null && old.getDataType().equals(field.getDataType()) == false) {
                     String detailed = "[" + old.getDataType() + "] vs [" + field.getDataType() + "]";
                     return Tuple.tuple(null, "enrich policy [" + policyName + "] has different mapping across clusters " + detailed);
                 }

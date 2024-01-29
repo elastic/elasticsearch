@@ -1522,11 +1522,11 @@ public final class IndexSettings {
         return mappingTotalFieldsLimit;
     }
 
-    public void setMappingTotalFieldsLimit(long value) {
+    private void setMappingTotalFieldsLimit(long value) {
         this.mappingTotalFieldsLimit = value;
     }
 
-    public void setIgnoreDynamicFieldsBeyondLimit(boolean ignoreDynamicFieldsBeyondLimit) {
+    private void setIgnoreDynamicFieldsBeyondLimit(boolean ignoreDynamicFieldsBeyondLimit) {
         this.ignoreDynamicFieldsBeyondLimit = ignoreDynamicFieldsBeyondLimit;
     }
 

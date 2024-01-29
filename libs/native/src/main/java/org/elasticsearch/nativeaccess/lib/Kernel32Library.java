@@ -65,12 +65,12 @@ public interface Kernel32Library {
      * Retrieves information about a range of pages within the virtual address space of a specified process.
      *
      * https://msdn.microsoft.com/en-us/library/windows/desktop/aa366907%28v=vs.85%29.aspx
+     * Note: the dwLength parameter is handled by the underlying implementation
      *
      * @param handle A handle to the process whose memory information is queried.
      * @param address A pointer to the base address of the region of pages to be queried.
      * @param memoryInfo A pointer to a structure in which information about the specified page range is returned.
      * @return the actual number of bytes returned in the information buffer.
-     * @apiNote the dwLength parameter is handled by the underlying implementation
      */
     int VirtualQueryEx(Handle handle, Address address, MemoryBasicInformation memoryInfo);
 
@@ -122,8 +122,8 @@ public interface Kernel32Library {
      * Creates or opens a new job object
      *
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms682409%28v=vs.85%29.aspx
+     * Note: the two params to this are omitted because all implementations pass null for them both
      *
-     * @apiNote the two params to this are omitted because all implementations pass null for them both
      * @return job handle if the function succeeds
      */
     Handle CreateJobObjectW();
@@ -156,13 +156,13 @@ public interface Kernel32Library {
      * Get job limit and state information
      *
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684925%28v=vs.85%29.aspx
+     * Note: The infoLength parameter is omitted because implementions handle passing it
+     * Note: The returnLength parameter is omitted because all implementations pass null
      *
      * @param job job handle
      * @param infoClass information class constant
      * @param info pointer to information structure
      * @return true if the function succeeds
-     * @apiNote The infoLength parameter is omitted because implementions handle passing it
-     * @apiNote The returnLength parameter is omitted because all implementations pass null
      */
     boolean QueryInformationJobObject(Handle job, int infoClass, JobObjectBasicLimitInformation info);
 
@@ -170,12 +170,12 @@ public interface Kernel32Library {
      * Set job limit and state information
      *
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms686216%28v=vs.85%29.aspx
+     * Note: The infoLength parameter is omitted because implementions handle passing it
      *
      * @param job job handle
      * @param infoClass information class constant
      * @param info pointer to information structure
      * @return true if the function succeeds
-     * @apiNote The infoLength parameter is omitted because implementions handle passing it
      */
     boolean SetInformationJobObject(Handle job, int infoClass, JobObjectBasicLimitInformation info);
 }

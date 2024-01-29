@@ -381,10 +381,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                 List.of(new EnrichPolicyResolver.UnresolvedPolicy("addrezz", mode))
             );
             assertNull(resolution.getResolvedPolicy("addrezz", mode));
-            assertThat(
-                resolution.getError("addrezz", mode),
-                equalTo("enrich policy [addrezz] doesn't exist on clusters [cluster_a], did you mean [address]?")
-            );
+            assertThat(resolution.getError("addrezz", mode), equalTo("enrich policy [addrezz] doesn't exist on clusters [cluster_a]"));
         }
         {
             var mode = Enrich.Mode.ANY;
@@ -395,7 +392,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             assertNull(resolution.getResolvedPolicy("addrezz", mode));
             assertThat(
                 resolution.getError("addrezz", mode),
-                equalTo("enrich policy [addrezz] doesn't exist on clusters [_local, cluster_a], did you mean [address]?")
+                equalTo("enrich policy [addrezz] doesn't exist on clusters [_local, cluster_a]")
             );
         }
     }

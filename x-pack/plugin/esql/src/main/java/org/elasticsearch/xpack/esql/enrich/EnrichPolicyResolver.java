@@ -168,7 +168,7 @@ public class EnrichPolicyResolver {
             final String reason;
             if (failures.isEmpty()) {
                 List<String> missingClusters = targetClusters.stream().filter(c -> policies.containsKey(c) == false).sorted().toList();
-                reason = missingPolicyError(policyName, targetClusters, missingClusters, lookupResults);
+                reason = missingPolicyError(policyName, targetClusters, missingClusters);
             } else {
                 reason = "failed to resolve enrich policy [" + policyName + "]; reason " + failures;
             }
@@ -226,32 +226,20 @@ public class EnrichPolicyResolver {
         return Tuple.tuple(resolved, null);
     }
 
-    private String missingPolicyError(
-        String policyName,
-        Collection<String> targetClusters,
-        List<String> missingClusters,
-        Map<String, LookupResponse> lookupResults
-    ) {
-        Map<String, Integer> counts = new HashMap<>();
-        for (String missingCluster : missingClusters) {
-            for (String policy : lookupResults.get(missingCluster).allPolicies) {
-                counts.compute(policy, (k, curr) -> curr == null ? 1 : curr + 1);
+    private String missingPolicyError(String policyName, Collection<String> targetClusters, List<String> missingClusters) {
+        // local cluster only
+        if (targetClusters.size() == 1 && Iterables.get(missingClusters, 0).isEmpty()) {
+            String reason = "enrich policy [" + policyName + "] doesn't exist";
+            // accessing the policy names directly after we have checked the permission.
+            List<String> potentialMatches = StringUtils.findSimilar(policyName, availablePolicies().keySet());
+            if (potentialMatches.isEmpty() == false) {
+                var suggestion = potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]" : "any of " + potentialMatches;
+                reason += ", did you mean " + suggestion + "?";
             }
+            return reason;
         }
-        String reason = "enrich policy [" + policyName + "] doesn't exist";
-        if (targetClusters.size() > 1 || Iterables.get(targetClusters, 0).isEmpty() == false) {
-            reason += " on clusters ["
-                + missingClusters.stream().map(c -> c.isEmpty() ? "_local" : c).collect(Collectors.joining(", "))
-                + "]";
-        }
-        var allPolicies = counts.entrySet().stream().filter(e -> e.getValue() == missingClusters.size()).map(Map.Entry::getKey).toList();
-        List<String> potentialMatches = StringUtils.findSimilar(policyName, allPolicies);
-        if (potentialMatches.isEmpty() == false) {
-            // TODO: Should we remove this suggestion?
-            var suggestion = potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]" : "any of " + potentialMatches;
-            reason += ", did you mean " + suggestion + "?";
-        }
-        return reason;
+        String detailed = missingClusters.stream().sorted().map(c -> c.isEmpty() ? "_local" : c).collect(Collectors.joining(", "));
+        return "enrich policy [" + policyName + "] doesn't exist on clusters [" + detailed + "]";
     }
 
     private void lookupPolicies(
@@ -333,25 +321,21 @@ public class EnrichPolicyResolver {
     private static class LookupResponse extends TransportResponse {
         final Map<String, ResolvedEnrichPolicy> policies;
         final Map<String, String> failures;
-        final Collection<String> allPolicies;
 
-        LookupResponse(Map<String, ResolvedEnrichPolicy> policies, Map<String, String> failures, Collection<String> allPolicies) {
+        LookupResponse(Map<String, ResolvedEnrichPolicy> policies, Map<String, String> failures) {
             this.policies = policies;
             this.failures = failures;
-            this.allPolicies = allPolicies;
         }
 
         LookupResponse(StreamInput in) throws IOException {
             this.policies = in.readMap(StreamInput::readString, ResolvedEnrichPolicy::new);
             this.failures = in.readMap(StreamInput::readString, StreamInput::readString);
-            this.allPolicies = in.readStringCollectionAsList();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(policies, (o, v) -> v.writeTo(o));
             out.writeMap(failures, StreamOutput::writeString);
-            out.writeStringCollection(allPolicies);
         }
     }
 
@@ -367,9 +351,7 @@ public class EnrichPolicyResolver {
                 threadContext
             );
             try (
-                RefCountingListener refs = new RefCountingListener(
-                    listener.map(unused -> new LookupResponse(resolvedPolices, failures, availablePolicies.keySet()))
-                )
+                RefCountingListener refs = new RefCountingListener(listener.map(unused -> new LookupResponse(resolvedPolices, failures)))
             ) {
                 for (String policyName : request.policyNames) {
                     EnrichPolicy p = availablePolicies.get(policyName);

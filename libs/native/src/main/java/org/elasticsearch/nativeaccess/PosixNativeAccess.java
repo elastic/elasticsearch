@@ -11,9 +11,7 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
-import java.lang.reflect.Field;
 import java.nio.file.Path;
-import java.security.AccessController;
 
 abstract class PosixNativeAccess extends AbstractNativeAccess {
 
@@ -127,6 +125,11 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         } else {
             return Long.toUnsignedString(value);
         }
+    }
+
+    @Override
+    public long getRlimitInfinity() {
+        return RLIMIT_INFINITY;
     }
 
     private static int O_WRONLY = 1;

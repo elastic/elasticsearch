@@ -394,7 +394,7 @@ final class BootstrapChecks {
 
         // visible for testing
         long getRlimInfinity() {
-            return JNACLibrary.RLIM_INFINITY;
+            return NativeAccess.instance().getRlimitInfinity();
         }
 
         // visible for testing
@@ -430,7 +430,7 @@ final class BootstrapChecks {
         }
 
         long getRlimInfinity() {
-            return JNACLibrary.RLIM_INFINITY;
+            return NativeAccess.instance().getRlimitInfinity();
         }
 
         long getMaxFileSize() {

@@ -67,6 +67,8 @@ public interface NativeAccess {
 
     void tryPreallocate(Path file, long size);
 
+    long getRlimitInfinity();
+
     /*
     int preallocate(int fd, long offset, long length);
     */

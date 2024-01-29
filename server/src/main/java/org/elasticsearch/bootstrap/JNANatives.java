@@ -11,8 +11,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-
-import java.nio.file.Path;
+import org.elasticsearch.nativeaccess.NativeAccess;
 
 /**
  * This class performs the actual work with JNA and library bindings to call native methods. It should only be used after
@@ -27,7 +26,7 @@ class JNANatives {
 
     static String rlimitToString(long value) {
         assert Constants.LINUX || Constants.MAC_OS_X;
-        if (value == JNACLibrary.RLIM_INFINITY) {
+        if (value == NativeAccess.instance().getRlimitInfinity()) {
             return "unlimited";
         } else {
             return Long.toUnsignedString(value);

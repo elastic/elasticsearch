@@ -186,4 +186,9 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     public void tryPreallocate(Path file, long size) {
         logger.warn("Cannot preallocate file size because operation is not available on Windows");
     }
+
+    @Override
+    public long getRlimitInfinity() {
+        throw new UnsupportedOperationException();
+    }
 }

@@ -29,7 +29,8 @@ public class EvilNativesTests extends ESTestCase {
             for (final String line : lines) {
                 if (line != null && line.startsWith("Max processes")) {
                     final String[] fields = line.split("\\s+");
-                    final long limit = "unlimited".equals(fields[2]) ? JNACLibrary.RLIM_INFINITY : Long.parseLong(fields[2]);
+                    final long limit =
+                        "unlimited".equals(fields[2]) ? NativeAccess.instance().getRlimitInfinity() : Long.parseLong(fields[2]);
                     assertThat(NativeAccess.instance().getMaxNumberOfThreads(), equalTo(limit));
                     return;
                 }

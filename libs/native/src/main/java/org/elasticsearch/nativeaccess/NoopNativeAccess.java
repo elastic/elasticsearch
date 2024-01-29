@@ -67,4 +67,9 @@ class NoopNativeAccess extends AbstractNativeAccess {
     public void tryPreallocate(Path file, long size) {
         logger.warn("Cannot preallocate file size because native access is not available");
     }
+
+    @Override
+    public long getRlimitInfinity() {
+        return -1L;
+    }
 }

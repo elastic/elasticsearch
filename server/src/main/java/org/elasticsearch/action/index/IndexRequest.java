@@ -9,6 +9,7 @@
 package org.elasticsearch.action.index;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -828,15 +829,19 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
         if (DataStream.isFailureStoreEnabled() && writeToFailureStore) {
-            // TODO: Should this be a harder backstop than an assert statement?
-            assert ia.isDataStreamRelated()
-                : "Attempting to write a document to a failure store but the targeted index is not a data stream";
+            if (ia.isDataStreamRelated() == false) {
+                throw new ElasticsearchException(
+                    "Attempting to write a document to a failure store but the targeted index is not a data stream"
+                );
+            }
             // Resolve write index and get parent data stream to handle the case of dealing with an alias
             String defaultWriteIndexName = ia.getWriteIndex().getName();
             DataStream dataStream = metadata.getIndicesLookup().get(defaultWriteIndexName).getParentDataStream();
-            // TODO: Should this be a harder backstop than an assert statement?
-            assert dataStream.getFailureIndices().size() > 0
-                : "Attempting to write a document to a failure store but the target data stream does not have one enabled";
+            if (dataStream.getFailureIndices().size() < 1) {
+                throw new ElasticsearchException(
+                    "Attempting to write a document to a failure store but the target data stream does not have one enabled"
+                );
+            }
             return dataStream.getFailureIndices().get(dataStream.getFailureIndices().size() - 1);
         } else {
             // Resolve as normal

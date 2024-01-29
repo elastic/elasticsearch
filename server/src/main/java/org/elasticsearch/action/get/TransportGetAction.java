@@ -265,7 +265,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             getFromTranslogRequest,
             new ActionListenerResponseHandler<>(listener.delegateFailure((l, r) -> {
                 if (r.getResult() != null) {
-                    logger.info("received result for real-time get for id '{}' from promotable shard", request.id());
+                    logger.debug("received result for real-time get for id '{}' from promotable shard", request.id());
                     l.onResponse(new GetResponse(r.getResult()));
                 } else {
                     logger.debug(

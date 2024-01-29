@@ -59,7 +59,7 @@ public class ModelRegistry {
     public record ModelConfigMap(Map<String, Object> config, Map<String, Object> secrets) {}
 
     /**
-     * Semi parsed model where model id, task type and service
+     * Semi parsed model where inference entity id, task type and service
      * are known but the settings are not parsed.
      */
     public record UnparsedModel(

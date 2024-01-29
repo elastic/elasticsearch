@@ -110,7 +110,7 @@ public class TextEmbeddingService implements InferenceService {
         }
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
-            model.getConfigurations().getModelId(),
+            model.getConfigurations().getInferenceEntityId(),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             input,
             TimeValue.timeValueSeconds(10)  // TODO get timeout from request
@@ -128,7 +128,7 @@ public class TextEmbeddingService implements InferenceService {
         if (model instanceof TextEmbeddingModel == false) {
             listener.onFailure(
                 new IllegalStateException(
-                    "Error starting model, [" + model.getConfigurations().getModelId() + "] is not a text embedding model model"
+                    "Error starting model, [" + model.getConfigurations().getInferenceEntityId() + "] is not a text embedding model model"
                 )
             );
             return;
@@ -161,7 +161,7 @@ public class TextEmbeddingService implements InferenceService {
         if (model instanceof TextEmbeddingModel == false) {
             listener.onFailure(
                 new IllegalStateException(
-                    "Error starting model, [" + model.getConfigurations().getModelId() + "] is not a TextEmbedding model"
+                    "Error starting model, [" + model.getConfigurations().getInferenceEntityId() + "] is not a TextEmbedding model"
                 )
             );
             return;
@@ -184,7 +184,7 @@ public class TextEmbeddingService implements InferenceService {
             listener.onFailure(
                 new IllegalArgumentException(
                     "Can not download model automatically, ["
-                        + model.getConfigurations().getModelId()
+                        + model.getConfigurations().getInferenceEntityId()
                         + "] you may need to download it with eland."
                 )
             );

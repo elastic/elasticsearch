@@ -28,14 +28,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class GetConnectorSyncJobAction extends ActionType<GetConnectorSyncJobAction.Response> {
+public class GetConnectorSyncJobAction {
 
-    public static final GetConnectorSyncJobAction INSTANCE = new GetConnectorSyncJobAction();
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/get";
+    public static final ActionType<GetConnectorSyncJobAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    private GetConnectorSyncJobAction() {
-        super(NAME);
-    }
+    private GetConnectorSyncJobAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
         private final String connectorSyncJobId;

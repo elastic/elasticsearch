@@ -99,7 +99,13 @@ public class ElserMlNodeService implements InferenceService {
         throwIfNotEmptyMap(serviceSettingsMap, NAME);
         throwIfNotEmptyMap(taskSettingsMap, NAME);
 
-        return new ElserMlNodeModel(inferenceEntityId, taskType, NAME, serviceSettingsBuilder.build(), taskSettings);
+        return new ElserMlNodeModel(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            (ElserMlNodeServiceSettings) serviceSettingsBuilder.build(),
+            taskSettings
+        );
     }
 
     private static String selectDefaultModelVersionBasedOnClusterArchitecture(Set<String> modelArchitectures) {
@@ -139,7 +145,13 @@ public class ElserMlNodeService implements InferenceService {
 
         var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
 
-        return new ElserMlNodeModel(inferenceEntityId, taskType, NAME, serviceSettingsBuilder.build(), taskSettings);
+        return new ElserMlNodeModel(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            (ElserMlNodeServiceSettings) serviceSettingsBuilder.build(),
+            taskSettings
+        );
     }
 
     @Override

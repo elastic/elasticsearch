@@ -155,6 +155,22 @@ public class RootObjectMapper extends ObjectMapper {
         return builder;
     }
 
+    @Override
+    RootObjectMapper withoutMappers() {
+        return new RootObjectMapper(
+            simpleName(),
+            enabled,
+            subobjects,
+            dynamic,
+            Map.of(),
+            Map.of(),
+            dynamicDateTimeFormatters,
+            dynamicTemplates,
+            dateDetection,
+            numericDetection
+        );
+    }
+
     /**
      * Public API
      */
@@ -242,12 +258,15 @@ public class RootObjectMapper extends ObjectMapper {
             dynamicTemplates = this.dynamicTemplates;
         }
         final Map<String, RuntimeField> runtimeFields = new HashMap<>(this.runtimeFields);
-        assert this.runtimeFields != mergeWithObject.runtimeFields;
         for (Map.Entry<String, RuntimeField> runtimeField : mergeWithObject.runtimeFields.entrySet()) {
             if (runtimeField.getValue() == null) {
                 runtimeFields.remove(runtimeField.getKey());
-            } else {
+            } else if (runtimeFields.containsKey(runtimeField.getKey())) {
                 runtimeFields.put(runtimeField.getKey(), runtimeField.getValue());
+            } else {
+                if (parentMergeContext.decrementFieldBudgetIfPossible(1)) {
+                    runtimeFields.put(runtimeField.getValue().name(), runtimeField.getValue());
+                }
             }
         }
 
@@ -501,5 +520,14 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
         return false;
+    }
+
+    @Override
+    public int mapperSize() {
+        int size = runtimeFields().size();
+        for (Mapper mapper : this) {
+            size += mapper.mapperSize();
+        }
+        return size;
     }
 }

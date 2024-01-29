@@ -27,7 +27,7 @@ public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/job/validate";
 
     protected ValidateJobConfigAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

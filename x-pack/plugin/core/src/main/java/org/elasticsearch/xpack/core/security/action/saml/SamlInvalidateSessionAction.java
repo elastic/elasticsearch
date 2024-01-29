@@ -17,6 +17,6 @@ public final class SamlInvalidateSessionAction extends ActionType<SamlInvalidate
     public static final SamlInvalidateSessionAction INSTANCE = new SamlInvalidateSessionAction();
 
     private SamlInvalidateSessionAction() {
-        super(NAME, SamlInvalidateSessionResponse::new);
+        super(NAME);
     }
 }

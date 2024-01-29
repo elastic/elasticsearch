@@ -21,6 +21,7 @@ import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.xcontent.SerializableString;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerationException;
@@ -185,6 +186,16 @@ public class JsonXContentGenerator implements XContentGenerator {
     public void writeFieldName(String name) throws IOException {
         try {
             generator.writeFieldName(name);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
+    }
+
+    @Override
+    public void writeFieldName(SerializableString name) throws IOException {
+        try {
+            var jacksonSerializedString = name.computeIfAbsent(SerializedString.class, SerializedString::new);
+            generator.writeFieldName(jacksonSerializedString);
         } catch (JsonGenerationException e) {
             throw new XContentGenerationException(e);
         }
@@ -359,6 +370,16 @@ public class JsonXContentGenerator implements XContentGenerator {
     public void writeString(String value) throws IOException {
         try {
             generator.writeString(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
+    }
+
+    @Override
+    public void writeSerializableString(SerializableString value) throws IOException {
+        try {
+            var jacksonSerializedString = value.computeIfAbsent(SerializedString.class, SerializedString::new);
+            generator.writeString(jacksonSerializedString);
         } catch (JsonGenerationException e) {
             throw new XContentGenerationException(e);
         }

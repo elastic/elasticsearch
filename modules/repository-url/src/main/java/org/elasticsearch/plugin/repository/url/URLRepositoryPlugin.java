@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugin.repository.url;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
 import org.elasticsearch.common.settings.Setting;
@@ -24,13 +25,13 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
-    private final AtomicReference<URLHttpClient.Factory> httpClientFactory = new AtomicReference<>();
+    private final SetOnce<URLHttpClient.Factory> httpClientFactory = new SetOnce<>();
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -50,18 +51,27 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
         RecoverySettings recoverySettings,
         RepositoriesMetrics repositoriesMetrics
     ) {
-        return Collections.singletonMap(
-            URLRepository.TYPE,
-            metadata -> new URLRepository(
+        return Collections.singletonMap(URLRepository.TYPE, metadata -> {
+            assert httpClientFactory.get() != null : "Expected to get a configured http client factory";
+            return new URLRepository(
                 metadata,
                 env,
                 namedXContentRegistry,
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                httpClientFactory.updateAndGet(factory -> factory == null ? new URLHttpClient.Factory() : factory)
-            )
-        );
+                httpClientFactory.get()
+            );
+        });
+    }
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+
+        final URLHttpClient.Factory apacheURLHttpClientFactory = new URLHttpClient.Factory();
+
+        httpClientFactory.set(apacheURLHttpClientFactory);
+        return List.of(apacheURLHttpClientFactory);
     }
 
     @Override

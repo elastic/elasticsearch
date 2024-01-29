@@ -145,7 +145,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         if (version.before(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
             return new InferenceAction.Request(
                 instance.getTaskType(),
-                instance.getModelId(),
+                instance.getInferenceEntityId(),
                 instance.getInput().subList(0, 1),
                 instance.getTaskSettings(),
                 InputType.UNSPECIFIED
@@ -153,7 +153,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         } else if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
             return new InferenceAction.Request(
                 instance.getTaskType(),
-                instance.getModelId(),
+                instance.getInferenceEntityId(),
                 instance.getInput(),
                 instance.getTaskSettings(),
                 InputType.UNSPECIFIED
@@ -162,7 +162,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             && instance.getInputType() == InputType.UNSPECIFIED) {
                 return new InferenceAction.Request(
                     instance.getTaskType(),
-                    instance.getModelId(),
+                    instance.getInferenceEntityId(),
                     instance.getInput(),
                     instance.getTaskSettings(),
                     InputType.INGEST

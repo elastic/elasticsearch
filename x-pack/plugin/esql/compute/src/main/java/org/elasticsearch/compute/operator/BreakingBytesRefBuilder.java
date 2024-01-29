@@ -26,6 +26,11 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     private final String label;
 
     /**
+     * Counts how often we needed to resize while growing. Only works if assertions are enabled.
+     */
+    private int resizes = 0;
+
+    /**
      * Build.
      * @param breaker the {@link CircuitBreaker} to check on resize
      * @param label the label reported by the breaker when it breaks
@@ -70,6 +75,7 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
         if (oldCapacity > capacity) {
             return;
         }
+        assert incResizes();
         int newCapacity = ArrayUtil.oversize(capacity, Byte.BYTES);
         setCapacity(newCapacity);
     }
@@ -168,5 +174,19 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     @Override
     public void close() {
         breaker.addWithoutBreaking(-ramBytesUsed());
+    }
+
+    public int getResizes() {
+        return resizes;
+    }
+
+    public boolean clearResizes() {
+        resizes = 0;
+        return true;
+    }
+
+    private boolean incResizes() {
+        resizes++;
+        return true;
     }
 }

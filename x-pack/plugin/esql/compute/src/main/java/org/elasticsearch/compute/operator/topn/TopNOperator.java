@@ -276,6 +276,11 @@ public class TopNOperator implements Operator, Accountable {
     private int spareValuesPreAllocSize = 0;
     private int spareKeysPreAllocSize = 0;
 
+    /**
+     * Counts how often we needed to resize rows. Only works if assertions are enabled.
+     */
+    private int rowResizes;
+
     private Iterator<Page> output;
 
     public TopNOperator(
@@ -352,13 +357,15 @@ public class TopNOperator implements Operator, Accountable {
 
             for (int i = 0; i < page.getPositionCount(); i++) {
                 if (spare == null) {
-
                     spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
                 } else {
                     spare.keys.clear();
                     spare.values.clear();
+                    assert spare.keys.clearResizes();
+                    assert spare.values.clearResizes();
                 }
                 rowFiller.row(i, spare);
+                assert addRowResizes(spare.values.getResizes() + spare.keys.getResizes());
 
                 // When rows are very long, appending the values one by one can lead to lots of allocations.
                 // To avoid this, pre-allocate at least as much size as in the last seen row.
@@ -582,5 +589,14 @@ public class TopNOperator implements Operator, Accountable {
             }
             return total;
         }
+    }
+
+    int getRowResizes() {
+        return rowResizes;
+    }
+
+    private boolean addRowResizes(int resizes) {
+        rowResizes += resizes;
+        return true;
     }
 }

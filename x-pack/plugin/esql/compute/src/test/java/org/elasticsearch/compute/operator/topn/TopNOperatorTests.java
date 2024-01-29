@@ -77,6 +77,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -1393,6 +1394,37 @@ public class TopNOperatorTests extends OperatorTestCase {
             )
         ) {
             op.addInput(new Page(blockFactory().newIntArrayVector(new int[] { 1 }, 1).asBlock()));
+        }
+    }
+
+    public void testRowResizes() {
+        int columns = 1000;
+        int rows = 1000;
+        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
+        List<ElementType> types = Collections.nCopies(columns, INT);
+        List<TopNEncoder> encoders = Collections.nCopies(columns, DEFAULT_UNSORTABLE);
+        try (
+            TopNOperator op = new TopNOperator(
+                driverContext().blockFactory(),
+                breaker,
+                10,
+                types,
+                encoders,
+                List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
+                randomPageSize()
+            )
+        ) {
+            int[] blockValues = IntStream.range(0, rows).toArray();
+            Block block = blockFactory().newIntArrayVector(blockValues, rows).asBlock();
+            Block[] blocks = new Block[1000];
+            for (int i = 0; i < 1000; i++) {
+                blocks[i] = block;
+                block.incRef();
+            }
+            block.decRef();
+            op.addInput(new Page(blocks));
+
+            assertThat(op.getRowResizes(), is(61));
         }
     }
 

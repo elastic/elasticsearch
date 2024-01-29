@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -133,30 +132,6 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         assertEquals(expectedAvg, reduced.getAvg(), delta);
         assertEquals(min, reduced.getMin(), 0d);
         assertEquals(max, reduced.getMax(), 0d);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalStats aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedStats);
-        ParsedStats parsed = (ParsedStats) parsedAggregation;
-        assertStats(aggregation, parsed);
-    }
-
-    static void assertStats(InternalStats aggregation, ParsedStats parsed) {
-        long count = aggregation.getCount();
-        assertEquals(count, parsed.getCount());
-        // for count == 0, fields are rendered as `null`, so we test that we parse to default values used also in the reduce phase
-        assertEquals(count > 0 ? aggregation.getMin() : Double.POSITIVE_INFINITY, parsed.getMin(), 0);
-        assertEquals(count > 0 ? aggregation.getMax() : Double.NEGATIVE_INFINITY, parsed.getMax(), 0);
-        assertEquals(count > 0 ? aggregation.getSum() : 0, parsed.getSum(), 0);
-        assertEquals(count > 0 ? aggregation.getAvg() : 0, parsed.getAvg(), 0);
-        // also as_string values are only rendered for count != 0
-        if (count > 0) {
-            assertEquals(aggregation.getMinAsString(), parsed.getMinAsString());
-            assertEquals(aggregation.getMaxAsString(), parsed.getMaxAsString());
-            assertEquals(aggregation.getSumAsString(), parsed.getSumAsString());
-            assertEquals(aggregation.getAvgAsString(), parsed.getAvgAsString());
-        }
     }
 
     @Override

@@ -923,10 +923,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         IndexAbstraction resolveIfAbsent(DocWriteRequest<?> request) {
             try {
-                return indexAbstractions.computeIfAbsent(
-                    request.index(),
-                    key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
-                );
+                IndexAbstraction indexAbstraction = indexAbstractions.get(request.index());
+                if (indexAbstraction == null) {
+                    indexAbstraction = indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request);
+                    indexAbstractions.put(request.index(), indexAbstraction);
+                }
+                return indexAbstraction;
             } catch (IndexNotFoundException e) {
                 if (e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
                     throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams", e);
@@ -937,7 +939,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         IndexRouting routing(Index index) {
-            return routings.computeIfAbsent(index, idx -> IndexRouting.fromIndexMetadata(state.metadata().getIndexSafe(idx)));
+            IndexRouting routing = routings.get(index);
+            if (routing == null) {
+                routing = IndexRouting.fromIndexMetadata(state.metadata().getIndexSafe(index));
+                routings.put(index, routing);
+            }
+            return routing;
         }
     }
 

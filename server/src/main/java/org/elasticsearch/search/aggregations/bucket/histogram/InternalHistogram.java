@@ -37,7 +37,7 @@ import java.util.function.DoubleConsumer;
 /**
  * Implementation of {@link Histogram}.
  */
-public final class InternalHistogram extends InternalMultiBucketAggregation<InternalHistogram, InternalHistogram.Bucket>
+public class InternalHistogram extends InternalMultiBucketAggregation<InternalHistogram, InternalHistogram.Bucket>
     implements
         Histogram,
         HistogramFactory {

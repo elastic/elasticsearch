@@ -1,0 +1,5 @@
+pr: 104956
+summary: Changing `ReplicationRequestBuilder` to be an `ActionRequestLazyBuilder`
+area: Ingest Node
+type: enhancement
+issues: []

@@ -27,9 +27,9 @@ include::{esql-specs}/stats.csv-spec[tag=sum]
 include::{esql-specs}/stats.csv-spec[tag=sum-result]
 |===
 
-The expression can use inline functions. For example, to calculate the number of
-values for a multivalued column, use `MV_COUNT` to first count the number of
-values per row, and use the result with the `SUM` function:
+The expression can use inline functions. For example, to calculate the total 
+sum of the maximum values for each set of multivalued entries in a column,
+apply the `MV_MAX` function to each set and then sum the results:
 
 [source.merge.styled,esql]
 ----

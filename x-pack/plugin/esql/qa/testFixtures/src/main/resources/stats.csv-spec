@@ -1061,13 +1061,13 @@ min_avg_salary_change:double
 docsStatsSumNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
 // tag::docsStatsSumNestedExpression[]
 FROM employees
-| STATS num_sal_changes = SUM(MV_COUNT(salary_change))
+| STATS total_salary_changes = SUM(MV_MAX(salary_change))
 // end::docsStatsSumNestedExpression[]
 ;
 
 // tag::docsStatsSumNestedExpression-result[]
-num_sal_changes:long
-183
+total_salary_changes:double
+446.75
 // end::docsStatsSumNestedExpression-result[]
 ;
 

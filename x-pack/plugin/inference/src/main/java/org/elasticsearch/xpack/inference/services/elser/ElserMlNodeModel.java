@@ -14,13 +14,13 @@ import org.elasticsearch.inference.TaskType;
 public class ElserMlNodeModel extends Model {
 
     public ElserMlNodeModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         ElserMlNodeServiceSettings serviceSettings,
         ElserMlNodeTaskSettings taskSettings
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings));
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings));
     }
 
     @Override

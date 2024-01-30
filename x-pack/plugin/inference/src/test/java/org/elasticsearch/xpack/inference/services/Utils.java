@@ -14,9 +14,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class Utils {
-    public static Model getInvalidModel(String modelId, String serviceName) {
+    public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
         var mockConfigs = mock(ModelConfigurations.class);
-        when(mockConfigs.getModelId()).thenReturn(modelId);
+        when(mockConfigs.getInferenceEntityId()).thenReturn(inferenceEntityId);
         when(mockConfigs.getService()).thenReturn(serviceName);
 
         var mockModel = mock(Model.class);

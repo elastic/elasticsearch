@@ -31,7 +31,7 @@ class RuntimeHelper {
     }
 
     static MethodHandle downcallHandle(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
-        return LINKER.downcallHandle(functionAddress(function), functionDescriptor);
+        return LINKER.downcallHandle(functionAddress(function), functionDescriptor, options);
     }
 
     static MethodHandle upcallHandle(Class<?> clazz, String methodName, FunctionDescriptor functionDescriptor) {

@@ -36,7 +36,7 @@ import java.util.List;
  */
 public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, BulkResponse>
     implements
-    WriteRequestBuilder<BulkRequestBuilder> {
+        WriteRequestBuilder<BulkRequestBuilder> {
     private final String globalIndex;
     /*
      * The following 3 variables hold the list of requests that make up this bulk. Only one can be non-empty. That is, users can't add

@@ -418,6 +418,8 @@ public class RollupIndexerStateTests extends ESTestCase {
 
                     InternalComposite composite = mock(InternalComposite.class);
                     when(composite.getBuckets()).thenAnswer(invocation -> {
+                        // Abort immediately before we are attempting to finish the job because the response
+                        // was empty
                         state.set(IndexerState.ABORTING);
                         return List.of();
                     });

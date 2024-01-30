@@ -31,26 +31,6 @@ public class Mul extends EsqlArithmeticOperation implements BinaryComparisonInve
         );
     }
 
-    /*
-    @Override
-    protected TypeResolution resolveType() {
-        if (childrenResolved() == false) {
-            return new TypeResolution("Unresolved children");
-        }
-
-        DataType l = left().dataType();
-        DataType r = right().dataType();
-
-        // 1. both are numbers
-        if (DataTypes.isNullOrNumeric(l) && DataTypes.isNullOrNumeric(r)) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-
-        return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
-    }
-
-     */
-
     @Override
     public ArithmeticOperationFactory binaryComparisonInverse() {
         return Div::new;

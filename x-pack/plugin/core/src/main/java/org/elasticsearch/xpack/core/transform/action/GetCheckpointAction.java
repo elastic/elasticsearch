@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,9 +41,10 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
 
     // note: this is an index action and requires `monitor` or `view_index_metadata`
     public static final String NAME = "indices:monitor/transform/checkpoint";
+    public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
 
     private GetCheckpointAction() {
-        super(NAME, GetCheckpointAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {

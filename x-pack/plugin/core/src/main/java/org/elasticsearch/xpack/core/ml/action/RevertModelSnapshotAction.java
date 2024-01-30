@@ -30,7 +30,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/revert";
 
     private RevertModelSnapshotAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {

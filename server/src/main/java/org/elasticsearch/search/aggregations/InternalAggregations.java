@@ -7,14 +7,20 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortValue;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,14 +29,22 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
+
 /**
- * An internal implementation of {@link Aggregations}.
+ * Represents a set of {@link InternalAggregation}s
  */
-public final class InternalAggregations extends Aggregations implements Writeable {
+public final class InternalAggregations implements Iterable<InternalAggregation>, ToXContentFragment, Writeable {
+
+    public static final String AGGREGATIONS_FIELD = "aggregations";
 
     public static final InternalAggregations EMPTY = new InternalAggregations(Collections.emptyList());
 
@@ -44,11 +58,115 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         }
     };
 
+    protected final List<InternalAggregation> aggregations;
+    private Map<String, InternalAggregation> aggregationsAsMap;
+
     /**
      * Constructs a new aggregation.
      */
     private InternalAggregations(List<InternalAggregation> aggregations) {
-        super(aggregations);
+        this.aggregations = aggregations;
+        if (aggregations.isEmpty()) {
+            aggregationsAsMap = emptyMap();
+        }
+    }
+
+    /**
+     * Iterates over the {@link Aggregation}s.
+     */
+    @Override
+    public Iterator<InternalAggregation> iterator() {
+        return aggregations.iterator();
+    }
+
+    /**
+     * The list of {@link Aggregation}s.
+     */
+    public List<InternalAggregation> asList() {
+        return Collections.unmodifiableList(aggregations);
+    }
+
+    /**
+     * Returns the {@link Aggregation}s keyed by aggregation name.
+     */
+    public Map<String, InternalAggregation> asMap() {
+        return getAsMap();
+    }
+
+    /**
+     * Returns the {@link Aggregation}s keyed by aggregation name.
+     */
+    public Map<String, InternalAggregation> getAsMap() {
+        if (aggregationsAsMap == null) {
+            Map<String, InternalAggregation> newAggregationsAsMap = Maps.newMapWithExpectedSize(aggregations.size());
+            for (InternalAggregation aggregation : aggregations) {
+                newAggregationsAsMap.put(aggregation.getName(), aggregation);
+            }
+            this.aggregationsAsMap = unmodifiableMap(newAggregationsAsMap);
+        }
+        return aggregationsAsMap;
+    }
+
+    /**
+     * Returns the aggregation that is associated with the specified name.
+     */
+    @SuppressWarnings("unchecked")
+    public <A extends InternalAggregation> A get(String name) {
+        return (A) asMap().get(name);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        return aggregations.equals(((InternalAggregations) obj).aggregations);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), aggregations);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (aggregations.isEmpty()) {
+            return builder;
+        }
+        builder.startObject(AGGREGATIONS_FIELD);
+        toXContentInternal(builder, params);
+        return builder.endObject();
+    }
+
+    /**
+     * Directly write all the aggregations without their bounding object. Used by sub-aggregations (non top level aggs)
+     */
+    public XContentBuilder toXContentInternal(XContentBuilder builder, Params params) throws IOException {
+        for (InternalAggregation aggregation : aggregations) {
+            aggregation.toXContent(builder, params);
+        }
+        return builder;
+    }
+
+    public static InternalAggregations fromXContent(XContentParser parser) throws IOException {
+        final List<InternalAggregation> aggregations = new ArrayList<>();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                SetOnce<InternalAggregation> typedAgg = new SetOnce<>();
+                String currentField = parser.currentName();
+                parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, InternalAggregation.class, typedAgg::set);
+                if (typedAgg.get() != null) {
+                    aggregations.add(typedAgg.get());
+                } else {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        String.format(Locale.ROOT, "Could not parse aggregation keyed as [%s]", currentField)
+                    );
+                }
+            }
+        }
+        return new InternalAggregations(aggregations);
     }
 
     public static InternalAggregations from(List<InternalAggregation> aggregations) {
@@ -76,7 +194,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
 
     @SuppressWarnings("unchecked")
     private List<InternalAggregation> getInternalAggregations() {
-        return (List<InternalAggregation>) aggregations;
+        return aggregations;
     }
 
     /**
@@ -173,9 +291,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      */
     public static InternalAggregations finalizeSampling(InternalAggregations internalAggregations, SamplingContext samplingContext) {
         return from(
-            internalAggregations.aggregations.stream()
-                .map(agg -> ((InternalAggregation) agg).finalizeSampling(samplingContext))
-                .collect(Collectors.toList())
+            internalAggregations.aggregations.stream().map(agg -> agg.finalizeSampling(samplingContext)).collect(Collectors.toList())
         );
     }
 }

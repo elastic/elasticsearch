@@ -120,15 +120,15 @@ public class TransformCheckpointService {
      * @param transformState the current state of the Transform
      * @return basic checkpointing info, including id, position, and progress of the Next Checkpoint and the id of the Last Checkpoint.
      */
-    public TransformCheckpointingInfo deriveBasicCheckpointingInfo(TransformState transformState) {
+    public static TransformCheckpointingInfo deriveBasicCheckpointingInfo(TransformState transformState) {
         return new TransformCheckpointingInfo(lastCheckpointStats(transformState), nextCheckpointStats(transformState), 0L, null, null);
     }
 
-    private TransformCheckpointStats lastCheckpointStats(TransformState transformState) {
+    private static TransformCheckpointStats lastCheckpointStats(TransformState transformState) {
         return new TransformCheckpointStats(transformState.getCheckpoint(), null, null, 0L, 0L);
     }
 
-    private TransformCheckpointStats nextCheckpointStats(TransformState transformState) {
+    private static TransformCheckpointStats nextCheckpointStats(TransformState transformState) {
         // getCheckpoint is the last checkpoint. if we're at zero then we'd only call to get the zeroth checkpoint (see getCheckpointInfo)
         var checkpoint = transformState.getCheckpoint() != 0 ? transformState.getCheckpoint() + 1 : 0;
         return new TransformCheckpointStats(checkpoint, transformState.getPosition(), transformState.getProgress(), 0L, 0L);

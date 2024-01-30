@@ -42,7 +42,8 @@ public class RestGetTransformStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient nodeClient) {
         String id = restRequest.param(TransformField.ID.getPreferredName());
         TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
-        GetTransformStatsAction.Request request = new GetTransformStatsAction.Request(id, timeout);
+        var isBasicStats = restRequest.paramAsBoolean(BASIC_STATS.getPreferredName(), false);
+        GetTransformStatsAction.Request request = new GetTransformStatsAction.Request(id, timeout, isBasicStats);
         request.setAllowNoMatch(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(
@@ -52,7 +53,6 @@ public class RestGetTransformStatsAction extends BaseRestHandler {
                 )
             );
         }
-        request.setIsBasicStats(restRequest.paramAsBoolean(BASIC_STATS.getPreferredName(), false));
         Client client = new RestCancellableNodeClient(nodeClient, restRequest.getHttpChannel());
         return channel -> client.execute(GetTransformStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

@@ -259,7 +259,8 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     protected Map<String, Object> getBasicTransformStats(String id) throws IOException {
-        var request = new Request("GET", TRANSFORM_ENDPOINT + id + "/_stats?" + BASIC_STATS.getPreferredName() + "=true");
+        var request = new Request("GET", TRANSFORM_ENDPOINT + id + "/_stats");
+        request.addParameter(BASIC_STATS.getPreferredName(), "true");
         request.setOptions(RequestOptions.DEFAULT);
         Response response = client().performRequest(request);
         List<Map<String, Object>> stats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", entityAsMap(response));
@@ -268,7 +269,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected String getTransformState(String id) throws IOException {
-        return (String) getTransformStats(id).get("state");
+        return (String) getBasicTransformStats(id).get("state");
     }
 
     @SuppressWarnings("unchecked")
@@ -296,7 +297,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         assertBusy(
             () -> assertEquals(
                 checkpoint,
-                ((Integer) XContentMapValues.extractValue("checkpointing.last.checkpoint", getTransformStats(id))).longValue()
+                ((Integer) XContentMapValues.extractValue("checkpointing.last.checkpoint", getBasicTransformStats(id))).longValue()
             ),
             waitTime.getMillis(),
             TimeUnit.MILLISECONDS

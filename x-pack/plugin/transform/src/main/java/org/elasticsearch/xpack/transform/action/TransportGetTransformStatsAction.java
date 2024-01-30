@@ -352,7 +352,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         if (request.isBasicStats()) {
             ActionListener.completeWith(
                 listener,
-                () -> transformCheckpointService.deriveBasicCheckpointingInfo(transform.getTransformState())
+                () -> TransformCheckpointService.deriveBasicCheckpointingInfo(transform.getTransformState())
             );
         } else {
             transformCheckpointService.getCheckpointingInfo(

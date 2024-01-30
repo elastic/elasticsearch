@@ -82,18 +82,19 @@ public class TransformIT extends TransformRestTestCase {
     }
 
     public void testTransformCrud() throws Exception {
-        var configId = createStoppedTransform("basic-crud-reviews", "transform-crud");
-        assertBusy(() -> { assertEquals("stopped", getTransformStats(configId).get("state")); });
+        var transformId = "transform-crud";
+        createStoppedTransform("basic-crud-reviews", transformId);
+        assertBusy(() -> { assertEquals("stopped", getTransformState(transformId)); });
 
-        var storedConfig = getTransform(configId);
+        var storedConfig = getTransform(transformId);
         assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));
-        deleteTransform(configId);
+        deleteTransform(transformId);
     }
 
-    private String createStoppedTransform(String indexName, String transformId) throws Exception {
+    private void createStoppedTransform(String indexName, String transformId) throws Exception {
         createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         var groups = Map.of(
@@ -118,8 +119,6 @@ public class TransformIT extends TransformRestTestCase {
 
         waitUntilCheckpoint(config.getId(), 1L);
         stopTransform(config.getId());
-
-        return config.getId();
     }
 
     /**
@@ -128,8 +127,9 @@ public class TransformIT extends TransformRestTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testBasicTransformStats() throws Exception {
-        var configId = createStoppedTransform("basic-stats-reviews", "transform-basic-stats");
-        var transformStats = getBasicTransformStats(configId);
+        var transformId = "transform-basic-stats";
+        createStoppedTransform("basic-stats-reviews", transformId);
+        var transformStats = getBasicTransformStats(transformId);
 
         assertBusy(() -> assertEquals("stopped", XContentMapValues.extractValue("state", transformStats)));
         assertEquals("green", XContentMapValues.extractValue("health.status", transformStats));
@@ -139,18 +139,19 @@ public class TransformIT extends TransformRestTestCase {
             equalTo(100.0)
         );
 
-        deleteTransform(configId);
+        deleteTransform(transformId);
     }
 
     public void testContinuousTransformCrud() throws Exception {
+        var transformId = "transform-continuous-crud";
         var indexName = "continuous-crud-reviews";
-        var configId = createContinuousTransform(indexName, "transform-continuous-crud");
-        var transformStats = getTransformStats(configId);
+        createContinuousTransform(indexName, transformId);
+        var transformStats = getBasicTransformStats(transformId);
         assertThat(transformStats.get("state"), equalTo("started"));
 
         int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", transformStats);
 
-        var storedConfig = getTransform(configId);
+        var storedConfig = getTransform(transformId);
         assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
@@ -160,20 +161,20 @@ public class TransformIT extends TransformRestTestCase {
         long timeStamp = Instant.now().toEpochMilli() - 1_000;
         long user = 42;
         indexMoreDocs(timeStamp, user, indexName);
-        waitUntilCheckpoint(configId, 2L);
+        waitUntilCheckpoint(transformId, 2L);
 
         // Assert that we wrote the new docs
 
         assertThat(
-            (Integer) XContentMapValues.extractValue("stats.documents_indexed", getTransformStats(configId)),
+            (Integer) XContentMapValues.extractValue("stats.documents_indexed", getBasicTransformStats(transformId)),
             greaterThan(docsIndexed)
         );
 
-        stopTransform(configId);
-        deleteTransform(configId);
+        stopTransform(transformId);
+        deleteTransform(transformId);
     }
 
-    private String createContinuousTransform(String indexName, String transformId) throws Exception {
+    private void createContinuousTransform(String indexName, String transformId) throws Exception {
         createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         var groups = Map.of(
@@ -199,7 +200,6 @@ public class TransformIT extends TransformRestTestCase {
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
         waitUntilCheckpoint(config.getId(), 1L);
-        return config.getId();
     }
 
     /**
@@ -208,8 +208,9 @@ public class TransformIT extends TransformRestTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testBasicContinuousTransformStats() throws Exception {
-        var configId = createContinuousTransform("continuous-basic-stats-reviews", "transform-continuous-basic-stats");
-        var transformStats = getBasicTransformStats(configId);
+        var transformId = "transform-continuous-basic-stats";
+        createContinuousTransform("continuous-basic-stats-reviews", transformId);
+        var transformStats = getBasicTransformStats(transformId);
 
         assertEquals("started", XContentMapValues.extractValue("state", transformStats));
         assertEquals("green", XContentMapValues.extractValue("health.status", transformStats));
@@ -218,8 +219,8 @@ public class TransformIT extends TransformRestTestCase {
         // It's difficult to get the integration test to reliably call the stats API while that data is available, since continuous
         // transforms start and finish the next checkpoint quickly (<1ms).
 
-        stopTransform(configId);
-        deleteTransform(configId);
+        stopTransform(transformId);
+        deleteTransform(transformId);
     }
 
     public void testContinuousTransformUpdate() throws Exception {
@@ -245,7 +246,7 @@ public class TransformIT extends TransformRestTestCase {
         waitUntilCheckpoint(config.getId(), 1L);
         assertThat(getTransformState(config.getId()), oneOf("started", "indexing"));
 
-        int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", getTransformStats(config.getId()));
+        int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", getBasicTransformStats(config.getId()));
 
         var storedConfig = getTransform(config.getId());
         assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
@@ -286,7 +287,7 @@ public class TransformIT extends TransformRestTestCase {
 
         // Since updates are loaded on checkpoint start, we should see the updated config on this next run
         waitUntilCheckpoint(config.getId(), 2L);
-        int numDocsAfterCp2 = (Integer) XContentMapValues.extractValue("stats.documents_indexed", getTransformStats(config.getId()));
+        int numDocsAfterCp2 = (Integer) XContentMapValues.extractValue("stats.documents_indexed", getBasicTransformStats(config.getId()));
         assertThat(numDocsAfterCp2, greaterThan(docsIndexed));
 
         Request searchRequest = new Request("GET", dest + "/_search");
@@ -374,7 +375,7 @@ public class TransformIT extends TransformRestTestCase {
 
         // wait until transform has been triggered and indexed at least 1 document
         assertBusy(() -> {
-            var stateAndStats = getTransformStats(config.getId());
+            var stateAndStats = getBasicTransformStats(config.getId());
             assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), greaterThan(1));
         });
 
@@ -386,7 +387,7 @@ public class TransformIT extends TransformRestTestCase {
 
         // Even though we are continuous, we should be stopped now as we needed to stop at the first checkpoint
         assertBusy(() -> {
-            var stateAndStats = getTransformStats(config.getId());
+            var stateAndStats = getBasicTransformStats(config.getId());
             assertThat(stateAndStats.get("state"), equalTo("stopped"));
             assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), equalTo(1000));
         });
@@ -404,12 +405,12 @@ public class TransformIT extends TransformRestTestCase {
             stopTransform(transformId, waitForCompletion, null, true);
 
             assertBusy(() -> {
-                var stateAndStats = getTransformStats(config.getId());
+                var stateAndStats = getBasicTransformStats(config.getId());
                 assertThat(stateAndStats.get("state"), equalTo("stopped"));
             });
         }
 
-        var stateAndStats = getTransformStats(config.getId());
+        var stateAndStats = getBasicTransformStats(config.getId());
         assertThat(stateAndStats.get("state"), equalTo("stopped"));
         // Despite indexing new documents into the source index, the number of documents in the destination index stays the same.
         assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), equalTo(1000));
@@ -447,10 +448,7 @@ public class TransformIT extends TransformRestTestCase {
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
-        assertBusy(() -> {
-            var stateAndStats = getTransformStats(config.getId());
-            assertThat(stateAndStats.get("state"), equalTo("indexing"));
-        });
+        assertBusy(() -> { assertThat(getTransformState(config.getId()), equalTo("indexing")); });
 
         // test randomly: with explicit settings and reset to default
         String reqsPerSec = randomBoolean() ? "1000" : "null";
@@ -469,7 +467,7 @@ public class TransformIT extends TransformRestTestCase {
         waitUntilCheckpoint(config.getId(), 1L);
         assertThat(getTransformState(config.getId()), equalTo("started"));
 
-        var transformStats = getTransformStats(config.getId());
+        var transformStats = getBasicTransformStats(config.getId());
         int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", transformStats);
         int pagesProcessed = (Integer) XContentMapValues.extractValue("stats.pages_processed", transformStats);
 

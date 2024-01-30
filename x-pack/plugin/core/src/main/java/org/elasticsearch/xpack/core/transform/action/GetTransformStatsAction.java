@@ -60,7 +60,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
         // used internally to expand the queried id expression
         private List<String> expandedIds;
 
-        public Request(String id, @Nullable TimeValue timeout) {
+        public Request(String id, @Nullable TimeValue timeout, boolean isBasicStats) {
             setTimeout(timeout);
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
                 this.id = Metadata.ALL;
@@ -120,10 +120,6 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
 
         public boolean isBasicStats() {
             return isBasicStats;
-        }
-
-        public void setIsBasicStats(boolean isBasicStats) {
-            this.isBasicStats = isBasicStats;
         }
 
         @Override

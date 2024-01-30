@@ -672,7 +672,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private record IngestPipelinesExecutionResult(boolean success, boolean shouldKeep, Exception exception, String failedIndex) {
 
         private static final IngestPipelinesExecutionResult SUCCESSFUL_RESULT = new IngestPipelinesExecutionResult(true, true, null, null);
-        private static final IngestPipelinesExecutionResult DISCARD_RESULT = new IngestPipelinesExecutionResult(true, true, null, null);
+        private static final IngestPipelinesExecutionResult DISCARD_RESULT = new IngestPipelinesExecutionResult(true, false, null, null);
         private static IngestPipelinesExecutionResult failAndStoreFor(String index, Exception e) {
             return new IngestPipelinesExecutionResult(false, true, e, index);
         }

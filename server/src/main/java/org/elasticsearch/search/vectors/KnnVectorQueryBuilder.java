@@ -114,8 +114,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         super(in);
         this.fieldName = in.readString();
         this.numCands = in.readVInt();
-        if (in.getTransportVersion().before(TransportVersions.V_8_7_0)
-            || in.getTransportVersion().onOrAfter(TransportVersions.KNN_AS_QUERY_ADDED)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_7_0) || in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
             this.queryVector = in.readFloatArray();
         } else {
             in.readBoolean();
@@ -172,7 +171,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         out.writeVInt(numCands);
 
         if (out.getTransportVersion().before(TransportVersions.V_8_7_0)
-            || out.getTransportVersion().onOrAfter(TransportVersions.KNN_AS_QUERY_ADDED)) {
+            || out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
             out.writeFloatArray(queryVector);
         } else {
             out.writeBoolean(true);

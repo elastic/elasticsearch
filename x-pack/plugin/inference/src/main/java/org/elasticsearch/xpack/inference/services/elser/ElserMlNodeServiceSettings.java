@@ -85,20 +85,10 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
     public ElserMlNodeServiceSettings(StreamInput in) throws IOException {
         numAllocations = in.readVInt();
         numThreads = in.readVInt();
-        if (transportVersionIsCompatibleWithElserModelVersion(in.getTransportVersion())) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             modelVariant = in.readString();
         } else {
             modelVariant = ElserMlNodeService.ELSER_V2_MODEL;
-        }
-    }
-
-    static boolean transportVersionIsCompatibleWithElserModelVersion(TransportVersion transportVersion) {
-        var nextNonPatchVersion = TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME;
-
-        if (transportVersion.onOrAfter(TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED)) {
-            return true;
-        } else {
-            return transportVersion.onOrAfter(TransportVersions.V_8_11_X) && transportVersion.before(nextNonPatchVersion);
         }
     }
 
@@ -138,7 +128,7 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(numAllocations);
         out.writeVInt(numThreads);
-        if (transportVersionIsCompatibleWithElserModelVersion(out.getTransportVersion())) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             out.writeString(modelVariant);
         }
     }

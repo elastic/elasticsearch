@@ -158,7 +158,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             } else {
                 textInput = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
                 prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
             } else {
                 prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
@@ -241,7 +241,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
                 out.writeEnum(prefixType);
             }
         }

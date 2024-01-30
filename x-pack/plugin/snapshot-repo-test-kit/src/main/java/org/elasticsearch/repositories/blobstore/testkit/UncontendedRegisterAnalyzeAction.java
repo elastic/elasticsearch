@@ -150,7 +150,7 @@ class UncontendedRegisterAnalyzeAction extends HandledTransportAction<Uncontende
 
         Request(StreamInput in) throws IOException {
             super(in);
-            assert in.getTransportVersion().onOrAfter(TransportVersions.UNCONTENDED_REGISTER_ANALYSIS_ADDED);
+            assert in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X);
             repositoryName = in.readString();
             containerPath = in.readString();
             registerName = in.readString();
@@ -159,7 +159,7 @@ class UncontendedRegisterAnalyzeAction extends HandledTransportAction<Uncontende
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion().onOrAfter(TransportVersions.UNCONTENDED_REGISTER_ANALYSIS_ADDED);
+            assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X);
             super.writeTo(out);
             out.writeString(repositoryName);
             out.writeString(containerPath);

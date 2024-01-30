@@ -8,15 +8,11 @@
 
 package org.elasticsearch.zstd;
 
-import org.elasticsearch.secure_sm.SecureSM;
-import org.elasticsearch.secure_sm.ThreadPermission;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.nio.ByteBuffer;
-import java.security.Permission;
-import java.security.Policy;
-import java.security.ProtectionDomain;
+import java.util.Arrays;
 
 public class ZstdTests extends ESTestCase {
 
@@ -29,67 +25,106 @@ public class ZstdTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> Zstd.getMaxCompressedLen(Integer.MIN_VALUE));
     }
 
+    public void testCompressValidation() {
+        assertEquals(
+            "Null destination buffer",
+            expectThrows(NullPointerException.class, () -> Zstd.compress(null, ByteBuffer.allocate(1000), 0)).getMessage()
+        );
+        assertEquals(
+            "Null source buffer",
+            expectThrows(NullPointerException.class, () -> Zstd.compress(ByteBuffer.allocate(1000), null, 0)).getMessage()
+        );
+        // dst capacity too low
+        byte[] toCompress = new byte[1000];
+        for (int i = 0; i < toCompress.length; ++i) {
+            toCompress[i] = randomByte();
+        }
+        assertEquals(
+            "Destination buffer is too small",
+            expectThrows(IllegalArgumentException.class, () -> Zstd.compress(ByteBuffer.allocate(500), ByteBuffer.wrap(toCompress), 0))
+                .getMessage()
+        );
+    }
+
+    public void testDecompressValidation() {
+        assertEquals(
+            "Null destination buffer",
+            expectThrows(NullPointerException.class, () -> Zstd.decompress(null, ByteBuffer.allocate(1000))).getMessage()
+        );
+        assertEquals(
+            "Null source buffer",
+            expectThrows(NullPointerException.class, () -> Zstd.decompress(ByteBuffer.allocate(1000), null)).getMessage()
+        );
+        // Invalid compressed format
+        byte[] toCompress = new byte[1000];
+        for (int i = 0; i < toCompress.length; ++i) {
+            toCompress[i] = (byte) i;
+        }
+        assertEquals(
+            "Unknown frame descriptor",
+            expectThrows(IllegalArgumentException.class, () -> Zstd.decompress(ByteBuffer.allocate(500), ByteBuffer.wrap(toCompress)))
+                .getMessage()
+        );
+        final int compressedLength = Zstd.compress(ByteBuffer.wrap(toCompress), ByteBuffer.allocate(1000), 0);
+        assertEquals(
+            "Destination buffer is too small",
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> Zstd.decompress(ByteBuffer.allocate(500), ByteBuffer.wrap(toCompress, 0, compressedLength))
+            ).getMessage()
+        );
+    }
+
     public void testEmpty() {
-        ByteBuffer uncompressed = ByteBuffer.allocate(0);
-        ByteBuffer compressed = ByteBuffer.allocate(Zstd.getMaxCompressedLen(0));
-        int compressedLen = Zstd.compress(compressed, uncompressed, randomIntBetween(0, 10));
-        assertThat(compressedLen, Matchers.greaterThan(0));
-        compressed.limit(compressedLen);
-        ByteBuffer decompressed = ByteBuffer.allocate(0);
-        assertEquals(0, Zstd.decompress(decompressed, compressed));
+        doTestRoundtrip(new byte[0]);
     }
 
     public void testOneByte() {
-        ByteBuffer uncompressed = ByteBuffer.wrap(new byte[] { 'z' });
-        ByteBuffer compressed = ByteBuffer.allocate(Zstd.getMaxCompressedLen(1));
-        int compressedLen = Zstd.compress(compressed, uncompressed, randomIntBetween(0, 10));
-        assertThat(compressedLen, Matchers.greaterThan(0));
-        compressed.limit(compressedLen);
-        ByteBuffer decompressed = ByteBuffer.allocate(1);
-        assertEquals(1, Zstd.decompress(decompressed, compressed));
-        assertEquals(uncompressed, decompressed);
+        doTestRoundtrip(new byte[] { 'z' });
     }
 
-    public void testBufferOverflowOnCompression() {
-        ByteBuffer uncompressed = ByteBuffer.wrap(new byte[] { 'z' });
-        ByteBuffer compressed = ByteBuffer.allocate(0);
-        expectThrows(IllegalArgumentException.class, () -> Zstd.compress(compressed, uncompressed, randomIntBetween(0, 10)));
+    public void testConstant() {
+        byte[] b = new byte[randomIntBetween(100, 1000)];
+        Arrays.fill(b, randomByte());
+        doTestRoundtrip(b);
     }
 
-    public void testBufferOverflowOnDecompression() {
-        ByteBuffer uncompressed = ByteBuffer.wrap(new byte[] { 'z' });
-        ByteBuffer compressed = ByteBuffer.allocate(Zstd.getMaxCompressedLen(1));
-        int compressedLen = Zstd.compress(compressed, uncompressed, randomIntBetween(0, 10));
-        assertThat(compressedLen, Matchers.greaterThan(0));
-        compressed.limit(compressedLen);
-        ByteBuffer decompressed = ByteBuffer.allocate(0);
-        expectThrows(IllegalArgumentException.class, () -> Zstd.decompress(decompressed, compressed));
-    }
-
-    public void testNonZeroOffsets() {
-        byte[] b = new byte[100];
-        b[60] = 'z';
-        ByteBuffer uncompressed = ByteBuffer.wrap(b, 60, 1);
-        ByteBuffer compressed = ByteBuffer.allocate(42 + Zstd.getMaxCompressedLen(uncompressed.remaining()));
-        compressed.position(42);
-        int compressedLen = Zstd.compress(compressed, uncompressed, randomIntBetween(0, 10));
-        compressed.limit(compressed.position() + compressedLen);
-        for (int i = 0; i < compressed.capacity(); ++i) {
-            if (i < compressed.position() || i > compressed.limit()) {
-                // Bytes outside of the range have not been updated
-                assertEquals(0, compressed.array()[i]);
-            }
+    public void testCycle() {
+        byte[] b = new byte[randomIntBetween(100, 1000)];
+        for (int i = 0; i < b.length; ++i) {
+            b[i] = (byte) (i & 0x0F);
         }
-        ByteBuffer decompressed = ByteBuffer.allocate(80);
-        decompressed.position(10);
-        assertEquals(1, Zstd.decompress(decompressed, compressed));
-        decompressed.limit(decompressed.position() + 1);
-        assertEquals(uncompressed, decompressed);
-        for (int i = 0; i < decompressed.capacity(); ++i) {
-            if (i < compressed.position() || i > compressed.limit()) {
-                // Bytes outside of the range have not been updated
-                assertEquals(0, compressed.array()[i]);
-            }
+        doTestRoundtrip(b);
+    }
+
+    private void doTestRoundtrip(byte[] data) {
+        {
+            byte[] compressed = new byte[Zstd.getMaxCompressedLen(data.length)];
+            final int compressedLength = Zstd.compress(ByteBuffer.wrap(compressed), ByteBuffer.wrap(data), randomIntBetween(-3, 9));
+            compressed = Arrays.copyOf(compressed, compressedLength);
+            byte[] restored = new byte[data.length];
+            Zstd.decompress(ByteBuffer.wrap(restored), ByteBuffer.wrap(compressed, 0, compressed.length));
+            assertArrayEquals(data, restored);
+        }
+        // Now with non-zero offsets
+        {
+            final int compressedOffset = randomIntBetween(1, 1000);
+            final int decompressedOffset = randomIntBetween(1, 1000);
+            byte[] dataCopy = new byte[decompressedOffset + data.length];
+            System.arraycopy(data, 0, dataCopy, decompressedOffset, data.length);
+            byte[] compressed = new byte[compressedOffset + Zstd.getMaxCompressedLen(data.length)];
+            final int compressedLength = Zstd.compress(
+                ByteBuffer.wrap(compressed, compressedOffset, compressed.length - compressedOffset),
+                ByteBuffer.wrap(dataCopy, decompressedOffset, data.length),
+                randomIntBetween(-3, 9)
+            );
+            byte[] restored = new byte[decompressedOffset + data.length];
+            final int decompressedLen = Zstd.decompress(
+                ByteBuffer.wrap(restored, decompressedOffset, data.length),
+                ByteBuffer.wrap(compressed, compressedOffset, compressedLength)
+            );
+            assertEquals(data.length, decompressedLen);
+            assertArrayEquals(data, Arrays.copyOfRange(restored, decompressedOffset, decompressedOffset + data.length));
         }
     }
 }

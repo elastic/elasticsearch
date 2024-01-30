@@ -14,6 +14,7 @@ import com.sun.jna.Native;
 import java.nio.ByteBuffer;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Objects;
 
 /** JNA bindings for ZSTD. */
 public final class Zstd {
@@ -52,6 +53,8 @@ public final class Zstd {
      * {@link ByteBuffer#position()} and {@link ByteBuffer#limit()} of both {@link ByteBuffer}s are left unmodified.
      */
     public static int compress(ByteBuffer dst, ByteBuffer src, int level) {
+        Objects.requireNonNull(dst, "Null destination buffer");
+        Objects.requireNonNull(src, "Null source buffer");
         long ret = library().ZSTD_compress(dst, dst.remaining(), src, src.remaining(), level);
         if (library().ZSTD_isError(ret)) {
             throw new IllegalArgumentException(library().ZSTD_getErrorName(ret));
@@ -66,6 +69,8 @@ public final class Zstd {
      * {@link ByteBuffer#limit()} of both {@link ByteBuffer}s are left unmodified.
      */
     public static int decompress(ByteBuffer dst, ByteBuffer src) {
+        Objects.requireNonNull(dst, "Null destination buffer");
+        Objects.requireNonNull(src, "Null source buffer");
         long ret = library().ZSTD_decompress(dst, dst.remaining(), src, src.remaining());
         if (library().ZSTD_isError(ret)) {
             throw new IllegalArgumentException(library().ZSTD_getErrorName(ret));

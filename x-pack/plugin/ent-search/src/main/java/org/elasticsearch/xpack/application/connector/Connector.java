@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -47,6 +48,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *     <li>An error string capturing the latest error encountered during the connector's operation, if any.</li>
  *     <li>A {@link ConnectorFeatures} object encapsulating the set of features enabled for this connector.</li>
  *     <li>A list of {@link ConnectorFiltering} objects for applying filtering rules to the data processed by the connector.</li>
+ *     <li>An optional {@link FilteringRules} object that represents active filtering rules applied to a sync job.</li>
  *     <li>The name of the Elasticsearch index where the synchronized data is stored or managed.</li>
  *     <li>A boolean flag 'isNative' indicating whether the connector is a native Elasticsearch connector.</li>
  *     <li>The language associated with the connector.</li>
@@ -79,6 +81,8 @@ public class Connector implements NamedWriteable, ToXContentObject {
     private final ConnectorFeatures features;
     private final List<ConnectorFiltering> filtering;
     @Nullable
+    private final FilteringRules syncJobFiltering;
+    @Nullable
     private final String indexName;
     private final boolean isNative;
     @Nullable
@@ -110,6 +114,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
      * @param error              Information about the last error encountered by the connector, if any.
      * @param features           Features enabled for the connector.
      * @param filtering          Filtering settings applied by the connector.
+     * @param syncJobFiltering   Filtering settings used by a sync job, it contains subset of data from 'filtering'.
      * @param indexName          Name of the index associated with the connector.
      * @param isNative           Flag indicating whether the connector is a native type.
      * @param language           The language supported by the connector.
@@ -132,6 +137,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         String error,
         ConnectorFeatures features,
         List<ConnectorFiltering> filtering,
+        FilteringRules syncJobFiltering,
         String indexName,
         boolean isNative,
         String language,
@@ -153,6 +159,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         this.error = error;
         this.features = features;
         this.filtering = filtering;
+        this.syncJobFiltering = syncJobFiltering;
         this.indexName = indexName;
         this.isNative = isNative;
         this.language = language;
@@ -176,6 +183,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         this.error = in.readOptionalString();
         this.features = in.readOptionalWriteable(ConnectorFeatures::new);
         this.filtering = in.readOptionalCollectionAsList(ConnectorFiltering::new);
+        this.syncJobFiltering = in.readOptionalWriteable(FilteringRules::new);
         this.indexName = in.readOptionalString();
         this.isNative = in.readBoolean();
         this.language = in.readOptionalString();
@@ -391,6 +399,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         out.writeOptionalString(error);
         out.writeOptionalWriteable(features);
         out.writeOptionalCollection(filtering);
+        out.writeOptionalWriteable(syncJobFiltering);
         out.writeOptionalString(indexName);
         out.writeBoolean(isNative);
         out.writeOptionalString(language);
@@ -435,6 +444,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
     public List<ConnectorFiltering> getFiltering() {
         return filtering;
+    }
+
+    public FilteringRules getSyncJobFiltering() {
+        return syncJobFiltering;
     }
 
     public String getIndexName() {
@@ -500,6 +513,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
             && Objects.equals(error, connector.error)
             && Objects.equals(features, connector.features)
             && Objects.equals(filtering, connector.filtering)
+            && Objects.equals(syncJobFiltering, connector.syncJobFiltering)
             && Objects.equals(indexName, connector.indexName)
             && Objects.equals(language, connector.language)
             && Objects.equals(lastSeen, connector.lastSeen)
@@ -523,6 +537,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
             error,
             features,
             filtering,
+            syncJobFiltering,
             indexName,
             isNative,
             language,
@@ -553,6 +568,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         private String error;
         private ConnectorFeatures features;
         private List<ConnectorFiltering> filtering;
+        private FilteringRules syncJobFiltering;
         private String indexName;
         private boolean isNative;
         private String language;
@@ -603,6 +619,11 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
         public Builder setFiltering(List<ConnectorFiltering> filtering) {
             this.filtering = filtering;
+            return this;
+        }
+
+        public Builder setSyncJobFiltering(FilteringRules syncJobFiltering) {
+            this.syncJobFiltering = syncJobFiltering;
             return this;
         }
 
@@ -676,6 +697,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
                 error,
                 features,
                 filtering,
+                syncJobFiltering,
                 indexName,
                 isNative,
                 language,

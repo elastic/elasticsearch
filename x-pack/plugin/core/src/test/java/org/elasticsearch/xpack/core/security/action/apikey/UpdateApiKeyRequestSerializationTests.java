@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class UpdateApiKeyRequestSerializationTests extends AbstractWireSerializingTestCase<UpdateApiKeyRequest> {
     public void testSerializationBackwardsCompatibility() throws IOException {
         UpdateApiKeyRequest testInstance = createTestInstance();
-        UpdateApiKeyRequest deserializedInstance = copyInstance(testInstance, TransportVersions.V_8_500_064);
+        UpdateApiKeyRequest deserializedInstance = copyInstance(testInstance, TransportVersions.V_8_11_X);
         try {
             // Transport is on a version before expiration was introduced, so should always be null
             assertThat(deserializedInstance.getExpiration(), nullValue());

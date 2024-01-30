@@ -474,7 +474,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final boolean isUpdate = opType == DocWriteRequest.OpType.UPDATE;
         final BulkItemResponse executionResult = context.getExecutionResult();
         final boolean isFailed = executionResult.isFailed();
-        if (isFailed == false) {
+        if (isFailed == false && opType != DocWriteRequest.OpType.DELETE ) {
             DocumentParsingReporter documentParsingReporter = documentParsingObserverSupplier.getDocumentParsingReporter();
             DocumentParsingObserver documentParsingObserver = context.getDocumentParsingObserver();
             documentParsingReporter.onCompleted(docWriteRequest.index(), documentParsingObserver.getNormalisedBytesParsed());

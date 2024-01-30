@@ -2306,7 +2306,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(
                 state,
-                IndicesOptions.newBuilder().wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().matchlosed(true)).build(),
+                IndicesOptions.newBuilder().wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().matchClosed(true)).build(),
                 "ind*",
                 "test-index"
             );
@@ -3240,7 +3240,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     private static IndicesOptions.WildcardOptions doNotExpandWildcards(boolean lenient) {
         return IndicesOptions.WildcardOptions.newBuilder()
             .matchOpen(false)
-            .matchlosed(false)
+            .matchClosed(false)
             .includeHidden(randomBoolean())
             .allowEmptyExpressions(lenient)
             .build();

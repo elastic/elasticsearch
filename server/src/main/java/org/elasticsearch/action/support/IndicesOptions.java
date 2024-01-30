@@ -184,7 +184,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             /**
              * Closed indices will be matched. Default to false.
              */
-            public Builder matchlosed(boolean matchClosed) {
+            public Builder matchClosed(boolean matchClosed) {
                 this.matchClosed = matchClosed;
                 return this;
             }
@@ -222,7 +222,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             public Builder none() {
                 matchOpen = false;
                 matchClosed = false;
-                includeHidden = true;
+                includeHidden = false;
                 return this;
             }
 
@@ -232,7 +232,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             public Builder all() {
                 matchOpen = true;
                 matchClosed = true;
-                includeHidden = false;
+                includeHidden = true;
                 return this;
             }
 
@@ -247,7 +247,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 for (String expandState : expandStates) {
                     switch (expandState) {
                         case "open" -> matchOpen(true);
-                        case "closed" -> matchlosed(true);
+                        case "closed" -> matchClosed(true);
                         case "hidden" -> includeHidden(true);
                         case "all" -> all();
                         case "none" -> {
@@ -366,7 +366,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         static WildcardOptions toWildcardOptions(EnumSet<WildcardStates> states, boolean allowNoIndices, boolean ignoreAlias) {
             return WildcardOptions.newBuilder()
                 .matchOpen(states.contains(OPEN))
-                .matchlosed(states.contains(CLOSED))
+                .matchClosed(states.contains(CLOSED))
                 .includeHidden(states.contains(HIDDEN))
                 .allowEmptyExpressions(allowNoIndices)
                 .resolveAliases(ignoreAlias == false)
@@ -407,17 +407,17 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = IndicesOptions.newBuilder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
-        .wildcardOptions(WildcardOptions.newBuilder().matchlosed(true))
+        .wildcardOptions(WildcardOptions.newBuilder().matchClosed(true))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.newBuilder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
-        .wildcardOptions(WildcardOptions.newBuilder().matchlosed(true).includeHidden(true))
+        .wildcardOptions(WildcardOptions.newBuilder().matchClosed(true).includeHidden(true))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED = IndicesOptions.newBuilder()
-        .wildcardOptions(WildcardOptions.newBuilder().matchlosed(true))
+        .wildcardOptions(WildcardOptions.newBuilder().matchClosed(true))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.newBuilder()
-        .wildcardOptions(WildcardOptions.newBuilder().matchlosed(true).includeHidden(true))
+        .wildcardOptions(WildcardOptions.newBuilder().matchClosed(true).includeHidden(true))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = IndicesOptions.newBuilder()
         .generalOptions(GeneralOptions.newBuilder().allowClosedIndices(false))
@@ -697,8 +697,8 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     ) {
         final WildcardOptions wildcards = WildcardOptions.newBuilder()
             .matchOpen(expandToOpenIndices)
-            .matchlosed(expandToClosedIndices)
-            .includeHidden(expandToHiddenIndices == false)
+            .matchClosed(expandToClosedIndices)
+            .includeHidden(expandToHiddenIndices)
             .resolveAliases(ignoreAliases == false)
             .allowEmptyExpressions(allowNoIndices)
             .build();

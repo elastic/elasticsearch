@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,7 +40,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             () -> OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")))
         );
 
-        assertThat(
+        MatcherAssert.assertThat(
             thrownException.getMessage(),
             is(
                 Strings.format(
@@ -55,14 +56,14 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user"))
         );
 
-        assertThat(taskSettings.model(), is("model"));
-        assertThat(taskSettings.user(), is("user"));
+        MatcherAssert.assertThat(taskSettings.model(), is("model"));
+        MatcherAssert.assertThat(taskSettings.user(), is("user"));
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model")));
 
-        assertThat(taskSettings.model(), is("model"));
+        MatcherAssert.assertThat(taskSettings.model(), is("model"));
         assertNull(taskSettings.user());
     }
 
@@ -72,7 +73,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         );
 
         var overriddenTaskSettings = taskSettings.overrideWith(OpenAiEmbeddingsRequestTaskSettings.EMPTY_SETTINGS);
-        assertThat(overriddenTaskSettings, is(taskSettings));
+        MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
     }
 
     public void testOverrideWith_UsesOverriddenSettings() {
@@ -85,7 +86,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         );
 
         var overriddenTaskSettings = taskSettings.overrideWith(requestTaskSettings);
-        assertThat(overriddenTaskSettings, is(new OpenAiEmbeddingsTaskSettings("model2", "user2")));
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new OpenAiEmbeddingsTaskSettings("model2", "user2")));
     }
 
     public void testOverrideWith_UsesOnlyNonNullModelSetting() {
@@ -98,7 +99,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         );
 
         var overriddenTaskSettings = taskSettings.overrideWith(requestTaskSettings);
-        assertThat(overriddenTaskSettings, is(new OpenAiEmbeddingsTaskSettings("model2", "user")));
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new OpenAiEmbeddingsTaskSettings("model2", "user")));
     }
 
     @Override

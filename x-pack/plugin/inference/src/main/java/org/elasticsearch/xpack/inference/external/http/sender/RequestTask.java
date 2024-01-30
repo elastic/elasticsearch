@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,6 +19,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,7 +31,7 @@ class RequestTask extends HttpTask {
     private static final Logger logger = LogManager.getLogger(RequestTask.class);
     private static final Scheduler.Cancellable NOOP_TIMEOUT_HANDLER = createDefaultHandler();
 
-    private final HttpUriRequest request;
+    private final HttpRequest request;
     private final ActionListener<HttpResult> listener;
     private final Scheduler.Cancellable timeoutHandler;
     private final AtomicBoolean notified = new AtomicBoolean();
@@ -39,7 +39,7 @@ class RequestTask extends HttpTask {
     private final Runnable command;
 
     RequestTask(
-        HttpUriRequest request,
+        HttpRequest request,
         HttpClient httpClient,
         HttpClientContext context,
         @Nullable TimeValue timeout,
@@ -73,7 +73,13 @@ class RequestTask extends HttpTask {
 
     private void onTimeout() {
         assert timeout != null : "timeout must be defined to use a timeout handler";
-        logger.debug(() -> format("Request [%s] timed out after [%s] while waiting to be executed", request.getRequestLine(), timeout));
+        logger.debug(
+            () -> format(
+                "Request from inference entity id [%s] timed out after [%s] while waiting to be executed",
+                request.inferenceEntityId(),
+                timeout
+            )
+        );
         notifyOfResult(
             () -> listener.onFailure(
                 new ElasticsearchTimeoutException(format("Request timed out waiting to be executed after [%s]", timeout))
@@ -84,10 +90,7 @@ class RequestTask extends HttpTask {
     private void notifyOfResult(Runnable runnable) {
         if (notified.compareAndSet(false, true)) {
             runnable.run();
-            return;
         }
-
-        logger.debug(() -> format("Attempting to notify of result after already doing so for request [%s]", request.getRequestLine()));
     }
 
     @Override
@@ -101,7 +104,7 @@ class RequestTask extends HttpTask {
         try {
             command.run();
         } catch (Exception e) {
-            String message = format("Failed while executing request [%s]", request.getRequestLine());
+            String message = format("Failed while executing request from inference entity id [%s]", request.inferenceEntityId());
             logger.warn(message, e);
             onFailure(new ElasticsearchException(message, e));
         }
@@ -114,7 +117,7 @@ class RequestTask extends HttpTask {
 
     @Override
     public String toString() {
-        return request.getRequestLine().toString();
+        return request.inferenceEntityId();
     }
 
     private static Scheduler.Cancellable createDefaultHandler() {
@@ -133,7 +136,7 @@ class RequestTask extends HttpTask {
 
     private record Command(
         HttpClient httpClient,
-        HttpUriRequest requestToSend,
+        HttpRequest requestToSend,
         HttpClientContext context,
         ActionListener<HttpResult> resultListener
     ) implements Runnable {
@@ -143,9 +146,15 @@ class RequestTask extends HttpTask {
             try {
                 httpClient.send(requestToSend, context, resultListener);
             } catch (Exception e) {
-                logger.warn(format("Failed to send request [%s] via the http client", requestToSend.getRequestLine()), e);
+                logger.warn(
+                    format("Failed to send request from inference entity id [%s] via the http client", requestToSend.inferenceEntityId()),
+                    e
+                );
                 resultListener.onFailure(
-                    new ElasticsearchException(format("Failed to send request [%s]", requestToSend.getRequestLine()), e)
+                    new ElasticsearchException(
+                        format("Failed to send request from inference entity id [%s]", requestToSend.inferenceEntityId()),
+                        e
+                    )
                 );
             }
         }

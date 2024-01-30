@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -123,6 +124,8 @@ public class RatedRequestsTests extends ESTestCase {
     }
 
     public void testXContentParsingIsNotLenient() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/104570", Constants.WINDOWS);
+
         RatedRequest testItem = createTestItem(randomBoolean());
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());

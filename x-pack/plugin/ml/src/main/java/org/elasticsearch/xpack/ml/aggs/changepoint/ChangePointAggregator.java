@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
@@ -137,7 +136,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         ChangePointBucket changePointBucket = null;
         if (change.changePoint() >= 0) {
             changePointBucket = extractBucket(bucketsPaths()[0], aggregations, change.changePoint()).map(
-                b -> new ChangePointBucket(b.getKey(), b.getDocCount(), (InternalAggregations) b.getAggregations())
+                b -> new ChangePointBucket(b.getKey(), b.getDocCount(), b.getAggregations())
             ).orElse(null);
         }
 

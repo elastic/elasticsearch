@@ -33,7 +33,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.TransportVersions.KNN_K_NUMCANDS_AS_OPTIONAL_PARAMS;
-import static org.elasticsearch.TransportVersions.NESTED_KNN_VECTOR_QUERY_V;
+import static org.elasticsearch.TransportVersions.V_8_11_X;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -241,7 +241,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         } else {
             this.similarity = null;
         }
-        if (in.getTransportVersion().onOrAfter(NESTED_KNN_VECTOR_QUERY_V)) {
+        if (in.getTransportVersion().onOrAfter(V_8_11_X)) {
             this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         }
     }
@@ -265,6 +265,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return queryVector;
     }
 
+    public String getField() {
+        return field;
+    }
+
     public KnnSearchBuilder addFilterQuery(QueryBuilder filterQuery) {
         Objects.requireNonNull(filterQuery);
         this.filterQueries.add(filterQuery);
@@ -283,6 +287,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public KnnSearchBuilder boost(float boost) {
         this.boost = boost;
         return this;
+    }
+
+    public float boost() {
+        return boost;
     }
 
     public KnnSearchBuilder innerHit(InnerHitBuilder innerHitBuilder) {
@@ -471,7 +479,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalFloat(similarity);
         }
-        if (out.getTransportVersion().onOrAfter(NESTED_KNN_VECTOR_QUERY_V)) {
+        if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
             out.writeOptionalWriteable(innerHitBuilder);
         }
     }

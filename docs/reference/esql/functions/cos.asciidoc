@@ -14,8 +14,8 @@ Numeric expression. If `null`, the function returns `null`.
 
 *Description*
 
-Returns the https://en.wikipedia.org/wiki/Sine_and_cosine[cosine] of `n`. Input
-expected in radians.
+Returns the {wikipedia}/Sine_and_cosine[cosine] of `n`. Input expected in
+radians.
 
 *Supported types*
 

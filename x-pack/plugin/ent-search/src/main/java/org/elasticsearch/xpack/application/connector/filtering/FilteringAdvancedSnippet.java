@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.connector.ConnectorUtils;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -71,8 +72,18 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
     );
 
     static {
-        PARSER.declareField(constructorArg(), (p, c) -> Instant.parse(p.text()), CREATED_AT_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareField(constructorArg(), (p, c) -> Instant.parse(p.text()), UPDATED_AT_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> ConnectorUtils.parseInstant(p, CREATED_AT_FIELD.getPreferredName()),
+            CREATED_AT_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> ConnectorUtils.parseInstant(p, UPDATED_AT_FIELD.getPreferredName()),
+            UPDATED_AT_FIELD,
+            ObjectParser.ValueType.STRING
+        );
         PARSER.declareField(constructorArg(), (p, c) -> p.map(), VALUE_FIELD, ObjectParser.ValueType.OBJECT);
     }
 

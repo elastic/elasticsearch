@@ -73,7 +73,9 @@ class JnaPosixCLibrary implements PosixCLibrary {
 
     @Override
     public int fstat(int fd, Stat stats) {
-        return JnaStaticPosixCLibrary.fstat(fd, stats);
+        assert stats instanceof JnaStat;
+        var jnaStats = (JnaStat) stats;
+        return JnaStaticPosixCLibrary.fstat(fd, jnaStats);
     }
 
     @Override

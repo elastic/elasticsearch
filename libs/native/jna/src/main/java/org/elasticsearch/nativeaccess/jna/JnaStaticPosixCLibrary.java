@@ -101,7 +101,7 @@ final class JnaStaticPosixCLibrary {
 
     static native int close(int fd);
 
-    static native int fstat(int fd, Stat stat);
+    static native int fstat(int fd, JnaStat stat);
 
     private JnaStaticPosixCLibrary() {}
 }

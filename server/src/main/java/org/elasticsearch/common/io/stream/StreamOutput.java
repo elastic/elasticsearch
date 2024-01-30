@@ -151,6 +151,13 @@ public abstract class StreamOutput extends OutputStream {
         bytes.writeTo(this);
     }
 
+    public static int getBytesReferenceSizeInBytes(@Nullable BytesReference bytes) {
+        if (bytes == null) {
+            return getVIntSizeInBytes(0);
+        }
+        return getVIntSizeInBytes(bytes.length()) + bytes.length();
+    }
+
     /**
      * Writes an optional bytes reference including a length header. Use this if you need to differentiate between null and empty bytes
      * references. Use {@link #writeBytesReference(BytesReference)} and {@link StreamInput#readBytesReference()} if you do not.
@@ -171,6 +178,13 @@ public abstract class StreamOutput extends OutputStream {
         }
         writeVInt(bytes.length);
         write(bytes.bytes, bytes.offset, bytes.length);
+    }
+
+    public static int getBytesRefSizeInBytes(@Nullable BytesRef bytes) {
+        if (bytes == null) {
+            return getVIntSizeInBytes(0);
+        }
+        return getVIntSizeInBytes(bytes.length) + bytes.length;
     }
 
     private static final ThreadLocal<byte[]> scratch = ThreadLocal.withInitial(() -> new byte[1024]);
@@ -222,6 +236,19 @@ public abstract class StreamOutput extends OutputStream {
             return 1;
         }
         return putMultiByteVInt(buffer, i, off);
+    }
+
+    public static int getVIntSizeInBytes(int i) {
+        if (Integer.numberOfLeadingZeros(i) >= 25) {
+            return 1;
+        }
+        int index = 0;
+        do {
+            index++;
+            i >>>= 7;
+        } while ((i & ~0x7F) != 0);
+        index++;
+        return index;
     }
 
     private static int putMultiByteVInt(byte[] buffer, int i, int off) {
@@ -316,6 +343,14 @@ public abstract class StreamOutput extends OutputStream {
             // put the true byte into the buffer instead of writing it outright to do fewer flushes
             buffer[0] = ONE;
             writeString(str, buffer, 1);
+        }
+    }
+
+    public static int getOptionalStringSizeInBytes(String str) {
+        if (str == null) {
+            return 1;
+        } else {
+            return 1 + getStringSizeInBytes(str);
         }
     }
 
@@ -422,6 +457,22 @@ public abstract class StreamOutput extends OutputStream {
             }
         }
         writeBytes(buffer, offset);
+    }
+
+    public static int getStringSizeInBytes(String str) {
+        final int charCount = str.length();
+        int sizeInBytes = getVIntSizeInBytes(charCount);
+        for (int i = 0; i < charCount; i++) {
+            final int c = str.charAt(i);
+            if (c <= 0x007F) {
+                sizeInBytes++;
+            } else if (c > 0x07FF) {
+                sizeInBytes += 3;
+            } else {
+                sizeInBytes += 2;
+            }
+        }
+        return sizeInBytes;
     }
 
     public void writeSecureString(SecureString secureStr) throws IOException {

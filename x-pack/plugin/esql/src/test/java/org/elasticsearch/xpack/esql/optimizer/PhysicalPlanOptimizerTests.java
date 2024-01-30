@@ -2720,6 +2720,46 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         source(extract.child());
     }
 
+    public void testEnrichBeforeAggregation() {
+        {
+            var plan = physicalPlan("""
+                from test
+                | eval employee_id = to_str(emp_no)
+                | ENRICH[ccq.mode:any] departments
+                | STATS size=count(*) BY department""");
+            var limit = as(plan, LimitExec.class);
+            var finalAggs = as(limit.child(), AggregateExec.class);
+            assertThat(finalAggs.getMode(), equalTo(FINAL));
+            var exchange = as(finalAggs.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialAggs = as(fragment.fragment(), Aggregate.class);
+            var enrich = as(partialAggs.child(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.ANY));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), Eval.class);
+            as(eval.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                from test
+                | eval employee_id = to_str(emp_no)
+                | ENRICH[ccq.mode:coordinator] departments
+                | STATS size=count(*) BY department""");
+            var limit = as(plan, LimitExec.class);
+            var finalAggs = as(limit.child(), AggregateExec.class);
+            assertThat(finalAggs.getMode(), equalTo(FINAL));
+            var partialAggs = as(finalAggs.child(), AggregateExec.class);
+            assertThat(partialAggs.getMode(), equalTo(PARTIAL));
+            var enrich = as(partialAggs.child(), EnrichExec.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.COORDINATOR));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-3")));
+            var exchange = as(enrich.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var eval = as(fragment.fragment(), Eval.class);
+            as(eval.child(), EsRelation.class);
+        }
+    }
+
     public void testEnrichBeforeLimit() {
         {
             var plan = physicalPlan("""

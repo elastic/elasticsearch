@@ -881,11 +881,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             taskQueue.runAllRunnableTasks();
 
             // touch some random cache entries
-            var useedCacheKeys = Set.copyOf(randomSubsetOf(cacheEntries.keySet()));
-            useedCacheKeys.forEach(key -> cacheService.get(key, regionSize, 0));
+            var usedCacheKeys = Set.copyOf(randomSubsetOf(cacheEntries.keySet()));
+            usedCacheKeys.forEach(key -> cacheService.get(key, regionSize, 0));
 
             cacheEntries.forEach(
-                (key, entry) -> assertThat(cacheService.getFreq(entry), useedCacheKeys.contains(key) ? equalTo(3) : equalTo(1))
+                (key, entry) -> assertThat(cacheService.getFreq(entry), usedCacheKeys.contains(key) ? equalTo(3) : equalTo(1))
             );
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
@@ -896,10 +896,10 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
             cacheEntries.forEach(
-                (key, entry) -> assertThat(cacheService.getFreq(entry), useedCacheKeys.contains(key) ? equalTo(2) : equalTo(0))
+                (key, entry) -> assertThat(cacheService.getFreq(entry), usedCacheKeys.contains(key) ? equalTo(2) : equalTo(0))
             );
 
-            var zeroFrequencyCacheEntries = cacheEntries.size() - useedCacheKeys.size();
+            var zeroFrequencyCacheEntries = cacheEntries.size() - usedCacheKeys.size();
             for (int i = 0; i < zeroFrequencyCacheEntries; i++) {
                 assertThat(cacheService.freeRegionCount(), equalTo(i));
                 assertThat("Cache entry is old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(true));

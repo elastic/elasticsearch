@@ -19,6 +19,6 @@ public class RestoreSnapshotAction extends ActionType<RestoreSnapshotResponse> {
     public static final String NAME = "cluster:admin/snapshot/restore";
 
     private RestoreSnapshotAction() {
-        super(NAME, RestoreSnapshotResponse::new);
+        super(NAME);
     }
 }

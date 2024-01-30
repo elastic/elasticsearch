@@ -47,7 +47,6 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
-@SuppressWarnings("removal")
 public class TransformIT extends TransformRestTestCase {
 
     private static final int NUM_USERS = 28;

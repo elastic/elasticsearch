@@ -64,11 +64,6 @@ public class DoubleTermsTests extends InternalTermsTestCase {
     }
 
     @Override
-    protected Class<ParsedDoubleTerms> implementationClass() {
-        return ParsedDoubleTerms.class;
-    }
-
-    @Override
     protected InternalTerms<?, ?> mutateInstance(InternalTerms<?, ?> instance) {
         if (instance instanceof DoubleTerms doubleTerms) {
             String name = doubleTerms.getName();

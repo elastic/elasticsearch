@@ -159,11 +159,6 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
-    protected Class<ParsedHistogram> implementationClass() {
-        return ParsedHistogram.class;
-    }
-
-    @Override
     protected InternalHistogram mutateInstance(InternalHistogram instance) {
         String name = instance.getName();
         List<InternalHistogram.Bucket> buckets = instance.getBuckets();

@@ -24,7 +24,7 @@ In your `elasticsearch.yml` add the following configuration:
 
 ```
 tracing.apm.enabled: true
-tracing.apm.agent.server_url: https://<your-apm-server>:443
+telemetry.agent.server_url: https://<your-apm-server>:443
 ```
 
 When using a secret token to authenticate with the APM server, you must add it to the Elasticsearch keystore under `tracing.apm.secret_token`. For example, execute:
@@ -34,7 +34,7 @@ When using a secret token to authenticate with the APM server, you must add it t
 then enter the token when prompted. If you are using API keys, change the keystore key name to `tracing.apm.api_key`.
 
 All APM settings live under `tracing.apm`. All settings related to the Java agent
-go under `tracing.apm.agent`. Anything you set under there will be propagated to
+go under `telemetry.agent`. Anything you set under there will be propagated to
 the agent.
 
 For agent settings that can be changed dynamically, you can use the cluster
@@ -43,7 +43,7 @@ settings REST API. For example, to change the sampling rate:
     curl -XPUT \
       -H "Content-type: application/json" \
       -u "$USERNAME:$PASSWORD" \
-      -d '{ "persistent": { "tracing.apm.agent.transaction_sample_rate": "0.75" } }' \
+      -d '{ "persistent": { "telemetry.agent.transaction_sample_rate": "0.75" } }' \
       https://localhost:9200/_cluster/settings
 
 

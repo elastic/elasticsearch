@@ -148,13 +148,21 @@ public final class EsqlTestUtils {
         return new EnrichResolution();
     }
 
+    public static SearchStats statsForExistingField(String... names) {
+        return fieldMatchingExistOrMissing(true, names);
+    }
+
     public static SearchStats statsForMissingField(String... names) {
+        return fieldMatchingExistOrMissing(false, names);
+    }
+
+    private static SearchStats fieldMatchingExistOrMissing(boolean exists, String... names) {
         return new TestSearchStats() {
-            private final Set<String> missingFields = Set.of(names);
+            private final Set<String> fields = Set.of(names);
 
             @Override
             public boolean exists(String field) {
-                return missingFields.contains(field) == false;
+                return fields.contains(field) == exists;
             }
         };
     }

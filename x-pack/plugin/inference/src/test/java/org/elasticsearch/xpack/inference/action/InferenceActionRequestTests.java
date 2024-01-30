@@ -82,7 +82,7 @@ public class InferenceActionRequestTests extends AbstractWireSerializingTestCase
                 var nextTask = TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length];
                 yield new InferenceAction.Request(
                     nextTask,
-                    instance.getModelId(),
+                    instance.getInferenceEntityId(),
                     instance.getInput(),
                     instance.getTaskSettings(),
                     instance.getInputType()
@@ -90,7 +90,7 @@ public class InferenceActionRequestTests extends AbstractWireSerializingTestCase
             }
             case 1 -> new InferenceAction.Request(
                 instance.getTaskType(),
-                instance.getModelId() + "foo",
+                instance.getInferenceEntityId() + "foo",
                 instance.getInput(),
                 instance.getTaskSettings(),
                 instance.getInputType()
@@ -100,7 +100,7 @@ public class InferenceActionRequestTests extends AbstractWireSerializingTestCase
                 changedInputs.add("bar");
                 yield new InferenceAction.Request(
                     instance.getTaskType(),
-                    instance.getModelId(),
+                    instance.getInferenceEntityId(),
                     changedInputs,
                     instance.getTaskSettings(),
                     instance.getInputType()
@@ -116,7 +116,7 @@ public class InferenceActionRequestTests extends AbstractWireSerializingTestCase
                 }
                 yield new InferenceAction.Request(
                     instance.getTaskType(),
-                    instance.getModelId(),
+                    instance.getInferenceEntityId(),
                     instance.getInput(),
                     taskSettings,
                     instance.getInputType()
@@ -126,7 +126,7 @@ public class InferenceActionRequestTests extends AbstractWireSerializingTestCase
                 var nextInputType = InputType.values()[(instance.getInputType().ordinal() + 1) % InputType.values().length];
                 yield new InferenceAction.Request(
                     instance.getTaskType(),
-                    instance.getModelId(),
+                    instance.getInferenceEntityId(),
                     instance.getInput(),
                     instance.getTaskSettings(),
                     nextInputType

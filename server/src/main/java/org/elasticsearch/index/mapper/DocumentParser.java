@@ -113,7 +113,7 @@ public final class DocumentParser {
 
             @Override
             public long getNormalisedBytesParsed() {
-                return documentParsingObserver.getNormalisedBytesParsed();
+                return documentParsingObserver.normalisedBytesParsed();
             }
         };
     }

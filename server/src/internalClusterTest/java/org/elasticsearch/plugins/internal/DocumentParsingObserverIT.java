@@ -117,7 +117,7 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
         }
 
         @Override
-        public long getNormalisedBytesParsed() {
+        public long normalisedBytesParsed() {
             return counter;
         }
     }

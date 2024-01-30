@@ -477,7 +477,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (isFailed == false && opType != DocWriteRequest.OpType.DELETE) {
             DocumentParsingReporter documentParsingReporter = documentParsingObserverSupplier.getDocumentParsingReporter();
             DocumentParsingObserver documentParsingObserver = context.getDocumentParsingObserver();
-            documentParsingReporter.onCompleted(docWriteRequest.index(), documentParsingObserver.getNormalisedBytesParsed());
+            documentParsingReporter.onCompleted(docWriteRequest.index(), documentParsingObserver.normalisedBytesParsed());
         }
         if (isUpdate
             && isFailed

@@ -130,7 +130,7 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
         }
 
         @Override
-        public long getNormalisedBytesParsed() {
+        public long normalisedBytesParsed() {
             return mapCounter;
         }
     }

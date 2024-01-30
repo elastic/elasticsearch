@@ -26,7 +26,7 @@ public interface DocumentParsingObserver {
         }
 
         @Override
-        public long getNormalisedBytesParsed() {
+        public long normalisedBytesParsed() {
             return 0;
         }
     };
@@ -42,5 +42,5 @@ public interface DocumentParsingObserver {
      */
     XContentParser wrapParser(XContentParser xContentParser);
 
-    long getNormalisedBytesParsed();
+    long normalisedBytesParsed();
 }

@@ -43,6 +43,10 @@ public class AllocationDeciders {
         this.deciders = deciders.toArray(AllocationDecider[]::new);
     }
 
+    public AllocationDecider[] getDeciders() {
+        return deciders;
+    }
+
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         return withDeciders(
             allocation,

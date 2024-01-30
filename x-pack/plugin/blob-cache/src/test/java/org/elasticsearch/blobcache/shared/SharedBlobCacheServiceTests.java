@@ -938,7 +938,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 return generic;
             }
         };
-        final AtomicLong relativeTimeInMillis = new AtomicLong(0L);
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = new SharedBlobCacheService<>(
@@ -980,7 +979,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final PlainActionFuture<Collection<Boolean>> future = new PlainActionFuture<>();
                 final var listener = new GroupedActionListener<>(remainingFreeRegions, future);
                 for (int region = 0; region < remainingFreeRegions; region++) {
-                    relativeTimeInMillis.addAndGet(1_000L);
                     cacheService.maybeFetchRegion(
                         cacheKey,
                         region,
@@ -1017,9 +1015,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertThat("Region already exists in cache", future.get(), is(false));
             }
             {
-                // simulate elapsed time and compute decay
-                var minInternalMillis = SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING.getDefault(Settings.EMPTY).millis();
-                relativeTimeInMillis.addAndGet(minInternalMillis * 2);
                 cacheService.computeDecay();
 
                 // fetch one more region should evict an old cache entry

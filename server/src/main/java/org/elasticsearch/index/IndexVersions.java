@@ -96,7 +96,7 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_LUCENE_9_9 = def(8_500_006, Version.LUCENE_9_9_0);
     public static final IndexVersion NORI_DUPLICATES = def(8_500_007, Version.LUCENE_9_9_0);
     public static final IndexVersion UPGRADE_LUCENE_9_9_1 = def(8_500_008, Version.LUCENE_9_9_1);
-    public static final IndexVersion ES_VERSION_8_13 = def(8_500_009, Version.LUCENE_9_9_1);
+    public static final IndexVersion ES_VERSION_8_12_1 = def(8_500_009, Version.LUCENE_9_9_1);
     public static final IndexVersion NEW_INDEXVERSION_FORMAT = def(8_501_00_0, Version.LUCENE_9_9_1);
 
     /*
@@ -207,9 +207,8 @@ public class IndexVersions {
         return VERSION_IDS.values();
     }
 
-    private static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class);
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class);
 
-    public static String toReleaseVersion(IndexVersion version) {
-        return VERSION_LOOKUP.apply(version.id());
-    }
+    // no instance
+    private IndexVersions() {}
 }

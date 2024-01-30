@@ -22,7 +22,7 @@ import java.util.Map;
 public class OpenAiEmbeddingsModel extends OpenAiModel {
 
     public OpenAiEmbeddingsModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
@@ -30,7 +30,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         @Nullable Map<String, Object> secrets
     ) {
         this(
-            modelId,
+            inferenceEntityId,
             taskType,
             service,
             OpenAiServiceSettings.fromMap(serviceSettings),
@@ -41,14 +41,14 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
 
     // Should only be used directly for testing
     OpenAiEmbeddingsModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         OpenAiServiceSettings serviceSettings,
         OpenAiEmbeddingsTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
     }
 
     private OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiEmbeddingsTaskSettings taskSettings) {

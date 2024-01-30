@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -171,15 +173,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         EnrichResolution enrichResolution = new EnrichResolution();
         enrichResolution.addResolvedPolicy(
             "foo",
-            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("idx"), "fld", List.of("a", "b")),
-            Map.of("", "idx"),
-            Map.ofEntries(
-                Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
-                Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+            Enrich.Mode.ANY,
+            new ResolvedEnrichPolicy(
+                "fld",
+                EnrichPolicy.MATCH_TYPE,
+                List.of("a", "b"),
+                Map.of("", "idx"),
+                Map.ofEntries(
+                    Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
+                    Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+                )
             )
         );
-        enrichResolution.addExistingPolicies(Set.of("foo"));
-
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping);
@@ -1480,6 +1485,68 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         RegexpQueryBuilder wildcard = ((RegexpQueryBuilder) ((SingleValueQuery.Builder) query).next());
         assertEquals("first_name", wildcard.fieldName());
         assertEquals(".*foo.*", wildcard.value());
+    }
+
+    /**
+     * LimitExec[500[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
+     * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"first_name","next":
+     *       {"term":{"first_name":{"value":"foo","case_insensitive":true}}},"source":"first_name =~ \"foo\"@2:9"}}]
+     *       [_doc{f}#23], limit[500], sort[] estimatedRowSize[324]
+     */
+    public void testPushDownEqualsIgnoreCase() {
+        var plan = physicalPlan("""
+            from test
+            | where first_name =~ "foo"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+        assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES));
+
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+    }
+
+    /**
+     * LimitExec[500[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, job{f}#13, job.raw{f}#14, languages{f}#9, last_
+     * name{f}#10, long_noidx{f}#15, salary{f}#11, x{r}#4]]
+     *     \_FieldExtractExec[_meta_field{f}#12, emp_no{f}#6, gender{f}#8, job{f}..]
+     *       \_LimitExec[500[INTEGER]]
+     *         \_FilterExec[x{r}#4 =~ [66 6f 6f][KEYWORD]]
+     *           \_EvalExec[[CONCAT(first_name{f}#7,[66 6f 6f][KEYWORD]) AS x]]
+     *             \_FieldExtractExec[first_name{f}#7]
+     *               \_EsQueryExec[test], query[][_doc{f}#27], limit[], sort[] estimatedRowSize[374]
+     */
+    public void testNoPushDownEvalEqualsIgnoreCase() {
+        var plan = physicalPlan("""
+            from test
+            | eval x = concat(first_name, "foo")
+            | where x =~ "foo"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var limit = as(extractRest.child(), LimitExec.class);
+        var filter = as(limit.child(), FilterExec.class);
+        var eval = as(filter.child(), EvalExec.class);
+        var extract = as(eval.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+
+        QueryBuilder query = source.query();
+        assertNull(query);
     }
 
     public void testPushDownNotRLike() {

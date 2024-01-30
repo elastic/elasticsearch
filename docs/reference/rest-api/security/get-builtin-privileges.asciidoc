@@ -108,12 +108,14 @@ A successful call returns an object with "cluster" and "index" fields.
     "none",
     "post_behavioral_analytics_event",
     "read_ccr",
+    "read_connector_secrets",
     "read_fleet_secrets",
     "read_ilm",
     "read_pipeline",
     "read_security",
     "read_slm",
     "transport_client",
+    "write_connector_secrets",
     "write_fleet_secrets"
   ],
   "index" : [

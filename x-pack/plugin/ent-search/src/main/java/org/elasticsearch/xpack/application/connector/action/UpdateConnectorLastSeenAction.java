@@ -22,14 +22,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class UpdateConnectorLastSeenAction extends ActionType<ConnectorUpdateActionResponse> {
+public class UpdateConnectorLastSeenAction {
 
-    public static final UpdateConnectorLastSeenAction INSTANCE = new UpdateConnectorLastSeenAction();
     public static final String NAME = "cluster:admin/xpack/connector/update_last_seen";
+    public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
-    public UpdateConnectorLastSeenAction() {
-        super(NAME);
-    }
+    private UpdateConnectorLastSeenAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
 

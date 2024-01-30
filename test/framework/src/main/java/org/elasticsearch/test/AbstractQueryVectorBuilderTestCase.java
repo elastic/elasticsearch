@@ -84,7 +84,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 .similarity(randomBoolean() ? null : randomFloat())
                 .build(DEFAULT_SIZE),
             getToXContentParams(),
-            this::parse
+            this::parseKnnSearchBuilder
         );
         tester.test();
     }

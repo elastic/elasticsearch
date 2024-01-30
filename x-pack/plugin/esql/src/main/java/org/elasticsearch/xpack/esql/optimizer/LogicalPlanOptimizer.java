@@ -130,7 +130,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownAndCombineFilters(),
             new PushDownEval(),
             new PushDownRegexExtract(),
-            new PushDownEnrich(),
             new PushDownAndCombineOrderBy(),
             new PruneOrderByBeforeStats(),
             new PruneRedundantSortClauses()
@@ -804,24 +803,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             } else if (child instanceof Project) {
                 var projectWithChild = pushDownPastProject(re);
                 return projectWithChild.withProjections(mergeOutputExpressions(re.extractedFields(), projectWithChild.projections()));
-            }
-
-            return re;
-        }
-    }
-
-    // TODO double-check: this should be the same as EVAL and GROK/DISSECT, needed to avoid unbounded sort
-    protected static class PushDownEnrich extends OptimizerRules.OptimizerRule<Enrich> {
-        @Override
-        protected LogicalPlan rule(Enrich re) {
-            LogicalPlan child = re.child();
-
-            if (child instanceof OrderBy orderBy) {
-                return orderBy.replaceChild(re.replaceChild(orderBy.child()));
-            } else if (child instanceof Project) {
-                var projectWithChild = pushDownPastProject(re);
-                var attrs = asAttributes(re.enrichFields());
-                return projectWithChild.withProjections(mergeOutputExpressions(attrs, projectWithChild.projections()));
             }
 
             return re;

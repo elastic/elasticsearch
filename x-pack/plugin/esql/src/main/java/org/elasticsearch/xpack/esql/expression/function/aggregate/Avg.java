@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNotType;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Avg extends AggregateFunction implements SurrogateExpression {
@@ -32,7 +33,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
 
     @Override
     protected Expression.TypeResolution resolveType() {
-        return isNumeric(field(), sourceText(), DEFAULT);
+        return isNumeric(field(), sourceText(), DEFAULT).and(isNotType(field(), DataTypes.UNSIGNED_LONG, sourceText(), DEFAULT));
     }
 
     @Override

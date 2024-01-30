@@ -170,6 +170,21 @@ public final class TypeResolutions {
             );
     }
 
+    public static TypeResolution isNotType(Expression e, DataType type, String operationName, ParamOrdinal paramOrd) {
+        return type.equals(e.dataType())
+            ? new TypeResolution(
+                format(
+                    null,
+                    "{}argument of [{}] cannot be [{}], found [{}]",
+                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                    operationName,
+                    e.dataType().typeName(),
+                    name(e)
+                )
+            )
+            : TypeResolution.TYPE_RESOLVED;
+    }
+
     private static String acceptedTypesForErrorMsg(String... acceptedTypes) {
         StringJoiner sj = new StringJoiner(", ");
         for (int i = 0; i < acceptedTypes.length - 1; i++) {

@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNotType;
 
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator {
     private static final int DEFAULT_PRECISION = 3000;
@@ -84,7 +85,8 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = EsqlTypeResolutions.isExact(field(), sourceText(), DEFAULT);
+        TypeResolution resolution = EsqlTypeResolutions.isExact(field(), sourceText(), DEFAULT)
+            .and(isNotType(field(), DataTypes.UNSIGNED_LONG, sourceText(), DEFAULT));
         if (resolution.unresolved() || precision == null) {
             return resolution;
         }
@@ -109,7 +111,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         if (type == DataTypes.DOUBLE) {
             return new CountDistinctDoubleAggregatorFunctionSupplier(inputChannels, precision);
         }
-        if (type == DataTypes.KEYWORD || type == DataTypes.IP || type == DataTypes.TEXT) {
+        if (type == DataTypes.KEYWORD || type == DataTypes.IP || type == DataTypes.VERSION || type == DataTypes.TEXT) {
             return new CountDistinctBytesRefAggregatorFunctionSupplier(inputChannels, precision);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

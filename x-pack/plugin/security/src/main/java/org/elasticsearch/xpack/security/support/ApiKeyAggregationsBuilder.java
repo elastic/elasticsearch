@@ -102,16 +102,6 @@ public class ApiKeyAggregationsBuilder {
                             + "]"
                     );
                 }
-                if (valueSource instanceof TermsValuesSourceBuilder == false) {
-                    throw new IllegalArgumentException(
-                        "Unsupported value source type for ["
-                            + valueSource.name()
-                            + "] of composite agg ["
-                            + compositeAggregationBuilder.getName()
-                            + "]."
-                            + "Only [terms] value sources are allowed."
-                    );
-                }
                 String translatedFieldName = ApiKeyFieldNameTranslators.translate(valueSource.field());
                 valueSource.field(translatedFieldName);
                 fieldNameVisitor.accept(translatedFieldName);

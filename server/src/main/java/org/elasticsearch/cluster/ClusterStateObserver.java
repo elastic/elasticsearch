@@ -335,13 +335,18 @@ public class ClusterStateObserver {
         /**
          * Called when a new state is observed. Implementations should avoid doing heavy operations on the calling thread and fork to
          * a threadpool if necessary to avoid blocking the {@link ClusterApplierService}. Note that operations such as sending a new
-         * request (e.g. via {@link Client} or {@link TransportService}) is cheap enough to be performed without forking.
+         * request (e.g. via {@link org.elasticsearch.client.internal.Client} or {@link org.elasticsearch.transport.TransportService})
+         * is cheap enough to be performed without forking.
          */
         void onNewClusterState(ClusterState state);
 
         /** called when the cluster service is closed */
         void onClusterServiceClose();
 
+        /**
+         * Called when the {@link ClusterStateObserver} times out while waiting for a new matching cluster state if a timeout is
+         * used when creating the observer. Upon timeout, {@code onTimeout} is called on the GENERIC threadpool.
+         */
         void onTimeout(TimeValue timeout);
     }
 

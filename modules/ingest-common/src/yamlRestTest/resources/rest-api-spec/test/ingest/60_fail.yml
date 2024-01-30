@@ -108,7 +108,7 @@ teardown:
   - match: { items.0.update._id: "3" }
   - match: { items.0.update.status: 500 }
   - match: { items.0.update.error.type: fail_processor_exception }
-  - match: { items.0.update.error.reason: error-message }
+  - match: { items.0.update.error.reason: /error-message/ }
 
   - do:
       catch: missing

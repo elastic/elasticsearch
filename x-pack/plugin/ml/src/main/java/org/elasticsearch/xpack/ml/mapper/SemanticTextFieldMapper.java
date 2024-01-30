@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.InferenceModelFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -93,7 +92,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static class SemanticTextFieldType extends SimpleMappedFieldType implements InferenceModelFieldType {
+    public static class SemanticTextFieldType extends InferenceModelFieldType {
 
         private final String modelId;
 

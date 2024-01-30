@@ -10,10 +10,12 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.regex.Regex;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -54,6 +56,7 @@ final class FieldTypeLookup {
         final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
         final Map<String, Set<String>> fieldsForModels = new HashMap<>();
+        final List<InferenceModelFieldType> inferenceModelFieldTypes = new ArrayList<>(fieldMappers.size());
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
@@ -65,6 +68,7 @@ final class FieldTypeLookup {
             for (String targetField : fieldMapper.copyTo().copyToFields()) {
                 Set<String> sourcePath = fieldToCopiedFields.get(targetField);
                 if (sourcePath == null) {
+                    // TODO: Any concerns about copy field order due to set usage?
                     Set<String> copiedFields = new HashSet<>();
                     copiedFields.add(targetField);
                     fieldToCopiedFields.put(targetField, copiedFields);
@@ -72,12 +76,29 @@ final class FieldTypeLookup {
                 fieldToCopiedFields.get(targetField).add(fieldName);
             }
             if (fieldType instanceof InferenceModelFieldType inferenceModelFieldType) {
-                String inferenceModel = inferenceModelFieldType.getInferenceModel();
-                if (inferenceModel != null) {
-                    Set<String> fields = fieldsForModels.computeIfAbsent(inferenceModel, v -> new HashSet<>());
-                    fields.add(fieldName);
-                }
+                // Add this field type to a list of ones we will handle in a second pass, after we have processed the full
+                // multi-field/copy_to context
+                inferenceModelFieldTypes.add(inferenceModelFieldType);
             }
+        }
+
+        for (InferenceModelFieldType fieldType : inferenceModelFieldTypes) {
+            String fieldName = fieldType.name();
+            String inferenceModel = fieldType.getInferenceModel();
+            if (inferenceModel == null) {
+                // TODO: Should we log when this happens?
+                continue;
+            }
+
+            if (fullSubfieldNameToParentPath.containsKey(fieldName)) {
+                // TODO: Handle multi-field source
+            }
+            if (fieldToCopiedFields.containsKey(fieldName)) {
+                // TODO: Handle copy_to source(s)
+            }
+
+            Set<String> fields = fieldsForModels.computeIfAbsent(inferenceModel, v -> new HashSet<>());
+            fields.add(fieldName);
         }
 
         int maxParentPathDots = 0;
@@ -215,6 +236,7 @@ final class FieldTypeLookup {
         String resolvedField = field;
         if (fullSubfieldNameToParentPath.containsKey(field)) {
             resolvedField = fullSubfieldNameToParentPath.get(field);
+            // TODO: Potential bug here? Shouldn't we return early here since copy_to cannot be used transitively?
         }
 
         return fieldToCopiedFields.containsKey(resolvedField) ? fieldToCopiedFields.get(resolvedField) : Set.of(resolvedField);

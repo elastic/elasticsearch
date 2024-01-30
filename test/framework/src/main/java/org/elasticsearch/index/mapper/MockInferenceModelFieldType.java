@@ -13,7 +13,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Map;
 
-public class MockInferenceModelFieldType extends SimpleMappedFieldType implements InferenceModelFieldType {
+public class MockInferenceModelFieldType extends InferenceModelFieldType {
     private static final String TYPE_NAME = "mock_inference_model_field_type";
 
     private final String modelId;

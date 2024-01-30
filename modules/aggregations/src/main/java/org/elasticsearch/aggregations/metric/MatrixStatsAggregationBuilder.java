@@ -42,7 +42,7 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new MatrixStatsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

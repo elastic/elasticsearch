@@ -614,7 +614,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
             return new TestAggregationBuilder(name);
         }
 

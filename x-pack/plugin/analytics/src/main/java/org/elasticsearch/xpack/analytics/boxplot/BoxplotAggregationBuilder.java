@@ -73,7 +73,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new BoxplotAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

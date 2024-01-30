@@ -324,7 +324,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new CategorizeTextAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

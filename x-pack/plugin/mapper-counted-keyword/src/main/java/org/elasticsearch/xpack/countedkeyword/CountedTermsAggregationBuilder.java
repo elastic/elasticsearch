@@ -92,7 +92,7 @@ public class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuild
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new CountedTermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

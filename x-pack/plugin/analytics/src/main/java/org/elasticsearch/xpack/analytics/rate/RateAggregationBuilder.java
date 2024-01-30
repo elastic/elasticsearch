@@ -68,7 +68,7 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new RateAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

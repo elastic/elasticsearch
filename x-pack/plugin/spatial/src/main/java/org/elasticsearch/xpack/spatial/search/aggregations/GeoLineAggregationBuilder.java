@@ -109,7 +109,7 @@ public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuild
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
         return new GeoLineAggregationBuilder(this, factoriesBuilder, metaData);
     }
 

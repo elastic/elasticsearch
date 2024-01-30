@@ -196,7 +196,6 @@ index without timestamp with pipeline:
 dynamic templates:
   - skip:
       version: " - 8.12.99"
-      features: "default_shards"
       reason: "Support for dynamic fields was added in 8.13"
   - do:
       indices.put_index_template:
@@ -288,7 +287,7 @@ dynamic templates:
 dynamic templates - conflicting aliases:
   - skip:
       version: " - 8.12.99"
-      features: "default_shards"
+      features: "warnings"
       reason: "Support for dynamic fields was added in 8.13"
   - do:
       indices.put_index_template:
@@ -321,6 +320,8 @@ dynamic templates - conflicting aliases:
                       time_series_metric: counter
 
   - do:
+      warnings:
+        - "Root alias for field attributes.dim conflicts with existing field or alias, skipping alias creation."
       bulk:
         index: k9s
         refresh: true
@@ -384,7 +385,6 @@ dynamic templates - conflicting aliases:
 dynamic templates - subobject in passthrough object error:
   - skip:
       version: " - 8.12.99"
-      features: "default_shards"
       reason: "Support for dynamic fields was added in 8.13"
   - do:
       catch: /Tried to add subobject \[subcategory\] to object \[attributes\] which does not support subobjects/
@@ -434,7 +434,6 @@ dynamic templates - subobject in passthrough object error:
 dynamic templates - passthrough not under root error:
   - skip:
       version: " - 8.12.99"
-      features: "default_shards"
       reason: "Support for dynamic fields was added in 8.13"
   - do:
       catch: /Tried to add passthrough subobject \[attributes\] to object \[resource\], passthrough is not supported as a subobject/

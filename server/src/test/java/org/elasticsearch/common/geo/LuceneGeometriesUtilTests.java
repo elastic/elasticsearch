@@ -329,7 +329,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         assertThat(geometry, equalTo(LuceneGeometriesUtil.toLuceneXYRectangle(rectangle)));
     }
 
-    public void testLatLonCirclee() {
+    public void testLatLonCircle() {
         Circle circle = GeometryTestUtils.randomCircle(randomBoolean());
         LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(circle, false, t -> assertEquals(ShapeType.CIRCLE, t));
         assertEquals(1, geometries.length);

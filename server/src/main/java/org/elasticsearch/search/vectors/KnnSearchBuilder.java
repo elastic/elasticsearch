@@ -113,7 +113,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     private final Supplier<float[]> querySupplier;
     int k;
     int numCands;
-    final Float similarity;
+    Float similarity;
     final List<QueryBuilder> filterQueries;
     float boost = DEFAULT_BOOST;
     InnerHitBuilder innerHitBuilder;
@@ -157,17 +157,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         int numCands,
         Float similarity
     ) {
-        this(
-            field,
-            queryVectorBuilder,
-            queryVector == null ? new float[0] : queryVector,
-            new ArrayList<>(),
-            k,
-            numCands,
-            similarity,
-            null,
-            DEFAULT_BOOST
-        );
+        this(field, queryVectorBuilder, queryVector, new ArrayList<>(), k, numCands, similarity, null, DEFAULT_BOOST);
     }
 
     private KnnSearchBuilder(
@@ -197,7 +187,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         int numCandidates,
         Float similarity,
         InnerHitBuilder innerHitBuilder,
-        Float boost
+        float boost
     ) {
         if (k < 1) {
             throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
@@ -229,7 +219,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             );
         }
         this.field = field;
-        this.queryVector = queryVector;
+        this.queryVector = queryVector == null ? new float[0] : queryVector;
         this.queryVectorBuilder = queryVectorBuilder;
         this.k = k;
         this.numCands = numCandidates;
@@ -490,7 +480,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             return this;
         }
 
-        public Builder boost(Float boost) {
+        public Builder boost(float boost) {
             this.boost = boost;
             return this;
         }

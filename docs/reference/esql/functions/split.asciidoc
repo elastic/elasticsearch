@@ -1,18 +1,33 @@
 [discrete]
 [[esql-split]]
 === `SPLIT`
-Split a single valued string into multiple strings. For example:
 
-[source,esql]
+[.text-center]
+image::esql/functions/signature/split.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`str`::
+String expression. If `null`, the function returns `null`.
+
+`delim`::
+Delimiter. Only single byte delimiters are currently supported.
+
+*Description*
+
+Splits a single valued string into multiple strings.
+
+*Supported types*
+
+include::types/split.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
 ----
 include::{esql-specs}/string.csv-spec[tag=split]
 ----
-
-Which splits `"foo;bar;baz;qux;quux;corge"` on `;` and returns an array:
-
-[%header,format=dsv,separator=|]
+[%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/string.csv-spec[tag=split-result]
 |===
-
-WARNING: Only single byte delimiters are currently supported.

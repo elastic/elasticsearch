@@ -153,6 +153,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             Limiter.ONCE,
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
+            new ReplaceNestedExpressionWithEval(),
             new ReplaceAliasingEvalWithProject()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
@@ -183,14 +184,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             // first pass to check existing aggregates (to avoid duplication and alias waste)
             for (NamedExpression agg : aggs) {
-                if (agg instanceof Alias a && a.child() instanceof AggregateFunction af && af instanceof SurrogateExpression == false) {
-                    aggFuncToAttr.put(af, a.toAttribute());
+                if (Alias.unwrap(agg) instanceof AggregateFunction af && af instanceof SurrogateExpression == false) {
+                    aggFuncToAttr.put(af, agg.toAttribute());
                 }
             }
 
             // 0. check list of surrogate expressions
             for (NamedExpression agg : aggs) {
-                Expression e = agg instanceof Alias a ? a.child() : agg;
+                Expression e = Alias.unwrap(agg);
                 if (e instanceof SurrogateExpression sf) {
                     changed = true;
                     Expression s = sf.surrogate();
@@ -245,7 +246,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return plan;
         }
 
-        private static String temporaryName(NamedExpression agg, AggregateFunction af) {
+        static String temporaryName(NamedExpression agg, AggregateFunction af) {
             return "__" + agg.name() + "_" + af.functionName() + "@" + Integer.toHexString(af.hashCode());
         }
     }
@@ -405,17 +406,25 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
             var collectRefs = new AttributeMap<Expression>();
-            // collect aliases
+
+            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
+
+            // collect aliases bottom-up
             plan.forEachExpressionUp(Alias.class, a -> {
                 var c = a.child();
-                if (c.foldable()) {
-                    collectRefs.put(a.toAttribute(), c);
+                boolean shouldCollect = c.foldable();
+                // try to resolve the expression based on an existing foldables
+                if (shouldCollect == false) {
+                    c = c.transformUp(ReferenceAttribute.class, replaceReference);
+                    shouldCollect = c.foldable();
+                }
+                if (shouldCollect) {
+                    collectRefs.put(a.toAttribute(), Literal.of(c));
                 }
             });
             if (collectRefs.isEmpty()) {
                 return plan;
             }
-            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
 
             plan = plan.transformUp(p -> {
                 // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
@@ -660,7 +669,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             int i = 0;
             for (var agg : aggs) {
                 // there needs to be an alias
-                if (agg instanceof Alias a && a.child() instanceof AggregateFunction aggFunc) {
+                if (Alias.unwrap(agg) instanceof AggregateFunction aggFunc) {
                     aggOutput(agg, aggFunc, blockFactory, blocks);
                 } else {
                     throw new EsqlIllegalArgumentException("Did not expect a non-aliased aggregation {}", agg);
@@ -1057,6 +1066,111 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     /**
+     * Replace nested expressions inside an aggregate with synthetic eval (which end up being projected away by the aggregate).
+     * stats sum(a + 1) by x % 2
+     * becomes
+     * eval `a + 1` = a + 1, `x % 2` = x % 2 | stats sum(`a+1`_ref) by `x % 2`_ref
+     */
+    static class ReplaceNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+
+        @Override
+        protected LogicalPlan rule(Aggregate aggregate) {
+            List<Alias> evals = new ArrayList<>();
+            Map<String, Attribute> evalNames = new HashMap<>();
+            List<Expression> newGroupings = new ArrayList<>(aggregate.groupings());
+            boolean groupingChanged = false;
+
+            // start with the groupings since the aggs might duplicate it
+            for (int i = 0, s = newGroupings.size(); i < s; i++) {
+                Expression g = newGroupings.get(i);
+                // move the alias into an eval and replace it with its attribute
+                if (g instanceof Alias as) {
+                    groupingChanged = true;
+                    var attr = as.toAttribute();
+                    evals.add(as);
+                    evalNames.put(as.name(), attr);
+                    newGroupings.set(i, attr);
+                }
+            }
+
+            Holder<Boolean> aggsChanged = new Holder<>(false);
+            List<? extends NamedExpression> aggs = aggregate.aggregates();
+            List<NamedExpression> newAggs = new ArrayList<>(aggs.size());
+
+            // map to track common expressions
+            Map<Expression, Attribute> expToAttribute = new HashMap<>();
+            for (Alias a : evals) {
+                expToAttribute.put(a.child().canonical(), a.toAttribute());
+            }
+
+            // for the aggs make sure to unwrap the agg function and check the existing groupings
+            for (int i = 0, s = aggs.size(); i < s; i++) {
+                NamedExpression agg = aggs.get(i);
+
+                NamedExpression a = (NamedExpression) agg.transformDown(Alias.class, as -> {
+                    // if the child a nested expression
+                    Expression child = as.child();
+
+                    // shortcut for common scenario
+                    if (child instanceof AggregateFunction af && af.field() instanceof Attribute) {
+                        return as;
+                    }
+
+                    // check if the alias matches any from grouping otherwise unwrap it
+                    Attribute ref = evalNames.get(as.name());
+                    if (ref != null) {
+                        aggsChanged.set(true);
+                        return ref;
+                    }
+
+                    // TODO: break expression into aggregate functions (sum(x + 1) / max(y + 2))
+                    // List<Expression> afs = a.collectFirstChildren(AggregateFunction.class::isInstance);
+
+                    // 1. look for the aggregate function
+                    var replaced = child.transformUp(AggregateFunction.class, af -> {
+                        Expression result = af;
+
+                        Expression field = af.field();
+                        // 2. if the field is a nested expression (not attribute or literal), replace it
+                        if (field instanceof Attribute == false && field.foldable() == false) {
+                            // 3. create a new alias if one doesn't exist yet no reference
+                            Attribute attr = expToAttribute.computeIfAbsent(field.canonical(), k -> {
+                                Alias newAlias = new Alias(k.source(), temporaryName(agg, af), null, k, null, true);
+                                evals.add(newAlias);
+                                aggsChanged.set(true);
+                                return newAlias.toAttribute();
+                            });
+                            // replace field with attribute
+                            List<Expression> newChildren = new ArrayList<>(af.children());
+                            newChildren.set(0, attr);
+                            result = af.replaceChildren(newChildren);
+                        }
+                        return result;
+                    });
+
+                    return as.replaceChild(replaced);
+                });
+
+                newAggs.add(a);
+            }
+
+            if (evals.size() > 0) {
+                var groupings = groupingChanged ? newGroupings : aggregate.groupings();
+                var aggregates = aggsChanged.get() ? newAggs : aggregate.aggregates();
+
+                var newEval = new Eval(aggregate.source(), aggregate.child(), evals);
+                aggregate = new Aggregate(aggregate.source(), newEval, groupings, aggregates);
+            }
+
+            return aggregate;
+        }
+
+        static String temporaryName(NamedExpression agg, AggregateFunction af) {
+            return SubstituteSurrogates.temporaryName(agg, af);
+        }
+    }
+
+    /**
      * Replace aliasing evals (eval x=a) with a projection which can be further combined / simplified.
      * The rule gets applied only if there's another project (Project/Stats) above it.
      *
@@ -1182,20 +1296,19 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         private static LogicalPlan normalize(Aggregate aggregate, AttributeMap<Expression> aliases) {
             var aggs = aggregate.aggregates();
             List<NamedExpression> newAggs = new ArrayList<>(aggs.size());
-            boolean changed = false;
+            final Holder<Boolean> changed = new Holder<>(false);
 
             for (NamedExpression agg : aggs) {
-                if (agg instanceof Alias as && as.child() instanceof AggregateFunction af) {
+                var newAgg = (NamedExpression) agg.transformDown(AggregateFunction.class, af -> {
                     // replace field reference
                     if (af.field() instanceof NamedExpression ne) {
                         Attribute attr = ne.toAttribute();
                         var resolved = aliases.resolve(attr, attr);
                         if (resolved != attr) {
-                            changed = true;
+                            changed.set(true);
                             var newChildren = CollectionUtils.combine(Collections.singletonList(resolved), af.parameters());
                             // update the reference so Count can pick it up
                             af = (AggregateFunction) af.replaceChildren(newChildren);
-                            agg = as.replaceChild(af);
                         }
                     }
                     // handle Count(*)
@@ -1204,16 +1317,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         if (field.foldable()) {
                             var fold = field.fold();
                             if (fold != null && StringUtils.WILDCARD.equals(fold) == false) {
-                                changed = true;
+                                changed.set(true);
                                 var source = count.source();
-                                agg = as.replaceChild(new Count(source, new Literal(source, StringUtils.WILDCARD, DataTypes.KEYWORD)));
+                                af = new Count(source, new Literal(source, StringUtils.WILDCARD, DataTypes.KEYWORD));
                             }
                         }
                     }
-                }
-                newAggs.add(agg);
+                    return af;
+                });
+                newAggs.add(newAgg);
             }
-            return changed ? new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs) : aggregate;
+            return changed.get() ? new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs) : aggregate;
         }
     }
 

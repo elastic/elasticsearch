@@ -23,6 +23,7 @@ import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -259,9 +260,9 @@ public class AddTests extends AbstractFunctionTestCase {
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
             return "[+] has arguments with incompatible types ["
-                + types.get(0).typeName().toUpperCase()
+                + types.get(0).typeName().toUpperCase(Locale.ROOT)
                 + "] and ["
-                + types.get(1).typeName().toUpperCase()
+                + types.get(1).typeName().toUpperCase(Locale.ROOT)
                 + "]";
 
         }

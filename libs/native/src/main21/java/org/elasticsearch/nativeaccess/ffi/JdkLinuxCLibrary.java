@@ -19,6 +19,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.VarHandle;
 
 import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
+import static java.lang.foreign.MemoryLayout.paddingLayout;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
@@ -73,7 +74,10 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     }
 
     private static class JdkSockFProg implements SockFProg {
-        private static final MemoryLayout layout = MemoryLayout.structLayout(JAVA_SHORT, ADDRESS);
+        private static final MemoryLayout layout = MemoryLayout.structLayout(
+            JAVA_SHORT,
+            paddingLayout(6),
+            ADDRESS);
 
         private final MemorySegment segment;
 
@@ -82,7 +86,7 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
             this.segment = arena.allocate(layout);
             var instSegment = arena.allocate(filters.length * 8L);
             segment.set(JAVA_SHORT, 0, (short) filters.length);
-            segment.set(ADDRESS, 2, instSegment);
+            segment.set(ADDRESS, 8, instSegment);
 
             int offset = 0;
             for (SockFilter f : filters) {

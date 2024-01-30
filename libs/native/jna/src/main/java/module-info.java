@@ -15,5 +15,8 @@ module org.elasticsearch.nativeaccess.jna {
     requires org.elasticsearch.logging;
     requires com.sun.jna;
 
+    // for reflective access to Structs, e.g. JnaRLimit
+    exports org.elasticsearch.nativeaccess.jna to com.sun.jna;
+
     provides NativeLibraryProvider with JnaNativeLibraryProvider;
 }

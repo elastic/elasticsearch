@@ -18,7 +18,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -50,9 +49,11 @@ import java.util.Set;
 import java.util.function.IntFunction;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.hamcrest.Matchers.containsString;
@@ -341,14 +342,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             "scaled_float"
         );
 
-        String lessOrLessEqual = randomBoolean() ? " < " : " <= ";
-        String largerOrLargerEqual = randomBoolean() ? " > " : " >= ";
-        String inEqualPlusMinus = randomBoolean() ? " != " : " != -";
-        String equalPlusMinus = randomBoolean() ? " == " : " == -";
+        String lessOrLessEqual = randomFrom(" < ", " <= ");
+        String largerOrLargerEqual = randomFrom(" > ", " >= ");
+        String inEqualPlusMinus = randomFrom(" != ", " != -");
+        String equalPlusMinus = randomFrom(" == ", " == -");
         // TODO: once we do not support infinity and NaN anymore, remove INFINITY/NAN cases.
         // https://github.com/elastic/elasticsearch/issues/98698#issuecomment-1847423390
-        String humongousPositiveLiteral = randomBoolean() ? HUMONGOUS_DOUBLE : INFINITY;
-        String nanOrNull = randomBoolean() ? NAN : "to_double(null)";
+        String humongousPositiveLiteral = randomFrom(HUMONGOUS_DOUBLE, INFINITY);
+        String nanOrNull = randomFrom(NAN, "to_double(null)");
 
         List<String> trueForSingleValuesPredicates = List.of(
             lessOrLessEqual + humongousPositiveLiteral,
@@ -369,16 +370,16 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         for (String fieldWithType : dataTypes) {
             for (String truePredicate : trueForSingleValuesPredicates) {
                 String comparison = fieldWithType + truePredicate;
-                var query = builder().query(LoggerMessageFormat.format(null, "from {} | where {}", testIndexName(), comparison));
+                var query = builder().query(format(null, "from {} | where {}", testIndexName(), comparison));
                 List<String> expectedWarnings = List.of(
                     "Line 1:29: evaluation of [" + comparison + "] failed, treating result as null. Only first 20 failures recorded.",
                     "Line 1:29: java.lang.IllegalArgumentException: single-value function encountered multi-value"
                 );
                 var result = runEsql(query, expectedWarnings, mode);
 
-                var values = (ArrayList) result.get("values");
+                var values = as(result.get("values"), ArrayList.class);
                 assertThat(
-                    LoggerMessageFormat.format(null, "Comparison [{}] should return all rows with single values.", comparison),
+                    format(null, "Comparison [{}] should return all rows with single values.", comparison),
                     values.size(),
                     is(NUM_SINGLE_VALUE_ROWS)
                 );
@@ -386,11 +387,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
             for (String falsePredicate : alwaysFalsePredicates) {
                 String comparison = fieldWithType + falsePredicate;
-                var query = builder().query(LoggerMessageFormat.format(null, "from {} | where {}", testIndexName(), comparison));
+                var query = builder().query(format(null, "from {} | where {}", testIndexName(), comparison));
                 var result = runEsql(query);
 
-                var values = (ArrayList) result.get("values");
-                assertThat(LoggerMessageFormat.format(null, "Comparison [{}] should return no rows.", comparison), values.size(), is(0));
+                var values = as(result.get("values"), ArrayList.class);
+                assertThat(format(null, "Comparison [{}] should return no rows.", comparison), values.size(), is(0));
             }
         }
     }
@@ -846,7 +847,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static String createDocument(int i) {
-        return LoggerMessageFormat.format(
+        return format(
             null,
             DOCUMENT_TEMPLATE,
             i,
@@ -870,7 +871,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static String createDocumentWithMVs(int i) {
-        return LoggerMessageFormat.format(
+        return format(
             null,
             DOCUMENT_TEMPLATE,
             i,
@@ -894,7 +895,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static String createDocumentWithNulls(int i) {
-        return LoggerMessageFormat.format(null, """
+        return format(null, """
                 {"index":{"_id":"{}"}}
                 {}
             """, i);

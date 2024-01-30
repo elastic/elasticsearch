@@ -243,7 +243,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     }
 
     private void validate() {
-        if (countNotNullObjects(requestBuilders, requests, framedData) > 1) {
+        if (countNonEmptyLists(requestBuilders, requests, framedData) > 1) {
             throw new IllegalStateException(
                 "Must use only request builders, requests, or byte arrays within a single bulk request. Cannot mix and match"
             );
@@ -256,10 +256,10 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
         }
     }
 
-    private int countNotNullObjects(Object... objects) {
+    private int countNonEmptyLists(List<?>... lists) {
         int sum = 0;
-        for (Object object : objects) {
-            if (object != null) {
+        for (List<?> list : lists) {
+            if (list.isEmpty() == false) {
                 sum++;
             }
         }

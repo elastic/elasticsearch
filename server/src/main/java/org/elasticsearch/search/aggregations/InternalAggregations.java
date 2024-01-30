@@ -192,7 +192,6 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         return new ArrayList<>(getInternalAggregations());
     }
 
-    @SuppressWarnings("unchecked")
     private List<InternalAggregation> getInternalAggregations() {
         return aggregations;
     }

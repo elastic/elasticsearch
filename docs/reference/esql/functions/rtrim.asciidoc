@@ -1,10 +1,26 @@
 [discrete]
 [[esql-rtrim]]
 === `RTRIM`
+
+*Syntax*
+
 [.text-center]
 image::esql/functions/signature/rtrim.svg[Embedded,opts=inline]
 
+*Parameters*
+
+`str`::
+String expression. If `null`, the function returns `null`.
+
+*Description*
+
 Removes trailing whitespaces from strings.
+
+*Supported types*
+
+include::types/rtrim.asciidoc[]
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -14,7 +30,3 @@ include::{esql-specs}/string.csv-spec[tag=rtrim]
 |===
 include::{esql-specs}/string.csv-spec[tag=rtrim-result]
 |===
-
-Supported types:
-
-include::types/rtrim.asciidoc[]

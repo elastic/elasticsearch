@@ -382,7 +382,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
+    protected Function<Object, Object> loadBlockExpected() {
         return n -> ((Number) n); // Just assert it's a number
     }
 

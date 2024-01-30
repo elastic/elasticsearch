@@ -147,7 +147,7 @@ public final class SearchResponseMerger implements Releasable {
             profileResults.putAll(searchResponse.getProfileResults());
 
             if (searchResponse.hasAggregations()) {
-                InternalAggregations internalAggs = (InternalAggregations) searchResponse.getAggregations();
+                InternalAggregations internalAggs = searchResponse.getAggregations();
                 aggs.add(internalAggs);
             }
 

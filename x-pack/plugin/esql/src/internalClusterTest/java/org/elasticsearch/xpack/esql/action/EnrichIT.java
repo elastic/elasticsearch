@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
@@ -132,6 +133,8 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
         return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
     }
 
+    static EnrichPolicy policy = new EnrichPolicy("match", null, List.of("songs"), "song_id", List.of("title", "artist", "length"));
+
     @Before
     public void setupEnrichPolicies() {
         client().admin()
@@ -152,7 +155,6 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             client().prepareIndex("songs").setSource("song_id", s.id, "title", s.title, "artist", s.artist, "length", s.length).get();
         }
         client().admin().indices().prepareRefresh("songs").get();
-        EnrichPolicy policy = new EnrichPolicy("match", null, List.of("songs"), "song_id", List.of("title", "artist", "length"));
         client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("songs", policy)).actionGet();
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("songs")).actionGet();
         assertAcked(client().admin().indices().prepareDelete("songs"));
@@ -201,14 +203,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     private static String enrichSongCommand() {
-        String command = " ENRICH songs ";
-        if (randomBoolean()) {
-            command += " ON song_id ";
-        }
-        if (randomBoolean()) {
-            command += " WITH artist, title, length ";
-        }
-        return command;
+        return EnrichHelper.randomEnrichCommand(policy, "songs", randomFrom(Enrich.Mode.COORDINATOR, Enrich.Mode.ANY));
     }
 
     public void testSumDurationByArtist() {

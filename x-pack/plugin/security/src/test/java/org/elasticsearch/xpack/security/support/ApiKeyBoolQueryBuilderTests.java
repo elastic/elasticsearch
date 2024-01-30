@@ -108,26 +108,49 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         }
     }
 
-    public void testMatchQueryBuilderPropertiesArePreservedFor() {
+    public void testPrefixQueryBuilderPropertiesArePreserved() {
+        Authentication authentication = randomFrom(
+            AuthenticationTests.randomApiKeyAuthentication(AuthenticationTests.randomUser(), randomUUID()),
+            AuthenticationTests.randomAuthentication(null, null),
+            null
+        );
+        String fieldName = randomValidFieldName();
+        PrefixQueryBuilder prefixQueryBuilder = QueryBuilders.prefixQuery(fieldName, randomAlphaOfLengthBetween(0, 4));
+        if (randomBoolean()) {
+            prefixQueryBuilder.boost(Math.abs(randomFloat()));
+        }
+        if (randomBoolean()) {
+            prefixQueryBuilder.caseInsensitive(randomBoolean());
+        }
+        if (randomBoolean()) {
+            prefixQueryBuilder.rewrite(randomAlphaOfLengthBetween(0, 4));
+        }
+        List<String> queryFields = new ArrayList<>();
+        ApiKeyBoolQueryBuilder apiKeyMatchQueryBuilder = ApiKeyBoolQueryBuilder.build(prefixQueryBuilder, queryFields::add, authentication);
+        assertThat(queryFields, hasItem(ApiKeyFieldNameTranslators.translate(fieldName)));
+        List<QueryBuilder> mustQueries = apiKeyMatchQueryBuilder.must();
+        assertThat(mustQueries, hasSize(1));
+        assertThat(mustQueries.get(0), instanceOf(PrefixQueryBuilder.class));
+        PrefixQueryBuilder prefixQueryBuilder2 = (PrefixQueryBuilder) mustQueries.get(0);
+        assertThat(prefixQueryBuilder2.fieldName(), is(ApiKeyFieldNameTranslators.translate(prefixQueryBuilder.fieldName())));
+        assertThat(prefixQueryBuilder2.value(), is(prefixQueryBuilder.value()));
+        assertThat(prefixQueryBuilder2.boost(), is(prefixQueryBuilder.boost()));
+        assertThat(prefixQueryBuilder2.caseInsensitive(), is(prefixQueryBuilder.caseInsensitive()));
+        assertThat(prefixQueryBuilder2.rewrite(), is(prefixQueryBuilder.rewrite()));
+    }
+
+    public void testMatchQueryBuilderPropertiesArePreserved() {
         // the match query has many properties, that all must be preserved after limiting for API Key docs only
         Authentication authentication = randomFrom(
             AuthenticationTests.randomApiKeyAuthentication(AuthenticationTests.randomUser(), randomUUID()),
             AuthenticationTests.randomAuthentication(null, null),
             null
         );
-        String fieldName = randomFrom(
-            "username",
-            "realm_name",
-            "name",
-            "type",
-            "creation",
-            "expiration",
-            "invalidated",
-            "invalidation",
-            "metadata",
-            "metadata.what.ever"
-        );
+        String fieldName = randomValidFieldName();
         MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery(fieldName, new Object());
+        if (randomBoolean()) {
+            matchQueryBuilder.boost(Math.abs(randomFloat()));
+        }
         if (randomBoolean()) {
             matchQueryBuilder.operator(randomFrom(Operator.OR, Operator.AND));
         }
@@ -181,6 +204,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         assertThat(matchQueryBuilder2.fuzzyTranspositions(), is(matchQueryBuilder.fuzzyTranspositions()));
         assertThat(matchQueryBuilder2.lenient(), is(matchQueryBuilder.lenient()));
         assertThat(matchQueryBuilder2.autoGenerateSynonymsPhraseQuery(), is(matchQueryBuilder.autoGenerateSynonymsPhraseQuery()));
+        assertThat(matchQueryBuilder2.boost(), is(matchQueryBuilder.boost()));
     }
 
     public void testQueryForDomainAuthentication() {
@@ -933,5 +957,20 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             assertThat(actualQueryFields, hasItem("creator.principal"));
             assertThat(actualQueryFields, hasItem("creator.realm"));
         }
+    }
+
+    private static String randomValidFieldName() {
+        return randomFrom(
+            "username",
+            "realm_name",
+            "name",
+            "type",
+            "creation",
+            "expiration",
+            "invalidated",
+            "invalidation",
+            "metadata",
+            "metadata.what.ever"
+        );
     }
 }

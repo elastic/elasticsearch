@@ -13,6 +13,11 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 public class SearchResponseMetrics {
+
+    public static final String TOOK_MEASUREMENT_NUM_COUNT_NAME = "es.search_response.took_measurements.total";
+    public static final String TOOK_DURATION_TOTAL_NAME = "es.search_response.took_duration.total";
+    public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
+
     private final LongCounter tookMeasurementsNumCount;
     private final LongCounter tookDurationTotalMillisCount;
     private final LongHistogram tookDurationTotalMillisHistogram;
@@ -20,18 +25,18 @@ public class SearchResponseMetrics {
     public SearchResponseMetrics(MeterRegistry meterRegistry) {
         this(
             meterRegistry.registerLongCounter(
-                "es.search_response.took_measurements.total",
+                TOOK_MEASUREMENT_NUM_COUNT_NAME,
                 "The total number of times that SearchResponse.took measurements were recorded, "
                     + "expressed as a counter. Used for calculating averages.",
                 "count"
             ),
             meterRegistry.registerLongCounter(
-                "es.search_response.took_duration.total",
+                TOOK_DURATION_TOTAL_NAME,
                 "The total value of all SearchResponse.took durations in milliseconds, expressed as a counter",
                 "millis"
             ),
             meterRegistry.registerLongHistogram(
-                "es.search_response.took_durations.histogram",
+                TOOK_DURATION_TOTAL_HISTOGRAM_NAME,
                 "The SearchResponse.took durations in milliseconds, expressed as a histogram",
                 "millis"
             )

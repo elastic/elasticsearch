@@ -1269,11 +1269,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (DataStream.isFailureStoreEnabled() == false) {
                 markItemAsFailed(slot, e);
             } else {
+                // We get the index write request to find the source of the failed document
                 IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
                 if (indexRequest == null) {
-                    // This is unlikely to happen ever since only index and update operations are considered for ingest, but if it does
-                    // happen, attempt to trip an assertion. If running in production, be defensive: Mark it as failed as normal, and log
-                    // the info for later debugging if needed.
+                    // This is unlikely to happen ever since only source oriented operations (index, create, upsert) are considered for
+                    // ingest, but if it does happen, attempt to trip an assertion. If running in production, be defensive: Mark it failed
+                    // as normal, and log the info for later debugging if needed.
                     assert false
                         : "Attempting to mark invalid write request type for failure store. Only IndexRequest or UpdateRequest allowed. "
                             + "type: ["

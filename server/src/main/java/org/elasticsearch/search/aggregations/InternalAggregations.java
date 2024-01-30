@@ -58,7 +58,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         }
     };
 
-    protected final List<InternalAggregation> aggregations;
+    private final List<InternalAggregation> aggregations;
     private Map<String, InternalAggregation> aggregationsAsMap;
 
     /**

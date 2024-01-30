@@ -234,6 +234,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 || cause instanceof IndexNotFoundException
                 || cause instanceof NoShardAvailableActionException
                 || cause instanceof UnavailableShardsException) {
+                logger.debug("retrying get_from_translog");
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {

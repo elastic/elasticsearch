@@ -406,7 +406,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
                 // Serialize the sourceRef to Connector class for unit tests
                 Connector connector = Connector.fromXContentBytes(
                     connectorResult.getSourceRef(),
-                    connectorResult.getId(),
+                    connectorResult.getDocId(),
                     XContentType.JSON
                 );
                 resp.set(connector);

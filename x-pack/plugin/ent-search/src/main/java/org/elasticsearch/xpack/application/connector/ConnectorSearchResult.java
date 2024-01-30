@@ -13,32 +13,33 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
 /**
- * Represents the outcome of a search query in the connectors index, encapsulating the search result.
- * It includes a raw byte reference to the result which can be deserialized into a {@code Connector} object,
+ * Represents the outcome of a search query in the connectors and sync job index, encapsulating the search result.
+ * It includes a raw byte reference to the result which can be deserialized into a {@link Connector} or {@link ConnectorSyncJob} object,
  * and a result map for returning the data without strict deserialization.
  */
 public class ConnectorSearchResult implements Writeable, ToXContentObject {
 
     private final BytesReference resultBytes;
     private final Map<String, Object> resultMap;
-    private final String id;
+    private final String docId;
 
     private ConnectorSearchResult(BytesReference resultBytes, Map<String, Object> resultMap, String id) {
         this.resultBytes = resultBytes;
         this.resultMap = resultMap;
-        this.id = id;
+        this.docId = id;
     }
 
     public ConnectorSearchResult(StreamInput in) throws IOException {
         this.resultBytes = in.readBytesReference();
         this.resultMap = in.readGenericMap();
-        this.id = in.readString();
+        this.docId = in.readString();
     }
 
     public BytesReference getSourceRef() {
@@ -49,15 +50,15 @@ public class ConnectorSearchResult implements Writeable, ToXContentObject {
         return resultMap;
     }
 
-    public String getId() {
-        return id;
+    public String getDocId() {
+        return docId;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(Connector.ID_FIELD.getPreferredName(), id);
+            builder.field("id", docId);
             builder.mapContents(resultMap);
         }
         builder.endObject();
@@ -68,7 +69,7 @@ public class ConnectorSearchResult implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBytesReference(resultBytes);
         out.writeGenericMap(resultMap);
-        out.writeString(id);
+        out.writeString(docId);
     }
 
     @Override
@@ -76,12 +77,14 @@ public class ConnectorSearchResult implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ConnectorSearchResult that = (ConnectorSearchResult) o;
-        return Objects.equals(resultBytes, that.resultBytes) && Objects.equals(resultMap, that.resultMap) && Objects.equals(id, that.id);
+        return Objects.equals(resultBytes, that.resultBytes)
+            && Objects.equals(resultMap, that.resultMap)
+            && Objects.equals(docId, that.docId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resultBytes, resultMap, id);
+        return Objects.hash(resultBytes, resultMap, docId);
     }
 
     public static class Builder {

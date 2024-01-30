@@ -122,7 +122,19 @@ public class TextEmbeddingServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(Map.of(TextEmbeddingServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingServiceSettings.NUM_THREADS, 4))
             );
-            expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
+
+            var e5ServiceSettings = new MultilingualE5SmallServiceSettings(1, 4, TextEmbeddingService.MULTILINGUAL_E5_SMALL_MODEL_ID);
+
+            MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parseRequestConfig(
+                randomInferenceEntityId,
+                taskType,
+                settings,
+                Set.of()
+            );
+            assertEquals(
+                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingService.NAME, e5ServiceSettings),
+                parsedModel
+            );
         }
 
         // Invalid model variant

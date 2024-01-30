@@ -1047,17 +1047,9 @@ public class SearchModule {
     }
 
     private void registerRetrieverParsers(List<SearchPlugin> plugins) {
-        registerRetriever(
-            new RetrieverSpec<>(StandardRetrieverBuilder.NAME, StandardRetrieverBuilder::new, StandardRetrieverBuilder::fromXContent)
-        );
-        registerRetriever(new RetrieverSpec<>(KnnRetrieverBuilder.NAME, KnnRetrieverBuilder::new, KnnRetrieverBuilder::fromXContent));
-        registerRetriever(
-            new RetrieverSpec<>(
-                LinearCombinationRetrieverBuilder.NAME,
-                LinearCombinationRetrieverBuilder::new,
-                LinearCombinationRetrieverBuilder::fromXContent
-            )
-        );
+        registerRetriever(new RetrieverSpec<>(StandardRetrieverBuilder.NAME, StandardRetrieverBuilder::fromXContent));
+        registerRetriever(new RetrieverSpec<>(KnnRetrieverBuilder.NAME, KnnRetrieverBuilder::fromXContent));
+        registerRetriever(new RetrieverSpec<>(LinearCombinationRetrieverBuilder.NAME, LinearCombinationRetrieverBuilder::fromXContent));
 
         registerFromPlugin(plugins, SearchPlugin::getRetrievers, this::registerRetriever);
     }
@@ -1222,7 +1214,6 @@ public class SearchModule {
     }
 
     private void registerRetriever(RetrieverSpec<?> spec) {
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RetrieverBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         namedXContents.add(
             new NamedXContentRegistry.Entry(
                 RetrieverBuilder.class,

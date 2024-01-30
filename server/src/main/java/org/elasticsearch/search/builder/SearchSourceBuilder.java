@@ -69,6 +69,7 @@ import java.util.function.ToLongFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
@@ -1594,10 +1595,25 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (retrieverBuilder != null) {
             if (subSearchSourceBuilders.isEmpty() == false) {
-                throw new IllegalArgumentException("cannot specify both elements [query] and [retriever]");
+                throw new IllegalArgumentException("cannot specify both [query] and [retriever]");
             }
             if (knnSearch.isEmpty() == false) {
-                throw new IllegalArgumentException("cannot specify both elements [knn] and [retriever]");
+                throw new IllegalArgumentException("cannot specify both [knn] and [retriever]");
+            }
+            if (searchAfterBuilder != null) {
+                throw new IllegalArgumentException("cannot specify both [search_after] and [retriever]");
+            }
+            if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
+                throw new IllegalArgumentException("cannot specify both [terminate_after] and [retriever]");
+            }
+            if (sorts != null) {
+                throw new IllegalArgumentException("cannot specify both [sort] and [retriever]");
+            }
+            if (minScore != null) {
+                throw new IllegalArgumentException("cannot specify both [min_score] and [retriever]");
+            }
+            if (rankBuilder != null) {
+                throw new IllegalArgumentException("cannot specify both [rank] and [retriever]");
             }
             retrieverBuilder.extractToSearchSourceBuilder(this);
         }

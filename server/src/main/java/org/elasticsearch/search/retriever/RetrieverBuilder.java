@@ -9,14 +9,9 @@
 package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -33,14 +28,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
-    implements
-        VersionedNamedWriteable,
-        ToXContentObject,
-        Rewriteable<RB> {
+public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>> implements ToXContentObject {
 
     public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
-    public static final ParseField _NAME_FIELD = new ParseField("_name");
 
     protected static void declareBaseParserFields(
         String name,
@@ -51,7 +41,6 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
             c.trackSectionUsage(name + ":" + PRE_FILTER_FIELD.getPreferredName());
             return preFilterQueryBuilder;
         }, PRE_FILTER_FIELD);
-        parser.declareString(RetrieverBuilder::_name, _NAME_FIELD);
     }
 
     public static RetrieverBuilder<?> parseTopLevelRetrieverBuilder(XContentParser parser, RetrieverParserContext context)
@@ -162,39 +151,12 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
     }
 
     protected List<QueryBuilder> preFilterQueryBuilders = new ArrayList<>();
-    protected String _name;
-
-    public RetrieverBuilder() {
-
-    }
-
-    public RetrieverBuilder(RetrieverBuilder<?> original) {
-        preFilterQueryBuilders = original.preFilterQueryBuilders;
-        _name = original._name;
-    }
-
-    public RetrieverBuilder(StreamInput in) throws IOException {
-        preFilterQueryBuilders = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
-        _name = in.readOptionalString();
-    }
-
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableCollection(preFilterQueryBuilders);
-        out.writeOptionalString(_name);
-        doWriteTo(out);
-    }
-
-    public abstract void doWriteTo(StreamOutput out) throws IOException;
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (preFilterQueryBuilders.isEmpty() == false) {
             builder.field(PRE_FILTER_FIELD.getPreferredName(), preFilterQueryBuilders);
-        }
-        if (_name != null) {
-            builder.field(_NAME_FIELD.getPreferredName(), _name);
         }
         doToXContent(builder, params);
         builder.endObject();
@@ -203,37 +165,6 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
     }
 
     protected abstract void doToXContent(XContentBuilder builder, Params params) throws IOException;
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public RB rewrite(QueryRewriteContext ctx) throws IOException {
-        List<QueryBuilder> rewrittenFilters = new ArrayList<>();
-
-        for (QueryBuilder preFilterQueryBuilder : rewrittenFilters) {
-            rewrittenFilters.add(preFilterQueryBuilder.rewrite(ctx));
-        }
-
-        if (preFilterQueryBuilders.equals(rewrittenFilters) == false) {
-            return shallowCopyInstance().preFilterQueryBuilders(rewrittenFilters);
-        }
-
-        return (RB) this;
-    }
-
-    protected abstract RB shallowCopyInstance();
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RetrieverBuilder<?> that = (RetrieverBuilder<?>) o;
-        return Objects.equals(preFilterQueryBuilders, that.preFilterQueryBuilders) && Objects.equals(_name, that._name);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(preFilterQueryBuilders, _name);
-    }
 
     public List<QueryBuilder> preFilterQueryBuilders() {
         return preFilterQueryBuilders;
@@ -245,21 +176,7 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
         return (RB) this;
     }
 
-    public String _name() {
-        return _name;
-    }
-
-    @SuppressWarnings("unchecked")
-    public RB _name(String _name) {
-        this._name = _name;
-        return (RB) this;
-    }
-
     public final void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
-        if (_name != null) {
-            throw new IllegalStateException("[_name] is not supported");
-        }
-
         doExtractToSearchSourceBuilder(searchSourceBuilder);
     }
 

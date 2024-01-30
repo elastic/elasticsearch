@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
@@ -56,42 +52,6 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
     private int windowSize = RRFRankBuilder.DEFAULT_WINDOW_SIZE;
     private int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
 
-    public RRFRetrieverBuilder() {
-
-    }
-
-    public RRFRetrieverBuilder(RRFRetrieverBuilder original) {
-        super(original);
-        retrieverBuilders = original.retrieverBuilders;
-        windowSize = original.windowSize;
-        rankConstant = original.rankConstant;
-    }
-
-    @SuppressWarnings("unchecked")
-    public RRFRetrieverBuilder(StreamInput in) throws IOException {
-        super(in);
-        retrieverBuilders = (List<RetrieverBuilder<?>>) (Object) in.readNamedWriteableCollectionAsList(RetrieverBuilder.class);
-        windowSize = in.readVInt();
-        rankConstant = in.readVInt();
-    }
-
-    @Override
-    public String getWriteableName() {
-        return RRFRankPlugin.NAME;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.RETRIEVERS_ADDED;
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableCollection(retrieverBuilders);
-        out.writeVInt(windowSize);
-        out.writeVInt(rankConstant);
-    }
-
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
@@ -105,20 +65,19 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
     }
 
     @Override
-    protected RRFRetrieverBuilder shallowCopyInstance() {
-        return new RRFRetrieverBuilder(this);
-    }
-
-    @Override
     public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
         for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+            if (preFilterQueryBuilders.isEmpty() == false) {
+                retrieverBuilder.preFilterQueryBuilders().addAll(preFilterQueryBuilders);
+            }
+
             retrieverBuilder.doExtractToSearchSourceBuilder(searchSourceBuilder);
         }
 
         if (searchSourceBuilder.rankBuilder() == null) {
             searchSourceBuilder.rankBuilder(new RRFRankBuilder(windowSize, rankConstant));
         } else {
-            throw new IllegalStateException("[rank] cannot be declared as a retriever value and as a global value");
+            throw new IllegalStateException("[rank] cannot be declared on multiple retrievers");
         }
     }
 }

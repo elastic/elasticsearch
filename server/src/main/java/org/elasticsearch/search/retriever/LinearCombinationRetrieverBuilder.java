@@ -8,10 +8,6 @@
 
 package org.elasticsearch.search.retriever;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -57,39 +53,6 @@ public final class LinearCombinationRetrieverBuilder extends RetrieverBuilder<Li
     private List<? extends RetrieverBuilder<?>> retrieverBuilders = Collections.emptyList();
     private int windowSize = DEFAULT_WINDOW_SIZE;
 
-    public LinearCombinationRetrieverBuilder() {
-
-    }
-
-    public LinearCombinationRetrieverBuilder(LinearCombinationRetrieverBuilder original) {
-        super(original);
-        retrieverBuilders = original.retrieverBuilders;
-        windowSize = original.windowSize;
-    }
-
-    @SuppressWarnings("unchecked")
-    public LinearCombinationRetrieverBuilder(StreamInput in) throws IOException {
-        super(in);
-        retrieverBuilders = (List<RetrieverBuilder<?>>) (Object) in.readNamedWriteableCollectionAsList(RetrieverBuilder.class);
-        windowSize = in.readVInt();
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.RETRIEVERS_ADDED;
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableCollection(retrieverBuilders);
-        out.writeVInt(windowSize);
-    }
-
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
@@ -102,13 +65,12 @@ public final class LinearCombinationRetrieverBuilder extends RetrieverBuilder<Li
     }
 
     @Override
-    protected LinearCombinationRetrieverBuilder shallowCopyInstance() {
-        return new LinearCombinationRetrieverBuilder(this);
-    }
-
-    @Override
     public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
         for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+            if (preFilterQueryBuilders.isEmpty() == false) {
+                retrieverBuilder.preFilterQueryBuilders().addAll(preFilterQueryBuilders);
+            }
+
             retrieverBuilder.doExtractToSearchSourceBuilder(searchSourceBuilder);
         }
     }

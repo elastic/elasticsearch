@@ -98,8 +98,7 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
         if (transportVersion.onOrAfter(TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED)) {
             return true;
         } else {
-            return transportVersion.onOrAfter(TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED_PATCH)
-                && transportVersion.before(nextNonPatchVersion);
+            return transportVersion.onOrAfter(TransportVersions.V_8_11_X) && transportVersion.before(nextNonPatchVersion);
         }
     }
 
@@ -132,7 +131,7 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_500_074;
+        return TransportVersions.V_8_11_X;
     }
 
     @Override

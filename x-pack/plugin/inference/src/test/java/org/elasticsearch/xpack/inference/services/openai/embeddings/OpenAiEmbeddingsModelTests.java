@@ -27,7 +27,7 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
         var model = createModel("url", "org", "api_key", "model_name", null);
         var requestTaskSettingsMap = getRequestTaskSettingsMap(null, "user_override");
 
-        var overriddenModel = model.overrideWith(requestTaskSettingsMap);
+        var overriddenModel = OpenAiEmbeddingsModel.of(model, requestTaskSettingsMap);
 
         assertThat(overriddenModel, is(createModel("url", "org", "api_key", "model_name", "user_override")));
     }
@@ -37,14 +37,14 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
 
         var requestTaskSettingsMap = Map.<String, Object>of();
 
-        var overriddenModel = model.overrideWith(requestTaskSettingsMap);
+        var overriddenModel = OpenAiEmbeddingsModel.of(model, requestTaskSettingsMap);
         assertThat(overriddenModel, sameInstance(model));
     }
 
     public void testOverrideWith_NullMap() {
         var model = createModel("url", "org", "api_key", "model_name", null);
 
-        var overriddenModel = model.overrideWith(null);
+        var overriddenModel = OpenAiEmbeddingsModel.of(model, null);
         assertThat(overriddenModel, sameInstance(model));
     }
 

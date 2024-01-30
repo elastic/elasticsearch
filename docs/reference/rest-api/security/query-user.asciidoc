@@ -109,8 +109,7 @@ The following request lists all users, assuming you have the
 ----
 GET /_security/_query/user
 ----
-// TEST[setup:jacknich_user]
-// TEST[setup:sandrakn_user]
+// TEST[setup:jacknich_user,sandrakn_user]
 
 A successful call returns a JSON structure that contains the information
 retrieved from one or more users:
@@ -125,8 +124,7 @@ retrieved from one or more users:
             "username": "jacknich",
             "roles": [
                 "admin",
-                "other_role1",
-                ""
+                "other_role1"
             ],
             "full_name": "Jack Nicholson",
             "email": "jacknich@example.com",
@@ -139,7 +137,7 @@ retrieved from one or more users:
             "username": "sandrakn",
             "roles": [
                 "admin",
-                "other_role2"
+                "other_role1"
             ],
             "full_name": "Sandra Knight",
             "email": "sandrakn@example.com",

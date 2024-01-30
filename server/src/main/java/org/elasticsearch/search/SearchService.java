@@ -1273,7 +1273,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.trackTotalHitsUpTo() != null
             && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
             && context.scrollContext() != null) {
-            throw new SearchException(shardTarget, "disabling [track_total_hits] is not allowed in a scroll context");
+            throw new SearchUsageException(shardTarget, "disabling [track_total_hits] is not allowed in a scroll context");
         }
         if (source.trackTotalHitsUpTo() != null) {
             context.trackTotalHitsUpTo(source.trackTotalHitsUpTo());
@@ -1403,10 +1403,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
             if (context.scrollContext() != null) {
-                throw new SearchException(shardTarget, "`search_after` cannot be used in a scroll context.");
+                throw new SearchUsageException(shardTarget, "`search_after` cannot be used in a scroll context.");
             }
             if (context.from() > 0) {
-                throw new SearchException(shardTarget, "`from` parameter must be set to 0 when `search_after` is used.");
+                throw new SearchUsageException(shardTarget, "`from` parameter must be set to 0 when `search_after` is used.");
             }
 
             String collapseField = source.collapse() != null ? source.collapse().getField() : null;
@@ -1416,7 +1416,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (source.slice() != null) {
             if (source.pointInTimeBuilder() == null && context.scrollContext() == null) {
-                throw new SearchException(shardTarget, "[slice] can only be used with [scroll] or [point-in-time] requests");
+                throw new SearchUsageException(shardTarget, "[slice] can only be used with [scroll] or [point-in-time] requests");
             }
             context.sliceBuilder(source.slice());
         }
@@ -1424,10 +1424,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.storedFields() != null) {
             if (source.storedFields().fetchFields() == false) {
                 if (context.sourceRequested()) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [_source] is requested");
+                    throw new SearchUsageException(shardTarget, "[stored_fields] cannot be disabled if [_source] is requested");
                 }
                 if (context.fetchFieldsContext() != null) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled when using the [fields] option");
+                    throw new SearchUsageException(shardTarget, "[stored_fields] cannot be disabled when using the [fields] option");
                 }
             }
             context.storedFieldsContext(source.storedFields());
@@ -1435,10 +1435,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (source.collapse() != null) {
             if (context.scrollContext() != null) {
-                throw new SearchException(shardTarget, "cannot use `collapse` in a scroll context");
+                throw new SearchUsageException(shardTarget, "cannot use `collapse` in a scroll context");
             }
             if (context.rescore() != null && context.rescore().isEmpty() == false) {
-                throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `rescore`");
+                throw new SearchUsageException(shardTarget, "cannot use `collapse` in conjunction with `rescore`");
             }
             final CollapseContext collapseContext = source.collapse().build(searchExecutionContext);
             context.collapse(collapseContext);

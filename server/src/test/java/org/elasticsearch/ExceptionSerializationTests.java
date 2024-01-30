@@ -75,6 +75,7 @@ import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.SearchUsageException;
 import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -281,9 +282,14 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testSearchException() throws IOException {
         SearchShardTarget target = new SearchShardTarget("foo", new ShardId("bar", "_na_", 1), null);
+        SearchUsageException searchUsageEx = new SearchUsageException(target, "hello world");
+        SearchUsageException usageExc = serialize(searchUsageEx, TransportVersions.SEARCH_USAGE_EXCEPTION_ADDED);
+        assertEquals(target, usageExc.shard());
+        assertEquals(usageExc.getMessage(), "hello world");
+
         SearchException ex = serialize(new SearchException(target, "hello world"));
-        assertEquals(target, ex.shard());
-        assertEquals(ex.getMessage(), "hello world");
+        assertEquals(target, usageExc.shard());
+        assertEquals(usageExc.getMessage(), "hello world");
 
         ex = serialize(new SearchException(null, "hello world", new NullPointerException()));
         assertNull(ex.shard());
@@ -827,6 +833,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(173, TooManyScrollContextsException.class);
         ids.put(174, AggregationExecutionException.InvalidPath.class);
         ids.put(175, AutoscalingMissedIndicesUpdateException.class);
+        ids.put(176, SearchUsageException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
@@ -225,6 +226,9 @@ public class APMAgentSettings {
         "span_stack_trace_min_duration"
     );
 
+    private static final Setting.Property[] SETTING_PROPERTIES = new Setting.Property[] { NodeScope, OperatorDynamic };
+    private static final Setting.Property[] DEPRECATED_SETTING_PROPERTIES = ArrayUtils.append(SETTING_PROPERTIES, DeprecatedWarning);
+
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
         TELEMETRY_SETTING_PREFIX + "agent.",
         LEGACY_TRACING_APM_SETTING_PREFIX + "agent.",
@@ -238,7 +242,7 @@ public class APMAgentSettings {
                 throw new IllegalArgumentException("Configuration [" + qualifiedKey + "] is either prohibited or unknown.");
             }
             return value;
-        }, Setting.Property.NodeScope, Setting.Property.OperatorDynamic)
+        }, qualifiedKey.startsWith(LEGACY_TRACING_APM_SETTING_PREFIX) ? DEPRECATED_SETTING_PROPERTIES : SETTING_PROPERTIES)
     );
 
     /**
@@ -247,17 +251,14 @@ public class APMAgentSettings {
     @Deprecated
     public static final Setting<List<String>> TRACING_APM_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
         LEGACY_TRACING_APM_SETTING_PREFIX + "names.include",
-        OperatorDynamic,
-        NodeScope,
-        DeprecatedWarning
+        DEPRECATED_SETTING_PROPERTIES
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
         TELEMETRY_SETTING_PREFIX + "tracing.names.include",
         TRACING_APM_NAMES_INCLUDE_SETTING,
         Function.identity(),
-        OperatorDynamic,
-        NodeScope
+        SETTING_PROPERTIES
     );
 
     /**
@@ -266,17 +267,14 @@ public class APMAgentSettings {
     @Deprecated
     public static final Setting<List<String>> TRACING_APM_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
         LEGACY_TRACING_APM_SETTING_PREFIX + "names.exclude",
-        OperatorDynamic,
-        NodeScope,
-        DeprecatedWarning
+        DEPRECATED_SETTING_PROPERTIES
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING = Setting.listSetting(
         TELEMETRY_SETTING_PREFIX + "tracing.names.exclude",
         TRACING_APM_NAMES_EXCLUDE_SETTING,
         Function.identity(),
-        OperatorDynamic,
-        NodeScope
+        SETTING_PROPERTIES
     );
 
     /**
@@ -299,17 +297,14 @@ public class APMAgentSettings {
             "*principal*",
             "set-cookie"
         ),
-        OperatorDynamic,
-        NodeScope,
-        DeprecatedWarning
+        DEPRECATED_SETTING_PROPERTIES
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_SANITIZE_FIELD_NAMES = Setting.listSetting(
         TELEMETRY_SETTING_PREFIX + "tracing.sanitize_field_names",
         TRACING_APM_SANITIZE_FIELD_NAMES,
         Function.identity(),
-        OperatorDynamic,
-        NodeScope
+        SETTING_PROPERTIES
     );
 
     /**
@@ -319,23 +314,19 @@ public class APMAgentSettings {
     public static final Setting<Boolean> TRACING_APM_ENABLED_SETTING = Setting.boolSetting(
         LEGACY_TRACING_APM_SETTING_PREFIX + "enabled",
         false,
-        OperatorDynamic,
-        NodeScope,
-        DeprecatedWarning
+        DEPRECATED_SETTING_PROPERTIES
     );
 
     public static final Setting<Boolean> TELEMETRY_TRACING_ENABLED_SETTING = Setting.boolSetting(
         TELEMETRY_SETTING_PREFIX + "tracing.enabled",
         TRACING_APM_ENABLED_SETTING,
-        OperatorDynamic,
-        NodeScope
+        SETTING_PROPERTIES
     );
 
     public static final Setting<Boolean> TELEMETRY_METRICS_ENABLED_SETTING = Setting.boolSetting(
         TELEMETRY_SETTING_PREFIX + "metrics.enabled",
         false,
-        OperatorDynamic,
-        NodeScope
+        SETTING_PROPERTIES
     );
 
     /**

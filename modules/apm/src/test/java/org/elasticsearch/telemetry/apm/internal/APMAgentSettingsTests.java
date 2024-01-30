@@ -88,6 +88,9 @@ public class APMAgentSettingsTests extends ESTestCase {
 
         verify(apmAgentSettings).setAgentSetting("recording", "true");
         verify(apmAgentSettings).setAgentSetting("span_compression_enabled", "true");
+        assertWarnings(
+            "[tracing.apm.agent.span_compression_enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     /**
@@ -105,8 +108,14 @@ public class APMAgentSettingsTests extends ESTestCase {
         }
         // though, accept / ignore nested global_labels
         for (String prefix : prefixes) {
-            Settings settings = Settings.builder().put(prefix + "global_labels." + randomAlphaOfLength(5), "123").build();
+            Settings settings = Settings.builder().put(prefix + "global_labels.abc", "123").build();
             APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(settings);
+
+            if (prefix.startsWith("tracing.apm.agent.")) {
+                assertWarnings(
+                    "[tracing.apm.agent.global_labels.abc] setting was deprecated in Elasticsearch and will be removed in a future release."
+                );
+            }
         }
     }
 

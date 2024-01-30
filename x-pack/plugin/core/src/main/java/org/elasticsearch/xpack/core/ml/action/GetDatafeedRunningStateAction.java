@@ -41,7 +41,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
     public static final String NAME = "cluster:internal/xpack/ml/datafeed/running_state";
 
     private GetDatafeedRunningStateAction() {
-        super(NAME, GetDatafeedRunningStateAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> {

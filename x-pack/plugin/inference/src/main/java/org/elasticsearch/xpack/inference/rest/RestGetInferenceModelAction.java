@@ -31,18 +31,18 @@ public class RestGetInferenceModelAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        String modelId = null;
+        String inferenceEntityId = null;
         TaskType taskType = null;
         if (restRequest.hasParam("task_type") == false && restRequest.hasParam("model_id") == false) {
             // _all models request
-            modelId = "_all";
+            inferenceEntityId = "_all";
             taskType = TaskType.ANY;
         } else {
             taskType = TaskType.fromStringOrStatusException(restRequest.param("task_type"));
-            modelId = restRequest.param("model_id");
+            inferenceEntityId = restRequest.param("model_id");
         }
 
-        var request = new GetInferenceModelAction.Request(modelId, taskType);
+        var request = new GetInferenceModelAction.Request(inferenceEntityId, taskType);
         return channel -> client.execute(GetInferenceModelAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

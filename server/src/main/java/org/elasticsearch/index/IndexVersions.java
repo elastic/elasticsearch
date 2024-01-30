@@ -9,6 +9,7 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.UpdateForV9;
 
@@ -21,6 +22,7 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.IntFunction;
 
 @SuppressWarnings("deprecation")
 public class IndexVersions {
@@ -94,7 +96,7 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_LUCENE_9_9 = def(8_500_006, Version.LUCENE_9_9_0);
     public static final IndexVersion NORI_DUPLICATES = def(8_500_007, Version.LUCENE_9_9_0);
     public static final IndexVersion UPGRADE_LUCENE_9_9_1 = def(8_500_008, Version.LUCENE_9_9_1);
-    public static final IndexVersion ES_VERSION_8_13 = def(8_500_009, Version.LUCENE_9_9_1);
+    public static final IndexVersion ES_VERSION_8_12_1 = def(8_500_009, Version.LUCENE_9_9_1);
     public static final IndexVersion NEW_INDEXVERSION_FORMAT = def(8_501_00_0, Version.LUCENE_9_9_1);
 
     /*
@@ -203,5 +205,11 @@ public class IndexVersions {
 
     static Collection<IndexVersion> getAllVersions() {
         return VERSION_IDS.values();
+    }
+
+    private static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class);
+
+    public static String toReleaseVersion(IndexVersion version) {
+        return VERSION_LOOKUP.apply(version.id());
     }
 }

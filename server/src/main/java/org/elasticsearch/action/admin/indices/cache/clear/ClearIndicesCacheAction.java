@@ -17,6 +17,6 @@ public class ClearIndicesCacheAction extends ActionType<BroadcastResponse> {
     public static final String NAME = "indices:admin/cache/clear";
 
     private ClearIndicesCacheAction() {
-        super(NAME, BroadcastResponse::new);
+        super(NAME);
     }
 }

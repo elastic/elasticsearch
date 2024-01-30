@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
 
-    public void testPutE5Small() throws IOException {
+    public void testPutE5Small_withNoModelVariant() throws IOException {
         // Model downloaded automatically & test infer with no model variant
         {
             String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
@@ -39,11 +39,30 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
             // there are two sets of embeddings
             deleteTextEmbeddingModel(inferenceEntityId);
         }
+    }
 
-        // again with platform-agnostic model variant
-        {
-            String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
-            putTextEmbeddingModel(inferenceEntityId, TaskType.TEXT_EMBEDDING, platformAgnosticModelVariantJsonEntity());
+    public void testPutE5Small_withPlatformAgnosticVariant() throws IOException {
+        String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+        putTextEmbeddingModel(inferenceEntityId, TaskType.TEXT_EMBEDDING, platformAgnosticModelVariantJsonEntity());
+        var models = getTrainedModel("_all");
+        assertThat(models.toString(), containsString("deployment_id=" + inferenceEntityId));
+
+        Map<String, Object> results = inferOnMockService(
+            inferenceEntityId,
+            TaskType.TEXT_EMBEDDING,
+            List.of("hello world", "this is the second document")
+        );
+        assert (((List) ((Map) ((List) results.get("text_embedding")).get(0)).get("embedding")).size() > 1);
+        // there exists embeddings
+        assert (((List) results.get("text_embedding")).size() == 2);
+        // there are two sets of embeddings
+        deleteTextEmbeddingModel(inferenceEntityId);
+    }
+
+    public void testPutE5Small_withPlatformSpecificVariant() throws IOException {
+        String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+        if ("linux-x86_64".equals(Platforms.PLATFORM_NAME)) {
+            putTextEmbeddingModel(inferenceEntityId, TaskType.TEXT_EMBEDDING, platformSpecificModelVariantJsonEntity());
             var models = getTrainedModel("_all");
             assertThat(models.toString(), containsString("deployment_id=" + inferenceEntityId));
 
@@ -57,44 +76,22 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
             assert (((List) results.get("text_embedding")).size() == 2);
             // there are two sets of embeddings
             deleteTextEmbeddingModel(inferenceEntityId);
-        }
-
-        // again with platform-specific model variant
-        {
-            String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
-            if ("linux-x86_64".equals(Platforms.PLATFORM_NAME)) {
-                putTextEmbeddingModel(inferenceEntityId, TaskType.TEXT_EMBEDDING, platformSpecificModelVariantJsonEntity());
-                var models = getTrainedModel("_all");
-                assertThat(models.toString(), containsString("deployment_id=" + inferenceEntityId));
-
-                Map<String, Object> results = inferOnMockService(
-                    inferenceEntityId,
-                    TaskType.TEXT_EMBEDDING,
-                    List.of("hello world", "this is the second document")
-                );
-                assert (((List) ((Map) ((List) results.get("text_embedding")).get(0)).get("embedding")).size() > 1);
-                // there exists embeddings
-                assert (((List) results.get("text_embedding")).size() == 2);
-                // there are two sets of embeddings
-                deleteTextEmbeddingModel(inferenceEntityId);
-            } else {
-                expectThrows(
-                    org.elasticsearch.client.ResponseException.class,
-                    () -> putTextEmbeddingModel(inferenceEntityId, TaskType.TEXT_EMBEDDING, platformSpecificModelVariantJsonEntity())
-                );
-            }
-
-        }
-
-        // again with fake model variant (throws exception)
-        {
-            String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+        } else {
             expectThrows(
                 org.elasticsearch.client.ResponseException.class,
-                () -> putTextEmbeddingModel(inferenceEntityId, TaskType.TEXT_EMBEDDING, fakeModelVariantJsonEntity())
+                () -> putTextEmbeddingModel(inferenceEntityId, TaskType.TEXT_EMBEDDING, platformSpecificModelVariantJsonEntity())
             );
-
         }
+
+    }
+
+    public void testPutE5Small_withFakeModelVariant() {
+        String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+        expectThrows(
+            org.elasticsearch.client.ResponseException.class,
+            () -> putTextEmbeddingModel(inferenceEntityId, TaskType.TEXT_EMBEDDING, fakeModelVariantJsonEntity())
+        );
+
     }
 
     private Map<String, Object> deleteTextEmbeddingModel(String inferenceEntityId) throws IOException {

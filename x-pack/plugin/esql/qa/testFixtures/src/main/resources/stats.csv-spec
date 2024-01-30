@@ -1083,14 +1083,13 @@ word_count:long
 6
 // end::docsCountWithExpression-result[]
 ;
-=======
+
 countMultiValuesRow
 ROW keyword_field = ["foo", "bar"], int_field = [1, 2, 3] | STATS ck = COUNT(keyword_field), ci = COUNT(int_field), c = COUNT(*);
 
 ck:l | ci:l | c:l 
 2    | 3    | 1
 ;
-
 
 countSource
 FROM employees | 

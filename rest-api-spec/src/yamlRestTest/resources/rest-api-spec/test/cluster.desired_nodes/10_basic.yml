@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 8.2.99"
-      reason: "API added in in 8.1.0 but modified in 8.3"
+      version: " - 8.12.99"
+      reason: "API added in in 8.1.0 but modified in 8.13 (node_version field removed)"
 ---
 teardown:
   - do:
@@ -27,8 +27,61 @@ teardown:
         history_id: "test"
         version: 1
         body:
+          nodes:
+            - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb" }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { name: "instance-000187" } }, processors: 8.5, memory: "64gb", storage: "128gb" }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 2
+        body:
+          nodes:
+            - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb" }
+            - { settings: { "node.name": "instance-000188" }, processors: 16.0, memory: "128gb", storage: "1tb" }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+
+  - match: { history_id: "test" }
+  - match: { version: 2 }
+  - length: { nodes: 2 }
+  - contains: { nodes: { settings: { node: { name: "instance-000187" } }, processors: 8.5, memory: "64gb", storage: "128gb" } }
+  - contains: { nodes: { settings: { node: { name: "instance-000188" } }, processors: 16.0, memory: "128gb", storage: "1tb" } }
+---
+"Test update desired nodes with node_version generates a warning":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: ["contains", "allowed_warnings"]
+  - do:
+      cluster.state: {}
+
+  # Get master node id
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
             nodes:
               - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+      allowed_warnings:
+        - "[version removal] Specifying node_version in desired nodes requests is deprecated."
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -48,6 +101,8 @@ teardown:
           nodes:
             - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
             - { settings: { "node.name": "instance-000188" }, processors: 16.0, memory: "128gb", storage: "1tb", node_version: $es_version }
+      allowed_warnings:
+        - "[version removal] Specifying node_version in desired nodes requests is deprecated."
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -78,7 +133,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb" }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -88,7 +143,7 @@ teardown:
         history_id: "test"
         version: 1
         nodes:
-          - { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb" }
 
   - do:
       _internal.update_desired_nodes:
@@ -96,8 +151,8 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-            - { settings: { "node.external_id": "instance-000188" }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb" }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 16, memory: "128gb", storage: "1tb" }
   - match: { replaced_existing_history_id: true }
 
   - do:
@@ -105,8 +160,8 @@ teardown:
   - match: { history_id: "new_history" }
   - match: { version: 1 }
   - length: { nodes: 2 }
-  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version } }
-  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 16.0, memory: "128gb", storage: "1tb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb" } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 16.0, memory: "128gb", storage: "1tb" } }
 ---
 "Test delete desired nodes":
   - do:
@@ -124,7 +179,47 @@ teardown:
         version: 1
         body:
           nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb" }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb" }
+
+  - do:
+      _internal.delete_desired_nodes: {}
+
+  - do:
+      catch: missing
+      _internal.get_desired_nodes: {}
+  - match: { status: 404 }
+---
+"Test delete desired nodes with node_version generates a warning":
+  - skip:
+      features: allowed_warnings
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+      allowed_warnings:
+        - "[version removal] Specifying node_version in desired nodes requests is deprecated."
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -163,8 +258,8 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
-            - { settings: { "node.external_id": "instance-000188" }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb" }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 8.0, memory: "64gb", storage: "128gb" }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -173,8 +268,8 @@ teardown:
   - match: { history_id: "test" }
   - match: { version: 1 }
   - length: { nodes: 2 }
-  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version } }
-  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb" } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8.0, memory: "64gb", storage: "128gb" } }
 
   - do:
       _internal.update_desired_nodes:
@@ -182,8 +277,8 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
-            - { settings: { "node.external_id": "instance-000188" }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb" }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 8.0, memory: "64gb", storage: "128gb" }
 
   - match: { replaced_existing_history_id: false }
 
@@ -193,8 +288,8 @@ teardown:
   - match: { history_id: "test" }
   - match: { version: 1 }
   - length: { nodes: 2 }
-  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version } }
-  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb" } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8.0, memory: "64gb", storage: "128gb" } }
 ---
 "Test update desired nodes is idempotent with different order":
   - skip:
@@ -215,8 +310,8 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
-            - { settings: { "node.external_id": "instance-000188" }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb" }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 8.0, memory: "64gb", storage: "128gb" }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -225,8 +320,8 @@ teardown:
   - match: { history_id: "test" }
   - match: { version: 1 }
   - length: { nodes: 2 }
-  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version } }
-  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb" } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8.0, memory: "64gb", storage: "128gb" } }
 
   - do:
       _internal.update_desired_nodes:
@@ -234,8 +329,8 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000188" }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
-            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 8.0, memory: "64gb", storage: "128gb" }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb" }
 
   - match: { replaced_existing_history_id: false }
 
@@ -245,8 +340,8 @@ teardown:
   - match: { history_id: "test" }
   - match: { version: 1 }
   - length: { nodes: 2 }
-  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version } }
-  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb" } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8.0, memory: "64gb", storage: "128gb" } }
 ---
 "Test going backwards within the same history is forbidden":
   - do:
@@ -264,7 +359,7 @@ teardown:
         version: 2
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb" }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -274,7 +369,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187", "http.tcp.keep_idle": 100 }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187", "http.tcp.keep_idle": 100 }, processors: 8.0, memory: "64gb", storage: "128gb" }
   - match: { status: 409 }
   - match: { error.type: version_conflict_exception }
   - match: { error.reason: "version [1] has been superseded by version [2] for history [test]" }
@@ -286,7 +381,7 @@ teardown:
         history_id: "test"
         version: 2
         nodes:
-          - { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb" }
 ---
 "Test using the same version with different definition is forbidden":
   - do:
@@ -304,7 +399,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb" }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -314,7 +409,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: 64.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 64.0, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "Desired nodes with history [test] and version [1] already exists with a different definition" }
@@ -326,94 +421,7 @@ teardown:
         history_id: "test"
         version: 1
         nodes:
-          - { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
----
-"Test settings are validated":
-  - skip:
-      version: "8.9.99 - "
-      reason: "We started skipping setting validations in 8.10"
-  - do:
-      cluster.state: {}
-
-  - set: { master_node: master }
-
-  - do:
-      nodes.info: {}
-  - set: { nodes.$master.version: es_version }
-
-  - do:
-      catch: bad_request
-      _internal.update_desired_nodes:
-        history_id: "test"
-        version: 1
-        body:
-          nodes:
-            - { settings: { "node.external_id": "instance-000187", "http.tcp.keep_idle": -1000 }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
-  - match: { status: 400 }
-  - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "Nodes with ids [instance-000187] in positions [0] contain invalid settings" }
-  - match: { error.suppressed.0.reason: "Failed to parse value [-1000] for setting [http.tcp.keep_idle] must be >= -1" }
----
-"Test unknown settings are forbidden in known versions":
-  - skip:
-      version: "8.9.99 - "
-      reason: "We started skipping setting validations in 8.10"
-  - do:
-      cluster.state: {}
-
-  - set: { master_node: master }
-
-  - do:
-      nodes.info: {}
-  - set: { nodes.$master.version: es_version }
-
-  - do:
-      catch: bad_request
-      _internal.update_desired_nodes:
-        history_id: "test"
-        version: 1
-        body:
-          nodes:
-            - { settings: { "node.external_id": "instance-000187", "unknown_setting": -1000 }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
-  - match: { status: 400 }
-  - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "Nodes with ids [instance-000187] in positions [0] contain invalid settings" }
-  - match: { error.suppressed.0.reason: "unknown setting [unknown_setting] please check that any required plugins are installed, or check the breaking changes documentation for removed settings" }
----
-"Test unknown settings are allowed in future versions":
-  - skip:
-      version: "8.9.99 - "
-      reason: "We started skipping setting validations in 8.10"
-  - do:
-      _internal.update_desired_nodes:
-        history_id: "test"
-        version: 1
-        body:
-          nodes:
-            - { settings: { "node.external_id": "instance-000187", "unknown_setting": -1000 }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: "99.1.0" }
-  - match: { replaced_existing_history_id: false }
----
-"Test some settings can be overridden":
-  - skip:
-      version: "8.9.99 - "
-      reason: "We started skipping setting validations in 8.10"
-  - do:
-      cluster.state: {}
-
-  - set: { master_node: master }
-
-  - do:
-      nodes.info: {}
-  - set: { nodes.$master.version: es_version }
-
-  - do:
-      _internal.update_desired_nodes:
-        history_id: "test"
-        version: 1
-        body:
-          nodes:
-            - { settings: { "node.external_id": "instance-000187", node.processors: 2048 }, processors: 2048, memory: "64gb", storage: "128gb", node_version: $es_version }
-  - match: { replaced_existing_history_id: false }
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb" }
 ---
 "Test external_id or node.name is required":
   - do:
@@ -432,7 +440,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { }, processors: 8.0, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
   - match: { error.caused_by.caused_by.reason: "[node.name] or [node.external_id] is missing or empty" }
@@ -454,7 +462,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "  " }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "  " }, processors: 8.0, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
   - match: { error.caused_by.caused_by.reason: "[node.name] or [node.external_id] is missing or empty" }
@@ -476,8 +484,8 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187"}, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
-            - { settings: { "node.external_id": "instance-000187"}, processors: 16.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187"}, processors: 8.0, memory: "64gb", storage: "128gb" }
+            - { settings: { "node.external_id": "instance-000187"}, processors: 16.0, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "Some nodes contain the same setting value [instance-000187] for [node.external_id]" }
@@ -499,7 +507,7 @@ teardown:
         version: "asa"
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187"}, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187"}, processors: 8.0, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "Failed to parse long parameter [version] with value [asa]" }
@@ -521,25 +529,10 @@ teardown:
         version: -1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187"}, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187"}, processors: 8.0, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: action_request_validation_exception }
   - match: { error.reason: "Validation Failed: 1: version must be positive;" }
----
-"Test node version must be at least the current master version":
-  - do:
-      catch: bad_request
-      _internal.update_desired_nodes:
-        history_id: "test"
-        version: 1
-        body:
-          nodes:
-            - { settings: { "node.external_id": "instance-000187"}, processors: 8.0, memory: "64gb", storage: "128gb", node_version: "7.16.0" }
-  - match: { status: 400 }
-  - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "Nodes with ids [instance-000187] in positions [0] contain invalid settings" }
-  - match:
-      error.suppressed.0.reason: "/Illegal\\snode\\sversion.+$/"
 ---
 "Test history_id must be present":
   - do:
@@ -558,7 +551,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8.0, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: action_request_validation_exception }
   - match: { error.reason: "Validation Failed: 1: historyID should not be empty;" }
@@ -592,7 +585,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187", "node.roles": "data_hot" }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187", "node.roles": "data_hot" }, processors: 8.0, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: action_request_validation_exception }
   - match: { error.reason: "Validation Failed: 1: nodes must contain at least one master node;" }
@@ -614,7 +607,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { processors: 64.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { processors: 64.0, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -635,7 +628,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: null, processors: 64.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: null, processors: 64.0, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -656,7 +649,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: {}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: {}, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -677,7 +670,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: {}, processors: 8.0, storage: "128gb", node_version: $es_version }
+            - { settings: {}, processors: 8.0, storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -698,7 +691,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: {}, processors: 8.0, memory: null, storage: "128gb", node_version: $es_version }
+            - { settings: {}, processors: 8.0, memory: null, storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -719,7 +712,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: {}, processors: 8.0, memory: "64gb", node_version: $es_version }
+            - { settings: {}, processors: 8.0, memory: "64gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -740,43 +733,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: {}, processors: 8, memory: "64gb", storage: null, node_version: $es_version }
-  - match: { status: 400 }
-  - match: { error.type: x_content_parse_exception }
----
-"Test node version is required":
-  - do:
-      catch: bad_request
-      _internal.update_desired_nodes:
-        history_id: "test"
-        version: 1
-        body:
-          nodes:
-            - { settings: {}, processors: 8, memory: "64gb", storage: "128gb" }
-  - match: { status: 400 }
-  - match: { error.type: x_content_parse_exception }
----
-"Test node version must have content":
-  - do:
-      catch: bad_request
-      _internal.update_desired_nodes:
-        history_id: "test"
-        version: 1
-        body:
-          nodes:
-            - { settings: { "node.external_id": "instance-000187"}, processors: 64, memory: "1b", storage: "1b", node_version: " " }
-  - match: { status: 400 }
-  - match: { error.type: x_content_parse_exception }
----
-"Test node version can not be null":
-  - do:
-      catch: bad_request
-      _internal.update_desired_nodes:
-        history_id: "test"
-        version: 1
-        body:
-          nodes:
-            - { settings: { "node.external_id": "instance-000187"}, processors: 64, memory: "1b", storage: "1b", node_version: null }
+            - { settings: {}, processors: 8, memory: "64gb", storage: null }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -797,7 +754,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 16.0, max: 20.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 16.0, max: 20.0}, memory: "64gb", storage: "128gb" }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -807,7 +764,7 @@ teardown:
         history_id: "test"
         version: 1
         nodes:
-          - { settings: { node: { name: "instance-000187" } }, processors_range: {min: 16.0, max: 20.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+          - { settings: { node: { name: "instance-000187" } }, processors_range: {min: 16.0, max: 20.0}, memory: "64gb", storage: "128gb" }
 ---
 "Test processors min and max are required":
   - do:
@@ -827,7 +784,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: { }, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: { }, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -849,7 +806,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: {max: 8.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {max: 8.0}, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -870,7 +827,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 8.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 8.0}, memory: "64gb", storage: "128gb" }
 
   - do:
       _internal.get_desired_nodes: {}
@@ -879,7 +836,7 @@ teardown:
         history_id: "test"
         version: 1
         nodes:
-          - { settings: { node: { name: "instance-000187" } }, processors_range: {min: 8.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+          - { settings: { node: { name: "instance-000187" } }, processors_range: {min: 8.0}, memory: "64gb", storage: "128gb" }
 ---
 "Test min processors should be less than or equal to max processors":
   - do:
@@ -899,7 +856,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 8.0, max: 1.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 8.0, max: 1.0}, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -921,7 +878,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors: NaN, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors: NaN, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -943,7 +900,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors: Infinity, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors: Infinity, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -965,7 +922,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors: -Infinity, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors: -Infinity, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -987,7 +944,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: {min: NaN, max: 1.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {min: NaN, max: 1.0}, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -1009,7 +966,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: {min: Infinity, max: 1.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {min: Infinity, max: 1.0}, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -1031,7 +988,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: {min: -Infinity, max: 1.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {min: -Infinity, max: 1.0}, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -1053,7 +1010,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 0.0, max: 1.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 0.0, max: 1.0}, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -1075,7 +1032,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 1.0, max: NaN}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 1.0, max: NaN}, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -1097,7 +1054,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 1.0, max: Infinity}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 1.0, max: Infinity}, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -1119,7 +1076,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 1.0, max: -Infinity}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 1.0, max: -Infinity}, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -1141,7 +1098,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 1.0, max: 0.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 1.0, max: 0.0}, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -1163,7 +1120,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors: 1.0, processors_range: {min: 1.0, max: 2.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors: 1.0, processors_range: {min: 1.0, max: 2.0}, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
@@ -1185,6 +1142,6 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187", "node.roles": "unknown,other" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187", "node.roles": "unknown,other" }, processors: 8.5, memory: "64gb", storage: "128gb" }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }

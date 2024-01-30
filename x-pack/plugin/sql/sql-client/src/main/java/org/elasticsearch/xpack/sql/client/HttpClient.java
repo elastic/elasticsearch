@@ -137,7 +137,6 @@ public class HttpClient {
         return response.response().isSucceeded();
     }
 
-    @SuppressWarnings({ "removal" })
     private <Request extends AbstractSqlRequest, Response> ResponseWithWarnings<Response> post(
         String path,
         Request request,
@@ -165,7 +164,6 @@ public class HttpClient {
         );
     }
 
-    @SuppressWarnings({ "removal" })
     private boolean head(String path, long timeoutInMs) throws SQLException {
         ConnectionConfiguration pingCfg = new ConnectionConfiguration(
             cfg.baseUri(),
@@ -192,7 +190,6 @@ public class HttpClient {
         }
     }
 
-    @SuppressWarnings({ "removal" })
     private <Response> Response get(String path, CheckedFunction<JsonParser, Response, IOException> responseParser) throws SQLException {
         Tuple<Function<String, List<String>>, byte[]> response = java.security.AccessController.doPrivileged(
             (PrivilegedAction<ResponseOrException<Tuple<Function<String, List<String>>, byte[]>>>) () -> JreHttpUrlConnection.http(

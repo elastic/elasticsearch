@@ -47,6 +47,8 @@ public final class EsqlDataTypes {
     public static final DataType TIME_DURATION = new DataType("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false);
     public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2, false, false, false);
     public static final DataType CARTESIAN_POINT = new DataType("cartesian_point", Double.BYTES * 2, false, false, false);
+    public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, false);
+    public static final DataType CARTESIAN_SHAPE = new DataType("cartesian_shape", Integer.MAX_VALUE, false, false, false);
 
     private static final Collection<DataType> TYPES = Stream.of(
         BOOLEAN,
@@ -72,7 +74,9 @@ public final class EsqlDataTypes {
         VERSION,
         UNSIGNED_LONG,
         GEO_POINT,
-        CARTESIAN_POINT
+        CARTESIAN_POINT,
+        CARTESIAN_SHAPE,
+        GEO_SHAPE
     ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
@@ -83,6 +87,7 @@ public final class EsqlDataTypes {
         Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(toMap(DataType::esType, t -> t));
         // ES calls this 'point', but ESQL calls it 'cartesian_point'
         map.put("point", CARTESIAN_POINT);
+        map.put("shape", CARTESIAN_SHAPE);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
@@ -167,6 +172,10 @@ public final class EsqlDataTypes {
     }
 
     public static boolean isSpatial(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
+    }
+
+    public static boolean isSpatialPoint(DataType t) {
         return t == GEO_POINT || t == CARTESIAN_POINT;
     }
 

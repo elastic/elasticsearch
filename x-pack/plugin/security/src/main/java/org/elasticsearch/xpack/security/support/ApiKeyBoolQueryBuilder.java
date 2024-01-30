@@ -13,20 +13,25 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -45,6 +50,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         "invalidation_time",
         "creation_time",
         "expiration_time",
+        "metadata_flattened",
         "creator.principal",
         "creator.realm"
     );
@@ -160,6 +166,36 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
                 newQuery.to(query.to()).includeUpper(query.includeUpper());
             }
             return newQuery.boost(query.boost());
+        } else if (qb instanceof final SimpleQueryStringBuilder simpleQueryStringBuilder) {
+            if (simpleQueryStringBuilder.fields().isEmpty()) {
+                simpleQueryStringBuilder.field("*");
+            }
+            // override lenient if querying all the fields, because, due to different field mappings,
+            // the query parsing will almost certainly fail otherwise
+            if (QueryParserHelper.hasAllFieldsWildcard(simpleQueryStringBuilder.fields().keySet())) {
+                simpleQueryStringBuilder.lenient(true);
+            }
+            Map<String, Float> requestedFields = new HashMap<>(simpleQueryStringBuilder.fields());
+            simpleQueryStringBuilder.fields().clear();
+            for (Map.Entry<String, Float> requestedFieldNameOrPattern : requestedFields.entrySet()) {
+                for (String translatedField : ApiKeyFieldNameTranslators.translatePattern(requestedFieldNameOrPattern.getKey())) {
+                    simpleQueryStringBuilder.fields()
+                        .compute(
+                            translatedField,
+                            (k, v) -> (v == null) ? requestedFieldNameOrPattern.getValue() : v * requestedFieldNameOrPattern.getValue()
+                        );
+                    fieldNameVisitor.accept(translatedField);
+                }
+            }
+            if (simpleQueryStringBuilder.fields().isEmpty()) {
+                // A SimpleQueryStringBuilder with empty fields() will eventually produce a SimpleQueryString query
+                // that accesses all the fields, including disallowed ones.
+                // Instead, the behavior we're after is that a query that accesses only disallowed fields should
+                // not match any docs.
+                return new MatchNoneQueryBuilder();
+            } else {
+                return simpleQueryStringBuilder;
+            }
         } else {
             throw new IllegalArgumentException("Query type [" + qb.getName() + "] is not supported for API Key query");
         }

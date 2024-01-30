@@ -187,7 +187,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggsWithout = InternalAggregations.from(aggTree);
+        InternalAggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
 
         MultiSearchResponse msearch = new MultiSearchResponse(
@@ -458,7 +458,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggsWithout = InternalAggregations.from(aggTree);
+        InternalAggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 

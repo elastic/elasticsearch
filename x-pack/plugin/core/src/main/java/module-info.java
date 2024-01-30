@@ -81,7 +81,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.annotations;
     exports org.elasticsearch.xpack.core.ml.autoscaling;
     exports org.elasticsearch.xpack.core.ml.calendars;
-    exports org.elasticsearch.xpack.core.ml.datafeed.extractor;
     exports org.elasticsearch.xpack.core.ml.datafeed;
     exports org.elasticsearch.xpack.core.ml.dataframe.analyses;
     exports org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;

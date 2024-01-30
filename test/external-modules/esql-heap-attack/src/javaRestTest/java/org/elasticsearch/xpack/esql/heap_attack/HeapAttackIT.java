@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -73,6 +74,11 @@ public class HeapAttackIT extends ESRestTestCase {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Before
+    public void skipOnAborted() {
+        assumeFalse("skip on aborted", SUITE_ABORTED);
     }
 
     /**
@@ -304,7 +310,7 @@ public class HeapAttackIT extends ESRestTestCase {
         request.setJsonEntity(query.toString().replace("\n", "\\n"));
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
-                .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build())
+                .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(6).millis())).build())
                 .setWarningsHandler(WarningsHandler.PERMISSIVE)
         );
         logger.info("--> test {} started querying", getTestName());
@@ -324,6 +330,10 @@ public class HeapAttackIT extends ESRestTestCase {
                     TimeValue elapsed = TimeValue.timeValueNanos(System.nanoTime() - startedTimeInNanos);
                     logger.info("--> test {} triggering OOM after {}", getTestName(), elapsed);
                     Request triggerOOM = new Request("POST", "/_trigger_out_of_memory");
+                    RequestConfig requestConfig = RequestConfig.custom()
+                        .setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(2).millis()))
+                        .build();
+                    request.setOptions(RequestOptions.DEFAULT.toBuilder().setRequestConfig(requestConfig));
                     client().performRequest(triggerOOM);
                 }
             }, TimeValue.timeValueMinutes(5), testThreadPool.executor(ThreadPool.Names.GENERIC));
@@ -429,6 +439,8 @@ public class HeapAttackIT extends ESRestTestCase {
                     }
                 }
             }
+            bulk("manylongs", bulk.toString());
+            bulk.setLength(0);
         }
         initIndex("manylongs", bulk.toString());
     }
@@ -526,7 +538,9 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     private void initIndex(String name, String bulk) throws IOException {
-        bulk(name, bulk);
+        if (hasText(bulk)) {
+            bulk(name, bulk);
+        }
 
         Request request = new Request("POST", "/" + name + "/_refresh");
         Response response = client().performRequest(request);
@@ -552,7 +566,9 @@ public class HeapAttackIT extends ESRestTestCase {
     @Before
     @After
     public void assertRequestBreakerEmpty() throws Exception {
-        assumeFalse("suite was aborted", SUITE_ABORTED);
+        if (SUITE_ABORTED) {
+            return;
+        }
         assertBusy(() -> {
             HttpEntity entity = adminClient().performRequest(new Request("GET", "/_nodes/stats")).getEntity();
             Map<?, ?> stats = XContentHelper.convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);

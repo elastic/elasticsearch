@@ -87,15 +87,15 @@ public final class ConnectorTestUtils {
 
     public static ConnectorSyncInfo getRandomConnectorSyncInfo() {
         return new ConnectorSyncInfo.Builder().setLastAccessControlSyncError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
-            .setLastAccessControlSyncScheduledAt(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
+            .setLastAccessControlSyncScheduledAt(randomFrom(new Instant[] { null, ConnectorTestUtils.randomInstant() }))
             .setLastAccessControlSyncStatus(randomFrom(new ConnectorSyncStatus[] { null, getRandomSyncStatus() }))
             .setLastDeletedDocumentCount(randomLong())
-            .setLastIncrementalSyncScheduledAt(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
+            .setLastIncrementalSyncScheduledAt(randomFrom(new Instant[] { null, ConnectorTestUtils.randomInstant() }))
             .setLastIndexedDocumentCount(randomLong())
             .setLastSyncError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
-            .setLastSyncScheduledAt(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
+            .setLastSyncScheduledAt(randomFrom(new Instant[] { null, ConnectorTestUtils.randomInstant() }))
             .setLastSyncStatus(randomFrom(new ConnectorSyncStatus[] { null, getRandomSyncStatus() }))
-            .setLastSynced(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
+            .setLastSynced(randomFrom(new Instant[] { null, ConnectorTestUtils.randomInstant() }))
             .build();
     }
 
@@ -187,8 +187,10 @@ public final class ConnectorTestUtils {
     }
 
     public static Connector getRandomSyncJobConnectorInfo() {
+        ConnectorFiltering randomFiltering = getRandomConnectorFiltering();
         return new Connector.Builder().setConnectorId(randomAlphaOfLength(10))
-            .setFiltering(List.of(getRandomConnectorFiltering()))
+            .setSyncJobFiltering(randomFiltering.getActive())
+            .setFiltering(List.of(randomFiltering))
             .setIndexName(randomAlphaOfLength(10))
             .setLanguage(randomAlphaOfLength(10))
             .setServiceType(randomAlphaOfLength(10))
@@ -249,7 +251,7 @@ public final class ConnectorTestUtils {
             .setIndexName(randomAlphaOfLength(10))
             .setIsNative(randomBoolean())
             .setLanguage(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
-            .setLastSeen(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
+            .setLastSeen(randomFrom(new Instant[] { null, ConnectorTestUtils.randomInstant() }))
             .setSyncInfo(getRandomConnectorSyncInfo())
             .setName(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setPipeline(randomBoolean() ? getRandomConnectorIngestPipeline() : null)
@@ -284,6 +286,21 @@ public final class ConnectorTestUtils {
                 randomInt(30) + 1,
                 randomInt(11) + 1
             )
+        );
+    }
+
+    /**
+     * Generate a random Instant between:
+     * - 1 January 1970 00:00:00+00:00
+     * - 24 January 2065 05:20:00+00:00
+     */
+    public static Instant randomInstant() {
+        Instant lowerBoundInstant = Instant.ofEpochSecond(0L);
+        Instant upperBoundInstant = Instant.ofEpochSecond(3000000000L);
+
+        return Instant.ofEpochSecond(
+            randomLongBetween(lowerBoundInstant.getEpochSecond(), upperBoundInstant.getEpochSecond()),
+            randomLongBetween(0, 999999999)
         );
     }
 

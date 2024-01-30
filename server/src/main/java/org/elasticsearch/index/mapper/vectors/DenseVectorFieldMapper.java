@@ -29,6 +29,15 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.queries.function.FunctionQuery;
+import org.apache.lucene.queries.function.valuesource.ByteKnnVectorFieldSource;
+import org.apache.lucene.queries.function.valuesource.ByteVectorSimilarityFunction;
+import org.apache.lucene.queries.function.valuesource.ConstKnnByteVectorValueSource;
+import org.apache.lucene.queries.function.valuesource.ConstKnnFloatValueSource;
+import org.apache.lucene.queries.function.valuesource.FloatKnnVectorFieldSource;
+import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.Query;
@@ -1063,6 +1072,67 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return knnQuery;
         }
 
+        public Query createExactKnnQuery(float[] queryVector) {
+            if (isIndexed() == false) {
+                throw new IllegalArgumentException(
+                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
+                );
+            }
+            if (queryVector.length != dims) {
+                throw new IllegalArgumentException(
+                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
+                );
+            }
+            elementType.checkVectorBounds(queryVector);
+            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
+                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
+                elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
+                if (similarity == VectorSimilarity.COSINE
+                    && ElementType.FLOAT.equals(elementType)
+                    && indexVersionCreated.onOrAfter(NORMALIZE_COSINE)
+                    && isNotUnitVector(squaredMagnitude)) {
+                    float length = (float) Math.sqrt(squaredMagnitude);
+                    queryVector = Arrays.copyOf(queryVector, queryVector.length);
+                    for (int i = 0; i < queryVector.length; i++) {
+                        queryVector[i] /= length;
+                    }
+                }
+            }
+            VectorSimilarityFunction vectorSimilarityFunction = similarity.vectorSimilarityFunction(indexVersionCreated, elementType);
+            return switch (elementType) {
+                case BYTE -> {
+                    byte[] bytes = new byte[queryVector.length];
+                    for (int i = 0; i < queryVector.length; i++) {
+                        bytes[i] = (byte) queryVector[i];
+                    }
+                    yield new BooleanQuery.Builder().add(new FieldExistsQuery(name()), BooleanClause.Occur.FILTER)
+                        .add(
+                            new FunctionQuery(
+                                new ByteVectorSimilarityFunction(
+                                    vectorSimilarityFunction,
+                                    new ByteKnnVectorFieldSource(name()),
+                                    new ConstKnnByteVectorValueSource(bytes)
+                                )
+                            ),
+                            BooleanClause.Occur.SHOULD
+                        )
+                        .build();
+                }
+                case FLOAT -> new BooleanQuery.Builder().add(new FieldExistsQuery(name()), BooleanClause.Occur.FILTER)
+                    .add(
+                        new FunctionQuery(
+                            new FloatVectorSimilarityFunction(
+                                vectorSimilarityFunction,
+                                new FloatKnnVectorFieldSource(name()),
+                                new ConstKnnFloatValueSource(queryVector)
+                            )
+                        ),
+                        BooleanClause.Occur.SHOULD
+                    )
+                    .build();
+            };
+        }
+
         public Query createKnnQuery(
             float[] queryVector,
             int numCands,
@@ -1082,7 +1152,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             elementType.checkVectorBounds(queryVector);
-
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
@@ -1110,6 +1179,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 case FLOAT -> parentFilter != null
                     ? new ProfilingDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
                     : new ProfilingKnnFloatVectorQuery(name(), queryVector, numCands, filter);
+
             };
 
             if (similarityThreshold != null) {

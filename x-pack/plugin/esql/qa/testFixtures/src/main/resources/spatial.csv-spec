@@ -320,6 +320,56 @@ centroid:geo_point                            | count:long
 POINT(83.16847535921261 28.79002037679311)    | 40
 ;
 
+pointIntersectsStringPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+FROM airports
+| WHERE ST_INTERSECTS(location, "POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")
+;
+
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
+HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
+;
+
+pointIntersectsStringPolygonReversed#[skip:-8.12.99, reason:st_intersects added in 8.13]
+FROM airports
+| WHERE ST_INTERSECTS("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))", location)
+;
+
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
+HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
+;
+
+literalPointIntersectsStringPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_INTERSECTS(pt, "POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))")
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+literalPointIntersectsStringPolygonReversed#[skip:-8.12.99, reason:st_intersects added in 8.13]
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_INTERSECTS("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))", pt)
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+stringPointIntersectsStringPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+ROW intersects = ST_INTERSECTS("POINT(0 0)", "POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))")
+;
+
+intersects:boolean
+true
+;
+
 geoPointEquals#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
 // tag::to_geopoint-equals[]
 ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
@@ -532,6 +582,27 @@ FROM airports_web
 
 centroid:cartesian_point                    | count:long
 POINT (726480.0130685265 3359566.331716279) | 849
+;
+
+cartesianPointIntersectsPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+FROM airports_web
+| WHERE ST_INTERSECTS(location, "POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))")
+;
+
+abbrev:keyword | location:cartesian_point                     |  name:text     |  scalerank:i  |  type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+literalCartesianPointIntersectsPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| WHERE ST_INTERSECTS(pt, "POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))")
+;
+
+wkt:keyword   | pt:cartesian_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
 ;
 
 cartesianPointEquals#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]

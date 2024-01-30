@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -387,6 +388,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, Pow.class, PlanNamedTypes::writePow, PlanNamedTypes::readPow),
             of(ScalarFunction.class, StartsWith.class, PlanNamedTypes::writeStartsWith, PlanNamedTypes::readStartsWith),
             of(ScalarFunction.class, EndsWith.class, PlanNamedTypes::writeEndsWith, PlanNamedTypes::readEndsWith),
+            of(ScalarFunction.class, SpatialIntersects.class, PlanNamedTypes::writeIntersects, PlanNamedTypes::readIntersects),
             of(ScalarFunction.class, Substring.class, PlanNamedTypes::writeSubstring, PlanNamedTypes::readSubstring),
             of(ScalarFunction.class, Left.class, PlanNamedTypes::writeLeft, PlanNamedTypes::readLeft),
             of(ScalarFunction.class, Right.class, PlanNamedTypes::writeRight, PlanNamedTypes::readRight),
@@ -1465,6 +1467,17 @@ public final class PlanNamedTypes {
     static void writeDateTrunc(PlanStreamOutput out, DateTrunc dateTrunc) throws IOException {
         out.writeSource(dateTrunc.source());
         List<Expression> fields = dateTrunc.children();
+        assert fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
+    }
+
+    static SpatialIntersects readIntersects(PlanStreamInput in) throws IOException {
+        return new SpatialIntersects(Source.EMPTY, in.readExpression(), in.readExpression());
+    }
+
+    static void writeIntersects(PlanStreamOutput out, SpatialIntersects intersects) throws IOException {
+        List<Expression> fields = intersects.children();
         assert fields.size() == 2;
         out.writeExpression(fields.get(0));
         out.writeExpression(fields.get(1));

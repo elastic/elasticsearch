@@ -14,8 +14,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -99,7 +99,7 @@ import static org.junit.Assert.fail;
 
 public class ElasticsearchAssertions {
 
-    public static void assertAcked(ActionRequestBuilder<?, ? extends IsAcknowledgedSupplier> builder) {
+    public static void assertAcked(RequestBuilder<?, ? extends IsAcknowledgedSupplier> builder) {
         assertAcked(builder, TimeValue.timeValueSeconds(30));
     }
 
@@ -107,7 +107,7 @@ public class ElasticsearchAssertions {
         assertAcked(future.actionGet());
     }
 
-    public static void assertAcked(ActionRequestBuilder<?, ? extends IsAcknowledgedSupplier> builder, TimeValue timeValue) {
+    public static void assertAcked(RequestBuilder<?, ? extends IsAcknowledgedSupplier> builder, TimeValue timeValue) {
         assertAcked(builder.get(timeValue));
     }
 
@@ -141,7 +141,7 @@ public class ElasticsearchAssertions {
      *
      * @param builder the request builder
      */
-    public static void assertBlocked(ActionRequestBuilder<?, ?> builder) {
+    public static void assertBlocked(RequestBuilder<?, ?> builder) {
         assertBlocked(builder, (ClusterBlock) null);
     }
 
@@ -179,7 +179,7 @@ public class ElasticsearchAssertions {
      * @param builder the request builder
      * @param expectedBlockId the expected block id
      */
-    public static void assertBlocked(final ActionRequestBuilder<?, ?> builder, @Nullable final Integer expectedBlockId) {
+    public static void assertBlocked(final RequestBuilder<?, ?> builder, @Nullable final Integer expectedBlockId) {
         var e = ESTestCase.expectThrows(ClusterBlockException.class, builder);
         assertThat(e.blocks(), not(empty()));
         RestStatus status = checkRetryableBlock(e.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN;
@@ -200,7 +200,7 @@ public class ElasticsearchAssertions {
      * @param builder the request builder
      * @param expectedBlock the expected block
      */
-    public static void assertBlocked(final ActionRequestBuilder<?, ?> builder, @Nullable final ClusterBlock expectedBlock) {
+    public static void assertBlocked(final RequestBuilder<?, ?> builder, @Nullable final ClusterBlock expectedBlock) {
         assertBlocked(builder, expectedBlock != null ? expectedBlock.id() : null);
     }
 
@@ -340,12 +340,12 @@ public class ElasticsearchAssertions {
         assertThat(searchResponse.getHits().getAt(number - 1), matcher);
     }
 
-    public static void assertNoFailures(ActionRequestBuilder<?, SearchResponse> searchRequestBuilder) {
+    public static void assertNoFailures(RequestBuilder<? extends ActionRequest, SearchResponse> searchRequestBuilder) {
         assertNoFailuresAndResponse(searchRequestBuilder, r -> {});
     }
 
     public static void assertNoFailuresAndResponse(
-        ActionRequestBuilder<?, SearchResponse> searchRequestBuilder,
+        RequestBuilder<? extends ActionRequest, SearchResponse> searchRequestBuilder,
         Consumer<SearchResponse> consumer
     ) {
         assertResponse(searchRequestBuilder, res -> {
@@ -366,7 +366,7 @@ public class ElasticsearchAssertions {
     }
 
     public static <Q extends ActionRequest, R extends ActionResponse> void assertResponse(
-        ActionRequestBuilder<Q, R> searchRequestBuilder,
+        RequestBuilder<Q, R> searchRequestBuilder,
         Consumer<R> consumer
     ) {
         var res = searchRequestBuilder.get();
@@ -430,7 +430,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertCheckedResponse(
-        ActionRequestBuilder<?, SearchResponse> searchRequestBuilder,
+        RequestBuilder<?, SearchResponse> searchRequestBuilder,
         CheckedConsumer<SearchResponse, IOException> consumer
     ) throws IOException {
         var res = searchRequestBuilder.get();
@@ -692,7 +692,7 @@ public class ElasticsearchAssertions {
      * Run the request from a given builder and check that it throws an exception of the right type, with a given {@link RestStatus}
      */
     public static <E extends Throwable> void assertRequestBuilderThrows(
-        ActionRequestBuilder<?, ?> builder,
+        RequestBuilder<?, ?> builder,
         Class<E> exceptionClass,
         RestStatus status
     ) {
@@ -705,7 +705,7 @@ public class ElasticsearchAssertions {
      * @param extraInfo extra information to add to the failure message
      */
     public static <E extends Throwable> void assertRequestBuilderThrows(
-        ActionRequestBuilder<?, ?> builder,
+        RequestBuilder<?, ?> builder,
         Class<E> exceptionClass,
         String extraInfo
     ) {
@@ -767,11 +767,11 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertRequestBuilderThrows(ActionRequestBuilder<?, ?> builder, RestStatus status) {
+    public static void assertRequestBuilderThrows(RequestBuilder<?, ?> builder, RestStatus status) {
         assertFutureThrows(builder.execute(), status);
     }
 
-    public static void assertRequestBuilderThrows(ActionRequestBuilder<?, ?> builder, RestStatus status, String extraInfo) {
+    public static void assertRequestBuilderThrows(RequestBuilder<?, ?> builder, RestStatus status, String extraInfo) {
         assertFutureThrows(builder.execute(), status, extraInfo);
     }
 

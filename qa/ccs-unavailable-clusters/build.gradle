@@ -11,7 +11,3 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'true'
   user username: 'admin', password: 'admin-password', role: 'superuser'
 }
-
-dependencies {
-  javaRestTestImplementation project(":client:rest-high-level")
-}

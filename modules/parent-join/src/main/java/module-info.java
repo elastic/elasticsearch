@@ -12,6 +12,4 @@ module org.elasticsearch.join {
     requires org.elasticsearch.xcontent;
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
-
-    provides org.elasticsearch.plugins.spi.NamedXContentProvider with org.elasticsearch.join.spi.ParentJoinNamedXContentProvider;
 }

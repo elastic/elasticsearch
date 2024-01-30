@@ -145,17 +145,16 @@ public final class EsqlTranslatorHandler extends QlTranslatorHandler {
         @Override
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
             ExpressionTranslators.BinaryComparisons.checkBinaryComparison(bc);
-            Query translated = translate(bc, handler);
+            Query translated = translate(bc);
             return translated == null ? null : handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
         }
 
-        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
+        private static Query translate(BinaryComparison bc) {
             if ((bc.left() instanceof FieldAttribute) == false
                 || bc.left().dataType().isNumeric() == false
                 || bc.right().foldable() == false) {
                 return null;
             }
-            FieldAttribute attribute = (FieldAttribute) bc.left();
             Source source = bc.source();
             Object value = ExpressionTranslators.valueOf(bc.right());
 
@@ -165,7 +164,7 @@ public final class EsqlTranslatorHandler extends QlTranslatorHandler {
             }
 
             DataType valueType = bc.right().dataType();
-            DataType attributeDataType = attribute.dataType();
+            DataType attributeDataType = bc.left().dataType();
             if (valueType == UNSIGNED_LONG && value instanceof Long ul) {
                 value = unsignedLongAsNumber(ul);
             }

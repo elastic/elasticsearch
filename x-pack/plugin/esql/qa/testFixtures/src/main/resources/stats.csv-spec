@@ -983,3 +983,25 @@ ROW a = 1, c = null
 COUNT(c):long | a:integer
             0 | 1
 ;
+
+countMultiValuesRow
+ROW keyword_field = ["foo", "bar"], int_field = [1, 2, 3] | STATS ck = COUNT(keyword_field), ci = COUNT(int_field), c = COUNT(*);
+
+ck:l | ci:l | c:l 
+2    | 3    | 1
+;
+
+
+countSource
+FROM employees | 
+STATS ck = COUNT(job_positions), 
+      cb = COUNT(is_rehired), 
+      cd = COUNT(salary_change), 
+      ci = COUNT(salary_change.int), 
+      c = COUNT(*), 
+      csv = COUNT(emp_no);
+
+ck:l | cb:l | cd:l | ci:l | c:l | csv:l 
+221  | 204  | 183  | 183  | 100 | 100
+;
+

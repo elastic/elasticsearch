@@ -48,7 +48,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         strerror$mh = downcallHandle("strerror", FunctionDescriptor.of(ADDRESS, JAVA_INT));
         geteuid$mh = downcallHandle("geteuid", FunctionDescriptor.of(JAVA_INT));
         mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
-        var rlimitDesc = FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS);
+        var rlimitDesc = FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS);
         getrlimit$mh = downcallHandleWithErrno("getrlimit", rlimitDesc);
         setrlimit$mh = downcallHandleWithErrno("setrlimit", rlimitDesc);
         open$mh = downcallHandleWithErrno("open", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT));
@@ -144,7 +144,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     @Override
     public int mlockall(int flags) {
         try {
-            return (int) mlockall$mh.invokeExact(flags, errnoState);
+            return (int) mlockall$mh.invokeExact(errnoState, flags);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -165,7 +165,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         assert rlimit instanceof JdkRLimit;
         var jdkRlimit = (JdkRLimit) rlimit;
         try {
-            return (int) getrlimit$mh.invokeExact(resource, jdkRlimit.segment, errnoState);
+            return (int) getrlimit$mh.invokeExact(errnoState, resource, jdkRlimit.segment);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -176,7 +176,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         assert rlimit instanceof JdkRLimit;
         var jdkRlimit = (JdkRLimit) rlimit;
         try {
-            return (int) setrlimit$mh.invokeExact(resource, jdkRlimit.segment, errnoState);
+            return (int) setrlimit$mh.invokeExact(errnoState, resource, jdkRlimit.segment);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -186,7 +186,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     public int open(String pathname, int flags, int mode) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment nativePathname = arena.allocateUtf8String(pathname);
-            return (int) open$mh.invokeExact(nativePathname, flags, mode, errnoState);
+            return (int) open$mh.invokeExact(errnoState, nativePathname, flags, mode);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -195,7 +195,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     @Override
     public int close(int fd) {
         try {
-            return (int) close$mh.invokeExact(fd, errnoState);
+            return (int) close$mh.invokeExact(errnoState, fd);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -206,7 +206,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         assert stat instanceof JdkStat;
         var jdkStat = (JdkStat) stat;
         try {
-            return (int) fstat$mh.invokeExact(fd, jdkStat.segment, errnoState);
+            return (int) fstat$mh.invokeExact(errnoState, fd, jdkStat.segment);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

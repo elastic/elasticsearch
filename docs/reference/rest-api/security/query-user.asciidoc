@@ -191,10 +191,10 @@ GET /_security/_query/user
     }
 }
 ----
-
+// TEST[setup:jacknich_user]
 A successful call returns a JSON structure for a user:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "total": 1,

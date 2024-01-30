@@ -268,19 +268,22 @@ public interface SearchPlugin {
     /**
      * Specification of custom {@link RetrieverBuilder}.
      */
-    class RetrieverSpec<RB extends RetrieverBuilder<RB>> extends SearchExtensionSpec<RB, RetrieverParser<RB>> {
+    class RetrieverSpec<RB extends RetrieverBuilder<RB>> {
+
+        private final ParseField name;
+        private final RetrieverParser<RB> parser;
+
         /**
          * Specification of custom {@link RetrieverBuilder}.
          *
          * @param name holds the names by which this retriever might be parsed. The {@link ParseField#getPreferredName()} is special as it
          *        is the name by under which the reader is registered. So it is the name that the retriever should use as its
          *        {@link NamedWriteable#getWriteableName()} too.
-         * @param reader the reader registered for this retriever's builder. Typically a reference to a constructor that takes a
-         *        {@link StreamInput}
          * @param parser the parser the reads the retriever builder from xcontent
          */
-        public RetrieverSpec(ParseField name, Writeable.Reader<RB> reader, RetrieverParser<RB> parser) {
-            super(name, reader, parser);
+        public RetrieverSpec(ParseField name, RetrieverParser<RB> parser) {
+            this.name = name;
+            this.parser = parser;
         }
 
         /**
@@ -288,12 +291,18 @@ public interface SearchPlugin {
          *
          * @param name the name by which this retriever might be parsed or deserialized. Make sure that the retriever builder returns
          *             this name for {@link NamedWriteable#getWriteableName()}.
-         * @param reader the reader registered for this retriever's builder. Typically a reference to a constructor that takes a
-         *        {@link StreamInput}
          * @param parser the parser the reads the retriever builder from xcontent
          */
-        public RetrieverSpec(String name, Writeable.Reader<RB> reader, RetrieverParser<RB> parser) {
-            super(name, reader, parser);
+        public RetrieverSpec(String name, RetrieverParser<RB> parser) {
+            this(new ParseField(name), parser);
+        }
+
+        public ParseField getName() {
+            return name;
+        }
+
+        public RetrieverParser<RB> getParser() {
+            return parser;
         }
     }
 

@@ -44,6 +44,6 @@ public class RRFRankPlugin extends Plugin implements SearchPlugin {
 
     @Override
     public List<RetrieverSpec<?>> getRetrievers() {
-        return List.of(new RetrieverSpec<>(new ParseField(NAME), RRFRetrieverBuilder::new, RRFRetrieverBuilder::fromXContent));
+        return List.of(new RetrieverSpec<>(new ParseField(NAME), RRFRetrieverBuilder::fromXContent));
     }
 }

@@ -69,6 +69,7 @@ import java.util.function.ToLongFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
@@ -82,16 +83,16 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
 
-    public static final ParseField FROM_FIELD = new ParseField("from"); // base
-    public static final ParseField SIZE_FIELD = new ParseField("size"); // base
+    public static final ParseField FROM_FIELD = new ParseField("from"); // override
+    public static final ParseField SIZE_FIELD = new ParseField("size"); // override
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout"); // global
-    public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after"); // retriever specific
-    public static final ParseField QUERY_FIELD = new ParseField("query"); // retriever specific
-    public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches"); // retriever specific
-    public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter"); // retriever specific
-    public static final ParseField KNN_FIELD = new ParseField("knn"); // retriever specific
-    public static final ParseField RANK_FIELD = new ParseField("rank"); // retriever specific
-    public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score"); // retriever specific
+    public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after"); // retriever
+    public static final ParseField QUERY_FIELD = new ParseField("query"); // retriever
+    public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches"); // retriever
+    public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter"); // override
+    public static final ParseField KNN_FIELD = new ParseField("knn"); // retriever
+    public static final ParseField RANK_FIELD = new ParseField("rank"); // retriever
+    public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score"); // retriever
     public static final ParseField VERSION_FIELD = new ParseField("version"); // global
     public static final ParseField SEQ_NO_PRIMARY_TERM_FIELD = new ParseField("seq_no_primary_term"); // global
     public static final ParseField EXPLAIN_FIELD = new ParseField("explain"); // global
@@ -100,9 +101,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField DOCVALUE_FIELDS_FIELD = new ParseField("docvalue_fields"); // global
     public static final ParseField FETCH_FIELDS_FIELD = new ParseField("fields"); // global
     public static final ParseField SCRIPT_FIELDS_FIELD = new ParseField("script_fields"); // global
-    public static final ParseField SCRIPT_FIELD = new ParseField("script"); // used by script fields
+    public static final ParseField SCRIPT_FIELD = new ParseField("script"); // global
     public static final ParseField IGNORE_FAILURE_FIELD = new ParseField("ignore_failure"); // global
-    public static final ParseField SORT_FIELD = new ParseField("sort"); // retriever specific
+    public static final ParseField SORT_FIELD = new ParseField("sort"); // retriever
     public static final ParseField TRACK_SCORES_FIELD = new ParseField("track_scores"); // global
     public static final ParseField TRACK_TOTAL_HITS_FIELD = new ParseField("track_total_hits"); // global
     public static final ParseField INDICES_BOOST_FIELD = new ParseField("indices_boost"); // global
@@ -110,12 +111,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField AGGS_FIELD = new ParseField("aggs"); // global
     public static final ParseField HIGHLIGHT_FIELD = new ParseField("highlight"); // global
     public static final ParseField SUGGEST_FIELD = new ParseField("suggest"); // global
-    public static final ParseField RESCORE_FIELD = new ParseField("rescore"); // retriever specific
+    public static final ParseField RESCORE_FIELD = new ParseField("rescore"); // retriever
     public static final ParseField STATS_FIELD = new ParseField("stats"); // global
     public static final ParseField EXT_FIELD = new ParseField("ext"); // global
     public static final ParseField PROFILE_FIELD = new ParseField("profile"); // global
-    public static final ParseField SEARCH_AFTER = new ParseField("search_after"); // retriever specific
-    public static final ParseField COLLAPSE = new ParseField("collapse"); // retriever specific
+    public static final ParseField SEARCH_AFTER = new ParseField("search_after"); // retriever
+    public static final ParseField COLLAPSE = new ParseField("collapse"); // retriever
     public static final ParseField SLICE = new ParseField("slice"); // global
     public static final ParseField POINT_IN_TIME = new ParseField("pit"); // global
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings"); // global
@@ -1594,10 +1595,28 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (retrieverBuilder != null) {
             if (subSearchSourceBuilders.isEmpty() == false) {
-                throw new IllegalArgumentException("cannot specify both elements [query] and [retriever]");
+                throw new IllegalArgumentException("cannot specify both [query] and [retriever]");
             }
             if (knnSearch.isEmpty() == false) {
-                throw new IllegalArgumentException("cannot specify both elements [knn] and [retriever]");
+                throw new IllegalArgumentException("cannot specify both [knn] and [retriever]");
+            }
+            if (searchAfterBuilder != null) {
+                throw new IllegalArgumentException("cannot specify both [search_after] and [retriever]");
+            }
+            if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
+                throw new IllegalArgumentException("cannot specify both [terminate_after] and [retriever]");
+            }
+            if (sorts != null) {
+                throw new IllegalArgumentException("cannot specify both [sort] and [retriever]");
+            }
+            if (rescoreBuilders != null) {
+                throw new IllegalArgumentException("cannot specify both [rescore] and [retriever]");
+            }
+            if (minScore != null) {
+                throw new IllegalArgumentException("cannot specify both [min_score] and [retriever]");
+            }
+            if (rankBuilder != null) {
+                throw new IllegalArgumentException("cannot specify both [rank] and [retriever]");
             }
             retrieverBuilder.extractToSearchSourceBuilder(this);
         }

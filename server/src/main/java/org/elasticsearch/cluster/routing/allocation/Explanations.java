@@ -79,7 +79,7 @@ public final class Explanations {
             activities. The shard will be rebalanced when those activities finish. Please wait.""";
 
         public static final String CANNOT_REBALANCE_CAN_ALLOCATE = """
-            Elasticsearch is allowed to allocate this shard to another node, and there is at least one node to which it could move this \
+            Elasticsearch is allowed to allocate this shard on another node, and there is at least one node to which it could move this \
             shard that would improve the overall cluster balance, but it isn't allowed to rebalance this shard there. If you expect this \
             shard to be rebalanced to another node, check the cluster-wide rebalancing decisions and address any reasons preventing \
             Elasticsearch from rebalancing shards within the cluster, and then find the expected node in the node-by-node explanation and \

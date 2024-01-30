@@ -78,14 +78,8 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
             public XContentParser parser() {
                 return parser;
             }
-
-            @Override
-            public ContentPath path() {
-                var path = new ContentPath();
-                path.add("labels");
-                return path;
-            }
         };
+        ctx.path().add("labels");
 
         // position the parser on the value
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);

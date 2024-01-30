@@ -93,8 +93,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         return builder;
     }
 
-    @Override
-    public PassThroughObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
+    public PassThroughObjectMapper merge(ObjectMapper mergeWith, MergeReason reason, MapperMergeContext parentBuilderContext) {
         final var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
         PassThroughObjectMapper mergeWithObject = (PassThroughObjectMapper) mergeWith;
 

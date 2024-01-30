@@ -321,7 +321,7 @@ final class DynamicFieldsBuilder {
         @Override
         public void newDynamicStringField(DocumentParserContext context, String name) throws IOException {
             MapperBuilderContext mapperBuilderContext = context.createDynamicMapperBuilderContext();
-            if (mapperBuilderContext.contaisDimensions()) {
+            if (mapperBuilderContext.parentFieldContainsDimensions()) {
                 createDynamicField(
                     new KeywordFieldMapper.Builder(name, context.indexSettings().getIndexVersionCreated()),
                     context,

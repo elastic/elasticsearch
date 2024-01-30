@@ -25,17 +25,17 @@ public class MapperBuilderContext {
     private final String path;
     private final boolean isSourceSynthetic;
     private final boolean isDataStream;
-    private final boolean containsDimensions;
+    private final boolean parentFieldContainsDimensions;
 
     MapperBuilderContext(String path) {
         this(path, false, false, false);
     }
 
-    MapperBuilderContext(String path, boolean isSourceSynthetic, boolean isDataStream, boolean containsDimensions) {
+    MapperBuilderContext(String path, boolean isSourceSynthetic, boolean isDataStream, boolean parentFieldContainsDimensions) {
         this.path = path;
         this.isSourceSynthetic = isSourceSynthetic;
         this.isDataStream = isDataStream;
-        this.containsDimensions = containsDimensions;
+        this.parentFieldContainsDimensions = parentFieldContainsDimensions;
     }
 
     /**
@@ -44,7 +44,7 @@ public class MapperBuilderContext {
      * @return a new MapperBuilderContext with this context as its parent
      */
     public MapperBuilderContext createChildContext(String name) {
-        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic, isDataStream, containsDimensions);
+        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic, isDataStream, parentFieldContainsDimensions);
     }
 
     /**
@@ -74,8 +74,8 @@ public class MapperBuilderContext {
     /**
      * Are these field mappings being built dimensions?
      */
-    public boolean contaisDimensions() {
-        return containsDimensions;
+    public boolean parentFieldContainsDimensions() {
+        return parentFieldContainsDimensions;
     }
 
 }

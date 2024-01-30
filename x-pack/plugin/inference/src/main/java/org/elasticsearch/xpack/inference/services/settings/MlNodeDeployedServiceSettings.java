@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.settings;
 
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -84,6 +85,18 @@ public abstract class MlNodeDeployedServiceSettings implements ServiceSettings {
         builder.field(MODEL_VERSION, getModelVariant());
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean isFragment() {
+        return ServiceSettings.super.isFragment();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(getNumAllocations());
+        out.writeVInt(getNumThreads());
+        out.writeString(getModelVariant());
     }
 
     public abstract static class Builder {

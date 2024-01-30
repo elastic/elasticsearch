@@ -42,7 +42,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.TextEmbedding.MultilingualE5SmallServiceSettings.MODEL_VARIANTS;
-import static org.elasticsearch.xpack.inference.services.settings.MlNodeDeployedServiceSettings.MODEL_VERSION;
 
 public class TextEmbeddingService implements InferenceService {
 
@@ -205,7 +204,7 @@ public class TextEmbeddingService implements InferenceService {
                 )
             );
             return;
-        } else if (model instanceof MultilingualE5SmallModel e5Model) { // TODO add support for linux optimized model
+        } else if (model instanceof MultilingualE5SmallModel e5Model) {
             String modelVariant = e5Model.getServiceSettings().getModelVariant();
             var fieldNames = List.<String>of();
             var input = new TrainedModelInput(fieldNames);
@@ -225,7 +224,7 @@ public class TextEmbeddingService implements InferenceService {
                 new IllegalArgumentException(
                     "Can not download model automatically, ["
                         + model.getConfigurations().getInferenceEntityId()
-                        + "] you may need to download it with eland."
+                        + "] you may need to download it through the trained models API or with eland."
                 )
             );
         }

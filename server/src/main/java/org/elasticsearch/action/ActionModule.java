@@ -466,8 +466,6 @@ public class ActionModule extends AbstractModule {
     private final ReservedClusterStateService reservedClusterStateService;
     private final RestExtension restExtension;
 
-    private final SearchResponseMetrics searchResponseMetrics;
-
     public ActionModule(
         Settings settings,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -939,7 +937,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestUpdateAction());
 
         registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry));
-        registerHandler.accept(new RestSearchScrollAction(searchResponseMetrics));
+        registerHandler.accept(new RestSearchScrollAction());
         registerHandler.accept(new RestClearScrollAction());
         registerHandler.accept(new RestOpenPointInTimeAction());
         registerHandler.accept(new RestClosePointInTimeAction());

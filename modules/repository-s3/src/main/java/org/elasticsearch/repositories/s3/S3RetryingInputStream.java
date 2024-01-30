@@ -248,10 +248,11 @@ class S3RetryingInputStream extends InputStream {
     private void maybeLogForSuccessAfterRetries(int initialAttempt, String action) {
         if (attempt > initialAttempt) {
             logger.info(
-                "successfully {} input stream for [{}/{}] after [{}] retries",
+                "successfully {} input stream for [{}/{}] with purpose [{}] after [{}] retries",
                 action,
                 blobStore.bucket(),
                 blobKey,
+                purpose,
                 attempt - initialAttempt
             );
         }

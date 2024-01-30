@@ -28,10 +28,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.hamcrest.core.IsNot.not;
 
 public class QueryUserIT extends SecurityInBasicRestTestCase {
 
@@ -96,7 +94,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             true
         );
         assertQuery("""
-            {"query":{"bool":{"must":[{"prefix":{"roles":"master-of-the"}}]}}}""", returnedUsers -> {
+            {"query":{"bool":{"must":[{"prefix":{"roles":"master-of-the"}}]}},"sort":["username"]}""", returnedUsers -> {
             assertThat(returnedUsers, hasSize(2));
             assertUser(prefixUser1, returnedUsers.get(0));
             assertUser(prefixUser2, returnedUsers.get(1));
@@ -104,16 +102,15 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
 
         // Wildcard search
         assertQuery("""
-            { "query": { "wildcard": {"username": "mr-prefix*"} } }""", users -> {
+            { "query": { "wildcard": {"username": "mr-prefix*"} },"sort":["username"]}""", users -> {
             assertThat(users.size(), equalTo(2));
             assertUser(prefixUser1, users.get(0));
             assertUser(prefixUser2, users.get(1));
-            users.forEach(k -> assertThat(k, not(hasKey("_sort"))));
         });
 
         // Terms query
         assertQuery("""
-            {"query":{"terms":{"roles":["some-other-role"]}}}""", users -> {
+            {"query":{"terms":{"roles":["some-other-role"]}},"sort":["username"]}""", users -> {
             assertThat(users.size(), equalTo(2));
             assertUser(prefixUser1, users.get(0));
             assertUser(prefixUser2, users.get(1));

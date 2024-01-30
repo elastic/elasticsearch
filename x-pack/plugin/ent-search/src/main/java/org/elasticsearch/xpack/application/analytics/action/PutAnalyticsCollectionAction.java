@@ -25,14 +25,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollectionAction.Response> {
+public class PutAnalyticsCollectionAction {
 
-    public static final PutAnalyticsCollectionAction INSTANCE = new PutAnalyticsCollectionAction();
     public static final String NAME = "cluster:admin/xpack/application/analytics/put";
+    public static final ActionType<PutAnalyticsCollectionAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public PutAnalyticsCollectionAction() {
-        super(NAME, PutAnalyticsCollectionAction.Response::new);
-    }
+    private PutAnalyticsCollectionAction() {/* no instances */}
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
         private final String name;

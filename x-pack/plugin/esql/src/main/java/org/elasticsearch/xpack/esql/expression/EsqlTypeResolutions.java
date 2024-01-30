@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -17,6 +18,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 public class EsqlTypeResolutions {
 
@@ -41,5 +43,9 @@ public class EsqlTypeResolutions {
             }
         }
         return Expression.TypeResolution.TYPE_RESOLVED;
+    }
+
+    public static Expression.TypeResolution isSpatialPoint(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        return isType(e, EsqlDataTypes::isSpatialPoint, operationName, paramOrd, "geo_point or cartesian_point");
     }
 }

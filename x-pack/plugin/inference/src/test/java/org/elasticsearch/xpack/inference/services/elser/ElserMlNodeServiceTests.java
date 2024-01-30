@@ -25,10 +25,10 @@ import static org.mockito.Mockito.mock;
 
 public class ElserMlNodeServiceTests extends ESTestCase {
 
-    public static Model randomModelConfig(String modelId, TaskType taskType) {
+    public static Model randomModelConfig(String inferenceEntityId, TaskType taskType) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> new ElserMlNodeModel(
-                modelId,
+                inferenceEntityId,
                 taskType,
                 ElserMlNodeService.NAME,
                 ElserMlNodeServiceSettingsTests.createRandom(),

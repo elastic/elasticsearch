@@ -8,15 +8,10 @@
 
 package org.elasticsearch.join.aggregations;
 
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
-import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
-import org.elasticsearch.xcontent.ParseField;
 
 import java.util.List;
 import java.util.Map;
@@ -26,14 +21,6 @@ public class InternalParentTests extends InternalSingleBucketAggregationTestCase
     @Override
     protected SearchPlugin registerPlugin() {
         return new ParentJoinPlugin();
-    }
-
-    @Override
-    protected List<Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new Entry(Aggregation.class, new ParseField(ParentAggregationBuilder.NAME), (p, c) -> ParsedParent.fromXContent(p, (String) c))
-        );
     }
 
     @Override
@@ -49,10 +36,5 @@ public class InternalParentTests extends InternalSingleBucketAggregationTestCase
     @Override
     protected void extraAssertReduced(InternalParent reduced, List<InternalParent> inputs) {
         // Nothing extra to assert
-    }
-
-    @Override
-    protected Class<? extends ParsedSingleBucketAggregation> implementationClass() {
-        return ParsedParent.class;
     }
 }

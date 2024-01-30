@@ -317,7 +317,7 @@ public class JoinHelper {
                                     TransportRequestOptions.of(null, TransportRequestOptions.Type.PING),
                                     new TransportResponseHandler.Empty() {
                                         @Override
-                                        public Executor executor(ThreadPool threadPool) {
+                                        public Executor executor() {
                                             return TransportResponseHandler.TRANSPORT_WORKER;
                                         }
 
@@ -379,7 +379,7 @@ public class JoinHelper {
             : "sending start-join request for master-ineligible " + startJoinRequest.getMasterCandidateNode();
         transportService.sendRequest(destination, START_JOIN_ACTION_NAME, startJoinRequest, new TransportResponseHandler.Empty() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 

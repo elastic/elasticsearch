@@ -28,6 +28,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.After;
 import org.junit.Before;
@@ -141,9 +142,9 @@ public class ModelRegistryTests extends ESTestCase {
             """;
 
         var inferenceHit = SearchHit.createFromMap(Map.of("_index", ".inference"));
-        inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))));
+        inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))), XContentType.JSON);
         var inferenceSecretsHit = SearchHit.createFromMap(Map.of("_index", ".secrets-inference"));
-        inferenceSecretsHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(secrets))));
+        inferenceSecretsHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(secrets))), XContentType.JSON);
 
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit, inferenceSecretsHit }));
 
@@ -172,7 +173,7 @@ public class ModelRegistryTests extends ESTestCase {
             """;
 
         var inferenceHit = SearchHit.createFromMap(Map.of("_index", ".inference"));
-        inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))));
+        inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))), XContentType.JSON);
 
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit }));
 

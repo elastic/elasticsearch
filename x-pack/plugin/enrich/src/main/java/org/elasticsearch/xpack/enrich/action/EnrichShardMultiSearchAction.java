@@ -265,7 +265,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                             return context.getFieldType(field);
                         });
                         final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id());
-                        hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));
+                        hit.sourceRef(filterSource(fetchSourceContext, visitor.source()), XContentType.SMILE);
                         hits[j] = hit;
                     }
                     items[i] = new MultiSearchResponse.Item(createSearchResponse(topDocs, hits), null);

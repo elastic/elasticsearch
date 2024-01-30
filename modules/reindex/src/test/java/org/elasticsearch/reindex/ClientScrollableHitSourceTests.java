@@ -34,6 +34,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -162,7 +163,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
     private SearchResponse createSearchResponse() {
         // create a simulated response.
-        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
+        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"), XContentType.JSON);
         SearchHits hits = SearchHits.unpooled(
             IntStream.range(0, randomIntBetween(0, 20)).mapToObj(i -> hit).toArray(SearchHit[]::new),
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),

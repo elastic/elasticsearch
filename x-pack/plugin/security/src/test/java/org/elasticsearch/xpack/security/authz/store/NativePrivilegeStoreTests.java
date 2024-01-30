@@ -812,7 +812,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         for (int i = 0; i < hits.length; i++) {
             final ApplicationPrivilegeDescriptor p = sourcePrivileges.get(i);
             hits[i] = new SearchHit(i, "application-privilege_" + p.getApplication() + ":" + p.getName());
-            hits[i].sourceRef(new BytesArray(Strings.toString(p)));
+            hits[i].sourceRef(new BytesArray(Strings.toString(p)), XContentType.JSON);
         }
         return hits;
     }

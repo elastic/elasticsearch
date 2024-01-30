@@ -352,7 +352,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             );
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 mapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                searchHit.sourceRef(BytesReference.bytes(builder));
+                searchHit.sourceRef(BytesReference.bytes(builder), builder.contentType());
             }
             ActionListener.respondAndRelease(
                 listener,

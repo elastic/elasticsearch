@@ -53,6 +53,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
@@ -215,7 +216,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             SearchHit hit = SearchHit.unpooled(0, "first_foo");
             hit.version(1L);
             hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
-            hit.sourceRef(source);
+            hit.sourceRef(source, XContentType.JSON);
             when(searchResponse1.getHits()).thenReturn(
                 SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f)
             );
@@ -237,7 +238,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 var hit = SearchHit.unpooled(0, "second_foo");
                 hit.version(1L);
                 hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
-                hit.sourceRef(source);
+                hit.sourceRef(source, XContentType.JSON);
                 ActionListener.respondAndRelease(
                     listener,
                     new SearchResponse(

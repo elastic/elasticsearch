@@ -10,6 +10,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.List;
@@ -35,7 +36,7 @@ public class SearchHitBuilder {
     }
 
     public SearchHitBuilder setSource(String sourceJson) {
-        hit.sourceRef(new BytesArray(sourceJson));
+        hit.sourceRef(new BytesArray(sourceJson), XContentType.JSON);
         return this;
     }
 

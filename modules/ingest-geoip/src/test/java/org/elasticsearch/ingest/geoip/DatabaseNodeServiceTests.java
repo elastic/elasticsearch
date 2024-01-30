@@ -323,7 +323,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
                 builder.map(Map.of("data", chunk));
                 builder.flush();
                 ByteArrayOutputStream outputStream = (ByteArrayOutputStream) builder.getOutputStream();
-                hit.sourceRef(new BytesArray(outputStream.toByteArray()));
+                hit.sourceRef(new BytesArray(outputStream.toByteArray()), XContentType.SMILE);
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
             }

@@ -29,6 +29,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -94,6 +95,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     private long primaryTerm;
 
     private BytesReference source;
+    private XContentType sourceContentType;
 
     private final Map<String, DocumentField> documentFields;
     private final Map<String, DocumentField> metaFields;
@@ -146,6 +148,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
             null,
             null,
+            null,
             SearchSortValues.EMPTY,
             Collections.emptyMap(),
             null,
@@ -160,7 +163,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         );
     }
 
-    public SearchHit(
+    private SearchHit(
         int docId,
         float score,
         int rank,
@@ -170,6 +173,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         long seqNo,
         long primaryTerm,
         BytesReference source,
+        XContentType sourceContentType,
         Map<String, HighlightField> highlightFields,
         SearchSortValues sortValues,
         Map<String, Float> matchedQueries,
@@ -192,6 +196,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
         this.source = source;
+        this.sourceContentType = sourceContentType;
         this.highlightFields = highlightFields;
         this.sortValues = sortValues;
         this.matchedQueries = matchedQueries;
@@ -239,6 +244,16 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         BytesReference source = pooled ? in.readReleasableBytesReference() : in.readBytesReference();
         if (source.length() == 0) {
             source = null;
+        }
+        final XContentType sourceContentType;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_HIT_CONTENT_TYPE_ADDED)) {
+            sourceContentType = in.readOptionalEnum(XContentType.class);
+        } else {
+            if (source == null) {
+                sourceContentType = null;
+            } else {
+                sourceContentType = XContentHelper.xContentTypeMayCompressed(source);
+            }
         }
         Explanation explanation = null;
         if (in.readBoolean()) {
@@ -290,6 +305,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             seqNo,
             primaryTerm,
             source,
+            sourceContentType,
             unmodifiableMap(highlightFields),
             sortValues,
             matchedQueries,
@@ -337,6 +353,9 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         out.writeZLong(seqNo);
         out.writeVLong(primaryTerm);
         out.writeBytesReference(source);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_HIT_CONTENT_TYPE_ADDED)) {
+            out.writeOptionalEnum(sourceContentType);
+        }
         if (explanation == null) {
             out.writeBoolean(false);
         } else {
@@ -463,8 +482,9 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     /**
      * Sets representation, might be compressed....
      */
-    public SearchHit sourceRef(BytesReference source) {
+    public SearchHit sourceRef(BytesReference source, XContentType sourceContentType) {
         this.source = source;
+        this.sourceContentType = sourceContentType;
         this.sourceAsMap = null;
         return this;
     }
@@ -487,7 +507,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             return null;
         }
         try {
-            return XContentHelper.convertToJson(getSourceRef(), false);
+            assert sourceContentType != null;
+            return XContentHelper.convertToJson(getSourceRef(), false, sourceContentType);
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to convert source to a json string");
         }
@@ -749,6 +770,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             seqNo,
             primaryTerm,
             source instanceof RefCounted ? new BytesArray(source.toBytesRef(), true) : source,
+            sourceContentType,
             highlightFields,
             sortValues,
             matchedQueries,
@@ -778,6 +800,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         static final String _PRIMARY_TERM = "_primary_term";
         static final String _SCORE = "_score";
         static final String _RANK = "_rank";
+        static final String _SOURCE_CONTENT_TYPE = "_source_content_type";
         static final String FIELDS = "fields";
         static final String IGNORED_FIELD_VALUES = "ignored_field_values";
         static final String HIGHLIGHT = "highlight";
@@ -860,14 +883,14 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             }
         }
         if (source != null) {
-            XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
+            XContentHelper.writeRawField(SourceFieldMapper.NAME, source, sourceContentType, builder, params);
         }
         if (documentFields.isEmpty() == false &&
         // ignore fields all together if they are all empty
-            documentFields.values().stream().anyMatch(df -> df.getValues().size() > 0)) {
+            documentFields.values().stream().anyMatch(df -> df.getValues().isEmpty() == false)) {
             builder.startObject(Fields.FIELDS);
             for (DocumentField field : documentFields.values()) {
-                if (field.getValues().size() > 0) {
+                if (field.getValues().isEmpty() == false) {
                     field.getValidValuesWriter().toXContent(builder, params);
                 }
             }
@@ -985,11 +1008,10 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             new ParseField(Fields._SHARD),
             ValueType.STRING
         );
-        parser.declareObject(
-            (map, value) -> map.put(SourceFieldMapper.NAME, value),
-            (p, c) -> parseSourceBytes(p),
-            new ParseField(SourceFieldMapper.NAME)
-        );
+        parser.declareObject((map, value) -> {
+            map.put(SourceFieldMapper.NAME, value.v1());
+            map.put(Fields._SOURCE_CONTENT_TYPE, value.v2());
+        }, (p, c) -> parseSourceBytes(p), new ParseField(SourceFieldMapper.NAME));
         parser.declareObject(
             (map, value) -> map.put(Fields.HIGHLIGHT, value),
             (p, c) -> parseHighlightFields(p),
@@ -1076,6 +1098,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             get(Fields._SEQ_NO, values, SequenceNumbers.UNASSIGNED_SEQ_NO),
             get(Fields._PRIMARY_TERM, values, SequenceNumbers.UNASSIGNED_PRIMARY_TERM),
             get(SourceFieldMapper.NAME, values, null),
+            get(Fields._SOURCE_CONTENT_TYPE, values, null),
             get(Fields.HIGHLIGHT, values, null),
             get(Fields.SORT, values, SearchSortValues.EMPTY),
             get(Fields.MATCHED_QUERIES, values, null),
@@ -1104,13 +1127,13 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }
     }
 
-    private static BytesReference parseSourceBytes(XContentParser parser) throws IOException {
+    private static Tuple<BytesReference, XContentType> parseSourceBytes(XContentParser parser) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
             // the original document gets slightly modified: whitespaces or
             // pretty printing are not preserved,
             // it all depends on the current builder settings
             builder.copyCurrentStructure(parser);
-            return BytesReference.bytes(builder);
+            return Tuple.tuple(BytesReference.bytes(builder), parser.contentType());
         }
     }
 
@@ -1204,6 +1227,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             && Objects.equals(seqNo, other.seqNo)
             && Objects.equals(primaryTerm, other.primaryTerm)
             && Objects.equals(source, other.source)
+            && Objects.equals(sourceContentType, other.sourceContentType)
             && Objects.equals(documentFields, other.documentFields)
             && Objects.equals(metaFields, other.metaFields)
             && Objects.equals(getHighlightFields(), other.getHighlightFields())
@@ -1224,6 +1248,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             seqNo,
             primaryTerm,
             source,
+            sourceContentType,
             documentFields,
             metaFields,
             getHighlightFields(),

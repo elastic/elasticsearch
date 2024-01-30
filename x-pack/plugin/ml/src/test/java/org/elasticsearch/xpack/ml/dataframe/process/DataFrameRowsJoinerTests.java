@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -310,7 +311,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
 
     private static SearchHit newHit(String json) {
         SearchHit hit = SearchHit.unpooled(randomInt(), randomAlphaOfLength(10));
-        hit.sourceRef(new BytesArray(json));
+        hit.sourceRef(new BytesArray(json), XContentType.JSON);
         return hit;
     }
 

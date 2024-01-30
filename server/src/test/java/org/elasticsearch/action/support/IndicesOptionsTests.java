@@ -355,9 +355,9 @@ public class IndicesOptionsTests extends ESTestCase {
             map = parser.mapOrdered();
         }
 
-        assertThat(((List<?>) map.get("expand_wildcards")).contains("open"), equalTo(wildcardOptions.includeOpen()));
-        assertThat(((List<?>) map.get("expand_wildcards")).contains("closed"), equalTo(wildcardOptions.includeClosed()));
-        assertThat(((List<?>) map.get("expand_wildcards")).contains("hidden"), not(equalTo(wildcardOptions.removeHidden())));
+        assertThat(((List<?>) map.get("expand_wildcards")).contains("open"), equalTo(wildcardOptions.matchOpen()));
+        assertThat(((List<?>) map.get("expand_wildcards")).contains("closed"), equalTo(wildcardOptions.matchClosed()));
+        assertThat(((List<?>) map.get("expand_wildcards")).contains("hidden"), not(equalTo(wildcardOptions.includeHidden())));
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
         assertThat(map.get("ignore_throttled"), equalTo(generalOptions.removeThrottled()));
@@ -468,13 +468,13 @@ public class IndicesOptionsTests extends ESTestCase {
             builder.startObject();
             if (includeExpandWildcards) {
                 builder.startArray("expand_wildcards");
-                if (expectedWildcardStates.includeOpen()) {
+                if (expectedWildcardStates.matchOpen()) {
                     builder.value("open");
                 }
-                if (expectedWildcardStates.includeClosed()) {
+                if (expectedWildcardStates.matchClosed()) {
                     builder.value("closed");
                 }
-                if (expectedWildcardStates.removeHidden() == false) {
+                if (expectedWildcardStates.includeHidden() == false) {
                     builder.value("hidden");
                 }
                 builder.endArray();

@@ -2306,7 +2306,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(
                 state,
-                IndicesOptions.newBuilder().wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().includeClosed(true)).build(),
+                IndicesOptions.newBuilder().wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().matchlosed(true)).build(),
                 "ind*",
                 "test-index"
             );
@@ -2729,21 +2729,21 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         {
             IndicesOptions indicesOptions = IndicesOptions.newBuilder()
-                .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().includeOpen(randomBoolean()))
+                .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().matchOpen(randomBoolean()))
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias1);
             assertThat(result, arrayContainingInAnyOrder(index1.getIndex(), index2.getIndex(), index3.getIndex(), index4.getIndex()));
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.newBuilder()
-                .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().includeOpen(randomBoolean()))
+                .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().matchOpen(randomBoolean()))
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias2);
             assertThat(result, arrayContainingInAnyOrder(index3.getIndex(), index4.getIndex()));
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.newBuilder()
-                .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().includeOpen(randomBoolean()))
+                .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().matchOpen(randomBoolean()))
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias3);
             assertThat(result, arrayContainingInAnyOrder(index5.getIndex(), index6.getIndex()));
@@ -3239,9 +3239,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
     private static IndicesOptions.WildcardOptions doNotExpandWildcards(boolean lenient) {
         return IndicesOptions.WildcardOptions.newBuilder()
-            .includeOpen(false)
-            .includeClosed(false)
-            .removeHidden(randomBoolean())
+            .matchOpen(false)
+            .matchlosed(false)
+            .includeHidden(randomBoolean())
             .allowEmptyExpressions(lenient)
             .build();
     }

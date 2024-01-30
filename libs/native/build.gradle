@@ -67,7 +67,7 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-tasks.named('forbiddenApisMain22').configure {
+tasks.named('forbiddenApisMain21').configure {
   // TODO: figure out how to allow preview apis
   enabled = false
 }

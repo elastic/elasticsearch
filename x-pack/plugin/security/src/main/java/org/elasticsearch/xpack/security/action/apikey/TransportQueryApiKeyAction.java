@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
@@ -85,12 +86,19 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
         }
 
         final AtomicBoolean accessesApiKeyTypeField = new AtomicBoolean(false);
-        final ApiKeyBoolQueryBuilder apiKeyBoolQueryBuilder = ApiKeyBoolQueryBuilder.build(request.getQueryBuilder(), fieldName -> {
+        searchSourceBuilder.query(ApiKeyBoolQueryBuilder.build(request.getQueryBuilder(), fieldName -> {
             if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
                 accessesApiKeyTypeField.set(true);
             }
-        }, filteringAuthentication);
-        searchSourceBuilder.query(apiKeyBoolQueryBuilder);
+        }, filteringAuthentication));
+
+        if (request.getFieldSortBuilders() != null) {
+            translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder, fieldName -> {
+                if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
+                    accessesApiKeyTypeField.set(true);
+                }
+            });
+        }
 
         searchSourceBuilder.aggregationsBuilder(ApiKeyAggregationsBuilder.process(request.getAggsBuilder(), fieldName -> {
             if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
@@ -103,10 +111,6 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
             searchSourceBuilder.runtimeMappings(API_KEY_TYPE_RUNTIME_MAPPING);
         }
 
-        if (request.getFieldSortBuilders() != null) {
-            translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder);
-        }
-
         if (request.getSearchAfterBuilder() != null) {
             searchSourceBuilder.searchAfter(request.getSearchAfterBuilder().getSortValues());
         }
@@ -116,7 +120,11 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
     }
 
     // package private for testing
-    static void translateFieldSortBuilders(List<FieldSortBuilder> fieldSortBuilders, SearchSourceBuilder searchSourceBuilder) {
+    static void translateFieldSortBuilders(
+        List<FieldSortBuilder> fieldSortBuilders,
+        SearchSourceBuilder searchSourceBuilder,
+        Consumer<String> fieldNameVisitor
+    ) {
         fieldSortBuilders.forEach(fieldSortBuilder -> {
             if (fieldSortBuilder.getNestedSort() != null) {
                 throw new IllegalArgumentException("nested sorting is not supported for API Key query");
@@ -125,6 +133,7 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
                 searchSourceBuilder.sort(fieldSortBuilder);
             } else {
                 final String translatedFieldName = ApiKeyFieldNameTranslators.translate(fieldSortBuilder.getFieldName());
+                fieldNameVisitor.accept(translatedFieldName);
                 if (translatedFieldName.equals(fieldSortBuilder.getFieldName())) {
                     searchSourceBuilder.sort(fieldSortBuilder);
                 } else {

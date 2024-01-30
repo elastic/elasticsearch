@@ -19,16 +19,12 @@ final class CostEntry {
     public static CostEntry fromSource(Map<String, Object> source) {
         var val = source.get("usd_per_hour");
 
-        if (val instanceof Double d) {
-            return new CostEntry(d);
+        if (val instanceof Number n) {
+            return new CostEntry(n.doubleValue());
+        } else if (val == null) {
+            return new CostEntry(CostCalculator.DEFAULT_COST_USD_PER_CORE_HOUR * HostMetadata.DEFAULT_PROFILING_NUM_CORES);
         }
 
-        // Some JSON values have no decimal places and are passed in as Integers.
-        if (val instanceof Integer i) {
-            return new CostEntry(i.doubleValue());
-        }
-
-        // Likely an unexpected null value.
-        return new CostEntry(CostCalculator.DEFAULT_COST_USD_PER_CORE_HOUR * HostMetadata.DEFAULT_PROFILING_NUM_CORES);
+        throw new IllegalArgumentException("[" + val + "] is an invalid value for [usd_per_hour]");
     }
 }

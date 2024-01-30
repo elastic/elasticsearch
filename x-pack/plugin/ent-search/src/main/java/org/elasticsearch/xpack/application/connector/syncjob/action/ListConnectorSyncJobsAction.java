@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -107,7 +109,9 @@ public class ListConnectorSyncJobsAction {
             return Objects.equals(pageParams, request.pageParams)
                 && Objects.equals(connectorId, request.connectorId)
                 && connectorSyncStatus == request.connectorSyncStatus
-                && connectorSyncJobTypeList == request.connectorSyncJobTypeList;
+                && connectorSyncJobTypeList == null
+                    ? request.connectorSyncJobTypeList == null
+                    : connectorSyncJobTypeList.equals(request.connectorSyncJobTypeList);
         }
 
         @Override
@@ -133,6 +137,9 @@ public class ListConnectorSyncJobsAction {
         }
 
         public static ListConnectorSyncJobsAction.Request parse(XContentParser parser) {
+            Logger logger = LogManager.getLogger(Request.class);
+            logger.info("parser: " + parser);
+            logger.info("PARSER: " + PARSER);
             return PARSER.apply(parser, null);
         }
 

@@ -37,13 +37,10 @@ public class APMAgentSettings {
 
     private static final Logger LOGGER = LogManager.getLogger(APMAgentSettings.class);
 
-    public void addClusterSettingsListeners(
-        ClusterService clusterService,
-        APMTelemetryProvider apmTelemetryProvider,
-        APMMeterService apmMeterService
-    ) {
+    public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider apmTelemetryProvider) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final APMTracer apmTracer = apmTelemetryProvider.getTracer();
+        final APMMeterService apmMeterService = apmTelemetryProvider.getMeterService();
 
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);

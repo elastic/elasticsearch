@@ -229,6 +229,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final Engine.IndexCommitListener indexCommitListener;
     private final Map<String, Boolean> fieldHasValue;
+    // sys prop to disable the field has value feature, defaults to true (enabled) if set to false (disabled) the
+    // field caps always returns empty fields ignoring the value of the query param `include_fields_with_no_value`.
+    private final boolean enableFieldHasValue = Booleans.parseBoolean(System.getProperty("es.field_has_value", Boolean.TRUE.toString()));
     private final AtomicBoolean availableFieldsLoaded = new AtomicBoolean(false);
     private final CountDownLatch lazyLoadCompleted = new CountDownLatch(1);
 
@@ -995,7 +998,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo, sourceToParse.id());
         }
         Engine.IndexResult indexResult = index(engine, operation);
-        if (indexResult.getResultType().equals(Engine.Result.Type.SUCCESS) && origin.equals(Engine.Operation.Origin.PRIMARY)) {
+        if (enableFieldHasValue
+            && indexResult.getResultType().equals(Engine.Result.Type.SUCCESS)
+            && origin.equals(Engine.Operation.Origin.PRIMARY)) {
             updateFieldHasValueWithFieldsFromParsedDoc(operation.parsedDoc());
         }
         return indexResult;
@@ -1014,6 +1019,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public boolean fieldHasValue(String fieldName) {
+        if (enableFieldHasValue == false) return true; // if we disable the feature we always return that a certain field has value
         loadNonEmptyFields();
         return fieldHasValue.getOrDefault(fieldName, false);
     }

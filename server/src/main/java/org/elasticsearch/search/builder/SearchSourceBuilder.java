@@ -728,6 +728,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return this;
     }
 
+    public SearchSourceBuilder aggregationsBuilder(AggregatorFactories.Builder aggregations) {
+        if (this.aggregations != null) {
+            throw new IllegalStateException("cannot override aggregation build [");
+        }
+        this.aggregations = aggregations;
+        return this;
+    }
+
     /**
      * Add an aggregation to perform as part of the search.
      */

@@ -134,7 +134,7 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
         return new VariableWidthHistogramAggregationBuilder(this, factoriesBuilder, metaData);
     }
 

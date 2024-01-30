@@ -175,7 +175,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new TermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

@@ -126,7 +126,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
                 final QueryBuilder shouldQueryBuilder = boolQueryBuilder.should().get(0);
                 assertThat(shouldQueryBuilder.getClass(), is(PrefixQueryBuilder.class));
                 assertThat(((PrefixQueryBuilder) shouldQueryBuilder).fieldName(), equalTo("metadata.environ"));
-                listener.onResponse((Response) new QueryApiKeyResponse(0, List.of()));
+                listener.onResponse((Response) QueryApiKeyResponse.emptyResponse());
             }
         };
         final RestQueryApiKeyAction restQueryApiKeyAction = new RestQueryApiKeyAction(Settings.EMPTY, mockLicenseState);
@@ -190,7 +190,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
                     equalTo(new SearchAfterBuilder().setSortValues(new String[] { "key-2048", "2021-07-01T00:00:59.000Z" }))
                 );
 
-                listener.onResponse((Response) new QueryApiKeyResponse(0, List.of()));
+                listener.onResponse((Response) QueryApiKeyResponse.emptyResponse());
             }
         };
 

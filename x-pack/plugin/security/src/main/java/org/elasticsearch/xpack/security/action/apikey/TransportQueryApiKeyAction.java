@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.support.ApiKeyAggregationsBuilder;
 import org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder;
 import org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators;
 
@@ -63,9 +64,12 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
 
     @Override
     protected void doExecute(Task task, QueryApiKeyRequest request, ActionListener<QueryApiKeyResponse> listener) {
-        final Authentication authentication = securityContext.getAuthentication();
-        if (authentication == null) {
+        Authentication filteringAuthentication = securityContext.getAuthentication();
+        if (filteringAuthentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
+        }
+        if (request.isFilterForCurrentUser() == false) {
+            filteringAuthentication = null;
         }
 
         final SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource()
@@ -85,8 +89,14 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
             if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
                 accessesApiKeyTypeField.set(true);
             }
-        }, request.isFilterForCurrentUser() ? authentication : null);
+        }, filteringAuthentication);
         searchSourceBuilder.query(apiKeyBoolQueryBuilder);
+
+        searchSourceBuilder.aggregationsBuilder(ApiKeyAggregationsBuilder.process(request.getAggsBuilder(), fieldName -> {
+            if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
+                accessesApiKeyTypeField.set(true);
+            }
+        }, filteringAuthentication));
 
         // only add the query-level runtime field to the search request if it's actually referring the "type" field
         if (accessesApiKeyTypeField.get()) {

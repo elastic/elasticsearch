@@ -99,7 +99,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new FiltersAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -196,6 +196,13 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     public FiltersAggregationBuilder keyedBucket(boolean keyedBucket) {
         this.keyedBucket = keyedBucket;
         return this;
+    }
+
+    /**
+     * Get whether to return keyed bucket in array
+     */
+    public boolean keyedBucket() {
+        return keyedBucket;
     }
 
     @Override

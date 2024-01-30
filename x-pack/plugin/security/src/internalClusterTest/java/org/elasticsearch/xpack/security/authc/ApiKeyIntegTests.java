@@ -2891,7 +2891,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
             client.execute(
                 QueryApiKeyAction.INSTANCE,
-                new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(apiKeyId), null, null, null, null, withLimitedBy),
+                new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(apiKeyId), null, null, null, null, null, withLimitedBy),
                 future
             );
             final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
@@ -2910,7 +2910,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
             client.execute(
                 QueryApiKeyAction.INSTANCE,
-                new QueryApiKeyRequest(QueryBuilders.matchAllQuery(), null, 1000, null, null, withLimitedBy),
+                new QueryApiKeyRequest(QueryBuilders.matchAllQuery(), null, null, 1000, null, null, withLimitedBy),
                 future
             );
             final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();

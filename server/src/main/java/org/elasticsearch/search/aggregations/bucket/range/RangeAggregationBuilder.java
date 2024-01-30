@@ -82,7 +82,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new RangeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

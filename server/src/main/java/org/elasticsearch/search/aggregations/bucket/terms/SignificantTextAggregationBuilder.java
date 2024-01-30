@@ -119,7 +119,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new SignificantTextAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

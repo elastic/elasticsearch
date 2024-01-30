@@ -70,7 +70,7 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new PercentilesAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

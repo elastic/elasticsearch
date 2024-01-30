@@ -148,7 +148,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected SignificantTermsAggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public SignificantTermsAggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

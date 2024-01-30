@@ -91,7 +91,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new TopHitsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

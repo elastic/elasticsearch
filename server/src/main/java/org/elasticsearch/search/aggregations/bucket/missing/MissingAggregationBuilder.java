@@ -65,7 +65,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new MissingAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

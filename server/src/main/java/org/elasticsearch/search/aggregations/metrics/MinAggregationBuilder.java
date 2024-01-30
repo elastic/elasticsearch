@@ -52,7 +52,7 @@ public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.Single
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new MinAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

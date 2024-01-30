@@ -124,7 +124,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new HistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

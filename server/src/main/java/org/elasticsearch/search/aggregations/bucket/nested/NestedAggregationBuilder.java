@@ -52,7 +52,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new NestedAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

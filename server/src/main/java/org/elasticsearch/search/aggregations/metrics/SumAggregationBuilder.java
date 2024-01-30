@@ -56,7 +56,7 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.Single
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new SumAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

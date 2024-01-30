@@ -213,7 +213,7 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new IpRangeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

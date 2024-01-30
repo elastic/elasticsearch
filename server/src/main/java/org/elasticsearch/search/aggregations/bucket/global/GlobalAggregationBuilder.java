@@ -40,7 +40,7 @@ public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalA
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new GlobalAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

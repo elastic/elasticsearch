@@ -165,7 +165,7 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new IpPrefixAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

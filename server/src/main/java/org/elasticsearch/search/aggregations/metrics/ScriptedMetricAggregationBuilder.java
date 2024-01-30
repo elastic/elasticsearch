@@ -80,7 +80,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new ScriptedMetricAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

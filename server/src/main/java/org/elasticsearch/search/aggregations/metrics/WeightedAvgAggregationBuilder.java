@@ -83,7 +83,7 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new WeightedAvgAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

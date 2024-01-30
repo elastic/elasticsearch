@@ -29,7 +29,7 @@ include::{esql-specs}/stats.csv-spec[tag=sum-result]
 
 The expression can use inline functions. For example, to calculate the total 
 sum of the maximum values for each set of multivalued entries in a column,
-apply the `MV_MAX` function to each set and then sum the results:
+apply the `MV_MAX` function to each row and then sum the results:
 
 [source.merge.styled,esql]
 ----

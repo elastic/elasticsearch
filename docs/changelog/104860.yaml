@@ -1,0 +1,5 @@
+pr: 104860
+summary: support a new deciders DynamicShardsLimitAllocationDecider
+area: Infra/Core
+type: feature
+issues: []

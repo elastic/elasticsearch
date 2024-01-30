@@ -18,8 +18,13 @@ import java.lang.invoke.MethodHandles;
 
 class RuntimeHelper {
     private static final Linker LINKER = Linker.nativeLinker();
-    private static final SymbolLookup SYMBOL_LOOKUP = LINKER.defaultLookup();
+    private static final SymbolLookup SYMBOL_LOOKUP;
     private static final MethodHandles.Lookup MH_LOOKUP = MethodHandles.publicLookup();
+
+    static {
+        SymbolLookup loaderLookup = SymbolLookup.loaderLookup();
+        SYMBOL_LOOKUP = (name) -> loaderLookup.find(name).or(() -> LINKER.defaultLookup().find(name));
+    }
 
     static MemorySegment functionAddress(String function) {
         return SYMBOL_LOOKUP.find(function).orElseThrow(() -> new LinkageError("Native function " + function + " could not be found"));

@@ -19,7 +19,11 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
 
-public class JdkSystemdLibrary implements SystemdLibrary {
+class JdkSystemdLibrary implements SystemdLibrary {
+
+    static {
+        System.loadLibrary("systemd");
+    }
 
     private static final MethodHandle sd_notify$mh = downcallHandle("sd_notify", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
 

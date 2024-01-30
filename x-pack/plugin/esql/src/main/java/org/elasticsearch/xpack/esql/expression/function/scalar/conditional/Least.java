@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -37,6 +38,10 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 public class Least extends ScalarFunction implements EvaluatorMapper, OptionalArgument {
     private DataType dataType;
 
+    @FunctionInfo(
+        returnType = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" },
+        description = "Returns the minimum value from many columns."
+    )
     public Least(
         Source source,
         @Param(name = "first", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) Expression first,
@@ -106,6 +111,9 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        // force datatype initialization
+        var dataType = dataType();
+
         ExpressionEvaluator.Factory[] factories = children().stream()
             .map(e -> toEvaluator.apply(new MvMin(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);

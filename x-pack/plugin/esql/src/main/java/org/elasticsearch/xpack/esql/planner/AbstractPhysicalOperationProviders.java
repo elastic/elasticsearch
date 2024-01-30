@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -124,8 +125,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
             if (mode == AggregateExec.Mode.FINAL) {
                 for (var agg : aggregates) {
-                    if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction) {
-                        layout.append(alias);
+                    if (Alias.unwrap(agg) instanceof AggregateFunction) {
+                        layout.append(agg);
                     }
                 }
             } else {
@@ -236,10 +237,10 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                         Expression field = aggregateFunction.field();
                         // Only count can now support literals - all the other aggs should be optimized away
                         if (field.foldable()) {
-                            if (aggregateFunction instanceof Count count) {
+                            if (aggregateFunction instanceof Count) {
                                 sourceAttr = emptyList();
                             } else {
-                                throw new EsqlIllegalArgumentException(
+                                throw new InvalidArgumentException(
                                     "Does not support yet aggregations over constants - [{}]",
                                     aggregateFunction.sourceText()
                                 );

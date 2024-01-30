@@ -241,6 +241,11 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             }
 
             @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
             public SearchLookup lookup() {
                 throw new UnsupportedOperationException();
             }

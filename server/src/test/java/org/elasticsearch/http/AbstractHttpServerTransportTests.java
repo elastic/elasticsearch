@@ -1013,7 +1013,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103782")
     public void testStopClosesChannelAfterRequest() throws Exception {
         var grace = LONG_GRACE_PERIOD_MS;
         try (var noTimeout = LogExpectation.unexpectedTimeout(grace); var transport = new TestHttpServerTransport(gracePeriod(grace))) {
@@ -1143,6 +1142,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         return new ActionModule(
             settings.getSettings(),
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+            null,
             settings.getIndexScopedSettings(),
             settings.getClusterSettings(),
             settings.getSettingsFilter(),
@@ -1389,8 +1389,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         @Override
         public void close() {
-            appender.stop();
             Loggers.removeAppender(mockLogger, appender);
+            appender.stop();
             if (checked == false) {
                 fail("did not check expectations matched in TimedOutLogExpectation");
             }

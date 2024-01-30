@@ -40,7 +40,7 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
@@ -51,8 +51,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -124,6 +122,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matcher;
+import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -1195,32 +1195,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Generate a random valid point constrained to geographic ranges (lat, lon ranges).
-     */
-    public static SpatialPoint randomGeoPoint() {
-        return new GeoPoint(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true));
-    }
-
-    /**
-     * Generate a random valid point constrained to cartesian ranges.
-     */
-    public static SpatialPoint randomCartesianPoint() {
-        double x = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
-        double y = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
-        return new SpatialPoint() {
-            @Override
-            public double getX() {
-                return x;
-            }
-
-            @Override
-            public double getY() {
-                return y;
-            }
-        };
-    }
-
-    /**
      * helper to randomly perform on <code>consumer</code> with <code>value</code>
      */
     public static <T> void maybeSet(Consumer<T> consumer, T value) {
@@ -2137,6 +2111,18 @@ public abstract class ESTestCase extends LuceneTestCase {
             || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
     }
 
+    /*
+     * Assert.assertThat (inherited from LuceneTestCase superclass) has been deprecated.
+     * So make sure that all assertThat references use the non-deprecated version.
+     */
+    public static <T> void assertThat(T actual, Matcher<? super T> matcher) {
+        MatcherAssert.assertThat(actual, matcher);
+    }
+
+    public static <T> void assertThat(String reason, T actual, Matcher<? super T> matcher) {
+        MatcherAssert.assertThat(reason, actual, matcher);
+    }
+
     public static <T> T fail(Throwable t, String msg, Object... args) {
         throw new AssertionError(org.elasticsearch.common.Strings.format(msg, args), t);
     }
@@ -2159,7 +2145,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
     }
 
-    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ActionRequestBuilder<?, ?> builder) {
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, RequestBuilder<?, ?> builder) {
         return expectThrows(
             expectedType,
             "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",

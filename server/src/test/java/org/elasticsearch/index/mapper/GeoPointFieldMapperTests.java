@@ -19,7 +19,10 @@ import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -595,6 +598,11 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return syntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnReader) {
         assumeFalse("synthetic _source for geo_point doesn't support ignore_malformed", ignoreMalformed);
         return new SyntheticSourceSupport() {
             private final boolean ignoreZValue = usually();
@@ -604,17 +612,32 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxVals) {
                 if (randomBoolean()) {
                     Tuple<Object, GeoPoint> v = generateValue();
-                    return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), encode(v.v2()), this::mapping);
+                    if (columnReader) {
+                        return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), encode(v.v2()), this::mapping);
+                    }
+                    return new SyntheticSourceExample(v.v1(), v.v2(), v.v2().toWKT(), this::mapping);
                 }
                 List<Tuple<Object, GeoPoint>> values = randomList(1, maxVals, this::generateValue);
-                List<Object> in = values.stream().map(Tuple::v1).toList();
-                // The results are currently sorted in order of encoded values, so we need to sort the expected values too
-                List<GeoPoint> outList = values.stream().map(v -> encode(v.v2())).sorted().map(this::decode).toList();
+                // For the synthetic source tests, the results are sorted in order of encoded values, but for row-stride reader
+                // they are sorted in order of input, so we sort both input and expected here to support both types of tests
+                List<Tuple<Object, GeoPoint>> sorted = values.stream()
+                    .sorted((a, b) -> Long.compare(encode(a.v2()), encode(b.v2())))
+                    .toList();
+                List<Object> in = sorted.stream().map(Tuple::v1).toList();
+                List<GeoPoint> outList = sorted.stream().map(Tuple::v2).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                List<Long> outBlockList = outList.stream().map(this::encode).toList();
-                Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+                if (columnReader) {
+                    // When reading doc-values, the block is a list of encoded longs
+                    List<Long> outBlockList = outList.stream().map(this::encode).toList();
+                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+                } else {
+                    // When reading row-stride, the block is a list of WKT encoded BytesRefs
+                    List<String> outBlockList = outList.stream().map(GeoPoint::toWKT).toList();
+                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+                }
             }
 
             private Tuple<Object, GeoPoint> generateValue() {
@@ -627,7 +650,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
             private GeoPoint randomGeoPoint() {
                 Point point = GeometryTestUtils.randomPoint(false);
-                return new GeoPoint(point.getLat(), point.getLon());
+                return decode(encode(new GeoPoint(point.getLat(), point.getLon())));
             }
 
             private Object randomGeoPointInput(GeoPoint point) {
@@ -700,7 +723,18 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Function<Object, Object> loadBlockExpected() {
-        return v -> asJacksonNumberOutput(((Number) v).longValue());
+        throw new IllegalStateException("Should never reach here, call loadBlockExpected(BlockReaderSupport, boolean) instead");
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        if (columnReader) {
+            // When using column reader, we expect the output to be doc-values (which means encoded longs)
+            return v -> asJacksonNumberOutput(((Number) v).longValue());
+        } else {
+            // When using row-stride reader, we expect the output to be WKT encoded BytesRef
+            return v -> asWKT((BytesRef) v);
+        }
     }
 
     protected static Object asJacksonNumberOutput(long l) {
@@ -710,5 +744,17 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         } else {
             return l;
         }
+    }
+
+    protected static Object asWKT(BytesRef value) {
+        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
+        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
+        return WellKnownText.toWKT(geometry);
+    }
+
+    @Override
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        MappedFieldType ft = mapper.fieldType(loaderFieldName);
+        return new BlockReaderSupport(ft.hasDocValues(), false, mapper, loaderFieldName);
     }
 }

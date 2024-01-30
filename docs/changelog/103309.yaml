@@ -1,0 +1,6 @@
+pr: 103309
+summary: Introduce lazy rollover for mapping updates in data streams
+area: Data streams
+type: enhancement
+issues:
+  - 89346

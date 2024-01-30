@@ -38,7 +38,7 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
     public static final int MIN_SAMPLE_LINE_COUNT = 2;
 
     private FindStructureAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject, Writeable {

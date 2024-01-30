@@ -12,7 +12,6 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -21,8 +20,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeDoubleToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
@@ -40,8 +37,6 @@ public class ToLong extends AbstractConvertFunction {
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(LONG, (fieldEval, source) -> fieldEval),
         Map.entry(DATETIME, (fieldEval, source) -> fieldEval),
-        Map.entry(GEO_POINT, (fieldEval, source) -> fieldEval),
-        Map.entry(CARTESIAN_POINT, (fieldEval, source) -> fieldEval),
         Map.entry(BOOLEAN, ToLongFromBooleanEvaluator.Factory::new),
         Map.entry(KEYWORD, ToLongFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToLongFromStringEvaluator.Factory::new),
@@ -50,13 +45,10 @@ public class ToLong extends AbstractConvertFunction {
         Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new) // CastIntToLongEvaluator would be a candidate, but not MV'd
     );
 
-    @FunctionInfo(returnType = "long")
+    @FunctionInfo(returnType = "long", description = "Converts an input value to a long value.")
     public ToLong(
         Source source,
-        @Param(
-            name = "v",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer", "geo_point", "cartesian_point" }
-        ) Expression field
+        @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
     ) {
         super(source, field);
     }
@@ -100,12 +92,12 @@ public class ToLong extends AbstractConvertFunction {
         }
     }
 
-    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
+    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class })
     static long fromDouble(double dbl) {
         return safeDoubleToLong(dbl);
     }
 
-    @ConvertEvaluator(extraName = "FromUnsignedLong", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
+    @ConvertEvaluator(extraName = "FromUnsignedLong", warnExceptions = { InvalidArgumentException.class })
     static long fromUnsignedLong(long ul) {
         return safeToLong(unsignedLongAsNumber(ul));
     }

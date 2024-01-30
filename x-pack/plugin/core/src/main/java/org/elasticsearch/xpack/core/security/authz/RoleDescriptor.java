@@ -52,7 +52,7 @@ import java.util.Objects;
  */
 public class RoleDescriptor implements ToXContentObject, Writeable {
 
-    public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersions.V_8_500_020;
+    public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersions.V_8_9_X;
 
     public static final String ROLE_TYPE = "role";
 
@@ -188,8 +188,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             indicesPrivileges[i] = new IndicesPrivileges(in);
         }
         this.runAs = in.readStringArray();
-        this.metadata = in.readMap();
-        this.transientMetadata = in.readMap();
+        this.metadata = in.readGenericMap();
+        this.transientMetadata = in.readGenericMap();
 
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
         this.configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);

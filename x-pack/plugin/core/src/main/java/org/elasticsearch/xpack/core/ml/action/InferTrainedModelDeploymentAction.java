@@ -56,7 +56,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
     public static final String NAME = "cluster:monitor/xpack/ml/trained_models/deployment/infer";
 
     public InferTrainedModelDeploymentAction() {
-        super(NAME, InferTrainedModelDeploymentAction.Response::new);
+        super(NAME);
     }
 
     /**
@@ -147,7 +147,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            docs = in.readCollectionAsImmutableList(StreamInput::readMap);
+            docs = in.readCollectionAsImmutableList(StreamInput::readGenericMap);
             update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             inferenceTimeout = in.readOptionalTimeValue();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {

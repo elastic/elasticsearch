@@ -1,0 +1,5 @@
+pr: 103656
+summary: "ESQL: add =~ operator (case insensitive equality)"
+area: ES|QL
+type: feature
+issues: []

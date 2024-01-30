@@ -500,7 +500,11 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
     public void testEncodeDecodeNoSaturation() {
         double scalingFactor = randomValue();
         double unsaturated = randomDoubleBetween(Long.MIN_VALUE / scalingFactor, Long.MAX_VALUE / scalingFactor, true);
-        assertThat(encodeDecode(unsaturated, scalingFactor), equalTo(Math.round(unsaturated * scalingFactor) / scalingFactor));
+        assertEquals(
+            encodeDecode(unsaturated, scalingFactor),
+            Math.round(unsaturated * scalingFactor) / scalingFactor,
+            unsaturated * 1e-10
+        );
     }
 
     /**

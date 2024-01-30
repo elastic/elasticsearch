@@ -39,6 +39,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -801,7 +802,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 1000);
         QueryBuilder filter = new RangeQueryBuilder("val").from(from, true).to(to, true);
         try (
-            EsqlQueryResponse results = new EsqlQueryRequestBuilder(client()).query(command).filter(filter).pragmas(randomPragmas()).get()
+            EsqlQueryResponse results = EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client())
+                .query(command)
+                .filter(filter)
+                .pragmas(randomPragmas())
+                .get()
         ) {
             logger.info(results);
             OptionalDouble avg = docs.values().stream().filter(v -> from <= v && v <= to).mapToLong(n -> n).average();
@@ -1045,7 +1050,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                         new ColumnInfo("returnType", "keyword"),
                         new ColumnInfo("description", "keyword"),
                         new ColumnInfo("optionalArgs", "boolean"),
-                        new ColumnInfo("variadic", "boolean")
+                        new ColumnInfo("variadic", "boolean"),
+                        new ColumnInfo("isAggregation", "boolean")
                     )
                 )
             );
@@ -1309,7 +1315,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testStatsMissingFields() {
+    public void testStatsMissingFieldWithStats() {
         final String node1, node2;
         if (randomBoolean()) {
             internalCluster().ensureAtLeastNumDataNodes(2);
@@ -1345,6 +1351,39 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     assertEquals(1, valuesList.size());
                 }
             }
+        }
+    }
+
+    public void testStatsMissingFieldKeepApp() {
+        final String node1, node2;
+        if (randomBoolean()) {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            node1 = randomDataNode().getName();
+            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        } else {
+            node1 = randomDataNode().getName();
+            node2 = randomDataNode().getName();
+        }
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("foo-index")
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", node1))
+                .setMapping("foo_int", "type=integer", "foo_long", "type=long", "foo_float", "type=float", "foo_double", "type=double")
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("bar-index")
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
+                .setMapping("bar_int", "type=integer", "bar_long", "type=long", "bar_float", "type=float", "bar_double", "type=double")
+        );
+        String command = String.format(Locale.ROOT, "from foo-index,bar-index");
+        try (var resp = run(command)) {
+            var valuesList = getValuesList(resp);
+            assertEquals(8, resp.columns().size());
+            assertEquals(0, valuesList.size());
+            assertEquals(Collections.emptyList(), valuesList);
         }
     }
 

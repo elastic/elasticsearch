@@ -49,6 +49,7 @@ public class SqlPluginTests extends ESTestCase {
         assertThat(
             plugin.getRestHandlers(
                 Settings.EMPTY,
+                mock(NamedWriteableRegistry.class),
                 mock(RestController.class),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,

@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST) // here
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTests {
 
     private final Queue<RestStatus> errorStatusQueue = new LinkedBlockingQueue<>();

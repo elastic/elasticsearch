@@ -335,7 +335,7 @@ public class ClusterStateObserver {
         /**
          * Called when a new state is observed. Implementations should avoid doing heavy operations on the calling thread and fork to
          * a threadpool if necessary to avoid blocking the {@link ClusterApplierService}. Note that operations such as sending a new
-         * request (e.g. via Client or TransportService) is cheap enough to be performed without forking.
+         * request (e.g. via {@link Client} or {@link TransportService}) is cheap enough to be performed without forking.
          */
         void onNewClusterState(ClusterState state);
 

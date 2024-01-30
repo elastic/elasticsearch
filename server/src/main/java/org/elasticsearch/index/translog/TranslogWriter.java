@@ -89,7 +89,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private final DiskIoBufferPool diskIoBufferPool;
 
     // fallback buffer to use when a direct buffer for writes is not available to the current thread
-    private final ByteBuffer localWriteBuffer = ByteBuffer.allocate(DiskIoBufferPool.BUFFER_SIZE);
+    private ByteBuffer localWriteBuffer;
 
     // package private for testing
     LastModifiedTimeCache lastModifiedTimeCache;
@@ -589,8 +589,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         ByteBuffer ioBuffer = diskIoBufferPool.maybeGetDirectIOBuffer();
         if (ioBuffer == null) {
             // not using a direct buffer for writes from the current thread, falling back to a regular buffer
+            if (localWriteBuffer == null) {
+                localWriteBuffer = ByteBuffer.allocate(DiskIoBufferPool.BUFFER_SIZE);
+            } else {
+                localWriteBuffer.clear();
+            }
             ioBuffer = localWriteBuffer;
-            ioBuffer.clear();
         }
 
         try (StreamOutput streamOutput = new ByteBufferStreamOutput(ioBuffer, channel, digest)) {

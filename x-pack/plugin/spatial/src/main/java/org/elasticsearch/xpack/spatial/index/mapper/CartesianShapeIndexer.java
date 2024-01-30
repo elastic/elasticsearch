@@ -117,12 +117,19 @@ public class CartesianShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Rectangle r) {
-            addFields(XYShape.createIndexableFields(name, LuceneGeometriesUtil.toLuceneXYPolygon(r)));
+            addFields(XYShape.createIndexableFields(name, toLuceneXYPolygon(r)));
             return null;
         }
 
         private void addFields(IndexableField[] fields) {
             this.fields.addAll(Arrays.asList(fields));
         }
+    }
+
+    private static org.apache.lucene.geo.XYPolygon toLuceneXYPolygon(Rectangle r) {
+        return new org.apache.lucene.geo.XYPolygon(
+            new float[] { (float) r.getMinX(), (float) r.getMaxX(), (float) r.getMaxX(), (float) r.getMinX(), (float) r.getMinX() },
+            new float[] { (float) r.getMinY(), (float) r.getMinY(), (float) r.getMaxY(), (float) r.getMaxY(), (float) r.getMinY() }
+        );
     }
 }

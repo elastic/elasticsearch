@@ -40,8 +40,15 @@ public class LuceneGeometriesUtil {
     private static final DoubleFunction IDENTITY = d -> d;
 
     /**
-     * transforms an Elasticsearch {@link Geometry} into a lucene {@link LatLonGeometry} and quantize
-     * the latitude and longitude values to match the values on the index.
+     * Transform an Elasticsearch {@link Geometry} into a lucene {@link LatLonGeometry}
+     *
+     * @param geometry the geometry tio transform
+     * @param quantize if true, the coordinates of the geometry will be quantized using lucene quantization.
+     *                 This is useful for queries so  the latitude and longitude values to match the values on the index.
+     * @param checker call for every {@link ShapeType} found in the Geometry. It allows to throw an error if a geometry is
+     *                not supported.
+     *
+     * @return an array of {@link LatLonGeometry}
      */
     public static LatLonGeometry[] toLatLonGeometry(Geometry geometry, boolean quantize, Consumer<ShapeType> checker) {
         if (geometry == null) {
@@ -162,6 +169,9 @@ public class LuceneGeometriesUtil {
         return geometries.toArray(new LatLonGeometry[0]);
     }
 
+    /**
+     * Transform an Elasticsearch {@link Point} into a lucene {@link org.apache.lucene.geo.Point}
+     **/
     public static org.apache.lucene.geo.Point toLucenePoint(Point point) {
         return toLucenePoint(point, IDENTITY, IDENTITY);
     }
@@ -170,6 +180,9 @@ public class LuceneGeometriesUtil {
         return new org.apache.lucene.geo.Point(latFunction.apply(point.getLat()), lonFunction.apply(point.getLon()));
     }
 
+    /**
+     * Transform an Elasticsearch {@link Line} into a lucene {@link org.apache.lucene.geo.Line}
+     **/
     public static org.apache.lucene.geo.Line toLuceneLine(Line line) {
         return toLuceneLine(line, IDENTITY, IDENTITY);
     }
@@ -178,6 +191,9 @@ public class LuceneGeometriesUtil {
         return new org.apache.lucene.geo.Line(quantizeLats(line.getLats(), latFunction), quantizeLons(line.getLons(), lonFunction));
     }
 
+    /**
+     * Transform an Elasticsearch {@link Polygon} into a lucene {@link org.apache.lucene.geo.Polygon}
+     **/
     public static org.apache.lucene.geo.Polygon toLucenePolygon(Polygon polygon) {
         return toLucenePolygon(polygon, IDENTITY, IDENTITY);
     }
@@ -198,6 +214,9 @@ public class LuceneGeometriesUtil {
 
     }
 
+    /**
+     * Transform an Elasticsearch {@link Rectangle} into a lucene {@link org.apache.lucene.geo.Rectangle}
+     **/
     public static org.apache.lucene.geo.Rectangle toLuceneRectangle(Rectangle rectangle) {
         return toLuceneRectangle(rectangle, IDENTITY, IDENTITY);
     }
@@ -211,6 +230,9 @@ public class LuceneGeometriesUtil {
         );
     }
 
+    /**
+     * Transform an Elasticsearch {@link Circle} into a lucene {@link org.apache.lucene.geo.Circle}
+     **/
     public static org.apache.lucene.geo.Circle toLuceneCircle(Circle circle) {
         return toLuceneCircle(circle, IDENTITY, IDENTITY);
     }
@@ -238,6 +260,15 @@ public class LuceneGeometriesUtil {
     private static double[] quantizeLons(double[] lons, DoubleFunction function) {
         return Arrays.stream(lons).map(function::apply).toArray();
     }
+
+    /**
+     * Transform an Elasticsearch {@link Geometry} into a lucene {@link XYGeometry}
+     *
+     * @param geometry the geometry to transform.
+     * @param checker call for every {@link ShapeType} found in the Geometry. It allows to throw an error if
+     *                a geometry is not supported.
+     * @return an array of {@link XYGeometry}
+     */
 
     public static XYGeometry[] toXYGeometry(Geometry geometry, Consumer<ShapeType> checker) {
         if (geometry == null || geometry.isEmpty()) {
@@ -342,6 +373,23 @@ public class LuceneGeometriesUtil {
         return geometries.toArray(new XYGeometry[0]);
     }
 
+    /**
+     * Transform an Elasticsearch {@link Point} into a lucene {@link org.apache.lucene.geo.XYPoint}
+     **/
+    public static org.apache.lucene.geo.XYPoint toLuceneXYPoint(Point point) {
+        return new org.apache.lucene.geo.XYPoint((float) point.getX(), (float) point.getY());
+    }
+
+    /**
+     * Transform an Elasticsearch {@link Line} into a lucene {@link org.apache.lucene.geo.XYLine}
+     **/
+    public static org.apache.lucene.geo.XYLine toLuceneXYLine(Line line) {
+        return new org.apache.lucene.geo.XYLine(doubleArrayToFloatArray(line.getX()), doubleArrayToFloatArray(line.getY()));
+    }
+
+    /**
+     * Transform an Elasticsearch {@link Polygon} into a lucene {@link org.apache.lucene.geo.XYPolygon}
+     **/
     public static org.apache.lucene.geo.XYPolygon toLuceneXYPolygon(Polygon polygon) {
         org.apache.lucene.geo.XYPolygon[] holes = new org.apache.lucene.geo.XYPolygon[polygon.getNumberOfHoles()];
         for (int i = 0; i < holes.length; i++) {
@@ -357,25 +405,16 @@ public class LuceneGeometriesUtil {
         );
     }
 
-    public static org.apache.lucene.geo.XYPolygon toLuceneXYPolygon(Rectangle r) {
-        return new org.apache.lucene.geo.XYPolygon(
-            new float[] { (float) r.getMinX(), (float) r.getMaxX(), (float) r.getMaxX(), (float) r.getMinX(), (float) r.getMinX() },
-            new float[] { (float) r.getMinY(), (float) r.getMinY(), (float) r.getMaxY(), (float) r.getMaxY(), (float) r.getMinY() }
-        );
-    }
-
+    /**
+     * Transform an Elasticsearch {@link Rectangle} into a lucene {@link org.apache.lucene.geo.XYRectangle}
+     **/
     public static org.apache.lucene.geo.XYRectangle toLuceneXYRectangle(Rectangle r) {
         return new org.apache.lucene.geo.XYRectangle((float) r.getMinX(), (float) r.getMaxX(), (float) r.getMinY(), (float) r.getMaxY());
     }
 
-    public static org.apache.lucene.geo.XYPoint toLuceneXYPoint(Point point) {
-        return new org.apache.lucene.geo.XYPoint((float) point.getX(), (float) point.getY());
-    }
-
-    public static org.apache.lucene.geo.XYLine toLuceneXYLine(Line line) {
-        return new org.apache.lucene.geo.XYLine(doubleArrayToFloatArray(line.getX()), doubleArrayToFloatArray(line.getY()));
-    }
-
+    /**
+     * Transform an Elasticsearch {@link Circle} into a lucene {@link org.apache.lucene.geo.XYCircle}
+     **/
     public static org.apache.lucene.geo.XYCircle toLuceneXYCircle(Circle circle) {
         return new org.apache.lucene.geo.XYCircle((float) circle.getX(), (float) circle.getY(), (float) circle.getRadiusMeters());
     }

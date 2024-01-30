@@ -419,7 +419,7 @@ public class LuceneGeometriesUtil {
         return new org.apache.lucene.geo.XYCircle((float) circle.getX(), (float) circle.getY(), (float) circle.getRadiusMeters());
     }
 
-    private static float[] doubleArrayToFloatArray(double[] array) {
+    static float[] doubleArrayToFloatArray(double[] array) {
         float[] result = new float[array.length];
         for (int i = 0; i < array.length; ++i) {
             result[i] = (float) array[i];

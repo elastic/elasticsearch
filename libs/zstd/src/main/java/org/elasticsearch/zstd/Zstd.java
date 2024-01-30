@@ -6,22 +6,25 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.codec.zstd;
+package org.elasticsearch.zstd;
 
 import com.sun.jna.Library;
 import com.sun.jna.Native;
 
 import java.nio.ByteBuffer;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
 /** JNA bindings for ZSTD. */
-final class Zstd {
+public final class Zstd {
 
-    // TODO: Move this under libs/ and make it public so that we can progressively replace all our usage of DEFLATE with ZSTD?
+    private static class Holder {
+        private static final ZstdLibrary LIBRARY;
 
-    private static final ZstdLibrary LIBRARY;
+        static {
+            LIBRARY = AccessController.doPrivileged((PrivilegedAction<ZstdLibrary>) () -> Native.load("zstd", ZstdLibrary.class));
+        }
 
-    static {
-        LIBRARY = Native.load("zstd", ZstdLibrary.class);
     }
 
     private interface ZstdLibrary extends Library {
@@ -38,14 +41,20 @@ final class Zstd {
 
     }
 
+    private static ZstdLibrary library() {
+        return Holder.LIBRARY;
+    }
+
+    private Zstd() {} // no instantiation
+
     /**
      * Compress the content of {@code src} into {@code dst} at compression level {@code level}, and return the number of compressed bytes.
      * {@link ByteBuffer#position()} and {@link ByteBuffer#limit()} of both {@link ByteBuffer}s are left unmodified.
      */
     public static int compress(ByteBuffer dst, ByteBuffer src, int level) {
-        long ret = LIBRARY.ZSTD_compress(dst, dst.remaining(), src, src.remaining(), level);
-        if (LIBRARY.ZSTD_isError(ret)) {
-            throw new IllegalArgumentException(LIBRARY.ZSTD_getErrorName(ret));
+        long ret = library().ZSTD_compress(dst, dst.remaining(), src, src.remaining(), level);
+        if (library().ZSTD_isError(ret)) {
+            throw new IllegalArgumentException(library().ZSTD_getErrorName(ret));
         } else if (ret < 0 || ret > Integer.MAX_VALUE) {
             throw new IllegalStateException("Integer overflow? ret=" + ret);
         }
@@ -57,9 +66,9 @@ final class Zstd {
      * {@link ByteBuffer#limit()} of both {@link ByteBuffer}s are left unmodified.
      */
     public static int decompress(ByteBuffer dst, ByteBuffer src) {
-        long ret = LIBRARY.ZSTD_decompress(dst, dst.remaining(), src, src.remaining());
-        if (LIBRARY.ZSTD_isError(ret)) {
-            throw new IllegalArgumentException(LIBRARY.ZSTD_getErrorName(ret));
+        long ret = library().ZSTD_decompress(dst, dst.remaining(), src, src.remaining());
+        if (library().ZSTD_isError(ret)) {
+            throw new IllegalArgumentException(library().ZSTD_getErrorName(ret));
         } else if (ret < 0 || ret > Integer.MAX_VALUE) {
             throw new IllegalStateException("Integer overflow? ret=" + ret);
         }
@@ -70,9 +79,9 @@ final class Zstd {
      * Return the maximum number of compressed bytes given an input length.
      */
     public static int getMaxCompressedLen(int srcLen) {
-        long ret = LIBRARY.ZSTD_compressBound(srcLen);
-        if (LIBRARY.ZSTD_isError(ret)) {
-            throw new IllegalArgumentException(LIBRARY.ZSTD_getErrorName(ret));
+        long ret = library().ZSTD_compressBound(srcLen);
+        if (library().ZSTD_isError(ret)) {
+            throw new IllegalArgumentException(library().ZSTD_getErrorName(ret));
         } else if (ret < 0 || ret > Integer.MAX_VALUE) {
             throw new IllegalArgumentException(
                 srcLen

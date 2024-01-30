@@ -30,6 +30,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.tdigest;
+    requires org.elasticsearch.zstd;
 
     requires com.sun.jna;
     requires hppc;

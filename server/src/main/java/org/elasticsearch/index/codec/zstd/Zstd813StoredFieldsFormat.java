@@ -18,6 +18,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.zstd.Zstd;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

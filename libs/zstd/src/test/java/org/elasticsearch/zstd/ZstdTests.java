@@ -6,12 +6,17 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.codec.zstd;
+package org.elasticsearch.zstd;
 
+import org.elasticsearch.secure_sm.SecureSM;
+import org.elasticsearch.secure_sm.ThreadPermission;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.nio.ByteBuffer;
+import java.security.Permission;
+import java.security.Policy;
+import java.security.ProtectionDomain;
 
 public class ZstdTests extends ESTestCase {
 

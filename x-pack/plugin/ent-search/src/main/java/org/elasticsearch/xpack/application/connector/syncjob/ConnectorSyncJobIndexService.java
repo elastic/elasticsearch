@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
-import org.elasticsearch.xpack.application.connector.ConnectorsAPISearchResult;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
@@ -206,10 +205,9 @@ public class ConnectorSyncJobIndexService {
                     }
 
                     try {
-                        ConnectorSyncJobSearchResult syncJobSearchResult = new ConnectorSyncJobSearchResult.Builder().setId(getResponse.getId())
-                            .setResultBytes(getResponse.getSourceAsBytesRef())
-                            .setResultMap(getResponse.getSourceAsMap())
-                            .build();
+                        ConnectorSyncJobSearchResult syncJobSearchResult = new ConnectorSyncJobSearchResult.Builder().setId(
+                            getResponse.getId()
+                        ).setResultBytes(getResponse.getSourceAsBytesRef()).setResultMap(getResponse.getSourceAsMap()).build();
                         l.onResponse(syncJobSearchResult);
                     } catch (Exception e) {
                         listener.onFailure(e);

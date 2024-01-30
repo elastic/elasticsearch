@@ -8,9 +8,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -18,6 +20,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -354,6 +358,53 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         }));
         assertThat(mapperService.mappingLookup().getMapper("dim"), instanceOf(FieldAliasMapper.class));
         assertThat(mapperService.mappingLookup().getMapper("labels.dim"), instanceOf(KeywordFieldMapper.class));
+    }
+
+    public void testAliasMappersCreatesAlias() throws Exception {
+        var context = MapperBuilderContext.root(false, false);
+
+        Map<String, Mapper> fields = new HashMap<>();
+        fields.put("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context));
+
+        Map<String, Mapper> mappers = new HashMap<>();
+        mappers.put(
+            "labels",
+            new PassThroughObjectMapper("labels", Explicit.EXPLICIT_TRUE, ObjectMapper.Dynamic.FALSE, fields, Explicit.EXPLICIT_FALSE)
+        );
+
+        Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(mappers, context);
+        assertEquals(1, aliases.size());
+        assertThat(aliases.get("host"), instanceOf(FieldAliasMapper.class));
+    }
+
+    public void testAliasMappersCreatesNoAliasForRegularObject() throws Exception {
+        var context = MapperBuilderContext.root(false, false);
+
+        Map<String, Mapper> fields = new HashMap<>();
+        fields.put("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context));
+
+        Map<String, Mapper> mappers = new HashMap<>();
+        mappers.put(
+            "labels",
+            new ObjectMapper("labels", "labels", Explicit.EXPLICIT_TRUE, Explicit.EXPLICIT_FALSE, ObjectMapper.Dynamic.FALSE, fields)
+        );
+        assertTrue(new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(mappers, context).isEmpty());
+    }
+
+    public void testAliasMappersConflictingField() throws Exception {
+        var context = MapperBuilderContext.root(false, false);
+
+        Map<String, Mapper> fields = new HashMap<>();
+        fields.put("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context));
+
+        Map<String, Mapper> mappers = new HashMap<>();
+        mappers.put(
+            "labels",
+            new PassThroughObjectMapper("labels", Explicit.EXPLICIT_TRUE, ObjectMapper.Dynamic.FALSE, fields, Explicit.EXPLICIT_FALSE)
+        );
+        mappers.put("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context));
+        assertTrue(new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(mappers, context).isEmpty());
+        assertWarnings("Root alias for field host conflicts with existing field or alias, skipping alias creation.");
     }
 
     public void testEmptyType() throws Exception {

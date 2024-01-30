@@ -13,6 +13,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -107,26 +108,7 @@ public class RootObjectMapper extends ObjectMapper {
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
             Map<String, Mapper> mappers = buildMappers(context);
-            Map<String, Mapper> aliasMappers = new HashMap<>();
-            for (Mapper mapper : mappers.values()) {
-                // Create aliases for all fields in child passthrough mappers and place them under the root object.
-                if (mapper instanceof PassThroughObjectMapper passthroughMapper) {
-                    for (Mapper internalMapper : passthroughMapper.mappers.values()) {
-                        if (internalMapper instanceof FieldMapper fieldMapper) {
-                            // If there's a conflicting alias with the same name at the root level, we don't want to throw an error
-                            // to avoid indexing disruption.
-                            // TODO: record an error without affecting document indexing, so that it can be investigated later.
-                            if (mappers.containsKey(fieldMapper.simpleName()) == false) {
-                                FieldAliasMapper aliasMapper = new FieldAliasMapper.Builder(fieldMapper.simpleName()).path(
-                                    fieldMapper.mappedFieldType.name()
-                                ).build(context);
-                                aliasMappers.put(aliasMapper.simpleName(), aliasMapper);
-                            }
-                        }
-                    }
-                }
-            }
-            mappers.putAll(aliasMappers);
+            mappers.putAll(getAliasMappers(mappers, context));
             return new RootObjectMapper(
                 name,
                 enabled,
@@ -139,6 +121,39 @@ public class RootObjectMapper extends ObjectMapper {
                 dateDetection,
                 numericDetection
             );
+        }
+
+        Map<String, Mapper> getAliasMappers(Map<String, Mapper> mappers, MapperBuilderContext context) {
+            Map<String, Mapper> aliasMappers = new HashMap<>();
+            for (Mapper mapper : mappers.values()) {
+                // Create aliases for all fields in child passthrough mappers and place them under the root object.
+                if (mapper instanceof PassThroughObjectMapper passthroughMapper) {
+                    for (Mapper internalMapper : passthroughMapper.mappers.values()) {
+                        if (internalMapper instanceof FieldMapper fieldMapper) {
+                            // If there's a conflicting alias with the same name at the root level, we don't want to throw an error
+                            // to avoid indexing disruption.
+                            // TODO: record an error without affecting document indexing, so that it can be investigated later.
+                            Mapper conflict = mappers.get(fieldMapper.simpleName());
+                            if (conflict != null) {
+                                if (conflict.typeName().equals(FieldAliasMapper.CONTENT_TYPE) == false
+                                    || ((FieldAliasMapper) conflict).path().equals(fieldMapper.mappedFieldType.name()) == false) {
+                                    HeaderWarning.addWarning(
+                                        "Root alias for field "
+                                            + fieldMapper.name()
+                                            + " conflicts with existing field or alias, skipping alias creation."
+                                    );
+                                }
+                            } else {
+                                FieldAliasMapper aliasMapper = new FieldAliasMapper.Builder(fieldMapper.simpleName()).path(
+                                    fieldMapper.mappedFieldType.name()
+                                ).build(context);
+                                aliasMappers.put(aliasMapper.simpleName(), aliasMapper);
+                            }
+                        }
+                    }
+                }
+            }
+            return aliasMappers;
         }
     }
 

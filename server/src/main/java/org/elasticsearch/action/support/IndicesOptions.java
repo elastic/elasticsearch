@@ -482,7 +482,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
      * @return Whether wildcard expressions should get expanded to hidden indices
      */
     public boolean expandWildcardsHidden() {
-        return wildcardOptions.includeHidden() == false;
+        return wildcardOptions.includeHidden();
     }
 
     /**
@@ -542,7 +542,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         if (wildcardOptions.matchClosed) {
             states.add(WildcardStates.CLOSED);
         }
-        if (wildcardOptions.includeHidden() == false) {
+        if (wildcardOptions.includeHidden()) {
             states.add(WildcardStates.HIDDEN);
         }
         out.writeEnumSet(states);
@@ -773,7 +773,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             wildcards.allowEmptyExpressions(),
             wildcards.matchOpen(),
             wildcards.matchClosed(),
-            wildcards.includeHidden() == false,
+            wildcards.includeHidden(),
             generalOptions.allowAliasToMultipleIndices(),
             generalOptions.allowClosedIndices() == false,
             wildcards.resolveAliases() == false,
@@ -886,7 +886,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             wildcardOptions.allowEmptyExpressions(),
             wildcardOptions.matchOpen(),
             wildcardOptions.matchClosed(),
-            wildcardOptions.includeHidden() == false,
+            wildcardOptions.includeHidden(),
             generalOptions.allowAliasToMultipleIndices(),
             generalOptions.allowClosedIndices() == false,
             wildcardOptions.resolveAliases() == false,

@@ -474,7 +474,7 @@ public class IndicesOptionsTests extends ESTestCase {
                 if (expectedWildcardStates.matchClosed()) {
                     builder.value("closed");
                 }
-                if (expectedWildcardStates.includeHidden() == false) {
+                if (expectedWildcardStates.includeHidden()) {
                     builder.value("hidden");
                 }
                 builder.endArray();

@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.action.ActionType;
 
-public class DeleteConnectorSecretAction extends ActionType<DeleteConnectorSecretResponse> {
+public class DeleteConnectorSecretAction {
 
     public static final String NAME = "cluster:admin/xpack/connector/secret/delete";
 
-    public static final DeleteConnectorSecretAction INSTANCE = new DeleteConnectorSecretAction();
+    public static final ActionType<DeleteConnectorSecretResponse> INSTANCE = new ActionType<>(NAME);
 
-    private DeleteConnectorSecretAction() {
-        super(NAME);
-    }
+    private DeleteConnectorSecretAction() {/* no instances */}
 }

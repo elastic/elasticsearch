@@ -12,13 +12,13 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.TransportActions;
@@ -206,7 +206,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 IndexRequest upsertRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
-                client.bulk(toSingleItemBulkRequest(upsertRequest), wrapBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                client.bulk(toSingleItemBulkRequest(upsertRequest), wrapBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
                         response.getShardId(),
@@ -247,7 +247,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 IndexRequest indexRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
-                client.bulk(toSingleItemBulkRequest(indexRequest), wrapBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                client.bulk(toSingleItemBulkRequest(indexRequest), wrapBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
                         response.getShardId(),

@@ -103,7 +103,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
+    private static final String DROPPED_OR_FAILED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
 
@@ -946,27 +946,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
-        synchronized void markItemAsDropped(int slot) {
-            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
-            failedSlots.set(slot);
-            final String id = indexRequest.id() == null ? DROPPED_ITEM_WITH_AUTO_GENERATED_ID : indexRequest.id();
-            itemResponses.add(
-                BulkItemResponse.success(
-                    slot,
-                    indexRequest.opType(),
-                    new UpdateResponse(
-                        new ShardId(indexRequest.index(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
-                        indexRequest.type(),
-                        id,
-                        SequenceNumbers.UNASSIGNED_SEQ_NO,
-                        SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                        indexRequest.version(),
-                        DocWriteResponse.Result.NOOP
-                    )
-                )
-            );
-        }
-
         synchronized void markItemAsFailed(int slot, Exception e) {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
             logger.debug(
@@ -981,19 +960,31 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 e
             );
 
+            final DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(slot);
+            final String id = docWriteRequest.id() == null ? DROPPED_OR_FAILED_ITEM_WITH_AUTO_GENERATED_ID : docWriteRequest.id();
             // We hit a error during preprocessing a request, so we:
             // 1) Remember the request item slot from the bulk, so that when we're done processing all requests we know what failed
             // 2) Add a bulk item failure for this request
             // 3) Continue with the next request in the bulk.
             failedSlots.set(slot);
-            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
-                indexRequest.index(),
-                indexRequest.type(),
-                indexRequest.id(),
-                e
-            );
-            itemResponses.add(BulkItemResponse.failure(slot, indexRequest.opType(), failure));
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(docWriteRequest.index(), docWriteRequest.type(), id, e);
+            itemResponses.add(BulkItemResponse.failure(slot, docWriteRequest.opType(), failure));
         }
 
+        synchronized void markItemAsDropped(int slot) {
+            final DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(slot);
+            failedSlots.set(slot);
+            final String id = docWriteRequest.id() == null ? DROPPED_OR_FAILED_ITEM_WITH_AUTO_GENERATED_ID : docWriteRequest.id();
+            UpdateResponse dropped = new UpdateResponse(
+                new ShardId(docWriteRequest.index(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
+                docWriteRequest.type(),
+                id,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                docWriteRequest.version(),
+                DocWriteResponse.Result.NOOP
+            );
+            itemResponses.add(BulkItemResponse.success(slot, docWriteRequest.opType(), dropped));
+        }
     }
 }

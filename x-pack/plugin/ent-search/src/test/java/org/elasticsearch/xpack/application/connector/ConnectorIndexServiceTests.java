@@ -14,6 +14,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
@@ -401,7 +402,13 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
         connectorIndexService.getConnector(connectorId, new ActionListener<>() {
             @Override
-            public void onResponse(Connector connector) {
+            public void onResponse(ConnectorSearchResult connectorResult) {
+                // Serialize the sourceRef to Connector class for unit tests
+                Connector connector = Connector.fromXContentBytes(
+                    connectorResult.getSourceRef(),
+                    connectorResult.getId(),
+                    XContentType.JSON
+                );
                 resp.set(connector);
                 latch.countDown();
             }

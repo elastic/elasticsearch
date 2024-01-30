@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
 import org.elasticsearch.xpack.application.connector.configuration.ConfigurationDependency;
@@ -24,6 +27,7 @@ import org.elasticsearch.xpack.application.connector.filtering.FilteringValidati
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
@@ -259,6 +263,30 @@ public final class ConnectorTestUtils {
             .setStatus(getRandomConnectorStatus())
             .setSyncCursor(randomBoolean() ? Map.of(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)) : null)
             .setSyncNow(randomBoolean())
+            .build();
+    }
+
+    private static BytesReference convertConnectorToBytesReference(Connector connector) {
+        try {
+            return XContentHelper.toXContent((builder, params) -> {
+                connector.toInnerXContent(builder, params);
+                return builder;
+            }, XContentType.JSON, null, false);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Map<String, Object> convertConnectorToGenericMap(Connector connector) {
+        return XContentHelper.convertToMap(convertConnectorToBytesReference(connector), true, XContentType.JSON).v2();
+    }
+
+    public static ConnectorSearchResult getRandomConnectorSearchResult() {
+        Connector connector = getRandomConnector();
+
+        return new ConnectorSearchResult.Builder().setResultBytes(convertConnectorToBytesReference(connector))
+            .setResultMap(convertConnectorToGenericMap(connector))
+            .setId(randomAlphaOfLength(10))
             .build();
     }
 

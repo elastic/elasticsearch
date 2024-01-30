@@ -110,11 +110,6 @@ public final class DocumentParser {
                 IdFieldMapper idMapper = (IdFieldMapper) mappingLookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME);
                 return idMapper.documentDescription(this);
             }
-
-            @Override
-            public long getNormalisedBytesParsed() {
-                return documentParsingObserver.normalisedBytesParsed();
-            }
         };
     }
 

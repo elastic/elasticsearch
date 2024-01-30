@@ -172,8 +172,4 @@ public class ParsedDocument {
     public String documentDescription() {
         return "id";
     }
-
-    public long getNormalisedBytesParsed() {
-        return 0L;
-    }
 }

@@ -510,7 +510,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 );
 
             }
-
             response = executionResult;
         }
         context.markAsCompleted(response);

@@ -36,14 +36,12 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements Profil
     }
 
     @Override
-    protected TopDocs approximateSearch(LeafReaderContext context, Bits acceptDocs, int visitedLimit)
-        throws IOException {
+    protected TopDocs approximateSearch(LeafReaderContext context, Bits acceptDocs, int visitedLimit) throws IOException {
         // We increment visit limit by one to bypass a fencepost error in the collector
         if (visitedLimit < Integer.MAX_VALUE) {
             visitedLimit += 1;
         }
-        TopDocs results =
-            context.reader().searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+        TopDocs results = context.reader().searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
         return results != null ? results : NO_RESULTS;
     }
 

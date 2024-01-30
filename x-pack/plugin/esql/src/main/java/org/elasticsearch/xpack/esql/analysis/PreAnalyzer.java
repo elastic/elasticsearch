@@ -23,11 +23,11 @@ public class PreAnalyzer {
         public static final PreAnalysis EMPTY = new PreAnalysis(emptyList(), emptyList());
 
         public final List<TableInfo> indices;
-        public final List<Enrich> unresolvedEnriches;
+        public final List<Enrich> enriches;
 
-        public PreAnalysis(List<TableInfo> indices, List<Enrich> unresolvedEnriches) {
+        public PreAnalysis(List<TableInfo> indices, List<Enrich> enriches) {
             this.indices = indices;
-            this.unresolvedEnriches = unresolvedEnriches;
+            this.enriches = enriches;
         }
     }
 

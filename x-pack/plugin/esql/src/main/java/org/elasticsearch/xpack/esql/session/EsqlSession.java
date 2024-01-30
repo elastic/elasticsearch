@@ -150,7 +150,7 @@ public class EsqlSession {
 
     private <T> void preAnalyze(LogicalPlan parsed, BiFunction<IndexResolution, EnrichResolution, T> action, ActionListener<T> listener) {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
-        var unresolvedPolicies = preAnalysis.unresolvedEnriches.stream()
+        var unresolvedPolicies = preAnalysis.enriches.stream()
             .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
             .collect(Collectors.toSet());
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(

@@ -1,5 +1,5 @@
 pr: 104949
-summary: Auto download for e5
+summary: Add Inference service support for multilingual-e5 builtin models & auto download
 area: Machine Learning
 type: enhancement
 issues: []

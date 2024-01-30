@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -261,7 +262,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalEnum_ReturnsNull_WhenFieldDoesNotExist() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", "value"));
-        var createdEnum = extractOptionalEnum(map, "abc", "scope", InputType::fromString, InputType.values(), validation);
+        var createdEnum = extractOptionalEnum(map, "abc", "scope", InputType::fromString, EnumSet.allOf(InputType.class), validation);
 
         assertNull(createdEnum);
         assertTrue(validation.validationErrors().isEmpty());
@@ -276,7 +277,7 @@ public class ServiceUtilsTests extends ESTestCase {
             "key",
             "scope",
             InputType::fromString,
-            new InputType[] { InputType.INGEST, InputType.SEARCH },
+            EnumSet.of(InputType.INGEST, InputType.SEARCH),
             validation
         );
 
@@ -292,7 +293,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalEnum_ReturnsNullAndAddsException_WhenValueIsNotPartOfTheAcceptableValues() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", InputType.UNSPECIFIED.toString()));
-        var createdEnum = extractOptionalEnum(map, "key", "scope", InputType::fromString, new InputType[] { InputType.INGEST }, validation);
+        var createdEnum = extractOptionalEnum(map, "key", "scope", InputType::fromString, EnumSet.of(InputType.INGEST), validation);
 
         assertNull(createdEnum);
         assertFalse(validation.validationErrors().isEmpty());
@@ -303,7 +304,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalEnum_ReturnsIngest_WhenValueIsAcceptable() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", InputType.INGEST.toString()));
-        var createdEnum = extractOptionalEnum(map, "key", "scope", InputType::fromString, new InputType[] { InputType.INGEST }, validation);
+        var createdEnum = extractOptionalEnum(map, "key", "scope", InputType::fromString, EnumSet.of(InputType.INGEST), validation);
 
         assertThat(createdEnum, is(InputType.INGEST));
         assertTrue(validation.validationErrors().isEmpty());

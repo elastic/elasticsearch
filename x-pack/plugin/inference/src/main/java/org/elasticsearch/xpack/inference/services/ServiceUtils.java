@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -221,12 +221,12 @@ public class ServiceUtils {
         return optionalField;
     }
 
-    public static <T> T extractOptionalEnum(
+    public static <E extends Enum<E>> E extractOptionalEnum(
         Map<String, Object> map,
         String settingName,
         String scope,
-        EnumConstructor<T> constructor,
-        T[] validValues,
+        EnumConstructor<E> constructor,
+        EnumSet<E> validValues,
         ValidationException validationException
     ) {
         var enumString = extractOptionalString(map, settingName, scope, validationException);
@@ -234,7 +234,7 @@ public class ServiceUtils {
             return null;
         }
 
-        var validValuesAsStrings = Arrays.stream(validValues).map(type -> type.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
+        var validValuesAsStrings = validValues.stream().map(value -> value.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
         try {
             var createdEnum = constructor.apply(enumString);
             validateEnumValue(createdEnum, validValues);
@@ -247,19 +247,19 @@ public class ServiceUtils {
         return null;
     }
 
-    private static <T> void validateEnumValue(T enumValue, T[] validValues) {
-        if (Arrays.asList(validValues).contains(enumValue) == false) {
+    private static <E extends Enum<E>> void validateEnumValue(E enumValue, EnumSet<E> validValues) {
+        if (validValues.contains(enumValue) == false) {
             throw new IllegalArgumentException(Strings.format("Enum value [%s] is not one of the acceptable values", enumValue.toString()));
         }
     }
 
     /**
      * Functional interface for creating an enum from a string.
-     * @param <T>
+     * @param <E>
      */
     @FunctionalInterface
-    public interface EnumConstructor<T> {
-        T apply(String name) throws IllegalArgumentException;
+    public interface EnumConstructor<E extends Enum<E>> {
+        E apply(String name) throws IllegalArgumentException;
     }
 
     public static String parsePersistedConfigErrorMsg(String inferenceEntityId, String serviceName) {

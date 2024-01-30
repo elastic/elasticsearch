@@ -19,8 +19,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
 import org.elasticsearch.xpack.inference.external.http.batching.BatchingComponents;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcherFactory;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestBatchingService;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestBatchingServiceSettings;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
@@ -95,7 +98,7 @@ public class InferenceRequestSenderFactory {
 
         private final ThreadPool threadPool;
         private final HttpClientManager manager;
-        private final HttpRequestExecutorService<K> service;
+        private final RequestExecutor<K> service;
         private final AtomicBoolean started = new AtomicBoolean(false);
         private volatile TimeValue maxRequestTimeout;
         private final CountDownLatch startCompleted = new CountDownLatch(2);
@@ -110,7 +113,13 @@ public class InferenceRequestSenderFactory {
         ) {
             this.threadPool = Objects.requireNonNull(threadPool);
             this.manager = Objects.requireNonNull(httpClientManager);
-            service = new HttpRequestExecutorService<>(serviceName, threadPool, startCompleted, batcherFactory);
+            service = new RequestBatchingService<>(
+                serviceName,
+                threadPool,
+                startCompleted,
+                batcherFactory,
+                new RequestBatchingServiceSettings(settings, clusterService)
+            );
 
             this.maxRequestTimeout = MAX_REQUEST_TIMEOUT.get(settings);
             addSettingsUpdateConsumers(clusterService);
@@ -158,7 +167,7 @@ public class InferenceRequestSenderFactory {
         ) {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
-            service.send(requestCreator, input, timeout, listener);
+            service.submit(requestCreator, input, timeout, listener);
         }
 
         private void waitForStartToComplete() {
@@ -179,7 +188,7 @@ public class InferenceRequestSenderFactory {
         public void send(RequestCreator<K> requestCreator, List<String> input, ActionListener<InferenceServiceResults> listener) {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
-            service.send(requestCreator, input, maxRequestTimeout, listener);
+            service.submit(requestCreator, input, maxRequestTimeout, listener);
         }
 
         public static List<Setting<?>> getSettings() {

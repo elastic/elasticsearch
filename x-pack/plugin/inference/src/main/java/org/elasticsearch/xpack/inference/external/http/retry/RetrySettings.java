@@ -127,8 +127,17 @@ public class RetrySettings {
     }
 
     enum DebugFrequencyMode {
+        /**
+         * Indicates that the debug messages should be logged every time
+         */
         ON,
+        /**
+         * Indicates that the debug messages should never be logged
+         */
         OFF,
+        /**
+         * Indicates that the debug messages should be logged on an interval
+         */
         INTERVAL
     }
 }

@@ -5,12 +5,9 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.http.sender;
+package org.elasticsearch.xpack.inference.external.http.batching;
 
-import org.elasticsearch.xpack.inference.external.http.batching.BatchableRequest;
-
-public interface Task<K> extends BatchableRequest<K> {
-    boolean shouldShutdown();
+interface Task<K> extends BatchableRequest<K> {
 
     boolean hasFinished();
 

@@ -50,9 +50,7 @@ public class OpenAiEmbeddingsRequestCreator implements RequestCreator<OpenAiAcco
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        // logger.warn(Strings.format("OpenAI request input array size: %s", input.size()));
         var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
-
         var request = new OpenAiEmbeddingsRequest(truncator, account, truncatedInput, model.getTaskSettings());
 
         return new RunnableRequest(components, logger, request, context, responseHandler, listener);

@@ -5,19 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.http.sender;
+package org.elasticsearch.xpack.inference.external.http.batching;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
 
 import java.util.List;
 
-class ShutdownTask<K> implements Task<K> {
-    @Override
-    public boolean shouldShutdown() {
-        return true;
-    }
+/**
+ * Provides an empty task that does nothing.
+ */
+class NoopTask<K> implements Task<K> {
 
     @Override
     public boolean hasFinished() {

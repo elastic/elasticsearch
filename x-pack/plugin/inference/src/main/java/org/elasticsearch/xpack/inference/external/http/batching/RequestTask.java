@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.http.sender;
+package org.elasticsearch.xpack.inference.external.http.batching;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
 
 import java.util.List;
 import java.util.Objects;
@@ -23,14 +22,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
-class RequestTask2<K> implements Task<K> {
+class RequestTask<K> implements Task<K> {
 
     private final AtomicBoolean finished = new AtomicBoolean();
     private final RequestCreator<K> requestCreator;
     private final List<String> input;
     private final ActionListener<InferenceServiceResults> listener;
 
-    RequestTask2(
+    RequestTask(
         RequestCreator<K> requestCreator,
         List<String> input,
         @Nullable TimeValue timeout,
@@ -75,11 +74,6 @@ class RequestTask2<K> implements Task<K> {
     @Override
     public boolean hasFinished() {
         return finished.get();
-    }
-
-    @Override
-    public boolean shouldShutdown() {
-        return false;
     }
 
     @Override

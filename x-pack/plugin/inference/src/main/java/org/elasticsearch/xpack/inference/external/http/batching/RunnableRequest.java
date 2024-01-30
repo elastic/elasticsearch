@@ -16,7 +16,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
-public record RunnableRequest(
+record RunnableRequest(
     BatchingComponents components,
     Logger logger,
     Request request,

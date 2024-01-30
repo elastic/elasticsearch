@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestBatchingServiceSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactory;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -214,7 +215,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             InferenceRequestSenderFactory.InferenceRequestSender.getSettings(),
             ThrottlerManager.getSettings(),
             RetrySettings.getSettingsDefinitions(),
-            Truncator.getSettings()
+            Truncator.getSettings(),
+            RequestBatchingServiceSettings.getSettingsDefinitions()
         ).flatMap(Collection::stream).collect(Collectors.toList());
     }
 

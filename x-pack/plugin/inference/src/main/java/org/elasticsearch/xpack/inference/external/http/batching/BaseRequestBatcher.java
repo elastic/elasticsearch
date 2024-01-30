@@ -19,7 +19,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 
-// TODO rename to RequestBatcher
 class BaseRequestBatcher<GroupingKey> implements RequestBatcher<GroupingKey> {
     private final HashMap<GroupingKey, Entry<GroupingKey>> entries = new LinkedHashMap<>();
 
@@ -31,12 +30,17 @@ class BaseRequestBatcher<GroupingKey> implements RequestBatcher<GroupingKey> {
         this.context = Objects.requireNonNull(context);
     }
 
+    @Override
     public Iterator<Runnable> iterator() {
         return new RequestIterator<>(entries.values().iterator(), components, context);
     }
 
     @Override
     public void add(BatchableRequest<GroupingKey> request) {
+        if (request.input() == null || request.requestCreator() == null || request.listener() == null) {
+            return;
+        }
+
         entries.compute(request.requestCreator().key(), (account, entry) -> {
             if (entry == null) {
                 return new Entry<>(
@@ -61,9 +65,10 @@ class BaseRequestBatcher<GroupingKey> implements RequestBatcher<GroupingKey> {
     private record Entry<K>(RequestCreator<K> requestCreator, int total, List<RequestRange> requests) {}
 
     /**
-     * Records the indices this request will exist within the final built request
+     * Records the start and end index within the final batched request that this individual request
+     * embody.
      * @param input the text input
-     * @param start the index of the beginning of this request
+     * @param start the index of the beginning of this request (inclusive)
      * @param end the index of the end of this request (exclusive)
      * @param listener the listener for this particular request
      */
@@ -86,8 +91,6 @@ class BaseRequestBatcher<GroupingKey> implements RequestBatcher<GroupingKey> {
 
             // TODO make a new ActionListener class that takes multiple listeners
             ActionListener<InferenceServiceResults> otherListener = ActionListener.wrap(result -> {
-                // TODO: loop through the entry.requests and use List.subList to to extract the results for each listener and call
-                // onResponse
                 for (var request : entry.requests) {
                     request.listener.onResponse(result.subList(request.start, request.end));
                 }

@@ -118,7 +118,7 @@
 "Add data stream lifecycle":
   - skip:
       version: " - 8.10.99"
-      reason: "Data stream lifecycle was GA in 8.11"
+      reason: "Data stream lifecycle was available from 8.11"
 
   - do:
       cluster.put_component_template:
@@ -146,7 +146,7 @@
 "Get data stream lifecycle with default rollover":
   - skip:
       version: " - 8.10.99"
-      reason: "Data stream lifecycle was GA in 8.11"
+      reason: "Data stream lifecycle was available from 8.11"
 
   - do:
       cluster.put_component_template:

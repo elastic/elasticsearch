@@ -277,7 +277,6 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
                 @Override
                 public void onFailure(Exception e) {
-                    // TODO tests of this case
                     logger.error(
                         Strings.format("failed to get continuation of HTTP response body for [%s], closing connection", channel),
                         e

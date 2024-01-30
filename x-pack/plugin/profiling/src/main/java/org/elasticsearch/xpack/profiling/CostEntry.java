@@ -20,6 +20,7 @@ final class CostEntry {
         var val = source.get("usd_per_hour");
 
         if (val instanceof Number n) {
+            // Some JSON values have no decimal places and are passed in as Integers.
             return new CostEntry(n.doubleValue());
         } else if (val == null) {
             return new CostEntry(CostCalculator.DEFAULT_COST_USD_PER_CORE_HOUR * HostMetadata.DEFAULT_PROFILING_NUM_CORES);

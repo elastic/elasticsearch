@@ -30,8 +30,7 @@ for (ScriptRankDoc scriptRankDoc : inputs[0]) {
                     scriptRankDoc.scoreDoc().doc,
                     newScore,
                     scriptRankDoc.scoreDoc().shardIndex
-            )) ;
-
+            ));
 }
 output.sort((ScoreDoc sd1, ScoreDoc sd2) -> { return sd1.score < sd2.score ? 1 : -1; });
 return output;

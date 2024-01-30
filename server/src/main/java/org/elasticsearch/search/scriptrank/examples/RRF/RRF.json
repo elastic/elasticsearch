@@ -1,13 +1,3 @@
-#
-# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-# or more contributor license agreements. Licensed under the Elastic License
-# 2.0 and the Server Side Public License, v 1; you may not use this file except
-# in compliance with, at your election, the Elastic License 2.0 or the Server
-# Side Public License, v 1.
-#
-
-# Demonstrates a simple RRF implementation using the Script Reranker.
-curl -X GET -u elastic:password "localhost:9200/demo/_search?pretty" -H 'Content-Type: application/json' -d'
 {
   "retriever": {
     "script_rank": {
@@ -28,4 +18,3 @@ curl -X GET -u elastic:password "localhost:9200/demo/_search?pretty" -H 'Content
   "_source": false,
   "fields":["kw","v"]
 }
-'

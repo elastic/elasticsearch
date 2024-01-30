@@ -1,4 +1,4 @@
-[[query-dsl-query-string-query]]
+http://RGN.igp.gs/public/IGP_JoinPU.aspx?id=RGN01663[[query-dsl-query-string-query]]
 === Query string query
 ++++
 <titleabbrev>Query string</titleabbrev>

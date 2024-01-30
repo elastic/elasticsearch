@@ -111,9 +111,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     final float[] queryVector;
     final QueryVectorBuilder queryVectorBuilder;
     private final Supplier<float[]> querySupplier;
-    int k;
-    int numCands;
-    Float similarity;
+    final int k;
+    final int numCands;
+    final Float similarity;
     final List<QueryBuilder> filterQueries;
     float boost = DEFAULT_BOOST;
     InnerHitBuilder innerHitBuilder;

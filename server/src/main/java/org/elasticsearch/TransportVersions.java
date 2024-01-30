@@ -166,8 +166,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_COHERE_EMBEDDINGS_ADDED = def(8_579_00_0);
     public static final TransportVersion DESIRED_NODE_VERSION_OPTIONAL_STRING = def(8_580_00_0);
     public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED = def(8_581_00_0);
-
-    public static final TransportVersion KNN_K_NUMCANDS_AS_OPTIONAL_PARAMS = def(8_993_00_0);
+    public static final TransportVersion KNN_K_NUMCANDS_AS_OPTIONAL_PARAMS = def(8_582_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -69,8 +69,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenFloatKnnVectorQuery;
-import org.elasticsearch.search.vectors.ProfilingKnnByteVectorQuery;
-import org.elasticsearch.search.vectors.ProfilingKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
+import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -201,7 +201,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexOptions.addValidator(v -> {
                 if (v != null && v.supportsElementType(elementType.getValue()) == false) {
                     throw new IllegalArgumentException(
-                        "[element_type] cannot be [" + elementType.name + "] when using index type [" + v.type + "]"
+                        "[element_type] cannot be [" + elementType.getValue().toString() + "] when using index type [" + v.type + "]"
                     );
                 }
             });
@@ -1278,11 +1278,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                     yield parentFilter != null
                         ? new ProfilingDiversifyingChildrenByteKnnVectorQuery(name(), bytes, filter, numCands, parentFilter)
-                        : new ProfilingKnnByteVectorQuery(name(), bytes, numCands, filter);
+                        : new ESKnnByteVectorQuery(name(), bytes, numCands, filter);
                 }
                 case FLOAT -> parentFilter != null
                     ? new ProfilingDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
-                    : new ProfilingKnnFloatVectorQuery(name(), queryVector, numCands, filter);
+                    : new ESKnnFloatVectorQuery(name(), queryVector, numCands, filter);
 
             };
 

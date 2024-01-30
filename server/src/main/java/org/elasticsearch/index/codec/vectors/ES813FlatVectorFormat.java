@@ -131,6 +131,7 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
                     collector.incVisitedCount(1);
                 }
             }
+            assert collector.earlyTerminated() == false;
         }
 
         @Override

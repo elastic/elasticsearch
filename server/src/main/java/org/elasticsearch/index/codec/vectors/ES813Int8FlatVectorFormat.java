@@ -136,6 +136,7 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
                     collector.incVisitedCount(1);
                 }
             }
+            assert collector.earlyTerminated() == false;
         }
 
         @Override
@@ -152,5 +153,6 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
         public long ramBytesUsed() {
             return reader.ramBytesUsed();
         }
+
     }
 }

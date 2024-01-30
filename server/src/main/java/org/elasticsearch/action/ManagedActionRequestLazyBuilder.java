@@ -24,13 +24,8 @@ public abstract class ManagedActionRequestLazyBuilder<Request extends ActionRequ
     public Request request() {
         validate();
         Request request = newEmptyInstance();
-        try {
-            apply(request);
-            return request;
-        } catch (Exception e) {
-            request.decRef();
-            throw e;
-        }
+        apply(request);
+        return request;
     }
 
     /**

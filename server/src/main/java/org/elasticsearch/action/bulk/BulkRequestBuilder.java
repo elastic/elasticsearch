@@ -208,11 +208,7 @@ public class BulkRequestBuilder extends ManagedActionRequestLazyBuilder<BulkRequ
         }
         for (RequestBuilder<? extends ActionRequest, ? extends ActionResponse> requestBuilder : requestBuilders) {
             ActionRequest childRequest = requestBuilder.request();
-            try {
-                request.add((DocWriteRequest<?>) childRequest);
-            } finally {
-                childRequest.decRef();
-            }
+            request.add((DocWriteRequest<?>) childRequest);
         }
         for (DocWriteRequest<?> childRequest : requests) {
             request.add(childRequest);

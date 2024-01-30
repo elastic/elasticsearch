@@ -15,10 +15,7 @@ import java.util.stream.Collectors
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
-
-sourceSets {
-  java21
-}
+apply plugin: 'elasticsearch.mrjar'
 
 def isImplAttr = Attribute.of("is.impl", Boolean)
 
@@ -46,22 +43,8 @@ dependencies {
 
   api project(':libs:elasticsearch-core')
   api project(':libs:elasticsearch-logging')
-  java21Implementation sourceSets.main.output
   jnaImpl project(':libs:elasticsearch-native:jna')
   testImplementation(project(":test:framework"))
-}
-
-tasks {
-  jar {
-    dependsOn("compileJava21Java")
-    into("META-INF/versions/21") {
-      from(sourceSets.java21.output)
-    }
-    manifest {
-      attributes "Multi-Release": "true"
-    }
-  }
-
 }
 
 Directory generatedResourcesDir = layout.buildDirectory.dir('generated-resources').get()
@@ -82,19 +65,6 @@ sourceSets.main.output.dir(generateProviderImpl)
 tasks.named('forbiddenApisMain').configure {
   // :libs:elasticsearch-logging does not depend on server
   replaceSignatureFiles 'jdk-signatures'
-}
-
-tasks.named("compileJava21Java").configure {
-  javaCompiler = javaToolchains.compilerFor {
-    languageVersion = JavaLanguageVersion.of("21")
-  }
-  sourceCompatibility = 21
-  options.release = 21
-  options.compilerArgs.add("--enable-preview")
-  options.compilerArgs.add("-Xlint:-preview")
-  doLast {
-    JavaUtil.stripPreviewFromFiles(destinationDirectory.getAsFile().get().toPath())
-  }
 }
 
 

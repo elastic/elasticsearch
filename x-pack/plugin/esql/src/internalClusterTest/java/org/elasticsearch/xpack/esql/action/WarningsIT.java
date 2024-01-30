@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -40,7 +41,11 @@ public class WarningsIT extends AbstractEsqlIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("index-1")
-                .setSettings(Settings.builder().put("index.routing.allocation.require._name", node1))
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.require._name", node1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                )
                 .setMapping("host", "type=keyword")
         );
         for (int i = 0; i < numDocs1; i++) {
@@ -51,7 +56,11 @@ public class WarningsIT extends AbstractEsqlIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("index-2")
-                .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.require._name", node2)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                )
                 .setMapping("host", "type=keyword")
         );
         for (int i = 0; i < numDocs2; i++) {

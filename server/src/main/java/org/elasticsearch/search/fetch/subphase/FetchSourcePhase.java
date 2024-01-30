@@ -62,7 +62,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
 
                 // If this is a parent document and there are no source filters, then add the source as-is.
                 if (nestedHit == false && fetchSourceContext.hasFilter() == false) {
-                    hitContext.hit().sourceRef(source.internalSourceRef());
+                    hitContext.hit().sourceRef(source.internalSourceRef(), source.sourceContentType());
                     fastPath++;
                     return;
                 }
@@ -72,7 +72,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 if (nestedHit) {
                     source = extractNested(source, hitContext.hit().getNestedIdentity());
                 }
-                hitContext.hit().sourceRef(source.internalSourceRef());
+                hitContext.hit().sourceRef(source.internalSourceRef(), source.sourceContentType());
             }
 
             @Override

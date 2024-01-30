@@ -408,7 +408,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             final var searchHit = SearchHit.unpooled(docId, apiKeyId);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(buildApiKeySourceDoc("some_hash".toCharArray()));
-                searchHit.sourceRef(BytesReference.bytes(builder));
+                searchHit.sourceRef(BytesReference.bytes(builder), builder.contentType());
             }
             ActionListener.respondAndRelease(
                 listener,
@@ -845,7 +845,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     "realm": "file1"
                   }
                 }""", roleDescriptor), randomBoolean()));
-            searchHit.sourceRef(BytesReference.bytes(builder));
+            searchHit.sourceRef(BytesReference.bytes(builder), builder.contentType());
             return searchHit;
         } catch (IOException e) {
             throw new UncheckedIOException(e);

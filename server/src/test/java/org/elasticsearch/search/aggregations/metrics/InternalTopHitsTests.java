@@ -255,7 +255,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     public void testGetProperty() {
         // Create a SearchHit containing: { "foo": 1000.0 } and use it to initialize an InternalTopHits instance.
         SearchHit hit = SearchHit.unpooled(0);
-        hit = hit.sourceRef(Source.fromMap(Map.of("foo", 1000.0), XContentType.YAML).internalSourceRef());
+        hit = hit.sourceRef(Source.fromMap(Map.of("foo", 1000.0), XContentType.YAML).internalSourceRef(), XContentType.YAML);
         hit.sortValues(new Object[] { 10.0 }, new DocValueFormat[] { DocValueFormat.RAW });
         hit.score(1.0f);
         SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, null, 0);

@@ -85,7 +85,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             }
         }
         if (frequently()) {
-            hit.sourceRef(RandomObjects.randomSource(random(), xContentType));
+            hit.sourceRef(RandomObjects.randomSource(random(), xContentType), xContentType);
         }
         if (randomBoolean()) {
             hit.version(randomLong());
@@ -326,7 +326,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
     public void testHasSource() {
         SearchHit searchHit = SearchHit.unpooled(randomInt());
         assertFalse(searchHit.hasSource());
-        searchHit.sourceRef(new BytesArray("{}"));
+        searchHit.sourceRef(new BytesArray("{}"), XContentType.JSON);
         assertTrue(searchHit.hasSource());
     }
 

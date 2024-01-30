@@ -318,7 +318,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         when(samlRealm.getLogoutHandler().parseFromQueryString(anyString())).thenReturn(logoutRequest);
     }
 
-    private SearchHit tokenHit(int idx, BytesReference source) {
+    private SearchHit tokenHit(int idx, BytesReference source, XContentType contentType) {
         try {
             final Map<String, Object> sourceMap = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.streamInput())
@@ -328,7 +328,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             @SuppressWarnings("unchecked")
             final Map<String, Object> userToken = (Map<String, Object>) accessToken.get("user_token");
             final SearchHit hit = new SearchHit(idx, "token_" + userToken.get("id"));
-            hit.sourceRef(source);
+            hit.sourceRef(source, contentType);
             return hit;
         } catch (IOException e) {
             throw ExceptionsHelper.convertToRuntime(e);
@@ -365,7 +365,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         final AtomicInteger counter = new AtomicInteger();
         final SearchHit[] searchHits = indexRequests.stream()
             .filter(r -> r.id().startsWith("token"))
-            .map(r -> tokenHit(counter.incrementAndGet(), r.source()))
+            .map(r -> tokenHit(counter.incrementAndGet(), r.source(), r.getContentType()))
             .collect(Collectors.toList())
             .toArray(SearchHits.EMPTY);
         assertThat(searchHits.length, equalTo(4));

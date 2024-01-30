@@ -33,6 +33,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -131,7 +132,7 @@ public class MockClientBuilder {
         SearchHit hits[] = new SearchHit[docs.size()];
         for (int i = 0; i < docs.size(); i++) {
             SearchHit hit = new SearchHit(10);
-            hit.sourceRef(docs.get(i));
+            hit.sourceRef(docs.get(i), XContentType.JSON);
             hits[i] = hit;
         }
 

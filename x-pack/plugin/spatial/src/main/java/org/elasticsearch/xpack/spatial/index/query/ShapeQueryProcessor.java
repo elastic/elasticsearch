@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.index.query;
 import org.apache.lucene.document.XYShape;
 import org.apache.lucene.geo.XYGeometry;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.LuceneGeometriesUtil;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -34,7 +35,10 @@ public class ShapeQueryProcessor {
         if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(IndexVersions.V_7_5_0)) {
             throw new QueryShardException(context, ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "].");
         }
-        XYGeometry[] luceneGeometries;
+        if (geometry == null || geometry.isEmpty()) {
+            return new MatchNoDocsQuery();
+        }
+        final XYGeometry[] luceneGeometries;
         try {
             luceneGeometries = LuceneGeometriesUtil.toXYGeometry(geometry, t -> {});
         } catch (IllegalArgumentException e) {

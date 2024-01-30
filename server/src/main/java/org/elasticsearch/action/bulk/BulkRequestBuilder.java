@@ -39,6 +39,10 @@ public class BulkRequestBuilder extends ManagedActionRequestLazyBuilder<BulkRequ
     implements
         WriteRequestBuilder<BulkRequestBuilder> {
     private final String globalIndex;
+    /*
+     * The following 3 vairiables hold the list of requests that make up this bulk. Only one can be non-empty. That is, users can't add
+     * some IndexRequests and some IndexRequestBuilders. They need to pick one (preferably builders) and stick with it.
+     */
     private final List<DocWriteRequest<?>> requests = new ArrayList<>();
     private final List<FramedData> framedDataList = new ArrayList<>();
     private final List<ActionRequestLazyBuilder<?, ?>> requestBuilders = new ArrayList<>();
@@ -239,6 +243,23 @@ public class BulkRequestBuilder extends ManagedActionRequestLazyBuilder<BulkRequ
         }
         if (refreshPolicyString != null) {
             request.setRefreshPolicy(refreshPolicyString);
+        }
+    }
+
+    @Override
+    protected void validate() {
+        if (requests.isEmpty() == false && requestBuilders.isEmpty() == false
+            || requests.isEmpty() == false && framedDataList.isEmpty() == false
+            || requestBuilders.isEmpty() == false && framedDataList.isEmpty() == false) {
+            throw new IllegalStateException(
+                "Must use only request builders, requests, or byte arrays within a single bulk request. Cannot mix and match"
+            );
+        }
+        if (timeoutString != null && timeout != null) {
+            throw new IllegalStateException("Must use only one setTimeout method");
+        }
+        if (refreshPolicy != null && refreshPolicyString != null) {
+            throw new IllegalStateException("Must use only one setRefreshPolicy method");
         }
     }
 

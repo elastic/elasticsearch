@@ -22,6 +22,7 @@ public abstract class ManagedActionRequestLazyBuilder<Request extends ActionRequ
     }
 
     public Request request() {
+        validate();
         Request request = newEmptyInstance();
         try {
             apply(request);
@@ -38,4 +39,10 @@ public abstract class ManagedActionRequestLazyBuilder<Request extends ActionRequ
      * @return A clean new instance of the Request
      */
     protected abstract Request newEmptyInstance();
+
+    /**
+     * This method is meant to be implemented by sub-classes. It should throw an IllegalStateException with a useful error message if the
+     * builder is unable to build its request for any reason.
+     */
+    protected void validate() throws IllegalStateException {}
 }

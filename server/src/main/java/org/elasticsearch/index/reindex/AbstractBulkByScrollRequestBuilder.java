@@ -177,9 +177,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<
         return self();
     }
 
-    @Override
-    public void apply(Request request) {
-        super.apply(request);
+    protected void apply(Request request) {
         if (maxDocs != null) {
             request.setMaxDocs(maxDocs);
         }

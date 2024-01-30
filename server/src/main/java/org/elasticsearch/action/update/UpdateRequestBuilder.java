@@ -427,7 +427,8 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     @Override
-    public void apply(UpdateRequest request) {
+    public UpdateRequest request() {
+        UpdateRequest request = new UpdateRequest();
         super.apply(request);
         if (id != null) {
             request.id(id);
@@ -539,10 +540,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         if (refreshPolicyString != null) {
             request.setRefreshPolicy(refreshPolicyString);
         }
-    }
-
-    @Override
-    protected UpdateRequest newEmptyInstance() {
-        return new UpdateRequest();
+        return request;
     }
 }

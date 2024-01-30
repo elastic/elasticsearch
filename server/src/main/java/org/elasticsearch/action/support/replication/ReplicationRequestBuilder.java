@@ -8,9 +8,9 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.action.ActionRequestLazyBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ManagedActionRequestLazyBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
@@ -18,7 +18,7 @@ import org.elasticsearch.core.TimeValue;
 public abstract class ReplicationRequestBuilder<
     Request extends ReplicationRequest<Request>,
     Response extends ActionResponse,
-    RequestBuilder extends ReplicationRequestBuilder<Request, Response, RequestBuilder>> extends ManagedActionRequestLazyBuilder<
+    RequestBuilder extends ReplicationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestLazyBuilder<
         Request,
         Response> {
     private String index;
@@ -77,9 +77,7 @@ public abstract class ReplicationRequestBuilder<
         return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
-    @Override
-    public void apply(Request request) {
-        super.apply(request);
+    protected void apply(Request request) {
         if (index != null) {
             request.index(index);
         }

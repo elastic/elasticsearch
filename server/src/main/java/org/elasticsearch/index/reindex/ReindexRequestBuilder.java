@@ -60,7 +60,10 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
             try {
                 ReindexRequest reindexRequest = new ReindexRequest(source, destination, false);
                 try {
-                    apply(reindexRequest);
+                    super.apply(reindexRequest);
+                    if (remoteInfo != null) {
+                        reindexRequest.setRemoteInfo(remoteInfo);
+                    }
                     return reindexRequest;
                 } catch (Exception e) {
                     reindexRequest.decRef();
@@ -73,14 +76,6 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
         } catch (Exception e) {
             source.decRef();
             throw e;
-        }
-    }
-
-    @Override
-    public void apply(ReindexRequest request) {
-        super.apply(request);
-        if (remoteInfo != null) {
-            request.setRemoteInfo(remoteInfo);
         }
     }
 }

@@ -107,7 +107,8 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
     }
 
     @Override
-    public void apply(DeleteRequest request) {
+    public DeleteRequest request() {
+        DeleteRequest request = new DeleteRequest();
         super.apply(request);
         if (id != null) {
             request.id(id);
@@ -133,10 +134,6 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
         if (refreshPolicyString != null) {
             request.setRefreshPolicy(refreshPolicyString);
         }
-    }
-
-    @Override
-    protected DeleteRequest newEmptyInstance() {
-        return new DeleteRequest();
+        return request;
     }
 }

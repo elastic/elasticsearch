@@ -287,8 +287,9 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     @Override
-    public void apply(IndexRequest request) {
+    public IndexRequest request() {
         validateSource();
+        IndexRequest request = new IndexRequest();
         super.apply(request);
         request.id(id);
         if (sourceMap != null) {
@@ -360,6 +361,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         if (versionType != null) {
             request.versionType(versionType);
         }
+        return request;
     }
 
     /*
@@ -387,10 +389,5 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
             }
         }
         return sum;
-    }
-
-    @Override
-    protected IndexRequest newEmptyInstance() {
-        return new IndexRequest();
     }
 }

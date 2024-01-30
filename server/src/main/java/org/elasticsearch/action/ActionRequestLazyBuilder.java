@@ -58,19 +58,4 @@ public abstract class ActionRequestLazyBuilder<Request extends ActionRequest, Re
     public void execute(ActionListener<Response> listener) {
         client.execute(action, request(), listener);
     }
-
-    public ElasticsearchClient getClient() {
-        return client;
-    }
-
-    public ActionType<Response> getAction() {
-        return action;
-    }
-
-    /**
-     * This method is meant to be implemented by sub-classes. It should fully initialize the object passed to it with all information in
-     * that builder.
-     * @param request A Request populated with all information from this builder.
-     */
-    protected void apply(Request request) {}
 }

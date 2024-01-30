@@ -11,7 +11,6 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestLazyBuilder;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.ManagedActionRequestLazyBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
@@ -35,7 +34,7 @@ import java.util.List;
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  */
-public class BulkRequestBuilder extends ManagedActionRequestLazyBuilder<BulkRequest, BulkResponse>
+public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, BulkResponse>
     implements
         WriteRequestBuilder<BulkRequestBuilder> {
     private final String globalIndex;
@@ -200,8 +199,9 @@ public class BulkRequestBuilder extends ManagedActionRequestLazyBuilder<BulkRequ
     }
 
     @Override
-    public void apply(BulkRequest request) {
-        super.apply(request);
+    public BulkRequest request() {
+        validate();
+        BulkRequest request = new BulkRequest(globalIndex);
         if (requests.isEmpty() == false && requestBuilders.isEmpty() == false) {
             throw new IllegalStateException("Must use only requests or request builders within a single bulk request");
         }
@@ -244,10 +244,10 @@ public class BulkRequestBuilder extends ManagedActionRequestLazyBuilder<BulkRequ
         if (refreshPolicyString != null) {
             request.setRefreshPolicy(refreshPolicyString);
         }
+        return request;
     }
 
-    @Override
-    protected void validate() {
+    private void validate() {
         if (requests.isEmpty() == false && requestBuilders.isEmpty() == false
             || requests.isEmpty() == false && framedDataList.isEmpty() == false
             || requestBuilders.isEmpty() == false && framedDataList.isEmpty() == false) {
@@ -261,11 +261,6 @@ public class BulkRequestBuilder extends ManagedActionRequestLazyBuilder<BulkRequ
         if (refreshPolicy != null && refreshPolicyString != null) {
             throw new IllegalStateException("Must use only one setRefreshPolicy method");
         }
-    }
-
-    @Override
-    protected BulkRequest newEmptyInstance() {
-        return new BulkRequest(globalIndex);
     }
 
     private record FramedData(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType) {}

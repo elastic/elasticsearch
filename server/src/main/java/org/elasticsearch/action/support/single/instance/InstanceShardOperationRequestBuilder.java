@@ -8,16 +8,16 @@
 
 package org.elasticsearch.action.support.single.instance;
 
+import org.elasticsearch.action.ActionRequestLazyBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ManagedActionRequestLazyBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 
 public abstract class InstanceShardOperationRequestBuilder<
     Request extends InstanceShardOperationRequest<Request>,
     Response extends ActionResponse,
-    RequestBuilder extends InstanceShardOperationRequestBuilder<Request, Response, RequestBuilder>> extends ManagedActionRequestLazyBuilder<
+    RequestBuilder extends InstanceShardOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestLazyBuilder<
         Request,
         Response> {
     private String index;
@@ -56,8 +56,7 @@ public abstract class InstanceShardOperationRequestBuilder<
         return (RequestBuilder) this;
     }
 
-    public void apply(Request request) {
-        super.apply(request);
+    protected void apply(Request request) {
         if (index != null) {
             request.index(index);
         }

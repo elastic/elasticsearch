@@ -156,8 +156,8 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserverSupplier;
+import org.elasticsearch.plugins.internal.DocumentParsingSupplier;
+import org.elasticsearch.plugins.internal.DocumentParsingSupplierPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.SettingsExtension;
@@ -610,8 +610,8 @@ class NodeConstruction {
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
-        DocumentParsingObserverSupplier documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
-        modules.bindToInstance(DocumentParsingObserverSupplier.class, documentParsingObserverSupplier);
+        DocumentParsingSupplier documentParsingSupplier = getDocumentParsingObserverSupplier();
+        modules.bindToInstance(DocumentParsingSupplier.class, documentParsingSupplier);
 
         final IngestService ingestService = new IngestService(
             clusterService,
@@ -622,7 +622,7 @@ class NodeConstruction {
             pluginsService.filterPlugins(IngestPlugin.class).toList(),
             client,
             IngestService.createGrokThreadWatchdog(environment, threadPool),
-            documentParsingObserverSupplier
+            documentParsingSupplier
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);
@@ -717,7 +717,7 @@ class NodeConstruction {
             .metaStateService(metaStateService)
             .valuesSourceRegistry(searchModule.getValuesSourceRegistry())
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
-            .documentParsingObserverSupplier(documentParsingObserverSupplier)
+            .documentParsingObserverSupplier(documentParsingSupplier)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
@@ -1271,9 +1271,9 @@ class NodeConstruction {
         logger.info("initialized");
     }
 
-    private DocumentParsingObserverSupplier getDocumentParsingObserverSupplier() {
-        return getSinglePlugin(DocumentParsingObserverPlugin.class).map(DocumentParsingObserverPlugin::getDocumentParsingObserverSupplier)
-            .orElse(DocumentParsingObserverSupplier.EMPTY_INSTANCE);
+    private DocumentParsingSupplier getDocumentParsingObserverSupplier() {
+        return getSinglePlugin(DocumentParsingSupplierPlugin.class).map(DocumentParsingSupplierPlugin::getDocumentParsingSupplier)
+            .orElse(DocumentParsingSupplier.EMPTY_INSTANCE);
     }
 
     /**

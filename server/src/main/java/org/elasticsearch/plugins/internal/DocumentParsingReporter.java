@@ -9,20 +9,13 @@
 package org.elasticsearch.plugins.internal;
 
 /**
- * An interface to allow wrapping an XContentParser and observe the events emitted while parsing
- * A default implementation returns a noop DocumentParsingObserver - does not wrap a XContentParser and
- * does not do anything upon finishing parsing.
+ * An interface to allow performing an action when parsing has been completed and successful
  */
 public interface DocumentParsingReporter {
     /**
      * a default noop implementation
      */
-    DocumentParsingReporter EMPTY_INSTANCE = new DocumentParsingReporter() {
-
-        @Override
-        public void onCompleted(String indexName, long normalizedBytesParsed) {}
-
-    };
+    DocumentParsingReporter EMPTY_INSTANCE = (indexName, normalizedBytesParsed) -> {};
 
     /**
      * An action to be performed upon finished parsing.

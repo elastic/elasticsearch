@@ -70,17 +70,17 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDocumentParsingObserverPlugin.class, IngestCommonPlugin.class);
+        return List.of(TestDocumentParsingSupplierPlugin.class, IngestCommonPlugin.class);
     }
 
-    public static class TestDocumentParsingObserverPlugin extends Plugin implements DocumentParsingObserverPlugin, IngestPlugin {
+    public static class TestDocumentParsingSupplierPlugin extends Plugin implements DocumentParsingSupplierPlugin, IngestPlugin {
 
-        public TestDocumentParsingObserverPlugin() {}
+        public TestDocumentParsingSupplierPlugin() {}
 
         @Override
-        public DocumentParsingObserverSupplier getDocumentParsingObserverSupplier() {
+        public DocumentParsingSupplier getDocumentParsingSupplier() {
             // returns a static instance, because we want to assert that the wrapping is called only once
-            return new DocumentParsingObserverSupplier() {
+            return new DocumentParsingSupplier() {
                 @Override
                 public DocumentParsingObserver getNewObserver() {
                     return new TestDocumentParsingObserver(0L);

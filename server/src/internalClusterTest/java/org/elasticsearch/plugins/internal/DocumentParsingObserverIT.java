@@ -64,16 +64,16 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDocumentParsingObserverPlugin.class);
+        return List.of(TestDocumentParsingSupplierPlugin.class);
     }
 
-    public static class TestDocumentParsingObserverPlugin extends Plugin implements DocumentParsingObserverPlugin, IngestPlugin {
+    public static class TestDocumentParsingSupplierPlugin extends Plugin implements DocumentParsingSupplierPlugin, IngestPlugin {
 
-        public TestDocumentParsingObserverPlugin() {}
+        public TestDocumentParsingSupplierPlugin() {}
 
         @Override
-        public DocumentParsingObserverSupplier getDocumentParsingObserverSupplier() {
-            return new DocumentParsingObserverSupplier() {
+        public DocumentParsingSupplier getDocumentParsingSupplier() {
+            return new DocumentParsingSupplier() {
                 @Override
                 public DocumentParsingObserver getNewObserver() {
                     return new TestDocumentParsingObserver();

@@ -12,8 +12,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 /**
  * An interface to allow wrapping an XContentParser and observe the events emitted while parsing
- * A default implementation returns a noop DocumentParsingObserver - does not wrap a XContentParser and
- * does not do anything upon finishing parsing.
+ * A default implementation returns a noop DocumentParsingObserver
  */
 public interface DocumentParsingObserver {
     /**
@@ -33,14 +32,16 @@ public interface DocumentParsingObserver {
 
     /**
      * Decorates a provided xContentParser with additional logic (gather some state).
-     * The Decorator parser should use a state from DocumentParsingObserver
-     * in order to perform an action upon finished parsing which will be aware of the state
-     * gathered during parsing
      *
      * @param xContentParser to be decorated
      * @return a decorator xContentParser
      */
     XContentParser wrapParser(XContentParser xContentParser);
 
+    /**
+     * Returns the state gathered during parsing
+     * @return a number representing a state parsed
+     */
     long normalisedBytesParsed();
+    // TODO PG should we rename this to something more abstract? or return <? extends Writeable> T
 }

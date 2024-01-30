@@ -44,29 +44,31 @@ import static org.mockito.Mockito.when;
 
 public class APMAgentSettingsTests extends ESTestCase {
     APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-    APMMeterService apmMeterService = mock();
     APMTelemetryProvider apmTelemetryProvider = mock(Mockito.RETURNS_DEEP_STUBS);
 
     /**
      * Check that when the tracer is enabled, it also sets the APM agent's recording system property to true.
      */
     public void testEnableTracing() {
-        boolean metricsEnabled = randomBoolean();
-        Settings update = Settings.builder()
-            .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
-            .put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), metricsEnabled)
-            .build();
-        apmAgentSettings.initAgentSystemProperties(update);
+        for (boolean metricsEnabled : List.of(true, false)) {
+            clearInvocations(apmAgentSettings, apmTelemetryProvider.getTracer());
 
-        verify(apmAgentSettings).setAgentSetting("recording", "true");
-        verify(apmAgentSettings).setAgentSetting("instrument", "true");
-        clearInvocations(apmAgentSettings);
+            Settings update = Settings.builder()
+                .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
+                .put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), metricsEnabled)
+                .build();
+            apmAgentSettings.initAgentSystemProperties(update);
 
-        Settings initial = Settings.builder().put(update).put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        triggerUpdateConsumer(initial, update);
-        verify(apmAgentSettings).setAgentSetting("recording", "true");
-        verify(apmAgentSettings).setAgentSetting("instrument", "true");
-        verify(apmTelemetryProvider.getTracer()).setEnabled(true);
+            verify(apmAgentSettings).setAgentSetting("recording", "true");
+            verify(apmAgentSettings).setAgentSetting("instrument", "true");
+            clearInvocations(apmAgentSettings);
+
+            Settings initial = Settings.builder().put(update).put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
+            triggerUpdateConsumer(initial, update);
+            verify(apmAgentSettings).setAgentSetting("recording", "true");
+            verify(apmAgentSettings).setAgentSetting("instrument", "true");
+            verify(apmTelemetryProvider.getTracer()).setEnabled(true);
+        }
     }
 
     public void testEnableTracingUsingLegacySetting() {
@@ -78,43 +80,49 @@ public class APMAgentSettingsTests extends ESTestCase {
     }
 
     public void testEnableMetrics() {
-        boolean tracingEnabled = randomBoolean();
-        Settings update = Settings.builder()
-            .put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true)
-            .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), tracingEnabled)
-            .build();
-        apmAgentSettings.initAgentSystemProperties(update);
+        for (boolean tracingEnabled : List.of(true, false)) {
+            clearInvocations(apmAgentSettings, apmTelemetryProvider.getMeterService());
 
-        verify(apmAgentSettings).setAgentSetting("recording", "true");
-        verify(apmAgentSettings).setAgentSetting("instrument", Boolean.toString(tracingEnabled));
-        clearInvocations(apmAgentSettings);
+            Settings update = Settings.builder()
+                .put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true)
+                .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), tracingEnabled)
+                .build();
+            apmAgentSettings.initAgentSystemProperties(update);
 
-        Settings initial = Settings.builder().put(update).put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), false).build();
-        triggerUpdateConsumer(initial, update);
-        verify(apmAgentSettings).setAgentSetting("recording", "true");
-        verify(apmMeterService).setEnabled(true);
+            verify(apmAgentSettings).setAgentSetting("recording", "true");
+            verify(apmAgentSettings).setAgentSetting("instrument", Boolean.toString(tracingEnabled));
+            clearInvocations(apmAgentSettings);
+
+            Settings initial = Settings.builder().put(update).put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), false).build();
+            triggerUpdateConsumer(initial, update);
+            verify(apmAgentSettings).setAgentSetting("recording", "true");
+            verify(apmTelemetryProvider.getMeterService()).setEnabled(true);
+        }
     }
 
     /**
      * Check that when the tracer is disabled, it also sets the APM agent's recording system property to false unless metrics are enabled.
      */
     public void testDisableTracing() {
-        boolean metricsEnabled = randomBoolean();
-        Settings update = Settings.builder()
-            .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false)
-            .put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), metricsEnabled)
-            .build();
-        apmAgentSettings.initAgentSystemProperties(update);
+        for (boolean metricsEnabled : List.of(true, false)) {
+            clearInvocations(apmAgentSettings, apmTelemetryProvider.getTracer());
 
-        verify(apmAgentSettings).setAgentSetting("recording", Boolean.toString(metricsEnabled));
-        verify(apmAgentSettings).setAgentSetting("instrument", "false");
-        clearInvocations(apmAgentSettings);
+            Settings update = Settings.builder()
+                .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false)
+                .put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), metricsEnabled)
+                .build();
+            apmAgentSettings.initAgentSystemProperties(update);
 
-        Settings initial = Settings.builder().put(update).put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        triggerUpdateConsumer(initial, update);
-        verify(apmAgentSettings).setAgentSetting("recording", Boolean.toString(metricsEnabled));
-        verify(apmAgentSettings).setAgentSetting("instrument", "false");
-        verify(apmTelemetryProvider.getTracer()).setEnabled(false);
+            verify(apmAgentSettings).setAgentSetting("recording", Boolean.toString(metricsEnabled));
+            verify(apmAgentSettings).setAgentSetting("instrument", "false");
+            clearInvocations(apmAgentSettings);
+
+            Settings initial = Settings.builder().put(update).put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+            triggerUpdateConsumer(initial, update);
+            verify(apmAgentSettings).setAgentSetting("recording", Boolean.toString(metricsEnabled));
+            verify(apmAgentSettings).setAgentSetting("instrument", "false");
+            verify(apmTelemetryProvider.getTracer()).setEnabled(false);
+        }
     }
 
     public void testDisableTracingUsingLegacySetting() {
@@ -126,21 +134,24 @@ public class APMAgentSettingsTests extends ESTestCase {
     }
 
     public void testDisableMetrics() {
-        boolean tracingEnabled = randomBoolean();
-        Settings update = Settings.builder()
-            .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), tracingEnabled)
-            .put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), false)
-            .build();
-        apmAgentSettings.initAgentSystemProperties(update);
+        for (boolean tracingEnabled : List.of(true, false)) {
+            clearInvocations(apmAgentSettings, apmTelemetryProvider.getMeterService());
 
-        verify(apmAgentSettings).setAgentSetting("recording", Boolean.toString(tracingEnabled));
-        verify(apmAgentSettings).setAgentSetting("instrument", Boolean.toString(tracingEnabled));
-        clearInvocations(apmAgentSettings);
+            Settings update = Settings.builder()
+                .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), tracingEnabled)
+                .put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), false)
+                .build();
+            apmAgentSettings.initAgentSystemProperties(update);
 
-        Settings initial = Settings.builder().put(update).put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
-        triggerUpdateConsumer(initial, update);
-        verify(apmAgentSettings).setAgentSetting("recording", Boolean.toString(tracingEnabled));
-        verify(apmMeterService).setEnabled(false);
+            verify(apmAgentSettings).setAgentSetting("recording", Boolean.toString(tracingEnabled));
+            verify(apmAgentSettings).setAgentSetting("instrument", Boolean.toString(tracingEnabled));
+            clearInvocations(apmAgentSettings);
+
+            Settings initial = Settings.builder().put(update).put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
+            triggerUpdateConsumer(initial, update);
+            verify(apmAgentSettings).setAgentSetting("recording", Boolean.toString(tracingEnabled));
+            verify(apmTelemetryProvider.getMeterService()).setEnabled(false);
+        }
     }
 
     private void triggerUpdateConsumer(Settings initial, Settings update) {
@@ -157,7 +168,7 @@ public class APMAgentSettingsTests extends ESTestCase {
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        apmAgentSettings.addClusterSettingsListeners(clusterService, apmTelemetryProvider, apmMeterService);
+        apmAgentSettings.addClusterSettingsListeners(clusterService, apmTelemetryProvider);
         clusterSettings.applySettings(update);
     }
 

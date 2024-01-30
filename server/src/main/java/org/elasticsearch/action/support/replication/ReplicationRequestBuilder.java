@@ -93,7 +93,7 @@ public abstract class ReplicationRequestBuilder<
     }
 
     protected void validate() throws IllegalStateException {
-        if (timeoutString != null && timeout != null) {
+        if (timeout != null && timeoutString != null) {
             throw new IllegalStateException("Must use only one setTimeout method");
         }
     }

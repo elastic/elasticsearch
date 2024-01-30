@@ -10,7 +10,9 @@ AVG(expression)
 ----
 
 `expression`::
-Numeric expression. If `null`, the function returns `null`.
+Numeric expression.
+//If `null`, the function returns `null`.
+// TODO: Remove comment when https://github.com/elastic/elasticsearch/issues/104900 is fixed.
 
 *Description*
 

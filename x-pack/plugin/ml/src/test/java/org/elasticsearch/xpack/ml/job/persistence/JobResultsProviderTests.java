@@ -914,26 +914,26 @@ public class JobResultsProviderTests extends ESTestCase {
         SearchResponse response = mock(SearchResponse.class);
         List<SearchHit> list = new ArrayList<>();
 
-        try (var jsonBuilder = XContentFactory.jsonBuilder()) {
-            for (Map<String, Object> map : source) {
-                Map<String, Object> _source = new HashMap<>(map);
+        for (Map<String, Object> map : source) {
+            Map<String, Object> _source = new HashMap<>(map);
 
-                Map<String, DocumentField> fields = new HashMap<>();
-                fields.put("field_1", new DocumentField("field_1", Collections.singletonList("foo")));
-                fields.put("field_2", new DocumentField("field_2", Collections.singletonList("foo")));
+            Map<String, DocumentField> fields = new HashMap<>();
+            fields.put("field_1", new DocumentField("field_1", Collections.singletonList("foo")));
+            fields.put("field_2", new DocumentField("field_2", Collections.singletonList("foo")));
 
-                SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()));
-                hit.addDocumentFields(fields, Collections.emptyMap());
+            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()));
+            hit.addDocumentFields(fields, Collections.emptyMap());
+            try (var jsonBuilder = XContentFactory.jsonBuilder()) {
                 hit.sourceRef(BytesReference.bytes(jsonBuilder.map(_source)), jsonBuilder.contentType());
-
-                list.add(hit);
             }
-            SearchHits hits = new SearchHits(list.toArray(SearchHits.EMPTY), new TotalHits(source.size(), TotalHits.Relation.EQUAL_TO), 1);
-            when(response.getHits()).thenReturn(hits.asUnpooled());
-            hits.decRef();
 
-            return response;
+            list.add(hit);
         }
+        SearchHits hits = new SearchHits(list.toArray(SearchHits.EMPTY), new TotalHits(source.size(), TotalHits.Relation.EQUAL_TO), 1);
+        when(response.getHits()).thenReturn(hits.asUnpooled());
+        hits.decRef();
+
+        return response;
     }
 
     private Client getBasicMockedClient() {

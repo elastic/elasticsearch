@@ -102,16 +102,17 @@ public class StateStreamerTests extends ESTestCase {
         SearchResponse searchResponse = mock(SearchResponse.class);
         SearchHit[] hits = new SearchHit[source.size()];
         int i = 0;
-        try (var jsonBuilder = XContentFactory.jsonBuilder()) {
-            for (Map<String, Object> s : source) {
+
+        for (Map<String, Object> s : source) {
+            try (var jsonBuilder = XContentFactory.jsonBuilder()) {
                 SearchHit hit = new SearchHit(1).sourceRef(BytesReference.bytes(jsonBuilder.map(s)), jsonBuilder.contentType());
                 hits[i++] = hit;
             }
-            SearchHits searchHits = new SearchHits(hits, null, (float) 0.0);
-            when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
-            searchHits.decRef();
-            return searchResponse;
         }
+        SearchHits searchHits = new SearchHits(hits, null, (float) 0.0);
+        when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
+        searchHits.decRef();
+        return searchResponse;
     }
 
     private static SearchRequestBuilder prepareSearchBuilder(SearchResponse response, QueryBuilder queryBuilder) {

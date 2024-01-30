@@ -11,8 +11,9 @@ not_privileged:
   cluster:
     - monitor
   indices:
-    - names: [ 'data-stream-lifecycle-*' ]
+    - names: [ 'data-stream-lifecycle-*', 'lazy-ds*' ]
       privileges:
         - read
         - write
         - view_index_metadata
+        - auto_configure

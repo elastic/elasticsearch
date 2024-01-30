@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
-import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.inference.services.settings.MlNodeDeployedServiceSettings;
 
 import java.io.IOException;

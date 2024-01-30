@@ -14,7 +14,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -264,7 +264,7 @@ public class ChunkedDataExtractor implements DataExtractor {
                 long latestTime = 0;
                 long totalHits = searchResponse.getHits().getTotalHits().value;
                 if (totalHits > 0) {
-                    Aggregations aggregations = searchResponse.getAggregations();
+                    InternalAggregations aggregations = searchResponse.getAggregations();
                     Min min = aggregations.get(EARLIEST_TIME);
                     earliestTime = (long) min.value();
                     Max max = aggregations.get(LATEST_TIME);
@@ -285,7 +285,7 @@ public class ChunkedDataExtractor implements DataExtractor {
                 LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
                 timingStatsReporter.reportSearchDuration(searchResponse.getTook());
 
-                Aggregations aggregations = searchResponse.getAggregations();
+                InternalAggregations aggregations = searchResponse.getAggregations();
                 // This can happen if all the indices the datafeed is searching are deleted after it started.
                 // Note that unlike the scrolled data summary method above we cannot check for this situation
                 // by checking for zero hits, because aggregations that work on rollups return zero hits even

@@ -21,6 +21,15 @@ import java.util.Map;
 
 public class OpenAiEmbeddingsModel extends OpenAiModel {
 
+    public static OpenAiEmbeddingsModel of(OpenAiEmbeddingsModel model, Map<String, Object> taskSettings) {
+        if (taskSettings == null || taskSettings.isEmpty()) {
+            return model;
+        }
+
+        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
+        return new OpenAiEmbeddingsModel(model, OpenAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+    }
+
     public OpenAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -77,14 +86,5 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
     @Override
     public ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
-    }
-
-    public OpenAiEmbeddingsModel overrideWith(Map<String, Object> taskSettings) {
-        if (taskSettings == null || taskSettings.isEmpty()) {
-            return this;
-        }
-
-        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
-        return new OpenAiEmbeddingsModel(this, getTaskSettings().overrideWith(requestTaskSettings));
     }
 }

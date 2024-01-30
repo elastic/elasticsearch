@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -108,7 +108,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         }
 
         SearchInterval searchInterval = new SearchInterval(context.start, context.end);
-        Aggregations aggs = search();
+        InternalAggregations aggs = search();
         if (aggs == null) {
             LOGGER.trace(() -> "[" + context.jobId + "] extraction finished");
             hasNext = false;
@@ -118,7 +118,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         return new Result(searchInterval, Optional.of(processAggs(aggs)));
     }
 
-    private Aggregations search() {
+    private InternalAggregations search() {
         // Compare to the normal aggregation implementation, this search does not search for the previous bucket's data.
         // For composite aggs, since it is scrolling, it is not really possible to know the previous pages results in the current page.
         // Aggregations like derivative cannot work within composite aggs, for now.
@@ -142,7 +142,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         try {
             LOGGER.trace(() -> "[" + context.jobId + "] Search composite response was obtained");
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-            Aggregations aggregations = searchResponse.getAggregations();
+            InternalAggregations aggregations = searchResponse.getAggregations();
             if (aggregations == null) {
                 return null;
             }
@@ -175,7 +175,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         return searchResponse;
     }
 
-    private InputStream processAggs(Aggregations aggs) throws IOException {
+    private InputStream processAggs(InternalAggregations aggs) throws IOException {
         AggregationToJsonProcessor aggregationToJsonProcessor = new AggregationToJsonProcessor(
             context.timeField,
             context.fields,

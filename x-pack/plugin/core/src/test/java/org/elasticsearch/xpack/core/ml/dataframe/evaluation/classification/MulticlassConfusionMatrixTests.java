@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -102,7 +101,7 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
     }
 
     public void testProcess() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             List.of(
                 mockTerms(
                     MulticlassConfusionMatrix.STEP_1_AGGREGATE_BY_ACTUAL_CLASS,
@@ -172,7 +171,7 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
     }
 
     public void testProcess_OtherClassesCountGreaterThanZero() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             List.of(
                 mockTerms(
                     MulticlassConfusionMatrix.STEP_1_AGGREGATE_BY_ACTUAL_CLASS,
@@ -257,7 +256,7 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
                 mockCardinality(MulticlassConfusionMatrix.STEP_1_CARDINALITY_OF_ACTUAL_CLASS, 2L)
             )
         );
-        Aggregations aggsStep2 = new Aggregations(
+        InternalAggregations aggsStep2 = InternalAggregations.from(
             List.of(
                 mockFilters(
                     MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_ACTUAL_CLASS,
@@ -302,7 +301,7 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
                 )
             )
         );
-        Aggregations aggsStep3 = new Aggregations(
+        InternalAggregations aggsStep3 = InternalAggregations.from(
             List.of(
                 mockFilters(
                     MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_ACTUAL_CLASS,

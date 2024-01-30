@@ -62,6 +62,7 @@ public class CohereEmbeddingsRequest implements Request {
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
+        httpPost.setHeader(CohereUtils.createRequestSourceHeader());
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }

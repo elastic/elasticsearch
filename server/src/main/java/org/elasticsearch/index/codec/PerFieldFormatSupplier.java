@@ -57,12 +57,11 @@ public class PerFieldFormatSupplier {
     }
 
     private PostingsFormat internalGetPostingsFormatForField(String field) {
-        if (mapperService == null) {
-            return es812PostingsFormat;
-        }
-        final PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
-        if (format != null) {
-            return format;
+        if (mapperService != null) {
+            final PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
+            if (format != null) {
+                return format;
+            }
         }
         // return our own posting format using PFOR
         return es812PostingsFormat;

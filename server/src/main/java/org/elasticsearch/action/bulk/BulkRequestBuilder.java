@@ -41,7 +41,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
         WriteRequestBuilder<BulkRequestBuilder> {
     private final String globalIndex;
     /*
-     * The following 3 vairiables hold the list of requests that make up this bulk. Only one can be non-empty. That is, users can't add
+     * The following 3 variables hold the list of requests that make up this bulk. Only one can be non-empty. That is, users can't add
      * some IndexRequests and some IndexRequestBuilders. They need to pick one (preferably builders) and stick with it.
      */
     private final List<DocWriteRequest<?>> requests = new ArrayList<>();

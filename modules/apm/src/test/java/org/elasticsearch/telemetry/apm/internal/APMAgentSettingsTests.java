@@ -8,45 +8,91 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
 import java.util.List;
+import java.util.Set;
 
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_AGENT_SETTINGS;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_API_KEY_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_SECRET_TOKEN_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TRACING_APM_API_KEY_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TRACING_APM_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TRACING_APM_NAMES_EXCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TRACING_APM_NAMES_INCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TRACING_APM_SANITIZE_FIELD_NAMES;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TRACING_APM_SECRET_TOKEN_SETTING;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class APMAgentSettingsTests extends ESTestCase {
+    APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
+    APMMeterService apmMeterService = mock();
+    APMTelemetryProvider apmTelemetryProvider = mock(Mockito.RETURNS_DEEP_STUBS);
 
     /**
      * Check that when the tracer is enabled, it also sets the APM agent's recording system property to true.
      */
     public void testEnableTracing() {
         boolean metricsEnabled = randomBoolean();
-
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder()
-            .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
-            .put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), metricsEnabled)
+        Settings update = Settings.builder()
+            .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
+            .put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), metricsEnabled)
             .build();
+        apmAgentSettings.initAgentSystemProperties(update);
+
+        verify(apmAgentSettings).setAgentSetting("recording", "true");
+        verify(apmAgentSettings).setAgentSetting("instrument", "true");
+        clearInvocations(apmAgentSettings);
+
+        Settings initial = Settings.builder().put(update).put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
+        triggerUpdateConsumer(initial, update);
+        verify(apmAgentSettings).setAgentSetting("recording", "true");
+        verify(apmAgentSettings).setAgentSetting("instrument", "true");
+        verify(apmTelemetryProvider.getTracer()).setEnabled(true);
+    }
+
+    public void testEnableTracingUsingLegacySetting() {
+        Settings settings = Settings.builder().put(TRACING_APM_ENABLED_SETTING.getKey(), true).build();
         apmAgentSettings.initAgentSystemProperties(settings);
 
         verify(apmAgentSettings).setAgentSetting("recording", "true");
         verify(apmAgentSettings).setAgentSetting("instrument", "true");
     }
 
-    public void testEnableTracingUsingLegacySetting() {
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder().put(APMAgentSettings.TRACING_APM_ENABLED_SETTING.getKey(), true).build();
-        apmAgentSettings.initAgentSystemProperties(settings);
+    public void testEnableMetrics() {
+        boolean tracingEnabled = randomBoolean();
+        Settings update = Settings.builder()
+            .put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true)
+            .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), tracingEnabled)
+            .build();
+        apmAgentSettings.initAgentSystemProperties(update);
 
         verify(apmAgentSettings).setAgentSetting("recording", "true");
-        verify(apmAgentSettings).setAgentSetting("instrument", "true");
+        verify(apmAgentSettings).setAgentSetting("instrument", Boolean.toString(tracingEnabled));
+        clearInvocations(apmAgentSettings);
+
+        Settings initial = Settings.builder().put(update).put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), false).build();
+        triggerUpdateConsumer(initial, update);
+        verify(apmAgentSettings).setAgentSetting("recording", "true");
+        verify(apmMeterService).setEnabled(true);
     }
 
     /**
@@ -54,35 +100,74 @@ public class APMAgentSettingsTests extends ESTestCase {
      */
     public void testDisableTracing() {
         boolean metricsEnabled = randomBoolean();
-
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder()
-            .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false)
-            .put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), metricsEnabled)
+        Settings update = Settings.builder()
+            .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false)
+            .put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), metricsEnabled)
             .build();
-        apmAgentSettings.initAgentSystemProperties(settings);
+        apmAgentSettings.initAgentSystemProperties(update);
 
         verify(apmAgentSettings).setAgentSetting("recording", Boolean.toString(metricsEnabled));
         verify(apmAgentSettings).setAgentSetting("instrument", "false");
+        clearInvocations(apmAgentSettings);
+
+        Settings initial = Settings.builder().put(update).put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        triggerUpdateConsumer(initial, update);
+        verify(apmAgentSettings).setAgentSetting("recording", Boolean.toString(metricsEnabled));
+        verify(apmAgentSettings).setAgentSetting("instrument", "false");
+        verify(apmTelemetryProvider.getTracer()).setEnabled(false);
     }
 
     public void testDisableTracingUsingLegacySetting() {
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder().put(APMAgentSettings.TRACING_APM_ENABLED_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder().put(TRACING_APM_ENABLED_SETTING.getKey(), false).build();
         apmAgentSettings.initAgentSystemProperties(settings);
 
         verify(apmAgentSettings).setAgentSetting("recording", "false");
         verify(apmAgentSettings).setAgentSetting("instrument", "false");
     }
 
+    public void testDisableMetrics() {
+        boolean tracingEnabled = randomBoolean();
+        Settings update = Settings.builder()
+            .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), tracingEnabled)
+            .put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), false)
+            .build();
+        apmAgentSettings.initAgentSystemProperties(update);
+
+        verify(apmAgentSettings).setAgentSetting("recording", Boolean.toString(tracingEnabled));
+        verify(apmAgentSettings).setAgentSetting("instrument", Boolean.toString(tracingEnabled));
+        clearInvocations(apmAgentSettings);
+
+        Settings initial = Settings.builder().put(update).put(TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
+        triggerUpdateConsumer(initial, update);
+        verify(apmAgentSettings).setAgentSetting("recording", Boolean.toString(tracingEnabled));
+        verify(apmMeterService).setEnabled(false);
+    }
+
+    private void triggerUpdateConsumer(Settings initial, Settings update) {
+        ClusterService clusterService = mock();
+        ClusterSettings clusterSettings = new ClusterSettings(
+            initial,
+            Set.of(
+                TELEMETRY_TRACING_ENABLED_SETTING,
+                TELEMETRY_METRICS_ENABLED_SETTING,
+                TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,
+                TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING,
+                TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
+                APM_AGENT_SETTINGS
+            )
+        );
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        apmAgentSettings.addClusterSettingsListeners(clusterService, apmTelemetryProvider, apmMeterService);
+        clusterSettings.applySettings(update);
+    }
+
     /**
      * Check that when cluster settings are synchronised with the system properties, agent settings are set.
      */
     public void testSetAgentSettings() {
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
         Settings settings = Settings.builder()
-            .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
-            .put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "span_compression_enabled", "true")
+            .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
+            .put(APM_AGENT_SETTINGS.getKey() + "span_compression_enabled", "true")
             .build();
         apmAgentSettings.initAgentSystemProperties(settings);
 
@@ -91,9 +176,8 @@ public class APMAgentSettingsTests extends ESTestCase {
     }
 
     public void testSetAgentsSettingsWithLegacyPrefix() {
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
         Settings settings = Settings.builder()
-            .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
+            .put(TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
             .put("tracing.apm.agent.span_compression_enabled", "true")
             .build();
         apmAgentSettings.initAgentSystemProperties(settings);
@@ -106,57 +190,54 @@ public class APMAgentSettingsTests extends ESTestCase {
      * Check that invalid or forbidden APM agent settings are rejected.
      */
     public void testRejectForbiddenOrUnknownAgentSettings() {
-        List<String> prefixes = List.of(APMAgentSettings.APM_AGENT_SETTINGS.getKey(), "tracing.apm.agent.");
+        List<String> prefixes = List.of(APM_AGENT_SETTINGS.getKey(), "tracing.apm.agent.");
         for (String prefix : prefixes) {
             Settings settings = Settings.builder().put(prefix + "unknown", "true").build();
-            Exception exception = expectThrows(
-                IllegalArgumentException.class,
-                () -> APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(settings)
-            );
+            Exception exception = expectThrows(IllegalArgumentException.class, () -> APM_AGENT_SETTINGS.getAsMap(settings));
             assertThat(exception.getMessage(), containsString("[" + prefix + "unknown]"));
         }
         // though, accept / ignore nested global_labels
         for (String prefix : prefixes) {
             Settings settings = Settings.builder().put(prefix + "global_labels." + randomAlphaOfLength(5), "123").build();
-            APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(settings);
+            APM_AGENT_SETTINGS.getAsMap(settings);
         }
     }
 
     public void testTelemetryTracingNamesIncludeFallback() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TRACING_APM_NAMES_INCLUDE_SETTING.getKey(), "abc,xyz").build();
+        Settings settings = Settings.builder().put(TRACING_APM_NAMES_INCLUDE_SETTING.getKey(), "abc,xyz").build();
 
-        List<String> included = APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
+        List<String> included = TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
 
         assertThat(included, containsInAnyOrder("abc", "xyz"));
     }
 
     public void testTelemetryTracingNamesExcludeFallback() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TRACING_APM_NAMES_EXCLUDE_SETTING.getKey(), "abc,xyz").build();
+        Settings settings = Settings.builder().put(TRACING_APM_NAMES_EXCLUDE_SETTING.getKey(), "abc,xyz").build();
 
-        List<String> included = APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
+        List<String> included = TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
 
         assertThat(included, containsInAnyOrder("abc", "xyz"));
     }
 
     public void testTelemetryTracingSanitizeFieldNamesFallback() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TRACING_APM_SANITIZE_FIELD_NAMES.getKey(), "abc,xyz").build();
+        Settings settings = Settings.builder().put(TRACING_APM_SANITIZE_FIELD_NAMES.getKey(), "abc,xyz").build();
 
-        List<String> included = APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings);
+        List<String> included = TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings);
 
         assertThat(included, containsInAnyOrder("abc", "xyz"));
     }
 
     public void testTelemetryTracingSanitizeFieldNamesFallbackDefault() {
-        List<String> included = APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(Settings.EMPTY);
+        List<String> included = TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(Settings.EMPTY);
         assertThat(included, hasItem("password")); // and more defaults
     }
 
     public void testTelemetrySecretTokenFallback() {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(APMAgentSettings.TRACING_APM_SECRET_TOKEN_SETTING.getKey(), "verysecret");
+        secureSettings.setString(TRACING_APM_SECRET_TOKEN_SETTING.getKey(), "verysecret");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
 
-        try (SecureString secureString = APMAgentSettings.TELEMETRY_SECRET_TOKEN_SETTING.get(settings)) {
+        try (SecureString secureString = TELEMETRY_SECRET_TOKEN_SETTING.get(settings)) {
             assertEquals("verysecret", secureString.toString());
 
         }
@@ -164,10 +245,10 @@ public class APMAgentSettingsTests extends ESTestCase {
 
     public void testTelemetryApiKeyFallback() {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(APMAgentSettings.TRACING_APM_API_KEY_SETTING.getKey(), "abc");
+        secureSettings.setString(TRACING_APM_API_KEY_SETTING.getKey(), "abc");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
 
-        try (SecureString secureString = APMAgentSettings.TELEMETRY_API_KEY_SETTING.get(settings)) {
+        try (SecureString secureString = TELEMETRY_API_KEY_SETTING.get(settings)) {
             assertEquals("abc", secureString.toString());
 
         }
@@ -177,9 +258,9 @@ public class APMAgentSettingsTests extends ESTestCase {
      * Check that invalid or forbidden APM agent settings are rejected if their last part resembles an allowed setting.
      */
     public void testRejectUnknownSettingResemblingAnAllowedOne() {
-        Settings settings = Settings.builder().put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "unknown.service_name", "true").build();
+        Settings settings = Settings.builder().put(APM_AGENT_SETTINGS.getKey() + "unknown.service_name", "true").build();
 
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(settings));
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> APM_AGENT_SETTINGS.getAsMap(settings));
         assertThat(exception.getMessage(), containsString("[telemetry.agent.unknown.service_name]"));
     }
 }

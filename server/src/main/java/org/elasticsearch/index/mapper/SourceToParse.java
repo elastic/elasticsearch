@@ -29,7 +29,6 @@ public class SourceToParse {
 
     private final Map<String, String> dynamicTemplates;
     private final DocumentParsingObserver documentParsingObserver;
-    private boolean pipelinesHaveRun;
 
     public SourceToParse(
         @Nullable String id,

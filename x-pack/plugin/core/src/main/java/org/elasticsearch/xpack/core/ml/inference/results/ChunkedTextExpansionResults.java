@@ -41,8 +41,8 @@ public class ChunkedTextExpansionResults extends ChunkedNlpInferenceResults {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("text", matchedText);
-            builder.startObject("inference");
+            builder.field(TEXT, matchedText);
+            builder.startObject(INFERENCE);
             for (var weightedToken : weightedTokens) {
                 weightedToken.toXContent(builder, params);
             }
@@ -53,9 +53,9 @@ public class ChunkedTextExpansionResults extends ChunkedNlpInferenceResults {
 
         public Map<String, Object> asMap() {
             var map = new HashMap<String, Object>();
-            map.put("text", matchedText);
+            map.put(TEXT, matchedText);
             map.put(
-                "inference",
+                INFERENCE,
                 weightedTokens.stream()
                     .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight))
             );

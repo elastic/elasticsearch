@@ -81,6 +81,25 @@ public interface InferenceService extends Closeable {
     void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener);
 
     /**
+     * Chunk long text according to {@code chunkingOptions} or the
+     * model defaults if {@code chunkingOptions} contains unset
+     * values.
+     *
+     * @param model The model
+     * @param input Inference input
+     * @param taskSettings Settings in the request to override the model's defaults
+     * @param chunkingOptions The window and span options to apply
+     * @param listener Inference result listener
+     */
+    void chunkedInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        ChunkingOptions chunkingOptions,
+        ActionListener<ChunkedInferenceServiceResults> listener
+    );
+
+    /**
      * Start or prepare the model for use.
      * @param model The model
      * @param listener The listener

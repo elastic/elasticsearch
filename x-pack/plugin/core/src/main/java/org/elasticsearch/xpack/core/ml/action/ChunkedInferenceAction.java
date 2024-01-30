@@ -53,7 +53,7 @@ public class ChunkedInferenceAction extends ActionType<ChunkedInferenceAction.Re
     }
 
     public ChunkedInferenceAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

@@ -38,16 +38,16 @@ public class ChunkedTextEmbeddingResults extends ChunkedNlpInferenceResults {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("text", matchedText);
-            builder.field("inference", embedding);
+            builder.field(TEXT, matchedText);
+            builder.field(INFERENCE, embedding);
             builder.endObject();
             return builder;
         }
 
         public Map<String, Object> asMap() {
             var map = new HashMap<String, Object>();
-            map.put("text", matchedText);
-            map.put("inference", embedding);
+            map.put(TEXT, matchedText);
+            map.put(INFERENCE, embedding);
             return map;
         }
 

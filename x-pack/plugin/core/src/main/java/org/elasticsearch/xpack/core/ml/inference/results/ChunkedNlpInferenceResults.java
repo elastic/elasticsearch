@@ -13,6 +13,9 @@ import java.io.IOException;
 
 public abstract class ChunkedNlpInferenceResults extends NlpInferenceResults {
 
+    static String TEXT = "text";
+    static String INFERENCE = "inference";
+
     ChunkedNlpInferenceResults(boolean isTruncated) {
         super(isTruncated);
     }

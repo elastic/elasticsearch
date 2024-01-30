@@ -88,9 +88,11 @@ public class PerFieldFormatSupplier {
     }
 
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-        Mapper mapper = mapperService.mappingLookup().getMapper(field);
-        if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
-            return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat);
+        if (mapperService != null) {
+            Mapper mapper = mapperService.mappingLookup().getMapper(field);
+            if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
+                return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat);
+            }
         }
         return knnVectorsFormat;
     }
@@ -103,14 +105,15 @@ public class PerFieldFormatSupplier {
     }
 
     boolean useTSDBDocValuesFormat(final String field) {
-        return mapperService.getIndexSettings().isES87TSDBCodecEnabled()
+        return mapperService != null
+            && mapperService.getIndexSettings().isES87TSDBCodecEnabled()
             && isTimeSeriesModeIndex()
             && isNotSpecialField(field)
             && (isCounterOrGaugeMetricType(field) || isTimestampField(field));
     }
 
     private boolean isTimeSeriesModeIndex() {
-        return IndexMode.TIME_SERIES.equals(mapperService.getIndexSettings().getMode());
+        return mapperService != null && IndexMode.TIME_SERIES.equals(mapperService.getIndexSettings().getMode());
     }
 
     private boolean isCounterOrGaugeMetricType(String field) {

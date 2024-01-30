@@ -125,7 +125,7 @@ public final class Zstd813StoredFieldsFormat extends Lucene90CompressingStoredFi
             buffer = ArrayUtil.growNoCopy(buffer, len);
             buffersInput.readBytes(buffer, 0, len);
 
-            final int maxCompressedLength = Zstd.getMaxCompressedLen(len);
+            final int maxCompressedLength = Zstd.compressBound(len);
             compressed = ArrayUtil.growNoCopy(compressed, maxCompressedLength);
 
             final int compressedLen = Zstd.compress(

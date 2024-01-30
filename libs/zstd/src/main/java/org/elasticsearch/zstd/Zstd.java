@@ -83,7 +83,7 @@ public final class Zstd {
     /**
      * Return the maximum number of compressed bytes given an input length.
      */
-    public static int getMaxCompressedLen(int srcLen) {
+    public static int compressBound(int srcLen) {
         long ret = library().ZSTD_compressBound(srcLen);
         if (library().ZSTD_isError(ret)) {
             throw new IllegalArgumentException(library().ZSTD_getErrorName(ret));

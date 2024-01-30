@@ -16,13 +16,13 @@ import java.util.Arrays;
 
 public class ZstdTests extends ESTestCase {
 
-    public void testMaxCompressedLength() {
-        assertThat(Zstd.getMaxCompressedLen(0), Matchers.greaterThanOrEqualTo(1));
-        assertThat(Zstd.getMaxCompressedLen(100), Matchers.greaterThanOrEqualTo(100));
-        expectThrows(IllegalArgumentException.class, () -> Zstd.getMaxCompressedLen(Integer.MAX_VALUE));
-        expectThrows(IllegalArgumentException.class, () -> Zstd.getMaxCompressedLen(-1));
-        expectThrows(IllegalArgumentException.class, () -> Zstd.getMaxCompressedLen(-100));
-        expectThrows(IllegalArgumentException.class, () -> Zstd.getMaxCompressedLen(Integer.MIN_VALUE));
+    public void testCompressBound() {
+        assertThat(Zstd.compressBound(0), Matchers.greaterThanOrEqualTo(1));
+        assertThat(Zstd.compressBound(100), Matchers.greaterThanOrEqualTo(100));
+        expectThrows(IllegalArgumentException.class, () -> Zstd.compressBound(Integer.MAX_VALUE));
+        expectThrows(IllegalArgumentException.class, () -> Zstd.compressBound(-1));
+        expectThrows(IllegalArgumentException.class, () -> Zstd.compressBound(-100));
+        expectThrows(IllegalArgumentException.class, () -> Zstd.compressBound(Integer.MIN_VALUE));
     }
 
     public void testCompressValidation() {
@@ -99,7 +99,7 @@ public class ZstdTests extends ESTestCase {
 
     private void doTestRoundtrip(byte[] data) {
         {
-            byte[] compressed = new byte[Zstd.getMaxCompressedLen(data.length)];
+            byte[] compressed = new byte[Zstd.compressBound(data.length)];
             final int compressedLength = Zstd.compress(ByteBuffer.wrap(compressed), ByteBuffer.wrap(data), randomIntBetween(-3, 9));
             compressed = Arrays.copyOf(compressed, compressedLength);
             byte[] restored = new byte[data.length];
@@ -112,7 +112,7 @@ public class ZstdTests extends ESTestCase {
             final int decompressedOffset = randomIntBetween(1, 1000);
             byte[] dataCopy = new byte[decompressedOffset + data.length];
             System.arraycopy(data, 0, dataCopy, decompressedOffset, data.length);
-            byte[] compressed = new byte[compressedOffset + Zstd.getMaxCompressedLen(data.length)];
+            byte[] compressed = new byte[compressedOffset + Zstd.compressBound(data.length)];
             final int compressedLength = Zstd.compress(
                 ByteBuffer.wrap(compressed, compressedOffset, compressed.length - compressedOffset),
                 ByteBuffer.wrap(dataCopy, decompressedOffset, data.length),

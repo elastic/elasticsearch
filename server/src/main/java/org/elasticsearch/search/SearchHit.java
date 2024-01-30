@@ -354,7 +354,12 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         out.writeVLong(primaryTerm);
         out.writeBytesReference(source);
         if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_HIT_CONTENT_TYPE_ADDED)) {
-            out.writeOptionalEnum(sourceContentType);
+            if (sourceContentType == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                XContentHelper.writeTo(out, sourceContentType);
+            }
         }
         if (explanation == null) {
             out.writeBoolean(false);

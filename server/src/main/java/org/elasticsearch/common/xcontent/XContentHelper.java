@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -719,10 +720,11 @@ public class XContentHelper {
 
     /**
      * Serialises new XContentType VND_ values in a bwc manner
-     * TODO remove in ES v9
+     *
      * @param out stream output of the destination node
      * @param xContentType an instance to serialize
      */
+    @UpdateForV9 // Remove in ES v9
     public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
         if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // when sending an enumeration to <v8 node it does not have new VND_ XContentType instances

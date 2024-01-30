@@ -19,8 +19,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNotType;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 public abstract class NumericAggregate extends AggregateFunction implements ToAggregator {
 
@@ -35,10 +34,22 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
     @Override
     protected TypeResolution resolveType() {
         if (supportsDates()) {
-            return TypeResolutions.isType(this, e -> e.isNumeric() || e == DataTypes.DATETIME, sourceText(), DEFAULT, "numeric", "datetime")
-                .and(isNotType(field(), DataTypes.UNSIGNED_LONG, sourceText(), DEFAULT));
+            return TypeResolutions.isType(
+                this,
+                e -> e.isNumeric() && e != DataTypes.UNSIGNED_LONG || e == DataTypes.DATETIME,
+                sourceText(),
+                DEFAULT,
+                "numeric except unsigned_long",
+                "datetime"
+            );
         }
-        return isNumeric(field(), sourceText(), DEFAULT).and(isNotType(field(), DataTypes.UNSIGNED_LONG, sourceText(), DEFAULT));
+        return isType(
+            field(),
+            dt -> dt.isNumeric() && dt != DataTypes.UNSIGNED_LONG,
+            sourceText(),
+            DEFAULT,
+            "numeric except unsigned_long"
+        );
     }
 
     protected boolean supportsDates() {

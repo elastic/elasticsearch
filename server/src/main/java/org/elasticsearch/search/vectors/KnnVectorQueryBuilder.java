@@ -115,7 +115,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_K_NUMCANDS_AS_OPTIONAL_PARAMS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_QUERY_NUMCANDS_AS_OPTIONAL_PARAM)) {
             this.numCands = in.readOptionalVInt();
         } else {
             this.numCands = in.readVInt();
@@ -175,7 +175,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_K_NUMCANDS_AS_OPTIONAL_PARAMS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_QUERY_NUMCANDS_AS_OPTIONAL_PARAM)) {
             out.writeOptionalVInt(numCands);
         } else {
             if (numCands == null) {

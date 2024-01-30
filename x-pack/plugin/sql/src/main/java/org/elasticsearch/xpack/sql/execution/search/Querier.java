@@ -31,6 +31,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -382,7 +383,7 @@ public class Querier {
             }
 
             @Override
-            public Aggregations getAggregations() {
+            public InternalAggregations getAggregations() {
                 throw new SqlIllegalArgumentException("No group-by/aggs defined");
             }
         });

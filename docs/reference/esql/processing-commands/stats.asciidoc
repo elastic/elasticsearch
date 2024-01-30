@@ -6,7 +6,8 @@
 
 [source,esql]
 ----
-STATS [column1 =] expression1[, ..., [columnN =] expressionN] [BY grouping_expression1[, ..., grouping_expressionN]]
+STATS [column1 =] expression1[, ..., [columnN =] expressionN] 
+[BY grouping_expression1[, ..., grouping_expressionN]]
 ----
 
 *Parameters*
@@ -20,6 +21,8 @@ An expression that computes an aggregated value.
 
 `grouping_expressionX`::
 An expression that outputs the values to group by.
+
+NOTE: Individual `null` values are skipped when computing aggregations.
 
 *Description*
 
@@ -86,7 +89,7 @@ include::{esql-specs}/stats.csv-spec[tag=statsGroupByMultipleValues]
 ----
 
 Both the aggregating functions and the grouping expressions accept other
-functions. This can come in useful for using `STATS...BY` on multivalue columns.
+functions. This is useful for using `STATS...BY` on multivalue columns.
 For example, to calculate the average salary change, you can use `MV_AVG` to
 first average the multiple values per employee, and use the result with the
 `AVG` function:

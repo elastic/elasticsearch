@@ -12,12 +12,14 @@ COUNT([expression])
 *Parameters*
 
 `expression`::
-Expression that outputs values to be counted. If omitted, returns a count all
-(the number of rows).
+Expression that outputs values to be counted.
+If omitted, equivalent to `COUNT(*)` (the number of rows).
+
 
 *Description*
 
 Returns the total number (count) of input values.
+See also <<esql-agg-count-distinct-approximate>>.
 
 *Supported types*
 

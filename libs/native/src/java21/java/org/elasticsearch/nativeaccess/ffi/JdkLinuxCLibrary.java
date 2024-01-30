@@ -36,19 +36,7 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
         "prctl",
         FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG, JAVA_LONG, JAVA_LONG)
     );
-    private static final MethodHandle syscall1$mh = downcallHandle(
-        "syscall",
-        FunctionDescriptor.of(JAVA_LONG, JAVA_LONG, JAVA_INT),
-        CAPTURE_ERRNO_OPTION,
-        Linker.Option.firstVariadicArg(1)
-    );
-    private static final MethodHandle syscall2$mh = downcallHandle(
-        "syscall",
-        FunctionDescriptor.of(JAVA_LONG, JAVA_LONG, JAVA_INT, JAVA_INT),
-        CAPTURE_ERRNO_OPTION,
-        Linker.Option.firstVariadicArg(1)
-    );
-    private static final MethodHandle syscall3$mh = downcallHandle(
+    private static final MethodHandle syscall$mh = downcallHandle(
         "syscall",
         FunctionDescriptor.of(JAVA_LONG, JAVA_LONG, JAVA_INT, JAVA_INT, JAVA_LONG),
         CAPTURE_ERRNO_OPTION,
@@ -144,27 +132,9 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     }
 
     @Override
-    public long syscall(long number, int operation) {
-        try {
-            return (long) syscall1$mh.invokeExact(number, operation);
-        } catch (Throwable t) {
-            throw new AssertionError(t);
-        }
-    }
-
-    @Override
-    public long syscall(long number, int operation, int flags) {
-        try {
-            return (long) syscall2$mh.invokeExact(number, operation, flags);
-        } catch (Throwable t) {
-            throw new AssertionError(t);
-        }
-    }
-
-    @Override
     public long syscall(long number, int operation, int flags, long address) {
         try {
-            return (long) syscall3$mh.invokeExact(number, operation, flags, address);
+            return (long) syscall$mh.invokeExact(number, operation, flags, address);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

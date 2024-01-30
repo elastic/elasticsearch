@@ -40,16 +40,6 @@ class JnaLinuxCLibrary implements LinuxCLibrary {
     }
 
     @Override
-    public long syscall(long number, int operation) {
-        return JnaStaticLinuxCLibrary.syscall(new NativeLong(number), operation).longValue();
-    }
-
-    @Override
-    public long syscall(long number, int operation, int flags) {
-        return JnaStaticLinuxCLibrary.syscall(new NativeLong(number), operation, flags).longValue();
-    }
-
-    @Override
     public long syscall(long number, int operation, int flags, long address) {
         return JnaStaticLinuxCLibrary.syscall(new NativeLong(number), operation, flags, address).longValue();
     }

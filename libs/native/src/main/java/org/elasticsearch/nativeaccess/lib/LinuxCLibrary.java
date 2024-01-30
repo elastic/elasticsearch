@@ -42,8 +42,6 @@ public interface LinuxCLibrary {
      * used to call seccomp(2), its too new...
      * this is the only way, DON'T use it on some other architecture unless you know wtf you are doing
      */
-    long syscall(long number, int operation);
-    long syscall(long number, int operation, int flags);
     long syscall(long number, int operation, int flags, long address);
 
     int fallocate(int fd, int mode, long offset, long length);

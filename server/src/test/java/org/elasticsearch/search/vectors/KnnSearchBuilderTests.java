@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -53,13 +52,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k + 20, 1000);
 
-        KnnSearchBuilder builder = new KnnSearchBuilder(
-            field,
-            vector,
-            randomBoolean() ? null : k,
-            randomBoolean() ? null : numCands,
-            randomBoolean() ? null : randomFloat()
-        );
+        KnnSearchBuilder builder = new KnnSearchBuilder(field, vector, k, numCands, randomBoolean() ? null : randomFloat());
         if (randomBoolean()) {
             builder.boost(randomFloat());
         }
@@ -91,7 +84,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
 
     @Override
     protected KnnSearchBuilder doParseInstance(XContentParser parser) throws IOException {
-        return KnnSearchBuilder.fromXContent(parser);
+        return KnnSearchBuilder.fromXContent(parser).build(DEFAULT_SIZE);
     }
 
     @Override
@@ -106,7 +99,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
 
     @Override
     protected KnnSearchBuilder mutateInstance(KnnSearchBuilder instance) {
-        switch (random().nextInt(9)) {
+        switch (random().nextInt(7)) {
             case 0:
                 String newField = randomValueOtherThan(instance.field, () -> randomAlphaOfLength(5));
                 return new KnnSearchBuilder(newField, instance.queryVector, instance.k, instance.numCands, instance.similarity).boost(
@@ -118,16 +111,13 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.boost
                 );
             case 2:
-                Integer newK = randomValueOtherThan(instance.k, () -> Optional.ofNullable(instance.k).orElse(DEFAULT_SIZE) + 10);
+                // given how the test instance is created, we have a 20-value gap between `k` and `numCands` so we SHOULD be safe
+                Integer newK = randomValueOtherThan(instance.k, () -> instance.k + ESTestCase.randomInt(10));
                 return new KnnSearchBuilder(instance.field, instance.queryVector, newK, instance.numCands, instance.similarity).boost(
                     instance.boost
                 );
             case 3:
-                int adjustedK = Optional.ofNullable(instance.k).orElse(DEFAULT_SIZE);
-                Integer newNumCands = randomValueOtherThan(
-                    instance.numCands,
-                    () -> Optional.ofNullable(instance.numCands).orElse(adjustedK) + 10
-                );
+                Integer newNumCands = randomValueOtherThan(instance.numCands, () -> instance.numCands + ESTestCase.randomInt(100));
                 return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, newNumCands, instance.similarity).boost(
                     instance.boost
                 );
@@ -149,17 +139,6 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.numCands,
                     randomValueOtherThan(instance.similarity, ESTestCase::randomFloat)
                 ).addFilterQueries(instance.filterQueries).boost(instance.boost);
-            case 7:
-                Integer flippedK = instance.k == null ? DEFAULT_SIZE : null;
-                return new KnnSearchBuilder(instance.field, instance.queryVector, flippedK, instance.numCands, instance.similarity)
-                    .addFilterQueries(instance.filterQueries)
-                    .boost(instance.boost);
-            case 8:
-                Integer k = Optional.ofNullable(instance.k).orElse(DEFAULT_SIZE);
-                Integer flippedNumCands = instance.numCands == null ? k : null;
-                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, flippedNumCands, instance.similarity)
-                    .addFilterQueries(instance.filterQueries)
-                    .boost(instance.boost);
             default:
                 throw new IllegalStateException();
         }

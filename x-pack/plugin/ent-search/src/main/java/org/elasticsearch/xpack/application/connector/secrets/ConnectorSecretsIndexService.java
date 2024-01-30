@@ -99,13 +99,13 @@ public class ConnectorSecretsIndexService {
     public void deleteSecret(String id, ActionListener<DeleteConnectorSecretResponse> listener) {
         try {
             clientWithOrigin.prepareDelete(CONNECTOR_SECRETS_INDEX_NAME, id)
-            .execute(listener.delegateFailureAndWrap((delegate, deleteResponse) -> {
-                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                    delegate.onFailure(new ResourceNotFoundException("No secret with id [" + id + "]"));
-                    return;
-                }
-                delegate.onResponse(new DeleteConnectorSecretResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED));
-            }));
+                .execute(listener.delegateFailureAndWrap((delegate, deleteResponse) -> {
+                    if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        delegate.onFailure(new ResourceNotFoundException("No secret with id [" + id + "]"));
+                        return;
+                    }
+                    delegate.onResponse(new DeleteConnectorSecretResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED));
+                }));
         } catch (Exception e) {
             listener.onFailure(e);
         }

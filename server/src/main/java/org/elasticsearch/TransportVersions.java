@@ -286,11 +286,7 @@ public class TransportVersions {
         return VERSION_IDS.values();
     }
 
-    private static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class);
-
-    public static String toReleaseVersion(TransportVersion version) {
-        return VERSION_LOOKUP.apply(version.id());
-    }
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class);
 
     // no instance
     private TransportVersions() {}

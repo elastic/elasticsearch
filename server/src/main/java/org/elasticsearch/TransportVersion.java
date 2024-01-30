@@ -101,6 +101,13 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
         return TransportVersion.fromId(Integer.parseInt(str));
     }
 
+    /**
+     * Returns a string representing the Elasticsearch release version of this transport version, if valid for this deployment.
+     */
+    public String toReleaseVersion() {
+        return TransportVersions.VERSION_LOOKUP.apply(id);
+    }
+
     @Override
     public String toString() {
         return Integer.toString(id);

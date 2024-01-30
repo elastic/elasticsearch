@@ -207,9 +207,8 @@ public class IndexVersions {
         return VERSION_IDS.values();
     }
 
-    private static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class);
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class);
 
-    public static String toReleaseVersion(IndexVersion version) {
-        return VERSION_LOOKUP.apply(version.id());
-    }
+    // no instance
+    private IndexVersions() {}
 }

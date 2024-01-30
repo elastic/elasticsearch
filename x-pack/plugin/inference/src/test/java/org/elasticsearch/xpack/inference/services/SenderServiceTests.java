@@ -116,13 +116,18 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
-        public Model parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, Set<String> platfromArchitectures) {
+        public Model parseRequestConfig(
+            String inferenceEntityId,
+            TaskType taskType,
+            Map<String, Object> config,
+            Set<String> platfromArchitectures
+        ) {
             return null;
         }
 
         @Override
         public Model parsePersistedConfigWithSecrets(
-            String modelId,
+            String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
             Map<String, Object> secrets
@@ -131,7 +136,7 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
-        public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+        public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
             return null;
         }
 

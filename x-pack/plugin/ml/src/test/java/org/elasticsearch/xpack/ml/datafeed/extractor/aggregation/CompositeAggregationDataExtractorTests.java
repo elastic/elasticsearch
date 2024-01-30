@@ -19,10 +19,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
@@ -127,7 +127,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
     }
 
     public void testExtraction() throws IOException {
-        List<CompositeAggregation.Bucket> compositeBucket = Arrays.asList(
+        List<InternalComposite.InternalBucket> compositeBucket = Arrays.asList(
             createCompositeBucket(
                 1000L,
                 "time_bucket",
@@ -208,7 +208,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
 
     public void testExtractionGivenResponseHasEmptyAggs() throws IOException {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
-        Aggregations emptyAggs = AggregationTestUtils.createAggs(Collections.emptyList());
+        InternalAggregations emptyAggs = AggregationTestUtils.createAggs(Collections.emptyList());
         SearchResponse response = createSearchResponse(emptyAggs);
         extractor.setNextResponse(response);
 
@@ -231,7 +231,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
 
     public void testExtractionCancelOnFirstPage() throws IOException {
         int numBuckets = 10;
-        List<CompositeAggregation.Bucket> buckets = new ArrayList<>(numBuckets);
+        List<InternalComposite.InternalBucket> buckets = new ArrayList<>(numBuckets);
         long timestamp = 1000;
         for (int i = 0; i < numBuckets; i++) {
             buckets.add(
@@ -260,7 +260,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
 
     public void testExtractionGivenCancelHalfWay() throws IOException {
         int numBuckets = 10;
-        List<CompositeAggregation.Bucket> buckets = new ArrayList<>(numBuckets);
+        List<InternalComposite.InternalBucket> buckets = new ArrayList<>(numBuckets);
         long timestamp = 1000;
         for (int i = 0; i < numBuckets; i++) {
             buckets.add(
@@ -345,17 +345,21 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private SearchResponse createSearchResponse(String aggName, List<CompositeAggregation.Bucket> buckets, Map<String, Object> afterKey) {
-        CompositeAggregation compositeAggregation = mock(CompositeAggregation.class);
+    private SearchResponse createSearchResponse(
+        String aggName,
+        List<InternalComposite.InternalBucket> buckets,
+        Map<String, Object> afterKey
+    ) {
+        InternalComposite compositeAggregation = mock(InternalComposite.class);
         when(compositeAggregation.getName()).thenReturn(aggName);
         when(compositeAggregation.afterKey()).thenReturn(afterKey);
-        when((List<CompositeAggregation.Bucket>) compositeAggregation.getBuckets()).thenReturn(buckets);
+        when(compositeAggregation.getBuckets()).thenReturn(buckets);
 
-        Aggregations searchAggs = AggregationTestUtils.createAggs(Collections.singletonList(compositeAggregation));
+        InternalAggregations searchAggs = AggregationTestUtils.createAggs(Collections.singletonList(compositeAggregation));
         return createSearchResponse(searchAggs);
     }
 
-    private SearchResponse createSearchResponse(Aggregations aggregations) {
+    private SearchResponse createSearchResponse(InternalAggregations aggregations) {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         when(searchResponse.getScrollId()).thenReturn(randomAlphaOfLength(1000));

@@ -34,21 +34,21 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
     public static ModelConfigurations mutateTestInstance(ModelConfigurations instance) {
         switch (randomIntBetween(0, 2)) {
             case 0 -> new ModelConfigurations(
-                instance.getModelId() + "foo",
+                instance.getInferenceEntityId() + "foo",
                 instance.getTaskType(),
                 instance.getService(),
                 instance.getServiceSettings(),
                 instance.getTaskSettings()
             );
             case 1 -> new ModelConfigurations(
-                instance.getModelId(),
+                instance.getInferenceEntityId(),
                 TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
                 instance.getService(),
                 instance.getServiceSettings(),
                 instance.getTaskSettings()
             );
             case 2 -> new ModelConfigurations(
-                instance.getModelId(),
+                instance.getInferenceEntityId(),
                 instance.getTaskType(),
                 instance.getService() + "bar",
                 instance.getServiceSettings(),

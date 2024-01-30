@@ -40,6 +40,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         apmAgentSettings.syncAgentSystemProperties(settings);
 
         verify(apmAgentSettings).setAgentSetting("recording", "true");
+        assertWarnings("[tracing.apm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 
     /**
@@ -59,6 +60,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         apmAgentSettings.syncAgentSystemProperties(settings);
 
         verify(apmAgentSettings).setAgentSetting("recording", "false");
+        assertWarnings("[tracing.apm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 
     /**
@@ -114,6 +116,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         List<String> included = APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
 
         assertThat(included, containsInAnyOrder("abc", "xyz"));
+        assertWarnings("[tracing.apm.names.include] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 
     public void testTelemetryTracingNamesExcludeFallback() {
@@ -122,6 +125,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         List<String> included = APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
 
         assertThat(included, containsInAnyOrder("abc", "xyz"));
+        assertWarnings("[tracing.apm.names.exclude] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 
     public void testTelemetryTracingSanitizeFieldNamesFallback() {
@@ -130,6 +134,9 @@ public class APMAgentSettingsTests extends ESTestCase {
         List<String> included = APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings);
 
         assertThat(included, containsInAnyOrder("abc", "xyz"));
+        assertWarnings(
+            "[tracing.apm.sanitize_field_names] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testTelemetryTracingSanitizeFieldNamesFallbackDefault() {
@@ -144,8 +151,8 @@ public class APMAgentSettingsTests extends ESTestCase {
 
         try (SecureString secureString = APMAgentSettings.TELEMETRY_SECRET_TOKEN_SETTING.get(settings)) {
             assertEquals("verysecret", secureString.toString());
-
         }
+        assertWarnings("[tracing.apm.secret_token] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 
     public void testTelemetryApiKeyFallback() {
@@ -155,7 +162,7 @@ public class APMAgentSettingsTests extends ESTestCase {
 
         try (SecureString secureString = APMAgentSettings.TELEMETRY_API_KEY_SETTING.get(settings)) {
             assertEquals("abc", secureString.toString());
-
         }
+        assertWarnings("[tracing.apm.api_key] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 }

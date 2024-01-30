@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.application.connector.secrets;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretRequest;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretResponse;
@@ -40,6 +42,18 @@ public class ConnectorSecretsIndexServiceTests extends ESSingleNodeTestCase {
 
         assertThat(gotSecret.id(), equalTo(createdSecret.id()));
         assertThat(gotSecret.value(), notNullValue());
+    }
+
+    public void testDeleteConnectorSecret() throws Exception {
+        PostConnectorSecretRequest createSecretRequest = ConnectorSecretsTestUtils.getRandomPostConnectorSecretRequest();
+        PostConnectorSecretResponse createdSecret = awaitPostConnectorSecret(createSecretRequest);
+
+        String secretIdToDelete = createdSecret.id();
+        DeleteConnectorSecretResponse resp = awaitDeleteConnectorSecret(secretIdToDelete);
+        assertThat(resp.isDeleted(), equalTo(true));
+
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetConnectorSecret(secretIdToDelete));
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnectorSecret(secretIdToDelete));
     }
 
     private PostConnectorSecretResponse awaitPostConnectorSecret(PostConnectorSecretRequest secretRequest) throws Exception {
@@ -99,6 +113,33 @@ public class ConnectorSecretsIndexServiceTests extends ESSingleNodeTestCase {
             throw exc.get();
         }
         assertNotNull("Received null response from get request", resp.get());
+        return resp.get();
+    }
+
+    private DeleteConnectorSecretResponse awaitDeleteConnectorSecret(String connectorSecretId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<DeleteConnectorSecretResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+
+        connectorSecretsIndexService.deleteSecret(connectorSecretId, new ActionListener<DeleteConnectorSecretResponse>() {
+            @Override
+            public void onResponse(DeleteConnectorSecretResponse response) {
+                resp.set(response);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Timeout waiting for delete request", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from delete request", resp.get());
         return resp.get();
     }
 }

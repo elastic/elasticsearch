@@ -123,7 +123,6 @@ import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
-import org.elasticsearch.inference.InferenceProvider;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
@@ -142,7 +141,6 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
-import org.elasticsearch.plugins.InferenceProviderPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -1088,16 +1086,6 @@ class NodeConstruction {
                 serviceProvider.newReadinessService(pluginsService, clusterService, environment)
             );
         }
-
-        InferenceProvider inferenceProvider = null;
-        Optional<InferenceProviderPlugin> inferenceProviderPlugin = getSinglePlugin(InferenceProviderPlugin.class);
-        if (inferenceProviderPlugin.isPresent()) {
-            inferenceProvider = inferenceProviderPlugin.get().getInferenceProvider();
-        } else {
-            logger.warn("No inference provider found. Inference for semantic_text field types won't be available");
-            inferenceProvider = new InferenceProvider.NoopInferenceProvider();
-        }
-        modules.bindToInstance(InferenceProvider.class, inferenceProvider);
 
         injector = modules.createInjector();
 

@@ -63,7 +63,7 @@ class BulkPrimaryExecutionContext {
     private BulkItemResponse executionResult;
     private int updateRetryCounter;
     private long noopMappingUpdateRetryForMappingVersion;
-    private DocumentParsingObserver documentParsingObserver;
+    private DocumentParsingObserver documentParsingObserver = DocumentParsingObserver.EMPTY_INSTANCE;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;

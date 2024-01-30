@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
+import org.elasticsearch.xpack.inference.services.settings.MlNodeDeployedServiceSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,6 +39,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.settings.MlNodeDeployedServiceSettings.MODEL_VERSION;
 
 public class TextEmbeddingService implements InferenceService {
@@ -45,7 +47,7 @@ public class TextEmbeddingService implements InferenceService {
     public static final String NAME = "text_embedding";
 
     static final String MULTILINGUAL_E5_SMALL_MODEL_ID = ".multilingual-e5-small";
-    static final String MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 = ".multilingual-e5-small_linux-x86_64\n";
+    static final String MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 = ".multilingual-e5-small_linux-x86_64";
 
     private final OriginSettingClient client;
 
@@ -61,16 +63,38 @@ public class TextEmbeddingService implements InferenceService {
         Set<String> platformArchitectures
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        if (serviceSettingsMap.get(MODEL_VERSION) == null) {
-            throw new IllegalArgumentException("Error parsing request config, missing required setting [" + MODEL_VERSION + "]");
-        } else if (serviceSettingsMap.get(MODEL_VERSION).equals(MULTILINGUAL_E5_SMALL_MODEL_ID)) {
-            var e5ServiceSettings = MultilingualE5SmallServiceSettings.fromMap(serviceSettingsMap).build();
-            return new MultilingualE5SmallModel(inferenceEntityId, taskType, NAME, (MultilingualE5SmallServiceSettings) e5ServiceSettings);
-        } else {
+
+        var e5ServiceSettings = MultilingualE5SmallServiceSettings.fromMap(serviceSettingsMap);
+
+        if (e5ServiceSettings.getModelVariant() == null) {
+            e5ServiceSettings.setModelVariant(selectDefaultModelVersionBasedOnClusterArchitecture(platformArchitectures));
+        }
+
+        if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, e5ServiceSettings)) {
             throw new IllegalArgumentException(
-                "Error parsing request config, unknown model id [" + serviceSettingsMap.get(MODEL_VERSION) + "]"
+                "Error parsing request config, model id does not match any models versions available on this platform. Was ["
+                    + e5ServiceSettings.getModelVariant()
+                    + "]"
             );
         }
+
+        throwIfNotEmptyMap(config, name());
+
+        return new MultilingualE5SmallModel(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            (MultilingualE5SmallServiceSettings) e5ServiceSettings.build()
+        );
+    }
+
+    private static boolean modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(
+        Set<String> platformArchitectures,
+        MlNodeDeployedServiceSettings.Builder e5ServiceSettings
+    ) {
+        return e5ServiceSettings.getModelVariant()
+            .equals(selectDefaultModelVersionBasedOnClusterArchitecture(platformArchitectures)) == false
+            && e5ServiceSettings.getModelVariant().equals(MULTILINGUAL_E5_SMALL_MODEL_ID) == false;
     }
 
     @Override
@@ -208,6 +232,18 @@ public class TextEmbeddingService implements InferenceService {
     @Override
     public String name() {
         return NAME;
+    }
+
+    private static String selectDefaultModelVersionBasedOnClusterArchitecture(Set<String> modelArchitectures) {
+        // choose a default model version based on the cluster architecture
+        boolean homogenous = modelArchitectures.size() == 1;
+        if (homogenous && modelArchitectures.iterator().next().equals("linux-x86_64")) {
+            // Use the hardware optimized model
+            return MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
+        } else {
+            // default to the platform-agnostic model
+            return MULTILINGUAL_E5_SMALL_MODEL_ID;
+        }
     }
 
 }

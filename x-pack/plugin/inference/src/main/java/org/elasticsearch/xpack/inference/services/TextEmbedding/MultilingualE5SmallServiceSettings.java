@@ -17,18 +17,21 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.MlNodeDeployedServiceSettings;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
 import static org.elasticsearch.xpack.inference.services.TextEmbedding.TextEmbeddingService.MULTILINGUAL_E5_SMALL_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.TextEmbedding.TextEmbeddingService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 
 public class MultilingualE5SmallServiceSettings extends TextEmbeddingServiceSettings {
 
     public static final String NAME = "multilingual_e5_small_service_settings";
     public static final String MODEL_VERSION = "model_version";
+    public static final List<String> MODEL_VARIANTS = List.of(MULTILINGUAL_E5_SMALL_MODEL_ID, MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86);
 
-    public MultilingualE5SmallServiceSettings(int numAllocations, int numThreads) {
-        super(numAllocations, numThreads, MULTILINGUAL_E5_SMALL_MODEL_ID);
+    public MultilingualE5SmallServiceSettings(int numAllocations, int numThreads, String modelVariant) {
+        super(numAllocations, numThreads, modelVariant);
     }
 
     /**
@@ -37,7 +40,7 @@ public class MultilingualE5SmallServiceSettings extends TextEmbeddingServiceSett
      * If required setting are missing or the values are invalid an
      * {@link ValidationException} is thrown.
      *
-     * @param map Source map containg the config
+     * @param map Source map containing the config
      * @return The {@code MultilingualE5SmallServiceSettings} builder
      */
     public static MultilingualE5SmallServiceSettings.Builder fromMap(Map<String, Object> map) {
@@ -49,7 +52,7 @@ public class MultilingualE5SmallServiceSettings extends TextEmbeddingServiceSett
 
         String version = ServiceUtils.removeAsType(map, MODEL_VERSION, String.class);
         if (version != null) {
-            if (version.equals(MULTILINGUAL_E5_SMALL_MODEL_ID) == false) {
+            if (MODEL_VARIANTS.contains(version) == false) {
                 validationException.addValidationError("unknown Multilingual-E5-Small model version [" + version + "]");
             }
         } else {
@@ -63,7 +66,7 @@ public class MultilingualE5SmallServiceSettings extends TextEmbeddingServiceSett
         var builder = new MlNodeDeployedServiceSettings.Builder() {
             @Override
             public MultilingualE5SmallServiceSettings build() {
-                return new MultilingualE5SmallServiceSettings(getNumAllocations(), getNumThreads());
+                return new MultilingualE5SmallServiceSettings(getNumAllocations(), getNumThreads(), getModelVariant());
             }
         };
         builder.setNumAllocations(numAllocations);

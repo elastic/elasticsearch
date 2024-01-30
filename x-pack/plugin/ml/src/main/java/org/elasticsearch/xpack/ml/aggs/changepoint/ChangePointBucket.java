@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.aggs.changepoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -68,7 +67,7 @@ public class ChangePointBucket extends InternalMultiBucketAggregation.InternalBu
     }
 
     @Override
-    public Aggregations getAggregations() {
+    public InternalAggregations getAggregations() {
         return aggregations;
     }
 

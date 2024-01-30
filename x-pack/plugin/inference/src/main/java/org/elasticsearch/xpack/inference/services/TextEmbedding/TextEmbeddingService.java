@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.TextEmbedding.MultilingualE5SmallServiceSettings.MODEL_VARIANTS;
 import static org.elasticsearch.xpack.inference.services.settings.MlNodeDeployedServiceSettings.MODEL_VERSION;
 
 public class TextEmbeddingService implements InferenceService {
@@ -111,16 +112,23 @@ public class TextEmbeddingService implements InferenceService {
     @Override
     public TextEmbeddingModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        if (serviceSettingsMap.get(MODEL_VERSION) == null) {
-            throw new IllegalArgumentException("Error parsing persisted config, missing required setting [" + MODEL_VERSION + "]");
-        } else if (serviceSettingsMap.get(MODEL_VERSION).equals(MULTILINGUAL_E5_SMALL_MODEL_ID)) {
-            var e5ServiceSettings = MultilingualE5SmallServiceSettings.fromMap(serviceSettingsMap).build();
-            return new MultilingualE5SmallModel(inferenceEntityId, taskType, NAME, (MultilingualE5SmallServiceSettings) e5ServiceSettings);
-        } else {
+
+        var e5ServiceSettings = MultilingualE5SmallServiceSettings.fromMap(serviceSettingsMap);
+
+        if (e5ServiceSettings.getModelVariant() == null || MODEL_VARIANTS.contains(e5ServiceSettings.getModelVariant()) == false) {
             throw new IllegalArgumentException(
-                "Error parsing persisted config, unknown model id [" + serviceSettingsMap.get(MODEL_VERSION) + "]"
+                "Error parsing persisted config, model id does not match any models versions available on this platform. Was ["
+                    + e5ServiceSettings.getModelVariant()
+                    + "]"
             );
         }
+
+        return new MultilingualE5SmallModel(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            (MultilingualE5SmallServiceSettings) e5ServiceSettings.build()
+        );
     }
 
     @Override

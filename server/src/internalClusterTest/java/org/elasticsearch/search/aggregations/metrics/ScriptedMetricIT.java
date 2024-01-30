@@ -19,8 +19,8 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
@@ -1037,7 +1037,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 for (Bucket b : buckets) {
                     assertThat(b, notNullValue());
                     assertThat(b.getDocCount(), equalTo(1L));
-                    Aggregations subAggs = b.getAggregations();
+                    InternalAggregations subAggs = b.getAggregations();
                     assertThat(subAggs, notNullValue());
                     assertThat(subAggs.asList().size(), equalTo(1));
                     Aggregation subAgg = subAggs.get("scripted");

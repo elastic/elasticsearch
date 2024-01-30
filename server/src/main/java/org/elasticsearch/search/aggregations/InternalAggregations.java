@@ -71,7 +71,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
     }
 
     /**
-     * Iterates over the {@link Aggregation}s.
+     * Iterates over the {@link InternalAggregation}s.
      */
     @Override
     public Iterator<InternalAggregation> iterator() {
@@ -79,21 +79,21 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
     }
 
     /**
-     * The list of {@link Aggregation}s.
+     * The list of {@link InternalAggregation}s.
      */
     public List<InternalAggregation> asList() {
         return unmodifiableList(aggregations);
     }
 
     /**
-     * Returns the {@link Aggregation}s keyed by aggregation name.
+     * Returns the {@link InternalAggregation}s keyed by aggregation name.
      */
     public Map<String, InternalAggregation> asMap() {
         return getAsMap();
     }
 
     /**
-     * Returns the {@link Aggregation}s keyed by aggregation name.
+     * Returns the {@link InternalAggregation}s keyed by aggregation name.
      */
     public Map<String, InternalAggregation> getAsMap() {
         if (aggregationsAsMap == null) {
@@ -254,12 +254,12 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         // first we collect all aggregations of the same type and list them together
         Map<String, List<InternalAggregation>> aggByName = new HashMap<>();
         for (InternalAggregations aggregations : aggregationsList) {
-            for (Aggregation aggregation : aggregations.aggregations) {
+            for (InternalAggregation aggregation : aggregations.aggregations) {
                 List<InternalAggregation> aggs = aggByName.computeIfAbsent(
                     aggregation.getName(),
                     k -> new ArrayList<>(aggregationsList.size())
                 );
-                aggs.add((InternalAggregation) aggregation);
+                aggs.add(aggregation);
             }
         }
 

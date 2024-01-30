@@ -40,9 +40,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
-import org.elasticsearch.xpack.application.connector.ConnectorSearchResult;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
+import org.elasticsearch.xpack.application.connector.ConnectorsAPISearchResult;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
@@ -193,7 +193,7 @@ public class ConnectorSyncJobIndexService {
      * @param connectorSyncJobId The id of the connector sync job object.
      * @param listener           The action listener to invoke on response/failure.
      */
-    public void getConnectorSyncJob(String connectorSyncJobId, ActionListener<ConnectorSearchResult> listener) {
+    public void getConnectorSyncJob(String connectorSyncJobId, ActionListener<ConnectorSyncJobSearchResult> listener) {
         final GetRequest getRequest = new GetRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).id(connectorSyncJobId).realtime(true);
 
         try {
@@ -206,7 +206,7 @@ public class ConnectorSyncJobIndexService {
                     }
 
                     try {
-                        ConnectorSearchResult syncJobSearchResult = new ConnectorSearchResult.Builder().setId(getResponse.getId())
+                        ConnectorSyncJobSearchResult syncJobSearchResult = new ConnectorSyncJobSearchResult.Builder().setId(getResponse.getId())
                             .setResultBytes(getResponse.getSourceAsBytesRef())
                             .setResultMap(getResponse.getSourceAsMap())
                             .build();
@@ -334,7 +334,7 @@ public class ConnectorSyncJobIndexService {
     }
 
     private ConnectorSyncJobsResult mapSearchResponseToConnectorSyncJobsList(SearchResponse searchResponse) {
-        final List<ConnectorSearchResult> connectorSyncJobs = Arrays.stream(searchResponse.getHits().getHits())
+        final List<ConnectorSyncJobSearchResult> connectorSyncJobs = Arrays.stream(searchResponse.getHits().getHits())
             .map(ConnectorSyncJobIndexService::hitToConnectorSyncJob)
             .toList();
 
@@ -344,17 +344,17 @@ public class ConnectorSyncJobIndexService {
         );
     }
 
-    private static ConnectorSearchResult hitToConnectorSyncJob(SearchHit searchHit) {
+    private static ConnectorSyncJobSearchResult hitToConnectorSyncJob(SearchHit searchHit) {
         // TODO: don't return sensitive data from configuration inside connector in list endpoint
 
-        return new ConnectorSearchResult.Builder().setId(searchHit.getId())
+        return new ConnectorSyncJobSearchResult.Builder().setId(searchHit.getId())
             .setResultBytes(searchHit.getSourceRef())
             .setResultMap(searchHit.getSourceAsMap())
             .build();
 
     }
 
-    public record ConnectorSyncJobsResult(List<ConnectorSearchResult> connectorSyncJobs, long totalResults) {}
+    public record ConnectorSyncJobsResult(List<ConnectorSyncJobSearchResult> connectorSyncJobs, long totalResults) {}
 
     /**
     * Updates the ingestion stats of the {@link ConnectorSyncJob} in the underlying index.

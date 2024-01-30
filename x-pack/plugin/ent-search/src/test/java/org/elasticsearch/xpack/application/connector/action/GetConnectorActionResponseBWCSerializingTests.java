@@ -9,15 +9,12 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.application.connector.ConnectorSearchResult;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 
 public class GetConnectorActionResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<GetConnectorAction.Response> {
-
-    private ConnectorSearchResult connector;
 
     @Override
     protected Writeable.Reader<GetConnectorAction.Response> instanceReader() {
@@ -26,8 +23,7 @@ public class GetConnectorActionResponseBWCSerializingTests extends AbstractBWCWi
 
     @Override
     protected GetConnectorAction.Response createTestInstance() {
-        this.connector = ConnectorTestUtils.getRandomConnectorSearchResult();
-        return new GetConnectorAction.Response(this.connector);
+        return new GetConnectorAction.Response(ConnectorTestUtils.getRandomConnectorSearchResult());
     }
 
     @Override

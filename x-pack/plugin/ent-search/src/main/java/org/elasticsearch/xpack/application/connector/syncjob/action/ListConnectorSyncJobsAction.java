@@ -18,9 +18,9 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.connector.ConnectorSearchResult;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobSearchResult;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 
@@ -134,14 +134,14 @@ public class ListConnectorSyncJobsAction {
     public static class Response extends ActionResponse implements ToXContentObject {
         public static final ParseField RESULTS_FIELD = new ParseField("results");
 
-        final QueryPage<ConnectorSearchResult> queryPage;
+        final QueryPage<ConnectorSyncJobSearchResult> queryPage;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.queryPage = new QueryPage<>(in, ConnectorSearchResult::new);
+            this.queryPage = new QueryPage<>(in, ConnectorSyncJobSearchResult::new);
         }
 
-        public Response(List<ConnectorSearchResult> items, Long totalResults) {
+        public Response(List<ConnectorSyncJobSearchResult> items, Long totalResults) {
             this.queryPage = new QueryPage<>(items, totalResults, RESULTS_FIELD);
         }
 

@@ -11,7 +11,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.connector.ConnectorSearchResult;
+import org.elasticsearch.xpack.application.connector.ConnectorsAPISearchResult;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
@@ -86,10 +86,10 @@ public class ConnectorSyncJobTestUtils {
         return XContentHelper.convertToMap(convertSyncJobToBytesReference(syncJob), true, XContentType.JSON).v2();
     }
 
-    public static ConnectorSearchResult getRandomSyncJobSearchResult() {
+    public static ConnectorSyncJobSearchResult getRandomSyncJobSearchResult() {
         ConnectorSyncJob syncJob = getRandomConnectorSyncJob();
 
-        return new ConnectorSearchResult.Builder().setId(randomAlphaOfLength(10))
+        return new ConnectorSyncJobSearchResult.Builder().setId(randomAlphaOfLength(10))
             .setResultMap(convertSyncJobToGenericMap(syncJob))
             .setResultBytes(convertSyncJobToBytesReference(syncJob))
             .build();

@@ -5,21 +5,22 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.application.connector;
+package org.elasticsearch.xpack.application.connector.syncjob;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.application.connector.ConnectorsAPISearchResult;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class ConnectorSearchResult extends ConnectorsAPISearchResult {
+public class ConnectorSyncJobSearchResult extends ConnectorsAPISearchResult {
 
-    public ConnectorSearchResult(StreamInput in) throws IOException {
+    public ConnectorSyncJobSearchResult(StreamInput in) throws IOException {
         super(in);
     }
 
-    private ConnectorSearchResult(BytesReference resultBytes, Map<String, Object> resultMap, String id) {
+    private ConnectorSyncJobSearchResult(BytesReference resultBytes, Map<String, Object> resultMap, String id) {
         super(resultBytes, resultMap, id);
     }
 
@@ -44,8 +45,8 @@ public class ConnectorSearchResult extends ConnectorsAPISearchResult {
             return this;
         }
 
-        public ConnectorSearchResult build() {
-            return new ConnectorSearchResult(resultBytes, resultMap, id);
+        public ConnectorSyncJobSearchResult build() {
+            return new ConnectorSyncJobSearchResult(resultBytes, resultMap, id);
         }
     }
 }

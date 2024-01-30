@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.not;
 
 public class IndicesOptionsTests extends ESTestCase {
 
@@ -357,7 +356,7 @@ public class IndicesOptionsTests extends ESTestCase {
 
         assertThat(((List<?>) map.get("expand_wildcards")).contains("open"), equalTo(wildcardOptions.matchOpen()));
         assertThat(((List<?>) map.get("expand_wildcards")).contains("closed"), equalTo(wildcardOptions.matchClosed()));
-        assertThat(((List<?>) map.get("expand_wildcards")).contains("hidden"), not(equalTo(wildcardOptions.includeHidden())));
+        assertThat(((List<?>) map.get("expand_wildcards")).contains("hidden"), equalTo(wildcardOptions.includeHidden()));
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
         assertThat(map.get("ignore_throttled"), equalTo(generalOptions.removeThrottled()));

@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -113,7 +112,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -399,7 +398,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         long docCount = 0;
         for (Bucket bucket : buckets) {
             docCount += bucket.docCount;
-            aggregations.add((InternalAggregations) bucket.getAggregations());
+            aggregations.add(bucket.getAggregations());
         }
         InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         return createBucket(buckets.get(0).key, docCount, aggs);

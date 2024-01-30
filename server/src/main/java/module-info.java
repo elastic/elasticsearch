@@ -332,6 +332,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.aggregations.bucket.nested;
     exports org.elasticsearch.search.aggregations.bucket.range;
     exports org.elasticsearch.search.aggregations.bucket.sampler;
+    exports org.elasticsearch.search.aggregations.bucket.sampler.random;
     exports org.elasticsearch.search.aggregations.bucket.terms;
     exports org.elasticsearch.search.aggregations.bucket.terms.heuristic;
     exports org.elasticsearch.search.aggregations.metrics;

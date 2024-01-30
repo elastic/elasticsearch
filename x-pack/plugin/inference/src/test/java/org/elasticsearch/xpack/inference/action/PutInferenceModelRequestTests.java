@@ -34,25 +34,25 @@ public class PutInferenceModelRequestTests extends AbstractWireSerializingTestCa
         return switch (randomIntBetween(0, 3)) {
             case 0 -> new PutInferenceModelAction.Request(
                 TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length].toString(),
-                instance.getModelId(),
+                instance.getInferenceEntityId(),
                 instance.getContent(),
                 instance.getContentType()
             );
             case 1 -> new PutInferenceModelAction.Request(
                 instance.getTaskType().toString(),
-                instance.getModelId() + "foo",
+                instance.getInferenceEntityId() + "foo",
                 instance.getContent(),
                 instance.getContentType()
             );
             case 2 -> new PutInferenceModelAction.Request(
                 instance.getTaskType().toString(),
-                instance.getModelId(),
+                instance.getInferenceEntityId(),
                 randomBytesReference(instance.getContent().length() + 1),
                 instance.getContentType()
             );
             case 3 -> new PutInferenceModelAction.Request(
                 instance.getTaskType().toString(),
-                instance.getModelId(),
+                instance.getInferenceEntityId(),
                 instance.getContent(),
                 XContentType.values()[(instance.getContentType().ordinal() + 1) % XContentType.values().length]
             );

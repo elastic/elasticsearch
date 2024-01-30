@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,9 +42,10 @@ import static org.elasticsearch.xpack.inference.services.settings.MlNodeDeployed
 
 public class TextEmbeddingService implements InferenceService {
 
-    public static final String NAME = "ml_text_embedding";
+    public static final String NAME = "text_embedding";
 
-    static final String MULTILINGUAL_E5_SMALL_MODEL_ID = "multilingual_e5_small";
+    static final String MULTILINGUAL_E5_SMALL_MODEL_ID = ".multilingual-e5-small";
+    static final String MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 = ".multilingual-e5-small_linux-x86_64\n";
 
     private final OriginSettingClient client;
 
@@ -111,7 +112,7 @@ public class TextEmbeddingService implements InferenceService {
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
             model.getConfigurations().getInferenceEntityId(),
-            TextExpansionConfigUpdate.EMPTY_UPDATE,
+            TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
             input,
             TimeValue.timeValueSeconds(10)  // TODO get timeout from request
         );
@@ -165,7 +166,7 @@ public class TextEmbeddingService implements InferenceService {
                 )
             );
             return;
-        } else if (model instanceof MultilingualE5SmallModel e5Model) {
+        } else if (model instanceof MultilingualE5SmallModel e5Model) { // TODO add support for linux optimized model
             String modelVariant = e5Model.getServiceSettings().getModelVariant();
             var fieldNames = List.<String>of();
             var input = new TrainedModelInput(fieldNames);

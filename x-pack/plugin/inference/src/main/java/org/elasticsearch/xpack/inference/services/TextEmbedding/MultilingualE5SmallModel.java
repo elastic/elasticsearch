@@ -37,7 +37,10 @@ public class MultilingualE5SmallModel extends TextEmbeddingModel {
 
     @Override
     StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
-        var startRequest = new StartTrainedModelDeploymentAction.Request(this.getInferenceEntityId(), this.getInferenceEntityId());
+        var startRequest = new StartTrainedModelDeploymentAction.Request(
+            this.getServiceSettings().getModelVariant(),
+            this.getInferenceEntityId()
+        );
         startRequest.setNumberOfAllocations(this.getServiceSettings().getNumAllocations());
         startRequest.setThreadsPerAllocation(this.getServiceSettings().getNumThreads());
         startRequest.setWaitForState(STARTED);

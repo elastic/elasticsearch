@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -64,8 +66,20 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
         for (InferenceResults result : results) {
             if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults embeddingResult) {
                 embeddings.add(new Embedding(convertEmbeddingResultToEmbedding(embeddingResult)));
+            } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
+                if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
+                    throw statusException;
+                } else {
+                    throw new ElasticsearchStatusException(
+                        "Received error inference result: " + errorResult.getResultsField(),
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        errorResult.getException()
+                    );
+                }
             } else {
-                throw new IllegalArgumentException("Received invalid legacy inference result");
+                throw new IllegalArgumentException(
+                    "Received invalid inference result, was type of " + result.getClass().getName() + " but expected TextEmbeddingResults."
+                );
             }
         }
         return new TextEmbeddingResults(embeddings);

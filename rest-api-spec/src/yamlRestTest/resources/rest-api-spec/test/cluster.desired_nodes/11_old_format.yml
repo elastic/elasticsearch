@@ -10,7 +10,6 @@ teardown:
 ---
 "Test update desired nodes":
   - skip:
-      reason: "contains is a newly added assertion"
       features: contains
   - do:
       cluster.state: {}
@@ -61,7 +60,6 @@ teardown:
 ---
 "Test update move to a new history id":
   - skip:
-      reason: "contains is a newly added assertion"
       features: contains
   - do:
       cluster.state: {}
@@ -148,6 +146,7 @@ teardown:
   - skip:
       version: "8.9.99 - "
       reason: "We started skipping setting validations in 8.10"
+      features: "node_selector"
   - do:
       cluster.state: {}
 
@@ -158,6 +157,8 @@ teardown:
   - set: { nodes.$master.version: es_version }
 
   - do:
+      node_selector:
+        version: " - 8.9.99"
       catch: bad_request
       _internal.update_desired_nodes:
         history_id: "test"
@@ -174,6 +175,7 @@ teardown:
   - skip:
       version: "8.9.99 - "
       reason: "We started skipping setting validations in 8.10"
+      features: "node_selector"
   - do:
       cluster.state: {}
 
@@ -184,6 +186,8 @@ teardown:
   - set: { nodes.$master.version: es_version }
 
   - do:
+      node_selector:
+        version: " - 8.9.99"
       catch: bad_request
       _internal.update_desired_nodes:
         history_id: "test"
@@ -200,7 +204,10 @@ teardown:
   - skip:
       version: "8.9.99 - "
       reason: "We started skipping setting validations in 8.10"
+      features: "node_selector"
   - do:
+      node_selector:
+        version: " - 8.9.99"
       _internal.update_desired_nodes:
         history_id: "test"
         version: 1
@@ -213,6 +220,7 @@ teardown:
   - skip:
       version: "8.9.99 - "
       reason: "We started skipping setting validations in 8.10"
+      features: "node_selector"
   - do:
       cluster.state: {}
 
@@ -223,6 +231,8 @@ teardown:
   - set: { nodes.$master.version: es_version }
 
   - do:
+      node_selector:
+        version: " - 8.9.99"
       _internal.update_desired_nodes:
         history_id: "test"
         version: 1
@@ -232,7 +242,11 @@ teardown:
   - match: { replaced_existing_history_id: false }
 ---
 "Test node version must be at least the current master version":
+  - skip:
+      features: "node_selector"
   - do:
+      node_selector:
+        version: " - 8.12.99"
       catch: bad_request
       _internal.update_desired_nodes:
         history_id: "test"
@@ -247,7 +261,11 @@ teardown:
       error.suppressed.0.reason: "/Illegal\\snode\\sversion.+$/"
 ---
 "Test node version is required":
+  - skip:
+      features: "node_selector"
   - do:
+      node_selector:
+        version: " - 8.12.99"
       catch: bad_request
       _internal.update_desired_nodes:
         history_id: "test"
@@ -259,7 +277,11 @@ teardown:
   - match: { error.type: x_content_parse_exception }
 ---
 "Test node version must have content":
+  - skip:
+      features: "node_selector"
   - do:
+      node_selector:
+        version: " - 8.12.99"
       catch: bad_request
       _internal.update_desired_nodes:
         history_id: "test"
@@ -271,7 +293,11 @@ teardown:
   - match: { error.type: x_content_parse_exception }
 ---
 "Test node version can not be null":
+  - skip:
+      features: "node_selector"
   - do:
+      node_selector:
+        version: " - 8.12.99"
       catch: bad_request
       _internal.update_desired_nodes:
         history_id: "test"

@@ -21,8 +21,13 @@ import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationSta
 
 public class MultilingualE5SmallModel extends TextEmbeddingModel {
 
-    public MultilingualE5SmallModel(String modelId, TaskType taskType, String service, MultilingualE5SmallServiceSettings serviceSettings) {
-        super(modelId, taskType, service, serviceSettings);
+    public MultilingualE5SmallModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        MultilingualE5SmallServiceSettings serviceSettings
+    ) {
+        super(inferenceEntityId, taskType, service, serviceSettings);
     }
 
     @Override

@@ -61,11 +61,11 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
     public void testGetModelWithAnyTaskType() throws IOException {
-        String modelId = "sparse_embedding_model";
-        putModel(modelId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        var singleModel = (List<Map<String, Object>>) getModels(modelId, TaskType.ANY).get("models");
+        String inferenceEntityId = "sparse_embedding_model";
+        putModel(inferenceEntityId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        var singleModel = (List<Map<String, Object>>) getModels(inferenceEntityId, TaskType.ANY).get("models");
         System.out.println("MODEL" + singleModel);
-        assertEquals(modelId, singleModel.get(0).get("model_id"));
+        assertEquals(inferenceEntityId, singleModel.get(0).get("model_id"));
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get(0).get("task_type"));
     }
 }

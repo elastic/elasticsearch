@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 
 public abstract class TextEmbeddingModel extends Model {
 
-    public TextEmbeddingModel(String modelId, TaskType taskType, String service, TextEmbeddingServiceSettings serviceSettings) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings));
+    public TextEmbeddingModel(String inferenceEntityId, TaskType taskType, String service, TextEmbeddingServiceSettings serviceSettings) {
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings));
     }
 
     @Override

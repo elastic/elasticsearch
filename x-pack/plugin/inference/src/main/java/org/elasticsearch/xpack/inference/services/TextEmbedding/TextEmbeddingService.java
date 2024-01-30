@@ -54,7 +54,7 @@ public class TextEmbeddingService implements InferenceService {
 
     @Override
     public TextEmbeddingModel parseRequestConfig(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Set<String> platformArchitectures
@@ -64,7 +64,7 @@ public class TextEmbeddingService implements InferenceService {
             throw new IllegalArgumentException("Error parsing request config, missing required setting [" + MODEL_VERSION + "]");
         } else if (serviceSettingsMap.get(MODEL_VERSION).equals(MULTILINGUAL_E5_SMALL_MODEL_ID)) {
             var e5ServiceSettings = MultilingualE5SmallServiceSettings.fromMap(serviceSettingsMap).build();
-            return new MultilingualE5SmallModel(modelId, taskType, NAME, (MultilingualE5SmallServiceSettings) e5ServiceSettings);
+            return new MultilingualE5SmallModel(inferenceEntityId, taskType, NAME, (MultilingualE5SmallServiceSettings) e5ServiceSettings);
         } else {
             throw new IllegalArgumentException(
                 "Error parsing request config, unknown model id [" + serviceSettingsMap.get(MODEL_VERSION) + "]"
@@ -74,22 +74,22 @@ public class TextEmbeddingService implements InferenceService {
 
     @Override
     public TextEmbeddingModel parsePersistedConfigWithSecrets(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
-        return parsePersistedConfig(modelId, taskType, config);
+        return parsePersistedConfig(inferenceEntityId, taskType, config);
     }
 
     @Override
-    public TextEmbeddingModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+    public TextEmbeddingModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         if (serviceSettingsMap.get(MODEL_VERSION) == null) {
             throw new IllegalArgumentException("Error parsing persisted config, missing required setting [" + MODEL_VERSION + "]");
         } else if (serviceSettingsMap.get(MODEL_VERSION).equals(MULTILINGUAL_E5_SMALL_MODEL_ID)) {
             var e5ServiceSettings = MultilingualE5SmallServiceSettings.fromMap(serviceSettingsMap).build();
-            return new MultilingualE5SmallModel(modelId, taskType, NAME, (MultilingualE5SmallServiceSettings) e5ServiceSettings);
+            return new MultilingualE5SmallModel(inferenceEntityId, taskType, NAME, (MultilingualE5SmallServiceSettings) e5ServiceSettings);
         } else {
             throw new IllegalArgumentException(
                 "Error parsing persisted config, unknown model id [" + serviceSettingsMap.get(MODEL_VERSION) + "]"
@@ -148,10 +148,10 @@ public class TextEmbeddingService implements InferenceService {
     }
 
     @Override
-    public void stop(String modelId, ActionListener<Boolean> listener) {
+    public void stop(String inferenceEntityId, ActionListener<Boolean> listener) {
         client.execute(
             StopTrainedModelDeploymentAction.INSTANCE,
-            new StopTrainedModelDeploymentAction.Request(modelId),
+            new StopTrainedModelDeploymentAction.Request(inferenceEntityId),
             listener.delegateFailureAndWrap((delegatedResponseListener, response) -> delegatedResponseListener.onResponse(Boolean.TRUE))
         );
     }

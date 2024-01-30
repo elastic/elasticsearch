@@ -64,8 +64,8 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """;
     }
 
-    protected Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
-        String endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+    protected Map<String, Object> putModel(String inferenceEntityId, String modelConfig, TaskType taskType) throws IOException {
+        String endpoint = Strings.format("_inference/%s/%s", taskType, inferenceEntityId);
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(modelConfig);
         var response = client().performRequest(request);
@@ -73,8 +73,8 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
-    protected Map<String, Object> getModels(String modelId, TaskType taskType) throws IOException {
-        var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+    protected Map<String, Object> getModels(String inferenceEntityId, TaskType taskType) throws IOException {
+        var endpoint = Strings.format("_inference/%s/%s", taskType, inferenceEntityId);
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
@@ -89,8 +89,8 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
-    protected Map<String, Object> inferOnMockService(String modelId, TaskType taskType, List<String> input) throws IOException {
-        var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+    protected Map<String, Object> inferOnMockService(String inferenceEntityId, TaskType taskType, List<String> input) throws IOException {
+        var endpoint = Strings.format("_inference/%s/%s", taskType, inferenceEntityId);
         var request = new Request("POST", endpoint);
 
         var bodyBuilder = new StringBuilder("{\"input\": [");
@@ -127,5 +127,13 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
         String responseStr = EntityUtils.toString(response.getEntity());
         assertThat(responseStr, response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    protected Map<String, Object> getTrainedModel(String inferenceEntityId) throws IOException {
+        var endpoint = Strings.format("_ml/trained_models/%s/_stats", inferenceEntityId);
+        var request = new Request("GET", endpoint);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
     }
 }

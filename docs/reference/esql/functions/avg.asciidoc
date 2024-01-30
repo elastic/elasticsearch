@@ -10,7 +10,9 @@ AVG(expression)
 ----
 
 `expression`::
-Numeric expression. If `null`, the function returns `null`.
+Numeric expression.
+//If `null`, the function returns `null`.
+// TODO: Remove comment when https://github.com/elastic/elasticsearch/issues/104900 is fixed.
 
 *Description*
 
@@ -20,7 +22,7 @@ The average of a numeric expression.
 
 The result is always a `double` no matter the input type.
 
-*Example*
+*Examples*
 
 [source.merge.styled,esql]
 ----
@@ -29,4 +31,17 @@ include::{esql-specs}/stats.csv-spec[tag=avg]
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/stats.csv-spec[tag=avg-result]
+|===
+
+The expression can use inline functions. For example, to calculate the average
+over a multivalued column, first use `MV_AVG` to average the multiple values per
+row, and use the result with the `AVG` function:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=docsStatsAvgNestedExpression]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=docsStatsAvgNestedExpression-result]
 |===

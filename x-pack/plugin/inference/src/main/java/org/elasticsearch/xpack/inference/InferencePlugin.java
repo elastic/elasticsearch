@@ -50,7 +50,8 @@ import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.inference.ModelRegistry;
+import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
@@ -133,7 +134,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         );
         httpFactory.set(httpRequestSenderFactory);
 
-        ModelRegistry modelRegistry = new ModelRegistry(services.client());
+        ModelRegistry modelRegistry = new ModelRegistryImpl(services.client());
 
         if (inferenceServiceExtensions == null) {
             inferenceServiceExtensions = new ArrayList<>();

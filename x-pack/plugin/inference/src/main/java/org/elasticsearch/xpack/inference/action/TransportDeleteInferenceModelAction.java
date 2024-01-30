@@ -28,7 +28,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.inference.ModelRegistry;
+import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
 
 public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceModelAction.Request> {
 
@@ -68,7 +69,7 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        SubscribableListener.<ModelRegistry.UnparsedModel>newForked(modelConfigListener -> {
+        SubscribableListener.<ModelRegistryImpl.UnparsedModel>newForked(modelConfigListener -> {
             modelRegistry.getModel(request.getModelId(), modelConfigListener);
         }).<Boolean>andThen((l1, unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());

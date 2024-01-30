@@ -31,6 +31,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -55,41 +56,16 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class ModelRegistry {
+public class ModelRegistryImpl implements ModelRegistry {
     public record ModelConfigMap(Map<String, Object> config, Map<String, Object> secrets) {}
-
-    /**
-     * Semi parsed model where model id, task type and service
-     * are known but the settings are not parsed.
-     */
-    public record UnparsedModel(
-        String modelId,
-        TaskType taskType,
-        String service,
-        Map<String, Object> settings,
-        Map<String, Object> secrets
-    ) {
-
-        public static UnparsedModel unparsedModelFromMap(ModelConfigMap modelConfigMap) {
-            if (modelConfigMap.config() == null) {
-                throw new ElasticsearchStatusException("Missing config map", RestStatus.BAD_REQUEST);
-            }
-            String modelId = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.MODEL_ID);
-            String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
-            String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
-            TaskType taskType = TaskType.fromString(taskTypeStr);
-
-            return new UnparsedModel(modelId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets());
-        }
-    }
 
     private static final String TASK_TYPE_FIELD = "task_type";
     private static final String MODEL_ID_FIELD = "model_id";
-    private static final Logger logger = LogManager.getLogger(ModelRegistry.class);
+    private static final Logger logger = LogManager.getLogger(ModelRegistryImpl.class);
 
     private final OriginSettingClient client;
 
-    public ModelRegistry(Client client) {
+    public ModelRegistryImpl(Client client) {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
     }
 
@@ -106,7 +82,7 @@ public class ModelRegistry {
                 return;
             }
 
-            delegate.onResponse(UnparsedModel.unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), modelId)));
+            delegate.onResponse(unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), modelId)));
         });
 
         QueryBuilder queryBuilder = documentIdQuery(modelId);
@@ -124,6 +100,7 @@ public class ModelRegistry {
      * @param modelId Model to get
      * @param listener Model listener
      */
+    @Override
     public void getModel(String modelId, ActionListener<UnparsedModel> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
@@ -132,7 +109,7 @@ public class ModelRegistry {
                 return;
             }
 
-            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistryImpl::unparsedModelFromMap).toList();
             assert modelConfigs.size() == 1;
             delegate.onResponse(modelConfigs.get(0));
         });
@@ -153,6 +130,7 @@ public class ModelRegistry {
      * @param taskType The task type
      * @param listener Models listener
      */
+    @Override
     public void getModelsByTaskType(TaskType taskType, ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // Not an error if no models of this task_type
@@ -161,7 +139,7 @@ public class ModelRegistry {
                 return;
             }
 
-            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistryImpl::unparsedModelFromMap).toList();
             delegate.onResponse(modelConfigs);
         });
 
@@ -182,6 +160,7 @@ public class ModelRegistry {
      * Secret settings are not included
      * @param listener Models listener
      */
+    @Override
     public void getAllModels(ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // Not an error if no models of this task_type
@@ -190,7 +169,7 @@ public class ModelRegistry {
                 return;
             }
 
-            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistryImpl::unparsedModelFromMap).toList();
             delegate.onResponse(modelConfigs);
         });
 
@@ -252,6 +231,7 @@ public class ModelRegistry {
         );
     }
 
+    @Override
     public void storeModel(Model model, ActionListener<Boolean> listener) {
         ActionListener<BulkResponse> bulkResponseActionListener = getStoreModelListener(model, listener);
 
@@ -348,6 +328,7 @@ public class ModelRegistry {
         return null;
     }
 
+    @Override
     public void deleteModel(String modelId, ActionListener<Boolean> listener) {
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
         request.indices(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN);
@@ -371,5 +352,17 @@ public class ModelRegistry {
 
     private QueryBuilder documentIdQuery(String modelId) {
         return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(modelId)));
+    }
+
+    private static UnparsedModel unparsedModelFromMap(ModelRegistryImpl.ModelConfigMap modelConfigMap) {
+        if (modelConfigMap.config() == null) {
+            throw new ElasticsearchStatusException("Missing config map", RestStatus.BAD_REQUEST);
+        }
+        String modelId = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.MODEL_ID);
+        String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
+        String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
+        TaskType taskType = TaskType.fromString(taskTypeStr);
+
+        return new UnparsedModel(modelId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets());
     }
 }

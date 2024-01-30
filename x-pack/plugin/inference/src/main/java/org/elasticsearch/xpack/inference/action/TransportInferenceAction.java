@@ -20,18 +20,18 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
 
 public class TransportInferenceAction extends HandledTransportAction<InferenceAction.Request, InferenceAction.Response> {
 
-    private final ModelRegistry modelRegistry;
+    private final ModelRegistryImpl modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
 
     @Inject
     public TransportInferenceAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        ModelRegistry modelRegistry,
+        ModelRegistryImpl modelRegistry,
         InferenceServiceRegistry serviceRegistry
     ) {
         super(InferenceAction.NAME, transportService, actionFilters, InferenceAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -42,7 +42,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     @Override
     protected void doExecute(Task task, InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
 
-        ActionListener<ModelRegistry.UnparsedModel> getModelListener = listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
+        ActionListener<ModelRegistryImpl.UnparsedModel> getModelListener = listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
                 delegate.onFailure(

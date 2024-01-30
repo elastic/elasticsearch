@@ -25,7 +25,7 @@ public class ApiKeySerializationTests extends AbstractWireSerializingTestCase<Ap
 
     public void testSerializationBackwardsCompatibility() throws IOException {
         ApiKey testInstance = createTestInstance();
-        ApiKey deserializedInstance = copyInstance(testInstance, TransportVersions.V_8_500_064);
+        ApiKey deserializedInstance = copyInstance(testInstance, TransportVersions.V_8_11_X);
         try {
             // Transport is on a version before invalidation was introduced, so should always be null
             assertThat(deserializedInstance.getInvalidation(), nullValue());

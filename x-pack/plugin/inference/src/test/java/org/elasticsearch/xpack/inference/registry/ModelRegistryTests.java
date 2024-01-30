@@ -153,7 +153,7 @@ public class ModelRegistryTests extends ESTestCase {
         registry.getModelWithSecrets("1", listener);
 
         var modelConfig = listener.actionGet(TIMEOUT);
-        assertEquals("1", modelConfig.modelId());
+        assertEquals("1", modelConfig.inferenceEntityId());
         assertEquals("foo", modelConfig.service());
         assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
         assertThat(modelConfig.settings().keySet(), empty());
@@ -183,7 +183,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         registry.getModel("1", listener);
         var modelConfig = listener.actionGet(TIMEOUT);
-        assertEquals("1", modelConfig.modelId());
+        assertEquals("1", modelConfig.inferenceEntityId());
         assertEquals("foo", modelConfig.service());
         assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
         assertThat(modelConfig.settings().keySet(), empty());
@@ -229,7 +229,7 @@ public class ModelRegistryTests extends ESTestCase {
             is(
                 format(
                     "Failed to store inference model [%s], invalid bulk response received. Try reinitializing the service",
-                    model.getConfigurations().getModelId()
+                    model.getConfigurations().getInferenceEntityId()
                 )
             )
         );
@@ -255,7 +255,10 @@ public class ModelRegistryTests extends ESTestCase {
         registry.storeModel(model, listener);
 
         ResourceAlreadyExistsException exception = expectThrows(ResourceAlreadyExistsException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(exception.getMessage(), is(format("Inference model [%s] already exists", model.getConfigurations().getModelId())));
+        assertThat(
+            exception.getMessage(),
+            is(format("Inference model [%s] already exists", model.getConfigurations().getInferenceEntityId()))
+        );
     }
 
     public void testStoreModel_ThrowsException_WhenFailureIsNotAVersionConflict() {
@@ -278,7 +281,10 @@ public class ModelRegistryTests extends ESTestCase {
         registry.storeModel(model, listener);
 
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(exception.getMessage(), is(format("Failed to store inference model [%s]", model.getConfigurations().getModelId())));
+        assertThat(
+            exception.getMessage(),
+            is(format("Failed to store inference model [%s]", model.getConfigurations().getInferenceEntityId()))
+        );
     }
 
     private Client mockBulkClient() {

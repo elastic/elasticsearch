@@ -20,6 +20,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
@@ -46,6 +50,8 @@ import java.util.concurrent.TimeUnit;
 class ScrollDataExtractor implements DataExtractor {
 
     private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
+    private static final String EARLIEST_TIME = "earliest_time";
+    private static final String LATEST_TIME = "latest_time";
 
     private static final Logger logger = LogManager.getLogger(ScrollDataExtractor.class);
 
@@ -65,11 +71,6 @@ class ScrollDataExtractor implements DataExtractor {
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
         hasNext = true;
         searchHasShardFailure = false;
-    }
-
-    @Override
-    public DataSummary getSummary() {
-        return null;
     }
 
     @Override
@@ -305,5 +306,44 @@ class ScrollDataExtractor implements DataExtractor {
                 () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
             );
         }
+    }
+
+    @Override
+    public DataSummary getSummary() {
+        SearchRequestBuilder searchRequestBuilder = rangeSearchRequestForSummary();
+
+        SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
+        try {
+            logger.debug("[{}] Scrolling Data summary response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+
+            Aggregations aggregations = searchResponse.getAggregations();
+            long totalHits = searchResponse.getHits().getTotalHits().value;
+            if (totalHits == 0) {
+                return new DataSummary(null, null, 0L);
+            } else {
+                long earliestTime = (long) (aggregations.<Min>get(EARLIEST_TIME)).value();
+                long latestTime = (long) (aggregations.<Max>get(LATEST_TIME)).value();
+                return new DataSummary(earliestTime, latestTime, totalHits);
+            }
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    private SearchSourceBuilder rangeSearchBuilderForSummary() {
+        return new SearchSourceBuilder().size(0)
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.extractedFields.timeField(), context.start, context.end))
+            .runtimeMappings(context.runtimeMappings)
+            .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.extractedFields.timeField()))
+            .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.extractedFields.timeField()));
+    }
+
+    private SearchRequestBuilder rangeSearchRequestForSummary() {
+        return new SearchRequestBuilder(client).setIndices(context.indices)
+            .setIndicesOptions(context.indicesOptions)
+            .setSource(rangeSearchBuilderForSummary())
+            .setAllowPartialSearchResults(false)
+            .setTrackTotalHits(true);
     }
 }

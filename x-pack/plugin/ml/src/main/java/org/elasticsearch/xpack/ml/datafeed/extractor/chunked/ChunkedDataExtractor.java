@@ -262,25 +262,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
 
         private DataSummary newScrolledDataSummary() {
-            SearchRequestBuilder searchRequestBuilder = rangeSearchRequest();
-
-            SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
-            try {
-                LOGGER.debug("[{}] Scrolling Data summary response was obtained", context.jobId);
-                timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-
-                Aggregations aggregations = searchResponse.getAggregations();
-                long totalHits = searchResponse.getHits().getTotalHits().value;
-                if (totalHits == 0) {
-                    return new DataSummary(null, null, 0L);
-                } else {
-                    long earliestTime = (long) (aggregations.<Min>get(EARLIEST_TIME)).value();
-                    long latestTime = (long) (aggregations.<Max>get(LATEST_TIME)).value();
-                    return new DataSummary(earliestTime, latestTime, totalHits);
-                }
-            } finally {
-                searchResponse.decRef();
-            }
+            return dataExtractorFactory.newExtractor(currentStart, context.end).getSummary();
         }
 
         private DataSummary newAggregatedDataSummary() {

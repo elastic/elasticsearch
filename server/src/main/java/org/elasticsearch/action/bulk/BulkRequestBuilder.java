@@ -45,7 +45,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      * some IndexRequests and some IndexRequestBuilders. They need to pick one (preferably builders) and stick with it.
      */
     private final List<DocWriteRequest<?>> requests = new ArrayList<>();
-    private final List<FramedData> framedDataList = new ArrayList<>();
+    private final List<FramedData> framedData = new ArrayList<>();
     private final List<RequestBuilder<? extends ActionRequest, ? extends ActionResponse>> requestBuilders = new ArrayList<>();
     private ActiveShardCount waitForActiveShards;
     private TimeValue timeout;
@@ -124,7 +124,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      * Adds a framed data in binary format
      */
     public BulkRequestBuilder add(byte[] data, int from, int length, XContentType xContentType) throws Exception {
-        framedDataList.add(new FramedData(data, from, length, null, xContentType));
+        framedData.add(new FramedData(data, from, length, null, xContentType));
         return this;
     }
 
@@ -133,7 +133,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      */
     public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType)
         throws Exception {
-        framedDataList.add(new FramedData(data, from, length, defaultIndex, xContentType));
+        framedData.add(new FramedData(data, from, length, defaultIndex, xContentType));
         return this;
     }
 
@@ -175,7 +175,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      * The number of actions currently in the bulk.
      */
     public int numberOfActions() {
-        return requests.size() + requestBuilders.size() + framedDataList.size();
+        return requests.size() + requestBuilders.size() + framedData.size();
     }
 
     public BulkRequestBuilder pipeline(String globalPipeline) {
@@ -204,9 +204,6 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     public BulkRequest request() {
         validate();
         BulkRequest request = new BulkRequest(globalIndex);
-        if (requests.isEmpty() == false && requestBuilders.isEmpty() == false) {
-            throw new IllegalStateException("Must use only requests or request builders within a single bulk request");
-        }
         for (RequestBuilder<? extends ActionRequest, ? extends ActionResponse> requestBuilder : requestBuilders) {
             ActionRequest childRequest = requestBuilder.request();
             request.add((DocWriteRequest<?>) childRequest);
@@ -214,7 +211,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
         for (DocWriteRequest<?> childRequest : requests) {
             request.add(childRequest);
         }
-        for (FramedData framedData : framedDataList) {
+        for (FramedData framedData : framedData) {
             try {
                 request.add(framedData.data, framedData.from, framedData.length, framedData.defaultIndex, framedData.xContentType);
             } catch (IOException e) {
@@ -246,19 +243,27 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     }
 
     private void validate() {
-        if (requests.isEmpty() == false && requestBuilders.isEmpty() == false
-            || requests.isEmpty() == false && framedDataList.isEmpty() == false
-            || requestBuilders.isEmpty() == false && framedDataList.isEmpty() == false) {
+        if (countNotNullObjects(requestBuilders, requests, framedData) > 1) {
             throw new IllegalStateException(
                 "Must use only request builders, requests, or byte arrays within a single bulk request. Cannot mix and match"
             );
         }
-        if (timeoutString != null && timeout != null) {
+        if (timeout != null && timeoutString != null) {
             throw new IllegalStateException("Must use only one setTimeout method");
         }
         if (refreshPolicy != null && refreshPolicyString != null) {
             throw new IllegalStateException("Must use only one setRefreshPolicy method");
         }
+    }
+
+    private int countNotNullObjects(Object... objects) {
+        int sum = 0;
+        for (Object object : objects) {
+            if (object != null) {
+                sum++;
+            }
+        }
+        return sum;
     }
 
     private record FramedData(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType) {}

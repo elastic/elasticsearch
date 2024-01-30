@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+
 import javax.inject.Inject;
 
 import static org.objectweb.asm.Opcodes.V_PREVIEW;
@@ -74,24 +75,19 @@ public class MrjarPlugin implements Plugin<Project> {
 
         project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME).configure(jarTask -> {
             jarTask.into("META-INF/versions/" + javaVersion, copySpec -> copySpec.from(sourceSet.getOutput()));
-            jarTask.manifest(manifest -> {
-                manifest.attributes(Map.of("Multi-Release", "true"));
-            });
+            jarTask.manifest(manifest -> { manifest.attributes(Map.of("Multi-Release", "true")); });
         });
 
         project.getTasks().withType(JavaCompile.class).named(sourceSet.getCompileJavaTaskName()).configure(compileTask -> {
-            compileTask.getJavaCompiler().set(javaToolchains.compilerFor(spec -> {
-                spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion));
-            }));
+            compileTask.getJavaCompiler()
+                .set(javaToolchains.compilerFor(spec -> { spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion)); }));
             compileTask.setSourceCompatibility(Integer.toString(javaVersion));
             CompileOptions compileOptions = compileTask.getOptions();
             compileOptions.getRelease().set(javaVersion);
             compileOptions.getCompilerArgs().add("--enable-preview");
             compileOptions.getCompilerArgs().add("-Xlint:-preview");
 
-            compileTask.doLast(t -> {
-                stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath());
-            });
+            compileTask.doLast(t -> { stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath()); });
         });
     }
 

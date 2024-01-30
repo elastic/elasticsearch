@@ -9,6 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -42,6 +43,7 @@ class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
     private final boolean includeFieldsWithNoValue;
     private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
+    private final boolean enableFieldHasValue = Booleans.parseBoolean(System.getProperty("es.field_has_value", Boolean.TRUE.toString()));
 
     FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeFieldsWithNoValue) {
         this.indicesService = indicesService;
@@ -104,7 +106,7 @@ class FieldCapabilitiesFetcher {
 
         final MappingMetadata mapping = indexService.getMetadata().mapping();
         String indexMappingHash;
-        if (includeFieldsWithNoValue) {
+        if (includeFieldsWithNoValue || enableFieldHasValue == false) {
             indexMappingHash = mapping != null ? mapping.getSha256() : null;
         } else {
             // even if the mapping is the same if we return only fields with values we need

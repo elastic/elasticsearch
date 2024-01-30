@@ -409,6 +409,19 @@ dd_oo:integer
 null
 ;
 
+docsDateDiff#[skip:-8.12.99, reason:date_diff added in 8.13]
+// tag::docsDateDiff[]
+ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z"), date2 = TO_DATETIME("2023-12-02T11:00:00.001Z")
+| EVAL dd_ms = DATE_DIFF("microseconds", date1, date2)
+// end::docsDateDiff[]
+;
+
+// tag::docsDateDiff-result[]
+date1:date          |         date2:date          |    dd_ms:integer
+2023-12-02T11:00:00.000Z | 2023-12-02T11:00:00.001Z | 1000  
+// end::docsDateDiff-result[]
+;
+
 evalDateParseWithSimpleDate
 row a = "2023-02-01" | eval b = date_parse("yyyy-MM-dd", a) | keep b;
 

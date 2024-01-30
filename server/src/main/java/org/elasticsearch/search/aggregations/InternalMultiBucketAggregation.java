@@ -168,7 +168,7 @@ public abstract class InternalMultiBucketAggregation<
         boolean modified = false;
         List<B> newBuckets = new ArrayList<>();
         for (B bucket : getBuckets()) {
-            InternalAggregations rewritten = rewriter.apply((InternalAggregations) bucket.getAggregations());
+            InternalAggregations rewritten = rewriter.apply(bucket.getAggregations());
             if (rewritten == null) {
                 newBuckets.add(bucket);
                 continue;
@@ -188,7 +188,7 @@ public abstract class InternalMultiBucketAggregation<
     @Override
     public void forEachBucket(Consumer<InternalAggregations> consumer) {
         for (B bucket : getBuckets()) {
-            consumer.accept((InternalAggregations) bucket.getAggregations());
+            consumer.accept(bucket.getAggregations());
         }
     }
 

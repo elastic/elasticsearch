@@ -15,10 +15,16 @@ import org.elasticsearch.nativeaccess.jna.JnaStaticPosixCLibrary.JnaRLimit;
 import org.elasticsearch.nativeaccess.jna.JnaStaticPosixCLibrary.JnaStat;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
+import java.lang.invoke.MethodHandles;
+
 class JnaPosixCLibrary implements PosixCLibrary {
 
     static {
-        JdkUtils.ensureInitialized(JnaStaticPosixCLibrary.class);
+        try {
+            MethodHandles.lookup().ensureInitialized(JnaStaticPosixCLibrary.class);
+        } catch (IllegalAccessException unexpected) {
+            throw new AssertionError(unexpected);
+        }
     }
 
     @Override

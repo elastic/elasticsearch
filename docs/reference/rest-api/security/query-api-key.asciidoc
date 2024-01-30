@@ -64,7 +64,7 @@ NOTE: The queryable string values associated with API keys are internally mapped
 Consequently, if no <<analysis-analyzers,`analyzer`>> parameter is specified for a
 <<query-dsl-match-query,`match`>> query, then the provided match query string is interpreted as
 a single keyword value. Such a <<query-dsl-match-query,`match`>> query is hence equivalent to a
-<<query-dsl-term-query,`term`>> one.
+<<query-dsl-term-query,`term`>> query.
 +
 .Valid values for `query`
 [%collapsible%open]

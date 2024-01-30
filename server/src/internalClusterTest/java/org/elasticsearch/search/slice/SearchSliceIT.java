@@ -22,8 +22,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchUsageException;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -288,7 +288,7 @@ public class SearchSliceIT extends ESIntegTestCase {
             prepareSearch().setQuery(matchAllQuery()).slice(new SliceBuilder("invalid_random_int", 0, 10))
         );
         Throwable rootCause = findRootCause(exc);
-        assertThat(rootCause.getClass(), equalTo(SearchException.class));
+        assertThat(rootCause.getClass(), equalTo(SearchUsageException.class));
         assertThat(rootCause.getMessage(), equalTo("[slice] can only be used with [scroll] or [point-in-time] requests"));
     }
 

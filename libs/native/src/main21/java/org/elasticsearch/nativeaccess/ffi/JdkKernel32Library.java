@@ -217,7 +217,7 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkHandle = (JdkHandle) handle;
 
         try {
-            return (boolean) CloseHandle$mh.invokeExact(jdkHandle.address, lastErrorState);
+            return (boolean) CloseHandle$mh.invokeExact(lastErrorState, jdkHandle.address);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -239,7 +239,7 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkAddress = (JdkAddress) address;
 
         try {
-            return (boolean) VirtualLock$mh.invokeExact(jdkAddress.address, size, lastErrorState);
+            return (boolean) VirtualLock$mh.invokeExact(lastErrorState, jdkAddress.address, size);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -256,11 +256,11 @@ class JdkKernel32Library implements Kernel32Library {
 
         try {
             return (int) VirtualQueryEx$mh.invokeExact(
+                lastErrorState,
                 jdkProcess.address,
                 jdkAddress.address,
                 jdkMemoryInfo.segment,
-                jdkMemoryInfo.segment.byteSize(),
-                lastErrorState
+                jdkMemoryInfo.segment.byteSize()
             );
         } catch (Throwable t) {
             throw new AssertionError(t);
@@ -272,7 +272,7 @@ class JdkKernel32Library implements Kernel32Library {
         assert process instanceof JdkHandle;
         var jdkProcess = (JdkHandle) process;
         try {
-            return (boolean) SetProcessWorkingSetSize$mh.invokeExact(jdkProcess.address, minSize, maxSize, lastErrorState);
+            return (boolean) SetProcessWorkingSetSize$mh.invokeExact(lastErrorState, jdkProcess.address, minSize, maxSize);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -285,7 +285,7 @@ class JdkKernel32Library implements Kernel32Library {
             MemorySegment wideFileName = arena.allocateArray(JAVA_BYTE, (lpFileName + "\0").getBytes(StandardCharsets.UTF_16LE));
             MemorySegment fileSizeHigh = arena.allocate(JAVA_INT);
 
-            int ret = (int) GetCompressedFileSizeW$mh.invokeExact(wideFileName, fileSizeHigh, lastErrorState);
+            int ret = (int) GetCompressedFileSizeW$mh.invokeExact(lastErrorState, wideFileName, fileSizeHigh);
             lpFileSizeHigh.accept(fileSizeHigh.get(JAVA_INT, 0));
             return ret;
         } catch (Throwable t) {
@@ -303,7 +303,7 @@ class JdkKernel32Library implements Kernel32Library {
                 shortPath = MemorySegment.ofArray(lpszShortPath);
             }
 
-            return (int) GetShortPathNameW$mh.invokeExact(wideFileName, shortPath, cchBuffer, lastErrorState);
+            return (int) GetShortPathNameW$mh.invokeExact(lastErrorState, wideFileName, shortPath, cchBuffer);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -315,7 +315,7 @@ class JdkKernel32Library implements Kernel32Library {
         MemorySegment nativeHandler = upcallStub(ConsoleCtrlHandler_handle$mh, handler, ConsoleCtrlHandler_handle$fd, arena);
 
         try {
-            return (boolean) SetConsoleCtrlHandler$mh.invokeExact(nativeHandler, add);
+            return (boolean) SetConsoleCtrlHandler$mh.invokeExact(lastErrorState, nativeHandler, add);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -324,7 +324,7 @@ class JdkKernel32Library implements Kernel32Library {
     @Override
     public Handle CreateJobObjectW() {
         try {
-            return new JdkHandle((MemorySegment) CreateJobObjectW$mh.invokeExact(null, null, lastErrorState));
+            return new JdkHandle((MemorySegment) CreateJobObjectW$mh.invokeExact(lastErrorState, null, null));
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -338,7 +338,7 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkProcess = (JdkHandle) process;
 
         try {
-            return (boolean) AssignProcessToJobObject$mh.invokeExact(jdkJob.address, jdkProcess.address, lastErrorState);
+            return (boolean) AssignProcessToJobObject$mh.invokeExact(lastErrorState, jdkJob.address, jdkProcess.address);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -358,12 +358,12 @@ class JdkKernel32Library implements Kernel32Library {
 
         try {
             return (boolean) QueryInformationJobObject$mh.invokeExact(
+                lastErrorState,
                 jdkJob.address,
                 infoClass,
                 jdkInfo.segment,
                 jdkInfo.segment.byteSize(),
-                null,
-                lastErrorState
+                null
             );
         } catch (Throwable t) {
             throw new AssertionError(t);
@@ -379,11 +379,11 @@ class JdkKernel32Library implements Kernel32Library {
 
         try {
             return (boolean) SetInformationJobObject$mh.invokeExact(
+                lastErrorState,
                 jdkJob.address,
                 infoClass,
                 jdkInfo.segment,
-                jdkInfo.segment.byteSize(),
-                lastErrorState
+                jdkInfo.segment.byteSize()
             );
         } catch (Throwable t) {
             throw new AssertionError(t);

@@ -111,7 +111,7 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
         var jdkStatxbuf = (JdkStatx) statxbuf;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment nativePathname = arena.allocateUtf8String(pathname);
-            return (int) statx$mh.invokeExact(dirfd, nativePathname, flags, mask, jdkStatxbuf.segment, errnoState);
+            return (int) statx$mh.invokeExact(errnoState, dirfd, nativePathname, flags, mask, jdkStatxbuf.segment);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -125,7 +125,7 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     @Override
     public int prctl(int option, long arg2, long arg3, long arg4, long arg5) {
         try {
-            return (int) prctl$mh.invokeExact(option, arg2, arg3, arg4, arg5, errnoState);
+            return (int) prctl$mh.invokeExact(errnoState, option, arg2, arg3, arg4, arg5);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -134,7 +134,7 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     @Override
     public long syscall(long number, int operation, int flags, long address) {
         try {
-            return (long) syscall$mh.invokeExact(number, operation, flags, address, errnoState);
+            return (long) syscall$mh.invokeExact(errnoState, number, operation, flags, address);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -143,7 +143,7 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     @Override
     public int fallocate(int fd, int mode, long offset, long length) {
         try {
-            return (int) fallocate$mh.invokeExact(fd, mode, offset, length, errnoState);
+            return (int) fallocate$mh.invokeExact(errnoState, fd, mode, offset, length);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

@@ -128,7 +128,7 @@ class JdkMacCLibrary implements MacCLibrary {
         assert fst instanceof JdkFStore;
         var jdkFst = (JdkFStore) fst;
         try {
-            return (int) fcntl$mh.invokeExact(fd, cmd, jdkFst.segment, errnoState);
+            return (int) fcntl$mh.invokeExact(errnoState, fd, cmd, jdkFst.segment);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -137,7 +137,7 @@ class JdkMacCLibrary implements MacCLibrary {
     @Override
     public int ftruncate(int fd, long length) {
         try {
-            return (int) ftruncate$mh.invokeExact(fd, length, errnoState);
+            return (int) ftruncate$mh.invokeExact(errnoState, fd, length);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

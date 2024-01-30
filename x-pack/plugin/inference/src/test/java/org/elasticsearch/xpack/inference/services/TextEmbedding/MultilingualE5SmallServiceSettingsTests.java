@@ -8,12 +8,8 @@
 package org.elasticsearch.xpack.inference.services.TextEmbedding;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 public class MultilingualE5SmallServiceSettingsTests extends ESTestCase {
-
-    @Test
-    public void fromMap() {}
 
     public static MultilingualE5SmallServiceSettings createRandom() {
         return new MultilingualE5SmallServiceSettings(

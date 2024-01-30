@@ -29,7 +29,7 @@ import static org.mockito.Mockito.mock;
 public class TextEmbeddingServiceTests extends ESTestCase {
 
     TaskType taskType = TaskType.TEXT_EMBEDDING;
-    String randominferenceEntityId = randomAlphaOfLength(10);
+    String randomInferenceEntityId = randomAlphaOfLength(10);
 
     public void testParseRequestConfig() {
 
@@ -41,9 +41,18 @@ public class TextEmbeddingServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(Map.of(TextEmbeddingServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingServiceSettings.NUM_THREADS, 4))
             );
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> service.parseRequestConfig(randominferenceEntityId, taskType, settings, Set.of())
+
+            var e5ServiceSettings = new MultilingualE5SmallServiceSettings(1, 4, TextEmbeddingService.MULTILINGUAL_E5_SMALL_MODEL_ID);
+
+            MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parseRequestConfig(
+                randomInferenceEntityId,
+                taskType,
+                settings,
+                Set.of()
+            );
+            assertEquals(
+                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingService.NAME, e5ServiceSettings),
+                parsedModel
             );
         }
 
@@ -66,7 +75,7 @@ public class TextEmbeddingServiceTests extends ESTestCase {
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> service.parseRequestConfig(randominferenceEntityId, taskType, settings, Set.of())
+                () -> service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of())
             );
         }
 
@@ -91,13 +100,13 @@ public class TextEmbeddingServiceTests extends ESTestCase {
             var e5ServiceSettings = new MultilingualE5SmallServiceSettings(1, 4, TextEmbeddingService.MULTILINGUAL_E5_SMALL_MODEL_ID);
 
             MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parseRequestConfig(
-                randominferenceEntityId,
+                randomInferenceEntityId,
                 taskType,
                 settings,
                 Set.of()
             );
             assertEquals(
-                new MultilingualE5SmallModel(randominferenceEntityId, taskType, TextEmbeddingService.NAME, e5ServiceSettings),
+                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingService.NAME, e5ServiceSettings),
                 parsedModel
             );
         }
@@ -113,7 +122,7 @@ public class TextEmbeddingServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(Map.of(TextEmbeddingServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingServiceSettings.NUM_THREADS, 4))
             );
-            expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randominferenceEntityId, taskType, settings));
+            expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
         }
 
         // Invalid model variant
@@ -133,7 +142,7 @@ public class TextEmbeddingServiceTests extends ESTestCase {
                     )
                 )
             );
-            expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randominferenceEntityId, taskType, settings));
+            expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
         }
 
         // Valid model variant
@@ -157,12 +166,12 @@ public class TextEmbeddingServiceTests extends ESTestCase {
             var e5ServiceSettings = new MultilingualE5SmallServiceSettings(1, 4, TextEmbeddingService.MULTILINGUAL_E5_SMALL_MODEL_ID);
 
             MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parsePersistedConfig(
-                randominferenceEntityId,
+                randomInferenceEntityId,
                 taskType,
                 settings
             );
             assertEquals(
-                new MultilingualE5SmallModel(randominferenceEntityId, taskType, TextEmbeddingService.NAME, e5ServiceSettings),
+                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingService.NAME, e5ServiceSettings),
                 parsedModel
             );
         }
@@ -175,7 +184,7 @@ public class TextEmbeddingServiceTests extends ESTestCase {
 
     public static Model randomModelConfig(String inferenceEntityId) {
         List<String> givenList = Arrays.asList("MultilingualE5SmallModel");
-        Random rand = new Random();
+        Random rand = org.elasticsearch.common.Randomness.get();
         String model = givenList.get(rand.nextInt(givenList.size()));
 
         return switch (model) {

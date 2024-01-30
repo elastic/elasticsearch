@@ -80,7 +80,6 @@ class Bootstrap {
     void exitWithUnknownException(Throwable e) {
         Logger logger = LogManager.getLogger(Elasticsearch.class);
         logger.error("fatal exception while booting Elasticsearch", e);
-        e.printStackTrace();
         gracefullyExit(1); // mimic JDK exit code on exception
     }
 

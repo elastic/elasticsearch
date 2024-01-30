@@ -40,6 +40,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         apmAgentSettings.syncAgentSystemProperties(settings);
 
         verify(apmAgentSettings).setAgentSetting("recording", "true");
+        assertWarnings("[tracing.apm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 
     /**
@@ -59,6 +60,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         apmAgentSettings.syncAgentSystemProperties(settings);
 
         verify(apmAgentSettings).setAgentSetting("recording", "false");
+        assertWarnings("[tracing.apm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 
     /**
@@ -86,6 +88,9 @@ public class APMAgentSettingsTests extends ESTestCase {
 
         verify(apmAgentSettings).setAgentSetting("recording", "true");
         verify(apmAgentSettings).setAgentSetting("span_compression_enabled", "true");
+        assertWarnings(
+            "[tracing.apm.agent.span_compression_enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     /**
@@ -103,8 +108,14 @@ public class APMAgentSettingsTests extends ESTestCase {
         }
         // though, accept / ignore nested global_labels
         for (String prefix : prefixes) {
-            Settings settings = Settings.builder().put(prefix + "global_labels." + randomAlphaOfLength(5), "123").build();
+            Settings settings = Settings.builder().put(prefix + "global_labels.abc", "123").build();
             APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(settings);
+
+            if (prefix.startsWith("tracing.apm.agent.")) {
+                assertWarnings(
+                    "[tracing.apm.agent.global_labels.abc] setting was deprecated in Elasticsearch and will be removed in a future release."
+                );
+            }
         }
     }
 
@@ -114,6 +125,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         List<String> included = APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
 
         assertThat(included, containsInAnyOrder("abc", "xyz"));
+        assertWarnings("[tracing.apm.names.include] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 
     public void testTelemetryTracingNamesExcludeFallback() {
@@ -122,6 +134,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         List<String> included = APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
 
         assertThat(included, containsInAnyOrder("abc", "xyz"));
+        assertWarnings("[tracing.apm.names.exclude] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 
     public void testTelemetryTracingSanitizeFieldNamesFallback() {
@@ -130,6 +143,9 @@ public class APMAgentSettingsTests extends ESTestCase {
         List<String> included = APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings);
 
         assertThat(included, containsInAnyOrder("abc", "xyz"));
+        assertWarnings(
+            "[tracing.apm.sanitize_field_names] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testTelemetryTracingSanitizeFieldNamesFallbackDefault() {
@@ -144,8 +160,8 @@ public class APMAgentSettingsTests extends ESTestCase {
 
         try (SecureString secureString = APMAgentSettings.TELEMETRY_SECRET_TOKEN_SETTING.get(settings)) {
             assertEquals("verysecret", secureString.toString());
-
         }
+        assertWarnings("[tracing.apm.secret_token] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 
     public void testTelemetryApiKeyFallback() {
@@ -155,7 +171,7 @@ public class APMAgentSettingsTests extends ESTestCase {
 
         try (SecureString secureString = APMAgentSettings.TELEMETRY_API_KEY_SETTING.get(settings)) {
             assertEquals("abc", secureString.toString());
-
         }
+        assertWarnings("[tracing.apm.api_key] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 }

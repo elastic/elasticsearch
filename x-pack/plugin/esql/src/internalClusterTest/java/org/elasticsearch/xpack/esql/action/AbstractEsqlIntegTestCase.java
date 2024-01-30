@@ -164,6 +164,9 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                 };
                 settings.put("page_size", pageSize);
             }
+            if (randomBoolean()) {
+                settings.put("max_concurrent_shards_per_node", randomIntBetween(1, 10));
+            }
         }
         return new QueryPragmas(settings.build());
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.OwningChannelActionListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -35,6 +35,7 @@ import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.compute.operator.exchange.ExchangeResponse;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
@@ -279,7 +280,7 @@ public class ComputeService {
     }
 
     void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<List<DriverProfile>> listener) {
-        listener = ActionListener.runAfter(listener, () -> Releasables.close(context.searchContexts));
+        listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts));
         final List<Driver> drivers;
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
@@ -500,37 +501,93 @@ public class ComputeService {
     // TODO: Use an internal action here
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
 
+    private class DataNodeRequestExecutor {
+        private final DataNodeRequest request;
+        private final CancellableTask parentTask;
+        private final ExchangeSinkHandler exchangeSink;
+        private final ActionListener<DataNodeResponse> listener;
+        private final List<DriverProfile> driverProfiles;
+        private final int maxConcurrentShards;
+        private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
+
+        DataNodeRequestExecutor(
+            DataNodeRequest request,
+            CancellableTask parentTask,
+            ExchangeSinkHandler exchangeSink,
+            int maxConcurrentShards,
+            ActionListener<DataNodeResponse> listener
+        ) {
+            this.request = request;
+            this.parentTask = parentTask;
+            this.exchangeSink = exchangeSink;
+            this.listener = listener;
+            this.driverProfiles = request.configuration().profile() ? Collections.synchronizedList(new ArrayList<>()) : List.of();
+            this.maxConcurrentShards = maxConcurrentShards;
+            this.blockingSink = exchangeSink.createExchangeSink();
+        }
+
+        void start() {
+            parentTask.addListener(
+                () -> exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(parentTask.getReasonCancelled()))
+            );
+            runBatch(0);
+        }
+
+        private void runBatch(int startBatchIndex) {
+            final EsqlConfiguration configuration = request.configuration();
+            final var sessionId = request.sessionId();
+            final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
+            List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
+            acquireSearchContexts(shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
+                assert ThreadPool.assertCurrentThreadPool(ESQL_THREAD_POOL_NAME, ESQL_WORKER_THREAD_POOL_NAME);
+                var computeContext = new ComputeContext(sessionId, searchContexts, configuration, null, exchangeSink);
+                runCompute(
+                    parentTask,
+                    computeContext,
+                    request.plan(),
+                    ActionListener.wrap(profiles -> onBatchCompleted(endBatchIndex, profiles), this::onFailure)
+                );
+            }, this::onFailure));
+        }
+
+        private void onBatchCompleted(int lastBatchIndex, List<DriverProfile> batchProfiles) {
+            if (request.configuration().profile()) {
+                driverProfiles.addAll(batchProfiles);
+            }
+            if (lastBatchIndex < request.shardIds().size() && exchangeSink.isFinished() == false) {
+                runBatch(lastBatchIndex);
+            } else {
+                blockingSink.finish();
+                // don't return until all pages are fetched
+                exchangeSink.addCompletionListener(
+                    ContextPreservingActionListener.wrapPreservingContext(
+                        ActionListener.runBefore(
+                            listener.map(nullValue -> new DataNodeResponse(driverProfiles)),
+                            () -> exchangeService.finishSinkHandler(request.sessionId(), null)
+                        ),
+                        transportService.getThreadPool().getThreadContext()
+                    )
+                );
+            }
+        }
+
+        private void onFailure(Exception e) {
+            exchangeService.finishSinkHandler(request.sessionId(), e);
+            listener.onFailure(e);
+        }
+    }
+
     private class DataNodeRequestHandler implements TransportRequestHandler<DataNodeRequest> {
         @Override
         public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
-            final var parentTask = (CancellableTask) task;
-            final var sessionId = request.sessionId();
-            final var exchangeSink = exchangeService.getSinkHandler(sessionId);
-            parentTask.addListener(() -> exchangeService.finishSinkHandler(sessionId, new TaskCancelledException("task cancelled")));
-            final ActionListener<DataNodeResponse> listener = new OwningChannelActionListener<>(channel);
-            final EsqlConfiguration configuration = request.configuration();
-            acquireSearchContexts(request.shardIds(), configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
-                assert ThreadPool.assertCurrentThreadPool(ESQL_THREAD_POOL_NAME);
-                var computeContext = new ComputeContext(sessionId, searchContexts, configuration, null, exchangeSink);
-                runCompute(parentTask, computeContext, request.plan(), ActionListener.wrap(driverProfiles -> {
-                    // don't return until all pages are fetched
-                    exchangeSink.addCompletionListener(
-                        ContextPreservingActionListener.wrapPreservingContext(
-                            ActionListener.releaseAfter(
-                                listener.map(nullValue -> new DataNodeResponse(driverProfiles)),
-                                () -> exchangeService.finishSinkHandler(sessionId, null)
-                            ),
-                            transportService.getThreadPool().getThreadContext()
-                        )
-                    );
-                }, e -> {
-                    exchangeService.finishSinkHandler(sessionId, e);
-                    listener.onFailure(e);
-                }));
-            }, e -> {
-                exchangeService.finishSinkHandler(sessionId, e);
-                listener.onFailure(e);
-            }));
+            DataNodeRequestExecutor executor = new DataNodeRequestExecutor(
+                request,
+                (CancellableTask) task,
+                exchangeService.getSinkHandler(request.sessionId()),
+                request.configuration().pragmas().maxConcurrentShardsPerNode(),
+                new ChannelActionListener<>(channel)
+            );
+            executor.start();
         }
     }
 

@@ -418,14 +418,16 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     private record OutOfRangeTestCase(String fieldName, String tooLow, String tooHigh) {};
 
     public void testOutOfRangeFilterPushdown() {
-        String largerThanInteger = ((Long) randomLongBetween(Integer.MAX_VALUE + 1L, Long.MAX_VALUE)).toString();
-        String smallerThanInteger = ((Long) randomLongBetween(Long.MIN_VALUE, Integer.MIN_VALUE - 1L)).toString();
+        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+
+        String largerThanInteger = String.valueOf(randomLongBetween(Integer.MAX_VALUE + 1L, Long.MAX_VALUE));
+        String smallerThanInteger = String.valueOf(randomLongBetween(Long.MIN_VALUE, Integer.MIN_VALUE - 1L));
 
         // These values are already out of bounds for longs due to rounding errors.
         double longLowerBoundExclusive = (double) Long.MIN_VALUE;
         double longUpperBoundExclusive = (double) Long.MAX_VALUE;
-        String largerThanLong = ((Double) randomDoubleBetween(longUpperBoundExclusive, Double.MAX_VALUE, true)).toString();
-        String smallerThanLong = ((Double) randomDoubleBetween(-Double.MAX_VALUE, longLowerBoundExclusive, true)).toString();
+        String largerThanLong = String.valueOf(randomDoubleBetween(longUpperBoundExclusive, Double.MAX_VALUE, true));
+        String smallerThanLong = String.valueOf(randomDoubleBetween(-Double.MAX_VALUE, longLowerBoundExclusive, true));
 
         List<OutOfRangeTestCase> cases = List.of(
             new OutOfRangeTestCase("byte", smallerThanInteger, largerThanInteger),
@@ -438,28 +440,35 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             new OutOfRangeTestCase("scaled_float", "-1.0/0.0", "1.0/0.0")
         );
 
+        final String LT = "<";
+        final String LTE = "<=";
+        final String GT = ">";
+        final String GTE = ">=";
+        final String EQ = "==";
+        final String NEQ = "!=";
+
         for (OutOfRangeTestCase testCase : cases) {
             List<String> trueForSingleValuesPredicates = List.of(
-                "<" + testCase.tooHigh,
-                "<=" + testCase.tooHigh,
-                ">" + testCase.tooLow,
-                ">=" + testCase.tooLow,
-                "!=" + testCase.tooHigh,
-                "!=" + testCase.tooLow,
-                "!= 0.0/0.0"
+                LT + testCase.tooHigh,
+                LTE + testCase.tooHigh,
+                GT + testCase.tooLow,
+                GTE + testCase.tooLow,
+                NEQ + testCase.tooHigh,
+                NEQ + testCase.tooLow,
+                NEQ + "0.0/0.0"
             );
             List<String> alwaysFalsePredicates = List.of(
-                "<" + testCase.tooLow,
-                "<=" + testCase.tooLow,
-                ">" + testCase.tooHigh,
-                ">=" + testCase.tooHigh,
-                "==" + testCase.tooHigh,
-                "==" + testCase.tooLow,
-                "< 0.0/0.0",
-                "<= 0.0/0.0",
-                "> 0.0/0.0",
-                ">= 0.0/0.0",
-                "== 0.0/0.0"
+                LT + testCase.tooLow,
+                LTE + testCase.tooLow,
+                GT + testCase.tooHigh,
+                GTE + testCase.tooHigh,
+                EQ + testCase.tooHigh,
+                EQ + testCase.tooLow,
+                LT + "0.0/0.0",
+                LTE + "0.0/0.0",
+                GT + "0.0/0.0",
+                GTE + "0.0/0.0",
+                EQ + "0.0/0.0"
             );
 
             for (String truePredicate : trueForSingleValuesPredicates) {
@@ -467,7 +476,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 var query = "from test | where " + comparison;
                 Source expectedSource = new Source(1, 18, comparison);
 
-                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query);
+                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
 
                 assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
                 var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
@@ -482,7 +491,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 var query = "from test | where " + comparison;
                 Source expectedSource = new Source(1, 18, comparison);
 
-                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query);
+                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
 
                 assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
                 var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
@@ -503,9 +512,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *     \_FieldExtractExec[!alias_integer, boolean{f}#190, byte{f}#191, consta..][]
      *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"byte","next":{"match_all":{"boost":1.0}},...}}]
      */
-    private EsQueryExec doTestOutOfRangeFilterPushdown(String query) {
-        var analyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
-
+    private EsQueryExec doTestOutOfRangeFilterPushdown(String query, Analyzer analyzer) {
         var plan = plan(query, EsqlTestUtils.TEST_SEARCH_STATS, analyzer);
 
         var limit = as(plan, LimitExec.class);

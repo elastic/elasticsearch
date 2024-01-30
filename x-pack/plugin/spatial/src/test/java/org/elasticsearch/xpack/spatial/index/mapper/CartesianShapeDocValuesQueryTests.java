@@ -24,12 +24,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.search.CheckHits;
 import org.apache.lucene.tests.search.QueryUtils;
+import org.elasticsearch.common.geo.LuceneGeometriesUtil;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geo.XShapeTestUtil;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.spatial.common.ShapeUtils;
 import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
     private static final String FIELD_NAME = "field";
 
     public void testEqualsAndHashcode() {
-        XYPolygon polygon = ShapeUtils.toLuceneXYPolygon(ShapeTestUtils.randomPolygon(false));
+        XYPolygon polygon = LuceneGeometriesUtil.toLuceneXYPolygon(ShapeTestUtils.randomPolygon(false));
         Query q1 = new CartesianShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, polygon);
         Query q2 = new CartesianShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, polygon);
         QueryUtils.checkEqual(q1, q2);
@@ -160,9 +160,9 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
 
     private XYGeometry randomLuceneQueryGeometry() {
         return switch (randomInt(3)) {
-            case 0 -> ShapeUtils.toLuceneXYPolygon(ShapeTestUtils.randomPolygon(false));
-            case 1 -> ShapeUtils.toLuceneXYCircle(ShapeTestUtils.randomCircle(false));
-            case 2 -> ShapeUtils.toLuceneXYPoint(ShapeTestUtils.randomPoint(false));
+            case 0 -> LuceneGeometriesUtil.toLuceneXYPolygon(ShapeTestUtils.randomPolygon(false));
+            case 1 -> LuceneGeometriesUtil.toLuceneXYCircle(ShapeTestUtils.randomCircle(false));
+            case 2 -> LuceneGeometriesUtil.toLuceneXYPoint(ShapeTestUtils.randomPoint(false));
             default -> XShapeTestUtil.nextBox();
         };
     }

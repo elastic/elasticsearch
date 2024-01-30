@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.XYShape;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.geo.LuceneGeometriesUtil;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -21,7 +22,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.ShapeIndexer;
-import org.elasticsearch.xpack.spatial.common.ShapeUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,7 +70,7 @@ public class CartesianShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Line line) {
-            addFields(XYShape.createIndexableFields(name, ShapeUtils.toLuceneXYLine(line)));
+            addFields(XYShape.createIndexableFields(name, LuceneGeometriesUtil.toLuceneXYLine(line)));
             return null;
         }
 
@@ -111,13 +111,13 @@ public class CartesianShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Polygon polygon) {
-            addFields(XYShape.createIndexableFields(name, ShapeUtils.toLuceneXYPolygon(polygon), true));
+            addFields(XYShape.createIndexableFields(name, LuceneGeometriesUtil.toLuceneXYPolygon(polygon), true));
             return null;
         }
 
         @Override
         public Void visit(Rectangle r) {
-            addFields(XYShape.createIndexableFields(name, ShapeUtils.toLuceneXYPolygon(r)));
+            addFields(XYShape.createIndexableFields(name, LuceneGeometriesUtil.toLuceneXYPolygon(r)));
             return null;
         }
 

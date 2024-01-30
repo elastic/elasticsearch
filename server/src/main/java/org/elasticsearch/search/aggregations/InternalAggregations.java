@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -35,7 +34,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
 
@@ -46,7 +45,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
 
     public static final String AGGREGATIONS_FIELD = "aggregations";
 
-    public static final InternalAggregations EMPTY = new InternalAggregations(Collections.emptyList());
+    public static final InternalAggregations EMPTY = new InternalAggregations(List.of());
 
     private static final Comparator<InternalAggregation> INTERNAL_AGG_COMPARATOR = (agg1, agg2) -> {
         if (agg1.canLeadReduction() == agg2.canLeadReduction()) {
@@ -67,7 +66,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
     private InternalAggregations(List<InternalAggregation> aggregations) {
         this.aggregations = aggregations;
         if (aggregations.isEmpty()) {
-            aggregationsAsMap = emptyMap();
+            aggregationsAsMap = Map.of();
         }
     }
 
@@ -83,7 +82,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
      * The list of {@link Aggregation}s.
      */
     public List<InternalAggregation> asList() {
-        return Collections.unmodifiableList(aggregations);
+        return unmodifiableList(aggregations);
     }
 
     /**

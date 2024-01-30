@@ -67,4 +67,10 @@ public abstract class InstanceShardOperationRequestBuilder<
             request.timeout(timeoutString);
         }
     }
+
+    protected void validate() throws IllegalStateException {
+        if (timeoutString != null && timeout != null) {
+            throw new IllegalStateException("Must use only one setTimeout method");
+        }
+    }
 }

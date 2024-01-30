@@ -288,7 +288,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
 
     @Override
     public IndexRequest request() {
-        validateSource();
+        validate();
         IndexRequest request = new IndexRequest();
         super.apply(request);
         request.id(id);
@@ -364,10 +364,9 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         return request;
     }
 
-    /*
-     * This method checks that no more than one setSource() method has been called, and throws an IllegalStateException otherwise.
-     */
-    private void validateSource() throws IllegalStateException {
+    @Override
+    protected void validate() throws IllegalStateException {
+        super.validate();
         int sourceFieldsSet = countSourceFieldsSet();
         if (sourceFieldsSet > 1) {
             throw new IllegalStateException("Only one setSource() method may be called, but " + sourceFieldsSet + " have been");

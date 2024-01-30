@@ -108,6 +108,7 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
 
     @Override
     public DeleteRequest request() {
+        validate();
         DeleteRequest request = new DeleteRequest();
         super.apply(request);
         if (id != null) {
@@ -135,5 +136,13 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
             request.setRefreshPolicy(refreshPolicyString);
         }
         return request;
+    }
+
+    @Override
+    protected void validate() throws IllegalStateException {
+        super.validate();
+        if (refreshPolicy != null && refreshPolicyString != null) {
+            throw new IllegalStateException("Must use only one setRefreshPolicy method");
+        }
     }
 }

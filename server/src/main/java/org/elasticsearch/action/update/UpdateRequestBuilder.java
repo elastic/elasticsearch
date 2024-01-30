@@ -30,17 +30,20 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     private String id;
     private String routing;
     private Script script;
+
     private String fetchSourceInclude;
     private String fetchSourceExclude;
     private String[] fetchSourceIncludeArray;
     private String[] fetchSourceExcludeArray;
     private Boolean fetchSource;
+
     private Integer retryOnConflict;
     private Long version;
     private VersionType versionType;
     private Long ifSeqNo;
     private Long ifPrimaryTerm;
     private ActiveShardCount waitForActiveShards;
+
     private IndexRequest doc;
     private XContentBuilder docSourceXContentBuilder;
     private Map<String, Object> docSourceMap;
@@ -50,6 +53,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     private Integer docSourceOffset;
     private Integer docSourceLength;
     private Object[] docSourceArray;
+
     private IndexRequest upsert;
     private XContentBuilder upsertSourceXContentBuilder;
     private Map<String, Object> upsertSourceMap;
@@ -59,6 +63,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     private Integer upsertSourceOffset;
     private Integer upsertSourceLength;
     private Object[] upsertSourceArray;
+
     private Boolean docAsUpsert;
     private Boolean detectNoop;
     private Boolean scriptedUpsert;
@@ -428,6 +433,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     @Override
     public UpdateRequest request() {
+        validate();
         UpdateRequest request = new UpdateRequest();
         super.apply(request);
         if (id != null) {
@@ -541,5 +547,51 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
             request.setRefreshPolicy(refreshPolicyString);
         }
         return request;
+    }
+
+    @Override
+    protected void validate() throws IllegalStateException {
+        super.validate();
+        boolean fetchIncludeExcludeNotNull = fetchSourceInclude != null || fetchSourceExclude != null;
+        boolean fetchIncludeExcludeArrayNotNull = fetchSourceIncludeArray != null || fetchSourceExcludeArray != null;
+        boolean fetchSourceNotNull = fetchSource != null;
+        if ((fetchIncludeExcludeNotNull && fetchIncludeExcludeArrayNotNull)
+            || (fetchIncludeExcludeNotNull && fetchSourceNotNull)
+            || (fetchIncludeExcludeArrayNotNull && fetchSourceNotNull)) {
+            throw new IllegalStateException("Only one fetchSource() method may be called");
+        }
+        int docSourceFieldsSet = countDocSourceFieldsSet();
+        if (docSourceFieldsSet > 1) {
+            throw new IllegalStateException("Only one setDoc() method may be called, but " + docSourceFieldsSet + " have been");
+        }
+        int upsertSourceFieldsSet = countUpsertSourceFieldsSet();
+        if (upsertSourceFieldsSet > 1) {
+            throw new IllegalStateException("Only one setUpsert() method may be called, but " + upsertSourceFieldsSet + " have been");
+        }
+    }
+
+    private int countDocSourceFieldsSet() {
+        return countNonNullObjects(doc, docSourceXContentBuilder, docSourceMap, docSourceString, docSourceBytes, docSourceArray);
+    }
+
+    private int countUpsertSourceFieldsSet() {
+        return countNonNullObjects(
+            upsert,
+            upsertSourceXContentBuilder,
+            upsertSourceMap,
+            upsertSourceString,
+            upsertSourceBytes,
+            upsertSourceArray
+        );
+    }
+
+    private int countNonNullObjects(Object... objects) {
+        int sum = 0;
+        for (Object object : objects) {
+            if (object != null) {
+                sum++;
+            }
+        }
+        return sum;
     }
 }

@@ -16,6 +16,10 @@ public class MultilingualE5SmallServiceSettingsTests extends ESTestCase {
     public void fromMap() {}
 
     public static MultilingualE5SmallServiceSettings createRandom() {
-        return new MultilingualE5SmallServiceSettings(randomIntBetween(1, 4), randomIntBetween(1, 4));
+        return new MultilingualE5SmallServiceSettings(
+            randomIntBetween(1, 4),
+            randomIntBetween(1, 4),
+            randomFrom(MultilingualE5SmallServiceSettings.MODEL_VARIANTS)
+        );
     }
 }

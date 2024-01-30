@@ -88,7 +88,7 @@ public class TextEmbeddingServiceTests extends ESTestCase {
                 )
             );
 
-            var e5ServiceSettings = new MultilingualE5SmallServiceSettings(1, 4);
+            var e5ServiceSettings = new MultilingualE5SmallServiceSettings(1, 4, TextEmbeddingService.MULTILINGUAL_E5_SMALL_MODEL_ID);
 
             MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parseRequestConfig(
                 randominferenceEntityId,
@@ -154,7 +154,7 @@ public class TextEmbeddingServiceTests extends ESTestCase {
                 )
             );
 
-            var e5ServiceSettings = new MultilingualE5SmallServiceSettings(1, 4);
+            var e5ServiceSettings = new MultilingualE5SmallServiceSettings(1, 4, TextEmbeddingService.MULTILINGUAL_E5_SMALL_MODEL_ID);
 
             MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parsePersistedConfig(
                 randominferenceEntityId,

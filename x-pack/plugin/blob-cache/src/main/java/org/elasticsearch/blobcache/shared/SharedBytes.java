@@ -141,6 +141,7 @@ public class SharedBytes extends AbstractRefCounted {
         }
     }
 
+    @SuppressForbidden(reason = "random access file needed to set file size")
     static void preallocate(Path cacheFile, long fileSize) throws IOException {
         // first try using native methods to preallocate space in the file
         NativeAccess.instance().tryPreallocate(cacheFile, fileSize);

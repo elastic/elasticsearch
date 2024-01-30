@@ -738,7 +738,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 throw new IllegalArgumentException(
                     Strings.format(
                         "[dynamic_templates] parameter requires all nodes on %s or later",
-                        TransportVersions.toReleaseVersion(TransportVersions.V_7_13_0)
+                        TransportVersions.V_7_13_0.toReleaseVersion()
                     )
                 );
             }

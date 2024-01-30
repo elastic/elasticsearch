@@ -27,7 +27,6 @@ import static org.elasticsearch.xpack.inference.services.TextEmbedding.TextEmbed
 public class MultilingualE5SmallServiceSettings extends TextEmbeddingServiceSettings {
 
     public static final String NAME = "multilingual_e5_small_service_settings";
-    public static final String MODEL_VERSION = "model_version";
     public static final List<String> MODEL_VARIANTS = List.of(MULTILINGUAL_E5_SMALL_MODEL_ID, MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86);
 
     public MultilingualE5SmallServiceSettings(int numAllocations, int numThreads, String modelVariant) {

@@ -16,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
+import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.inference.services.settings.MlNodeDeployedServiceSettings;
 
 import java.io.IOException;
@@ -123,7 +125,13 @@ public class TextEmbeddingService implements InferenceService {
     }
 
     @Override
-    public void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener) {
+    public void infer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ActionListener<InferenceServiceResults> listener
+    ) {
         if (TaskType.TEXT_EMBEDDING.isAnyOrSame(model.getConfigurations().getTaskType()) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(

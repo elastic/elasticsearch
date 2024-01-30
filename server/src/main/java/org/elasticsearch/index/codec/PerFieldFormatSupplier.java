@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.codec;
 
-
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;

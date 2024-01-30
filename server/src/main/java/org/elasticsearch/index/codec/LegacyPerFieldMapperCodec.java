@@ -15,7 +15,6 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.codec.zstd.Zstd813StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 
 /**

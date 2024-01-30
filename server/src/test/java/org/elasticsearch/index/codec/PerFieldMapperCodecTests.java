@@ -16,7 +16,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
-import org.elasticsearch.index.codec.zstd.Zstd813StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -152,7 +151,8 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
     }
 
-    private PerFieldFormatSupplier createFormatSupplier(boolean timestampField, boolean timeSeries, boolean disableBloomFilter) throws IOException {
+    private PerFieldFormatSupplier createFormatSupplier(boolean timestampField, boolean timeSeries, boolean disableBloomFilter)
+        throws IOException {
         Settings.Builder settings = Settings.builder();
         if (timeSeries) {
             settings.put(IndexSettings.MODE.getKey(), "time_series");
@@ -207,7 +207,8 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
     }
 
-    private PerFieldFormatSupplier createFormatSupplier(boolean enableES87TSDBCodec, boolean timeSeries, String mapping) throws IOException {
+    private PerFieldFormatSupplier createFormatSupplier(boolean enableES87TSDBCodec, boolean timeSeries, String mapping)
+        throws IOException {
         Settings.Builder settings = Settings.builder();
         if (timeSeries) {
             settings.put(IndexSettings.MODE.getKey(), "time_series");

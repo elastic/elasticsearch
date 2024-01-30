@@ -113,7 +113,7 @@ public class APMAgentSettings {
 
         // Core:
         // forbid 'enabled', must remain enabled to dynamically enable tracing / metrics
-        // forbid 'recording' / 'instrument', controlled by 'telemetry.metrics.enabled' / 'tracing.apm.enabled'
+        // forbid 'recording' / 'instrument', controlled by 'telemetry.metrics.enabled' / 'telemetry.tracing.enabled'
         "service_name",
         "service_node_name",
         // forbid 'service_version', forced by APMJvmOptions
@@ -200,8 +200,8 @@ public class APMAgentSettings {
         "profiling_inferred_spans_lib_directory",
 
         // Reporter:
-        // forbid secret_token: use tracing.apm.secret_token instead
-        // forbid api_key: use tracing.apm.api_key instead
+        // forbid secret_token: use telemetry.secret_token instead
+        // forbid api_key: use telemetry.api_key instead
         "server_url",
         "server_urls",
         "disable_send",

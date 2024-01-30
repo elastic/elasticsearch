@@ -650,7 +650,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
+    protected Function<Object, Object> loadBlockExpected() {
         return v -> ((BytesRef) v).utf8ToString();
     }
 
@@ -684,10 +684,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         @Override
         public SyntheticSourceExample example(int maxValues) {
+            return example(maxValues, false);
+        }
+
+        public SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource) {
             if (randomBoolean()) {
                 Tuple<String, String> v = generateValue();
                 Object loadBlock = v.v2();
-                if (ignoreAbove != null && v.v2().length() > ignoreAbove) {
+                if (loadBlockFromSource == false && ignoreAbove != null && v.v2().length() > ignoreAbove) {
                     loadBlock = null;
                 }
                 return new SyntheticSourceExample(v.v1(), v.v2(), loadBlock, this::mapping);
@@ -704,9 +708,15 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 }
             });
             List<String> outList = store ? outPrimary : new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
-            List<String> loadBlock = docValues
-                ? new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList())
-                : List.copyOf(outList);
+            List<String> loadBlock;
+            if (loadBlockFromSource) {
+                // The block loader infrastructure will never return nulls. Just zap them all.
+                loadBlock = in.stream().filter(m -> m != null).toList();
+            } else if (docValues) {
+                loadBlock = new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
+            } else {
+                loadBlock = List.copyOf(outList);
+            }
             Object loadBlockResult = loadBlock.size() == 1 ? loadBlock.get(0) : loadBlock;
             outList.addAll(outExtraValues);
             Object out = outList.size() == 1 ? outList.get(0) : outList;

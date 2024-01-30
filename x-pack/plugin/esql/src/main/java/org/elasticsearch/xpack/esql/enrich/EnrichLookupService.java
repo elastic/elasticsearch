@@ -31,7 +31,6 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.BlockReaderFactories;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -74,6 +73,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -274,10 +274,15 @@ public class EnrichLookupService {
                 NamedExpression extractField = extractFields.get(i);
                 final ElementType elementType = PlannerUtils.toElementType(extractField.dataType());
                 mergingTypes[i] = elementType;
-                BlockLoader loader = BlockReaderFactories.loader(
+                EsPhysicalOperationProviders.ShardContext ctx = new EsPhysicalOperationProviders.DefaultShardContext(
+                    0,
                     searchContext.getSearchExecutionContext(),
+                    searchContext.request().getAliasFilter()
+                );
+                BlockLoader loader = ctx.blockLoader(
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
-                    EsqlDataTypes.isUnsupported(extractField.dataType())
+                    EsqlDataTypes.isUnsupported(extractField.dataType()),
+                    MappedFieldType.FieldExtractPreference.NONE
                 );
                 fields.add(
                     new ValuesSourceReaderOperator.FieldInfo(
@@ -296,9 +301,12 @@ public class EnrichLookupService {
                 new ValuesSourceReaderOperator(
                     driverContext.blockFactory(),
                     fields,
-                    List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.searcher().getIndexReader(), () -> {
-                        throw new UnsupportedOperationException("can't load _source as part of enrich");
-                    })),
+                    List.of(
+                        new ValuesSourceReaderOperator.ShardContext(
+                            searchContext.searcher().getIndexReader(),
+                            searchContext::newSourceLoader
+                        )
+                    ),
                     0
                 )
             );

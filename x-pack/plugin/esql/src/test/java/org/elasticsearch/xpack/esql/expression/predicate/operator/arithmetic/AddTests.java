@@ -26,8 +26,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AbstractArithmeticTestCase.arithmeticExceptionOverflowCase;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -206,6 +208,47 @@ public class AddTests extends AbstractFunctionTestCase {
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
         })));
+        // exact math arithmetic exceptions
+        suppliers.add(
+            arithmeticExceptionOverflowCase(
+                DataTypes.INTEGER,
+                () -> randomIntBetween(1, Integer.MAX_VALUE),
+                () -> Integer.MAX_VALUE,
+                "AddIntsEvaluator"
+            )
+        );
+        suppliers.add(
+            arithmeticExceptionOverflowCase(
+                DataTypes.INTEGER,
+                () -> randomIntBetween(Integer.MIN_VALUE, -1),
+                () -> Integer.MIN_VALUE,
+                "AddIntsEvaluator"
+            )
+        );
+        suppliers.add(
+            arithmeticExceptionOverflowCase(
+                DataTypes.LONG,
+                () -> randomLongBetween(1L, Long.MAX_VALUE),
+                () -> Long.MAX_VALUE,
+                "AddLongsEvaluator"
+            )
+        );
+        suppliers.add(
+            arithmeticExceptionOverflowCase(
+                DataTypes.LONG,
+                () -> randomLongBetween(Long.MIN_VALUE, -1L),
+                () -> Long.MIN_VALUE,
+                "AddLongsEvaluator"
+            )
+        );
+        suppliers.add(
+            arithmeticExceptionOverflowCase(
+                DataTypes.UNSIGNED_LONG,
+                () -> asLongUnsigned(randomBigInteger()),
+                () -> asLongUnsigned(UNSIGNED_LONG_MAX),
+                "AddUnsignedLongsEvaluator"
+            )
+        );
 
         return parameterSuppliersFromTypedData(suppliers);
     }

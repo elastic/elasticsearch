@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AbstractArithmeticTestCase.arithmeticExceptionOverflowCase;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MulTests extends AbstractFunctionTestCase {
@@ -66,20 +68,38 @@ public class MulTests extends AbstractFunctionTestCase {
                 DataTypes.DOUBLE,
                 equalTo(lhs * rhs)
             );
-        })/*, new TestCaseSupplier("ULong * ULong", () -> {
-            // Ensure we don't have an overflow
-            long rhs = randomLongBetween(0, 1024);
-            long lhs = randomLongBetween(0, 1024);
-            BigInteger lhsBI = unsignedLongAsBigInteger(lhs);
-            BigInteger rhsBI = unsignedLongAsBigInteger(rhs);
-            return new TestCase(
-                Source.EMPTY,
-                List.of(new TypedData(lhs, DataTypes.UNSIGNED_LONG, "lhs"), new TypedData(rhs, DataTypes.UNSIGNED_LONG, "rhs")),
-                "MulUnsignedLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                equalTo(asLongUnsigned(lhsBI.multiply(rhsBI).longValue()))
-            );
-          })
-          */
+        }), /* new TestCaseSupplier("ULong * ULong", () -> {
+             // Ensure we don't have an overflow
+             long rhs = randomLongBetween(0, 1024);
+             long lhs = randomLongBetween(0, 1024);
+             BigInteger lhsBI = unsignedLongAsBigInteger(lhs);
+             BigInteger rhsBI = unsignedLongAsBigInteger(rhs);
+             return new TestCase(
+                 Source.EMPTY,
+                 List.of(new TypedData(lhs, DataTypes.UNSIGNED_LONG, "lhs"), new TypedData(rhs, DataTypes.UNSIGNED_LONG, "rhs")),
+                 "MulUnsignedLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                 equalTo(asLongUnsigned(lhsBI.multiply(rhsBI).longValue()))
+             );
+            })
+            */
+            arithmeticExceptionOverflowCase(
+                DataTypes.INTEGER,
+                () -> randomBoolean() ? Integer.MIN_VALUE : Integer.MAX_VALUE,
+                () -> randomIntBetween(2, Integer.MAX_VALUE),
+                "MulIntsEvaluator"
+            ),
+            arithmeticExceptionOverflowCase(
+                DataTypes.LONG,
+                () -> randomBoolean() ? Long.MIN_VALUE : Long.MAX_VALUE,
+                () -> randomLongBetween(2L, Long.MAX_VALUE),
+                "MulLongsEvaluator"
+            ),
+            arithmeticExceptionOverflowCase(
+                DataTypes.UNSIGNED_LONG,
+                () -> asLongUnsigned(UNSIGNED_LONG_MAX),
+                () -> asLongUnsigned(randomLongBetween(-Long.MAX_VALUE, Long.MAX_VALUE)),
+                "MulUnsignedLongsEvaluator"
+            )
         ));
     }
 

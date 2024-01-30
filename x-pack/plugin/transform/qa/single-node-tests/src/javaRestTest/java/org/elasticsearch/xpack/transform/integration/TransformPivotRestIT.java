@@ -21,10 +21,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,7 +59,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     @Before
     public void createIndexes() throws IOException {
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-        setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
+        setupUser(TEST_USER_NAME, List.of("transform_admin", DATA_ACCESS_ROLE));
 
         // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
         if (indicesCreated) {
@@ -894,6 +890,15 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                       }
                     }
                   },
+                  "common_users_desc": {
+                    "terms": {
+                      "field": "user_id",
+                      "size": 3,
+                      "order": {
+                        "_key": "desc"
+                      }
+                    }
+                  },
                   "rare_users": {
                     "rare_terms": {
                       "field": "user_id"
@@ -922,33 +927,32 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             "hits.hits._source.common_users",
             searchResult
         )).get(0);
+        assertThat(commonUsers, is(not(nullValue())));
+        assertThat(
+            commonUsers,
+            equalTo(
+                Map.of(
+                    "user_10",
+                    Map.of("common_businesses", Map.of("business_12", 6, "business_9", 4)),
+                    "user_0",
+                    Map.of("common_businesses", Map.of("business_0", 35))
+                )
+            )
+        );
+        Map<String, Integer> commonUsersDesc = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
+            "hits.hits._source.common_users_desc",
+            searchResult
+        )).get(0);
+        assertThat(commonUsersDesc, is(not(nullValue())));
+        // 3 user names latest in lexicographic order (user_7, user_8, user_9) are selected properly but their order is not preserved.
+        // See https://github.com/elastic/elasticsearch/issues/104847 for more information.
+        assertThat(commonUsersDesc, equalTo(Map.of("user_7", 6, "user_9", 2, "user_8", 8)));
         Map<String, Integer> rareUsers = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
             "hits.hits._source.rare_users",
             searchResult
         )).get(0);
-        assertThat(commonUsers, is(not(nullValue())));
-        assertThat(commonUsers, equalTo(new HashMap<>() {
-            {
-                put("user_10", Collections.singletonMap("common_businesses", new HashMap<>() {
-                    {
-                        put("business_12", 6);
-                        put("business_9", 4);
-                    }
-                }));
-                put("user_0", Collections.singletonMap("common_businesses", new HashMap<>() {
-                    {
-                        put("business_0", 35);
-                    }
-                }));
-            }
-        }));
         assertThat(rareUsers, is(not(nullValue())));
-        assertThat(rareUsers, equalTo(new HashMap<>() {
-            {
-                put("user_5", 1);
-                put("user_12", 1);
-            }
-        }));
+        assertThat(rareUsers, is(equalTo(Map.of("user_5", 1, "user_12", 1))));
     }
 
     private void assertDateHistogramPivot(String indexName) throws Exception {
@@ -1184,8 +1188,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         List<Map<String, Object>> preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
         // preview is limited to 100
         assertThat(preview.size(), equalTo(100));
-        Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day"));
-        Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
+        Set<String> expectedTopLevelFields = Set.of("user", "by_day");
+        Set<String> expectedNestedFields = Set.of("id", "avg_rating");
         preview.forEach(p -> {
             Set<String> keys = p.keySet();
             assertThat(keys, equalTo(expectedTopLevelFields));
@@ -1255,8 +1259,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         List<Map<String, Object>> preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
         // preview is limited to 100
         assertThat(preview.size(), equalTo(100));
-        Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day", "pipeline_field"));
-        Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
+        Set<String> expectedTopLevelFields = Set.of("user", "by_day", "pipeline_field");
+        Set<String> expectedNestedFields = Set.of("id", "avg_rating");
         preview.forEach(p -> {
             Set<String> keys = p.keySet();
             assertThat(keys, equalTo(expectedTopLevelFields));
@@ -1383,8 +1387,11 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                     }
                   }
                 }
+              },
+              "settings": {
+                "deduce_mappings": %s
               }
-            }""", REVIEWS_INDEX_NAME, offset);
+            }""", REVIEWS_INDEX_NAME, offset, randomBoolean());
         createPreviewRequest.setJsonEntity(config);
 
         Map<String, Object> previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));

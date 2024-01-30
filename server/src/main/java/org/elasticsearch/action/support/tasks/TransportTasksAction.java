@@ -134,7 +134,7 @@ public abstract class TransportTasksAction<
 
             @Override
             protected void onItemFailure(String nodeId, Exception e) {
-                logger.debug(() -> Strings.format("failed to execute on node [{}]", nodeId), e);
+                logger.debug(() -> Strings.format("failed to execute on node [%s]", nodeId), e);
                 synchronized (failedNodeExceptions) {
                     failedNodeExceptions.add(new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", e));
                 }

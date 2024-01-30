@@ -25,7 +25,7 @@ public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAct
     public static final String NAME = "cluster:admin/xpack/enrich/execute";
 
     private ExecuteEnrichPolicyAction() {
-        super(NAME, ExecuteEnrichPolicyAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

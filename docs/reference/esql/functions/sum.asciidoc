@@ -1,7 +1,22 @@
 [discrete]
 [[esql-agg-sum]]
 === `SUM`
-The sum of a numeric field.
+
+*Syntax*
+
+[source,esql]
+----
+SUM(column)
+----
+
+`column`::
+Numeric column.
+
+*Description*
+
+Returns the sum of a numeric column.
+
+*Example*
 
 [source.merge.styled,esql]
 ----

@@ -446,20 +446,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
 
         // skip test if the whole suite (yaml file) is disabled
-        assumeFalse(
-            testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext)
-        );
-        // skip test if the whole suite (yaml file) is disabled
-        assumeFalse(
-            testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext)
-        );
+        testCandidate.getSetupSection().getPrerequisiteSection().evaluate(restTestExecutionContext, testCandidate.getSuitePath());
+        testCandidate.getTeardownSection().getPrerequisiteSection().evaluate(restTestExecutionContext, testCandidate.getSuitePath());
         // skip test if test section is disabled
-        assumeFalse(
-            testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext)
-        );
+        testCandidate.getTestSection().getPrerequisiteSection().evaluate(restTestExecutionContext, testCandidate.getTestPath());
 
         // let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().isEmpty()) {
@@ -468,11 +458,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
         assumeFalse(
             "[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
-            inFipsJvm() && testCandidate.getTestSection().getSkipSection().yamlRunnerHasFeature("fips_140")
+            inFipsJvm() && testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature("fips_140")
         );
 
         final Settings globalTemplateSettings = getGlobalTemplateSettings(
-            testCandidate.getTestSection().getSkipSection().yamlRunnerHasFeature("default_shards")
+            testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature("default_shards")
         );
         if (globalTemplateSettings.isEmpty() == false && ESRestTestCase.has(ProductFeature.LEGACY_TEMPLATES)) {
 

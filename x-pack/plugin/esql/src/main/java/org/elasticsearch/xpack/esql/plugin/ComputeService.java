@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardsGroup;
@@ -22,7 +23,6 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -155,7 +155,14 @@ public class ComputeService {
             .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planConcreteIndices(physicalPlan).toArray(String[]::new));
         QueryPragmas queryPragmas = configuration.pragmas();
         if (dataNodePlan == null || clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0)) {
-            var computeContext = new ComputeContext(sessionId, List.of(), configuration, null, null);
+            var computeContext = new ComputeContext(
+                sessionId,
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                List.of(),
+                configuration,
+                null,
+                null
+            );
             runCompute(
                 rootTask,
                 computeContext,
@@ -168,8 +175,8 @@ public class ComputeService {
             .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planOriginalIndices(physicalPlan));
         var localOriginalIndices = clusterToOriginalIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         var localConcreteIndices = clusterToConcreteIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        if (clusterToOriginalIndices.isEmpty() == false && PlannerUtils.hasEnrich(physicalPlan)) {
-            listener.onFailure(new IllegalArgumentException("cross clusters query doesn't support enrich yet"));
+        if (PlannerUtils.hasUnsupportedEnrich(physicalPlan)) {
+            listener.onFailure(new IllegalArgumentException("Enrich modes COORDINATOR and REMOTE are not supported yet"));
             return;
         }
         final var responseHeadersCollector = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
@@ -187,7 +194,7 @@ public class ComputeService {
             // run compute on the coordinator
             runCompute(
                 rootTask,
-                new ComputeContext(sessionId, List.of(), configuration, exchangeSource, null),
+                new ComputeContext(sessionId, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, List.of(), configuration, exchangeSource, null),
                 coordinatorPlan,
                 cancelOnFailure(rootTask, cancelled, refs.acquire()).map(driverProfiles -> {
                     responseHeadersCollector.collect();
@@ -363,10 +370,22 @@ public class ComputeService {
 
     void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<List<DriverProfile>> listener) {
         listener = ActionListener.runAfter(listener, () -> Releasables.close(context.searchContexts));
+        List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts.size());
+        for (int i = 0; i < context.searchContexts.size(); i++) {
+            SearchContext searchContext = context.searchContexts.get(i);
+            contexts.add(
+                new EsPhysicalOperationProviders.DefaultShardContext(
+                    i,
+                    searchContext.getSearchExecutionContext(),
+                    searchContext.request().getAliasFilter()
+                )
+            );
+        }
         final List<Driver> drivers;
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId,
+                context.clusterAlias,
                 task,
                 bigArrays,
                 blockFactory,
@@ -375,7 +394,7 @@ public class ComputeService {
                 context.exchangeSource(),
                 context.exchangeSink(),
                 enrichLookupService,
-                new EsPhysicalOperationProviders(context.searchContexts)
+                new EsPhysicalOperationProviders(contexts)
             );
 
             LOGGER.debug("Received physical plan:\n{}", plan);
@@ -416,51 +435,60 @@ public class ComputeService {
         Map<Index, AliasFilter> aliasFilters,
         ActionListener<List<SearchContext>> listener
     ) {
+        final List<IndexShard> targetShards = new ArrayList<>();
         try {
-            List<IndexShard> targetShards = new ArrayList<>();
             for (ShardId shardId : shardIds) {
                 var indexShard = searchService.getIndicesService().indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
                 targetShards.add(indexShard);
             }
-            if (targetShards.isEmpty()) {
-                listener.onResponse(List.of());
-                return;
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        final var doAcquire = ActionRunnable.supply(listener, () -> {
+            final List<SearchContext> searchContexts = new ArrayList<>(targetShards.size());
+            boolean success = false;
+            try {
+                for (IndexShard shard : targetShards) {
+                    var aliasFilter = aliasFilters.getOrDefault(shard.shardId().getIndex(), AliasFilter.EMPTY);
+                    var shardRequest = new ShardSearchRequest(
+                        shard.shardId(),
+                        configuration.absoluteStartedTimeInMillis(),
+                        aliasFilter,
+                        clusterAlias
+                    );
+                    SearchContext context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
+                    searchContexts.add(context);
+                }
+                for (SearchContext searchContext : searchContexts) {
+                    searchContext.preProcess();
+                }
+                success = true;
+                return searchContexts;
+            } finally {
+                if (success == false) {
+                    IOUtils.close(searchContexts);
+                }
             }
-            CountDown countDown = new CountDown(targetShards.size());
+        });
+        final AtomicBoolean waitedForRefreshes = new AtomicBoolean();
+        try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
+            if (waitedForRefreshes.get()) {
+                esqlExecutor.execute(doAcquire);
+            } else {
+                doAcquire.run();
+            }
+        })) {
             for (IndexShard targetShard : targetShards) {
-                targetShard.ensureShardSearchActive(ignored -> {
-                    if (countDown.countDown()) {
-                        ActionListener.completeWith(listener, () -> {
-                            final List<SearchContext> searchContexts = new ArrayList<>(targetShards.size());
-                            boolean success = false;
-                            try {
-                                for (IndexShard shard : targetShards) {
-                                    var aliasFilter = aliasFilters.getOrDefault(shard.shardId().getIndex(), AliasFilter.EMPTY);
-                                    var shardRequest = new ShardSearchRequest(
-                                        shard.shardId(),
-                                        configuration.absoluteStartedTimeInMillis(),
-                                        aliasFilter,
-                                        clusterAlias
-                                    );
-                                    SearchContext context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
-                                    searchContexts.add(context);
-                                }
-                                for (SearchContext searchContext : searchContexts) {
-                                    searchContext.preProcess();
-                                }
-                                success = true;
-                                return searchContexts;
-                            } finally {
-                                if (success == false) {
-                                    IOUtils.close(searchContexts);
-                                }
-                            }
-                        });
+                final Releasable ref = refs.acquire();
+                targetShard.ensureShardSearchActive(await -> {
+                    try (ref) {
+                        if (await) {
+                            waitedForRefreshes.set(true);
+                        }
                     }
                 });
             }
-        } catch (Exception e) {
-            listener.onFailure(e);
         }
     }
 
@@ -559,13 +587,15 @@ public class ComputeService {
             );
             final ActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
             final EsqlConfiguration configuration = request.configuration();
+            String clusterAlias = request.clusterAlias();
             acquireSearchContexts(
-                request.clusterAlias(),
+                clusterAlias,
                 request.shardIds(),
                 configuration,
                 request.aliasFilters(),
                 ActionListener.wrap(searchContexts -> {
-                    var computeContext = new ComputeContext(sessionId, searchContexts, configuration, null, exchangeSink);
+                    assert ThreadPool.assertCurrentThreadPool(ESQL_THREAD_POOL_NAME);
+                    var computeContext = new ComputeContext(sessionId, clusterAlias, searchContexts, configuration, null, exchangeSink);
                     runCompute(parentTask, computeContext, request.plan(), ActionListener.wrap(driverProfiles -> {
                         // don't return until all pages are fetched
                         exchangeSink.addCompletionListener(
@@ -658,7 +688,7 @@ public class ComputeService {
             );
             runCompute(
                 parentTask,
-                new ComputeContext(localSessionId, List.of(), configuration, exchangeSource, exchangeSink),
+                new ComputeContext(localSessionId, clusterAlias, List.of(), configuration, exchangeSource, exchangeSink),
                 coordinatorPlan,
                 cancelOnFailure(parentTask, cancelled, refs.acquire()).map(driverProfiles -> {
                     responseHeadersCollector.collect();
@@ -691,6 +721,7 @@ public class ComputeService {
 
     record ComputeContext(
         String sessionId,
+        String clusterAlias,
         List<SearchContext> searchContexts,
         EsqlConfiguration configuration,
         ExchangeSourceHandler exchangeSource,

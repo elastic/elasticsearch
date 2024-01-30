@@ -45,7 +45,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
 
     private static final Logger logger = LogManager.getLogger(TransportListTasksAction.class);
 
-    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>("cluster:monitor/tasks/lists", ListTasksResponse::new);
+    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>("cluster:monitor/tasks/lists");
 
     public static long waitForCompletionTimeout(TimeValue timeout) {
         if (timeout == null) {

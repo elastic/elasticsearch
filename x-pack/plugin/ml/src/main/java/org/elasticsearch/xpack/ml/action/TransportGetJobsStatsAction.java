@@ -108,14 +108,13 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             tasks,
             true,
             parentTaskId,
-            ActionListener.wrap(expandedIds -> {
+            finalListener.delegateFailureAndWrap((delegate, expandedIds) -> {
                 request.setExpandedJobsIds(new ArrayList<>(expandedIds));
-                ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(
-                    response -> gatherStatsForClosedJobs(request, response, parentTaskId, finalListener),
-                    finalListener::onFailure
+                ActionListener<GetJobsStatsAction.Response> jobStatsListener = delegate.delegateFailureAndWrap(
+                    (l, response) -> gatherStatsForClosedJobs(request, response, parentTaskId, l)
                 );
                 super.doExecute(task, request, jobStatsListener);
-            }, finalListener::onFailure)
+            })
         );
     }
 

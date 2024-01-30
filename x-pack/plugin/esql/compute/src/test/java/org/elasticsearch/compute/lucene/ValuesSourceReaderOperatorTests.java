@@ -65,7 +65,6 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -86,7 +85,6 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.compute.lucene.LuceneSourceOperatorTests.mockSearchContext;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -164,7 +162,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             throw new RuntimeException(e);
         }
         var luceneFactory = new LuceneSourceOperator.Factory(
-            List.of(mockSearchContext(reader, 0)),
+            List.of(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
             ctx -> new MatchAllDocsQuery(),
             DataPartitioning.SHARD,
             randomIntBetween(1, 10),
@@ -494,6 +492,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             @Override
             public String indexName() {
                 return "test_index";
+            }
+
+            @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
             }
 
             @Override
@@ -1268,7 +1271,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
         DriverContext driverContext = driverContext();
         var luceneFactory = new LuceneSourceOperator.Factory(
-            List.of(mockSearchContext(reader, 0)),
+            List.of(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
             ctx -> new MatchAllDocsQuery(),
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
@@ -1483,10 +1486,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 closeMe[d * 2 + 1] = dirs[d] = newDirectory();
                 closeMe[d * 2] = readers[d] = initIndex(dirs[d], size, between(10, size * 2));
             }
-            List<SearchContext> contexts = new ArrayList<>();
+            List<ShardContext> contexts = new ArrayList<>();
             List<ValuesSourceReaderOperator.ShardContext> readerShardContexts = new ArrayList<>();
             for (int s = 0; s < shardCount; s++) {
-                contexts.add(mockSearchContext(readers[s], s));
+                contexts.add(new LuceneSourceOperatorTests.MockShardContext(readers[s], s));
                 readerShardContexts.add(new ValuesSourceReaderOperator.ShardContext(readers[s], () -> SourceLoader.FROM_STORED_SOURCE));
             }
             var luceneFactory = new LuceneSourceOperator.Factory(

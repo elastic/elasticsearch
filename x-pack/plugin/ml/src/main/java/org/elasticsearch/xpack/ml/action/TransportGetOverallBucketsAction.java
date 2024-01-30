@@ -19,7 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.Max;
@@ -120,22 +120,6 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
     ) {
         JobsContext jobsContext = JobsContext.build(jobs, request);
 
-        ActionListener<List<OverallBucket>> overallBucketsListener = ActionListener.wrap(overallBuckets -> {
-            listener.onResponse(
-                new GetOverallBucketsAction.Response(new QueryPage<>(overallBuckets, overallBuckets.size(), OverallBucket.RESULTS_FIELD))
-            );
-        }, listener::onFailure);
-
-        ActionListener<ChunkedBucketSearcher> chunkedBucketSearcherListener = ActionListener.wrap(searcher -> {
-            if (searcher == null) {
-                listener.onResponse(
-                    new GetOverallBucketsAction.Response(new QueryPage<>(Collections.emptyList(), 0, OverallBucket.RESULTS_FIELD))
-                );
-                return;
-            }
-            searcher.searchAndComputeOverallBuckets(overallBucketsListener);
-        }, listener::onFailure);
-
         OverallBucketsProvider overallBucketsProvider = new OverallBucketsProvider(
             jobsContext.maxBucketSpan,
             request.getTopN(),
@@ -144,7 +128,29 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
         OverallBucketsProcessor overallBucketsProcessor = requiresAggregation(request, jobsContext.maxBucketSpan)
             ? new OverallBucketsAggregator(request.getBucketSpan())
             : new OverallBucketsCollector();
-        initChunkedBucketSearcher(request, jobsContext, overallBucketsProvider, overallBucketsProcessor, chunkedBucketSearcherListener);
+        initChunkedBucketSearcher(
+            request,
+            jobsContext,
+            overallBucketsProvider,
+            overallBucketsProcessor,
+            listener.delegateFailureAndWrap((l, searcher) -> {
+                if (searcher == null) {
+                    l.onResponse(
+                        new GetOverallBucketsAction.Response(new QueryPage<>(Collections.emptyList(), 0, OverallBucket.RESULTS_FIELD))
+                    );
+                    return;
+                }
+                searcher.searchAndComputeOverallBuckets(
+                    l.delegateFailureAndWrap(
+                        (ll, overallBuckets) -> ll.onResponse(
+                            new GetOverallBucketsAction.Response(
+                                new QueryPage<>(overallBuckets, overallBuckets.size(), OverallBucket.RESULTS_FIELD)
+                            )
+                        )
+                    )
+                );
+            })
+        );
     }
 
     private static boolean requiresAggregation(GetOverallBucketsAction.Request request, TimeValue maxBucketSpan) {
@@ -185,7 +191,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
             ActionListener.<SearchResponse>wrap(searchResponse -> {
                 long totalHits = searchResponse.getHits().getTotalHits().value;
                 if (totalHits > 0) {
-                    Aggregations aggregations = searchResponse.getAggregations();
+                    InternalAggregations aggregations = searchResponse.getAggregations();
                     Min min = aggregations.get(EARLIEST_TIME);
                     long earliestTime = Intervals.alignToFloor((long) min.value(), maxBucketSpanMillis);
                     Max max = aggregations.get(LATEST_TIME);

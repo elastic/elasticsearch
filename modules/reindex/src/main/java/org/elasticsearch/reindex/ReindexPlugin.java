@@ -42,10 +42,7 @@ import static java.util.Collections.singletonList;
 public class ReindexPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "reindex";
 
-    public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>(
-        "cluster:admin/reindex/rethrottle",
-        ListTasksResponse::new
-    );
+    public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>("cluster:admin/reindex/rethrottle");
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -67,6 +64,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -75,9 +73,9 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return Arrays.asList(
-            new RestReindexAction(),
-            new RestUpdateByQueryAction(),
-            new RestDeleteByQueryAction(),
+            new RestReindexAction(namedWriteableRegistry),
+            new RestUpdateByQueryAction(namedWriteableRegistry),
+            new RestDeleteByQueryAction(namedWriteableRegistry),
             new RestRethrottleAction(nodesInCluster)
         );
     }

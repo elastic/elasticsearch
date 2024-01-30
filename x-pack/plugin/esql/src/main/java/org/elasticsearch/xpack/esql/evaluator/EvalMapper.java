@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.ComparisonMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InMapper;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEqualsMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RegexMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -48,6 +49,7 @@ public final class EvalMapper {
         ComparisonMapper.LESS_THAN_OR_EQUAL,
         InMapper.IN_MAPPER,
         RegexMapper.REGEX_MATCH,
+        new InsensitiveEqualsMapper(),
         new BooleanLogic(),
         new Nots(),
         new Attributes(),

@@ -233,7 +233,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         bulkLoadTestData(docCount);
 
         boolean columnar = randomBoolean();
-        var query = builder().query(fromIndex() + " | keep keyword, integer");
+        var query = builder().query(fromIndex() + " | keep keyword, integer | sort integer asc");
         if (columnar || randomBoolean()) {
             query.columnar(columnar);
         }
@@ -263,28 +263,27 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public void testTextMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query(fromIndex() + " | keep keyword, integer | limit 100");
+        var builder = builder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
         assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder, "txt", null));
     }
 
     public void testCSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query(fromIndex() + " | keep keyword, integer | limit 100");
+        var builder = builder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
         assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsTextWithFormat(builder, "csv", '|'));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104195")
     public void testTSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query(fromIndex() + " | keep keyword, integer | limit 100");
+        var builder = builder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
         assertEquals(expectedTextBody("tsv", count, null), runEsqlAsTextWithFormat(builder, "tsv", null));
     }
 
     public void testCSVNoHeaderMode() throws IOException {
         bulkLoadTestData(1);
-        var builder = builder().query(fromIndex() + " | keep keyword, integer | limit 100");
+        var builder = builder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
         Request request = prepareRequest(SYNC);
         String mediaType = attachBody(builder.build(), request);
         RequestOptions.Builder options = request.getOptions().toBuilder();

@@ -112,9 +112,9 @@ public class AuthenticationService {
             anonymousUser,
             new AuthenticationContextSerializer(),
             new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
-            new OAuth2TokenAuthenticator(tokenService),
+            new OAuth2TokenAuthenticator(tokenService, meterRegistry),
             new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),
-            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache)
+            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache, meterRegistry)
         );
     }
 

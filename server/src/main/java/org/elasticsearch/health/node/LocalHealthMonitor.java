@@ -432,24 +432,24 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 return new DiskHealthInfo(HealthStatus.UNKNOWN, DiskHealthInfo.Cause.NODE_HAS_NO_DISK_STATS);
             }
 
-            ByteSizeValue totalBytes = ByteSizeValue.ofBytes(usage.getTotalBytes());
+            ByteSizeValue totalBytes = ByteSizeValue.ofBytes(usage.totalBytes());
 
             if (node.isDedicatedFrozenNode() || isDedicatedSearchNode(node)) {
                 long frozenFloodStageThreshold = diskMetadata.getFreeBytesFrozenFloodStageWatermark(totalBytes).getBytes();
-                if (usage.getFreeBytes() < frozenFloodStageThreshold) {
+                if (usage.freeBytes() < frozenFloodStageThreshold) {
                     logger.debug("Flood stage disk watermark [{}] exceeded on {}", frozenFloodStageThreshold, usage);
                     return new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD);
                 }
                 return new DiskHealthInfo(HealthStatus.GREEN);
             }
             long floodStageThreshold = diskMetadata.getFreeBytesFloodStageWatermark(totalBytes).getBytes();
-            if (usage.getFreeBytes() < floodStageThreshold) {
+            if (usage.freeBytes() < floodStageThreshold) {
                 logger.debug("Flood stage disk watermark [{}] exceeded on {}", floodStageThreshold, usage);
                 return new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD);
             }
 
             long highThreshold = diskMetadata.getFreeBytesHighWatermark(totalBytes).getBytes();
-            if (usage.getFreeBytes() < highThreshold) {
+            if (usage.freeBytes() < highThreshold) {
                 if (node.canContainData()) {
                     // for data nodes only report YELLOW if shards can't move away from the node
                     if (DiskCheck.hasRelocatingShards(clusterState, node) == false) {

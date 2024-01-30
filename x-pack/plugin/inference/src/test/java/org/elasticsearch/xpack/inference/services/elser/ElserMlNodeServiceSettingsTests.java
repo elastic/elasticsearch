@@ -93,15 +93,9 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
                 TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED
             )
         );
-        assertTrue(
-            ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
-                TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED_PATCH
-            )
-        );
+        assertTrue(ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(TransportVersions.V_8_11_X));
 
-        assertFalse(
-            ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)
-        );
+        assertFalse(ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(TransportVersions.V_8_10_X));
         assertFalse(
             ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
                 TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME
@@ -128,7 +122,7 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
         }
         {
             var settings = new ElserMlNodeServiceSettings(1, 1, ".elser_model_1");
-            var copy = copyInstance(settings, TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED_PATCH);
+            var copy = copyInstance(settings, TransportVersions.V_8_11_X);
             assertEquals(settings, copy);
         }
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -166,6 +167,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public List<RestHandler> getRestHandlers(
         final Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         final RestController restController,
         final ClusterSettings clusterSettings,
         final IndexScopedSettings indexScopedSettings,
@@ -402,7 +404,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
         }, unsetResetModeListener::onFailure);
 
-        ActionListener<StopTransformAction.Response> afterStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {
+        ActionListener<StopTransformAction.Response> afterForceStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {
             if (stopTransformsResponse.isAcknowledged()
                 && stopTransformsResponse.getTaskFailures().isEmpty()
                 && stopTransformsResponse.getNodeFailures().isEmpty()) {
@@ -437,12 +439,31 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             }
         }, unsetResetModeListener::onFailure);
 
+        ActionListener<StopTransformAction.Response> afterStoppingTransforms = ActionListener.wrap(
+            afterForceStoppingTransforms::onResponse,
+            e -> {
+                logger.info("Error while trying to stop the transforms, will try again with force=true", e);
+                StopTransformAction.Request forceStopTransformsRequest = new StopTransformAction.Request(
+                    Metadata.ALL,
+                    true,
+                    // Set force=true to make sure all the transforms persistent tasks are stopped.
+                    true,
+                    null,
+                    true,
+                    false
+                );
+                client.execute(StopTransformAction.INSTANCE, forceStopTransformsRequest, afterForceStoppingTransforms);
+            }
+        );
+
         ActionListener<AcknowledgedResponse> afterResetModeSet = ActionListener.wrap(response -> {
             StopTransformAction.Request stopTransformsRequest = new StopTransformAction.Request(
                 Metadata.ALL,
                 true,
-                true,
-                null,
+                // Set force=false in order to let transforms finish gracefully.
+                false,
+                // Do not give it too much time. If there is a problem, there will be another try with force=true.
+                TimeValue.timeValueSeconds(10),
                 true,
                 false
             );

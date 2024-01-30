@@ -92,6 +92,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
             model,
             request.getInput(),
             request.getTaskSettings(),
+            request.getInputType(),
             listener.delegateFailureAndWrap((l, inferenceResults) -> l.onResponse(new InferenceAction.Response(inferenceResults)))
         );
     }

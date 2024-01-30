@@ -8,9 +8,9 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestLazyBuilder;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
@@ -36,15 +36,16 @@ import java.util.List;
  */
 public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, BulkResponse>
     implements
-        WriteRequestBuilder<BulkRequestBuilder> {
+    WriteRequestBuilder<BulkRequestBuilder> {
     private final String globalIndex;
     /*
-     * The following 3 vairiables hold the list of requests that make up this bulk. Only one can be non-empty. That is, users can't add
+     * The following 3 variables hold the list of requests that make up this bulk. Only one can be non-empty. That is, users can't add
      * some IndexRequests and some IndexRequestBuilders. They need to pick one (preferably builders) and stick with it.
      */
     private final List<DocWriteRequest<?>> requests = new ArrayList<>();
-    private final List<FramedData> framedDataList = new ArrayList<>();
-    private final List<ActionRequestLazyBuilder<?, ?>> requestBuilders = new ArrayList<>();
+    private final List<FramedData> framedData = new ArrayList<>();
+    private final List<ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse>> requestBuilders =
+        new ArrayList<>();
     private ActiveShardCount waitForActiveShards;
     private TimeValue timeout;
     private String timeoutString;
@@ -122,7 +123,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      * Adds a framed data in binary format
      */
     public BulkRequestBuilder add(byte[] data, int from, int length, XContentType xContentType) throws Exception {
-        framedDataList.add(new FramedData(data, from, length, null, xContentType));
+        framedData.add(new FramedData(data, from, length, null, xContentType));
         return this;
     }
 
@@ -131,7 +132,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      */
     public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType)
         throws Exception {
-        framedDataList.add(new FramedData(data, from, length, defaultIndex, xContentType));
+        framedData.add(new FramedData(data, from, length, defaultIndex, xContentType));
         return this;
     }
 
@@ -173,7 +174,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      * The number of actions currently in the bulk.
      */
     public int numberOfActions() {
-        return requests.size() + requestBuilders.size() + framedDataList.size();
+        return requests.size() + requestBuilders.size() + framedData.size();
     }
 
     public BulkRequestBuilder pipeline(String globalPipeline) {
@@ -202,21 +203,14 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     public BulkRequest request() {
         validate();
         BulkRequest request = new BulkRequest(globalIndex);
-        if (requests.isEmpty() == false && requestBuilders.isEmpty() == false) {
-            throw new IllegalStateException("Must use only requests or request builders within a single bulk request");
-        }
-        for (ActionRequestLazyBuilder<?, ?> requestBuilder : requestBuilders) {
-            ActionRequest childRequest = requestBuilder.request();
-            try {
-                request.add((DocWriteRequest<?>) childRequest);
-            } finally {
-                childRequest.decRef();
-            }
+        for (ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse> requestBuilder : requestBuilders) {
+            DocWriteRequest<?> childRequest = requestBuilder.request();
+            request.add(childRequest);
         }
         for (DocWriteRequest<?> childRequest : requests) {
             request.add(childRequest);
         }
-        for (FramedData framedData : framedDataList) {
+        for (FramedData framedData : framedData) {
             try {
                 request.add(framedData.data, framedData.from, framedData.length, framedData.defaultIndex, framedData.xContentType);
             } catch (IOException e) {
@@ -248,19 +242,27 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     }
 
     private void validate() {
-        if (requests.isEmpty() == false && requestBuilders.isEmpty() == false
-            || requests.isEmpty() == false && framedDataList.isEmpty() == false
-            || requestBuilders.isEmpty() == false && framedDataList.isEmpty() == false) {
+        if (countNonEmptyLists(requestBuilders, requests, framedData) > 1) {
             throw new IllegalStateException(
                 "Must use only request builders, requests, or byte arrays within a single bulk request. Cannot mix and match"
             );
         }
-        if (timeoutString != null && timeout != null) {
+        if (timeout != null && timeoutString != null) {
             throw new IllegalStateException("Must use only one setTimeout method");
         }
         if (refreshPolicy != null && refreshPolicyString != null) {
             throw new IllegalStateException("Must use only one setRefreshPolicy method");
         }
+    }
+
+    private int countNonEmptyLists(List<?>... lists) {
+        int sum = 0;
+        for (List<?> list : lists) {
+            if (list.isEmpty() == false) {
+                sum++;
+            }
+        }
+        return sum;
     }
 
     private record FramedData(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType) {}

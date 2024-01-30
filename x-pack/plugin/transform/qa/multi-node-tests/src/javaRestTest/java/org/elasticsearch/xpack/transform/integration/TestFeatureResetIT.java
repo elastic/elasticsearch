@@ -90,6 +90,7 @@ public class TestFeatureResetIT extends TransformRestTestCase {
 
         putTransform(continuousTransformId, Strings.toString(config), RequestOptions.DEFAULT);
 
+        // Sleep for a few seconds so that we cover transform being stopped at various stages.
         Thread.sleep(randomLongBetween(0, 5_000));
 
         startTransform(continuousTransformId, RequestOptions.DEFAULT);

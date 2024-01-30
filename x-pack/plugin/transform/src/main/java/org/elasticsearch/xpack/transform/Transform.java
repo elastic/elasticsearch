@@ -442,10 +442,11 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         ActionListener<StopTransformAction.Response> afterStoppingTransforms = ActionListener.wrap(
             afterForceStoppingTransforms::onResponse,
             e -> {
-                logger.warn("Exception while trying to stop the transforms, will try again with force=true", e);
+                logger.info("Error while trying to stop the transforms, will try again with force=true", e);
                 StopTransformAction.Request forceStopTransformsRequest = new StopTransformAction.Request(
                     Metadata.ALL,
                     true,
+                    // Set force=true to make sure all the transforms persistent tasks are stopped.
                     true,
                     null,
                     true,
@@ -459,7 +460,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             StopTransformAction.Request stopTransformsRequest = new StopTransformAction.Request(
                 Metadata.ALL,
                 true,
+                // Set force=false in order to let transforms finish gracefully.
                 false,
+                // Do not give it too much time. If there is a problem, there will be another try with force=true.
                 TimeValue.timeValueSeconds(10),
                 true,
                 false

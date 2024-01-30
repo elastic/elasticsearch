@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
+public class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
     private final AbstractHyperLogLogPlusPlus counts;
 
     InternalCardinality(String name, AbstractHyperLogLogPlusPlus counts, Map<String, Object> metadata) {

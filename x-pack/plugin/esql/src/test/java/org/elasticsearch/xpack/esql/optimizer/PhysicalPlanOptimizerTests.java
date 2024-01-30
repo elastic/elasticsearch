@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -171,15 +173,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         EnrichResolution enrichResolution = new EnrichResolution();
         enrichResolution.addResolvedPolicy(
             "foo",
-            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("idx"), "fld", List.of("a", "b")),
-            Map.of("", "idx"),
-            Map.ofEntries(
-                Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
-                Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+            Enrich.Mode.ANY,
+            new ResolvedEnrichPolicy(
+                "fld",
+                EnrichPolicy.MATCH_TYPE,
+                List.of("a", "b"),
+                Map.of("", "idx"),
+                Map.ofEntries(
+                    Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
+                    Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+                )
             )
         );
-        enrichResolution.addExistingPolicies(Set.of("foo"));
-
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping);

@@ -70,7 +70,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
         return createTestInstance();
     }
 
-    protected KnnSearchBuilder parse(XContentParser parser) throws IOException {
+    protected KnnSearchBuilder parseKnnSearchBuilder(XContentParser parser) throws IOException {
         return KnnSearchBuilder.fromXContent(parser).build(DEFAULT_SIZE);
     }
 

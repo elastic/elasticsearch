@@ -1165,6 +1165,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 // todo: consider whether freq=1 is still right for new entries.
                 // it could risk decaying to level 0 right after and thus potentially be evicted
                 // if the freq 1 LRU chain was short.
+                // seems ok for now, since if it were to get evicted soon, the decays done would ensure we have more level 1
+                // entries eventually and thus such an entry would (after some decays) be able to survive in the cache.
                 this.freq = 1;
             }
 
@@ -1548,11 +1550,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         private void computeDecay() {
-            long now = System.currentTimeMillis();
+            long now = threadPool.rawRelativeTimeInMillis();
             long afterLock;
             long end;
             synchronized (SharedBlobCacheService.this) {
-                afterLock = System.currentTimeMillis();
+                afterLock = threadPool.rawRelativeTimeInMillis();
                 appendLevel1ToLevel0();
                 for (int i = 2; i < maxFreq; i++) {
                     assert freqs[i - 1] == null;
@@ -1562,8 +1564,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     assert freqs[i - 1] == null || invariant(freqs[i - 1], true);
                 }
             }
-            end = System.currentTimeMillis();
-            logger.info("Decay took {} ms (acquire lock: {} ms)", end - now, afterLock - now);
+            end = threadPool.rawRelativeTimeInMillis();
+            logger.debug("Decay took {} ms (acquire lock: {} ms)", end - now, afterLock - now);
         }
 
         class DecayAndNewEpochTask extends AbstractRunnable {

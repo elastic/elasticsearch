@@ -19,7 +19,6 @@ import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -92,41 +91,7 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder<StandardRet
     private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
     private List<SortBuilder<?>> sortBuilders;
     private Float minScore;
-    private QueryBuilder postFilterQueryBuilder;
     private CollapseBuilder collapseBuilder;
-
-    @Override
-    protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        if (queryBuilder != null) {
-            builder.field(QUERY_FIELD.getPreferredName(), queryBuilder);
-        }
-
-        if (searchAfterBuilder != null) {
-            builder.array(SEARCH_AFTER_FIELD.getPreferredName(), searchAfterBuilder.getSortValues());
-        }
-
-        if (terminateAfter != SearchContext.DEFAULT_TERMINATE_AFTER) {
-            builder.field(TERMINATE_AFTER_FIELD.getPreferredName(), terminateAfter);
-        }
-
-        if (sortBuilders != null) {
-            builder.startArray(SORT_FIELD.getPreferredName());
-
-            for (SortBuilder<?> sortBuilder : sortBuilders) {
-                sortBuilder.toXContent(builder, params);
-            }
-
-            builder.endArray();
-        }
-
-        if (minScore != null) {
-            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
-        }
-
-        if (collapseBuilder != null) {
-            builder.field(COLLAPSE_FIELD.getPreferredName(), collapseBuilder);
-        }
-    }
 
     public QueryBuilder queryBuilder() {
         return queryBuilder;

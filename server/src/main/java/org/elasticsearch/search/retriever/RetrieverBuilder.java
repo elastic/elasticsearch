@@ -17,8 +17,6 @@ import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -28,7 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>> implements ToXContentObject {
+public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>> {
 
     public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
 
@@ -151,20 +149,6 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>> implemen
     }
 
     protected List<QueryBuilder> preFilterQueryBuilders = new ArrayList<>();
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (preFilterQueryBuilders.isEmpty() == false) {
-            builder.field(PRE_FILTER_FIELD.getPreferredName(), preFilterQueryBuilders);
-        }
-        doToXContent(builder, params);
-        builder.endObject();
-
-        return builder;
-    }
-
-    protected abstract void doToXContent(XContentBuilder builder, Params params) throws IOException;
 
     public List<QueryBuilder> preFilterQueryBuilders() {
         return preFilterQueryBuilders;

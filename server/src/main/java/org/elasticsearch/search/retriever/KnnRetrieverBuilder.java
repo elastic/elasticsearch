@@ -13,7 +13,6 @@ import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -97,23 +96,6 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
         this.k = k;
         this.numCands = numCands;
         this.similarity = similarity;
-    }
-
-    @Override
-    protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(FIELD_FIELD.getPreferredName(), field)
-            .field(K_FIELD.getPreferredName(), k)
-            .field(NUM_CANDS_FIELD.getPreferredName(), numCands);
-        if (queryVectorBuilder != null) {
-            builder.startObject(QUERY_VECTOR_BUILDER_FIELD.getPreferredName());
-            builder.field(queryVectorBuilder.getWriteableName(), queryVectorBuilder);
-            builder.endObject();
-        } else {
-            builder.array(QUERY_VECTOR_FIELD.getPreferredName(), queryVector);
-        }
-        if (similarity != null) {
-            builder.field(VECTOR_SIMILARITY.getPreferredName(), similarity);
-        }
     }
 
     @Override

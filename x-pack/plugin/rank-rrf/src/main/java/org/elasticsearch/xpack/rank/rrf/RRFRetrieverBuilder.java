@@ -12,7 +12,6 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -51,18 +50,6 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
     private List<? extends RetrieverBuilder<?>> retrieverBuilders = Collections.emptyList();
     private int windowSize = RRFRankBuilder.DEFAULT_WINDOW_SIZE;
     private int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
-
-    @Override
-    protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
-            builder.startArray(RETRIEVERS_FIELD.getPreferredName());
-            retrieverBuilder.toXContent(builder, params);
-            builder.endArray();
-        }
-
-        builder.field(WINDOW_SIZE_FIELD.getPreferredName(), windowSize);
-        builder.field(RANK_CONSTANT_FIELD.getPreferredName(), rankConstant);
-    }
 
     @Override
     public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {

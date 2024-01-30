@@ -54,12 +54,12 @@ class ErrorPumpThread extends Thread {
      * @return a bootstrap exeption message if a bootstrap error occurred, or null otherwise
      * @throws IOException if there was a problem reading from stderr of the process
      */
-    String waitUntilReady() throws IOException {
+    boolean waitUntilReady() throws IOException {
         nonInterruptibleVoid(readyOrDead::await);
         if (ioFailure != null) {
             throw ioFailure;
         }
-        return null;
+        return ready;
     }
 
     /**

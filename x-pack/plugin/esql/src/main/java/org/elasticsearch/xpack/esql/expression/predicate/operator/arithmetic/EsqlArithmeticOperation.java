@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -149,8 +150,8 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
             null,
             "[{}] has arguments with incompatible types [{}] and [{}]",
             symbol,
-            leftType.toUpperCase(),
-            rightType.toUpperCase()
+            leftType.toUpperCase(Locale.ROOT),
+            rightType.toUpperCase(Locale.ROOT)
         );
     }
 

@@ -248,12 +248,12 @@ public class SearchStats {
                     if (fieldInfo.getPointIndexDimensionCount() > 0) {
                         PointValues points = reader.getPointValues(field);
                         if (points != null) {
-                            count += points.getDocCount();
+                            count += points.size();
                         }
                     } else if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
                         Terms terms = reader.terms(field);
                         if (terms != null) {
-                            count += terms.getDocCount();
+                            count += terms.getSumTotalTermFreq();
                         }
                     } else {
                         return -1; // no shortcut possible for fields that are not indexed

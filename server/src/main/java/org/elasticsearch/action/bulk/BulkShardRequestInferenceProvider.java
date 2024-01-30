@@ -14,14 +14,21 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.inference.InferenceProvider;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelRegistry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,10 +43,60 @@ public class BulkShardRequestInferenceProvider {
     public static final String INFERENCE_FIELD = "result";
     public static final String TEXT_FIELD = "text";
 
-    private final InferenceProvider inferenceProvider;
+    private final Map<String, InferenceProvider> inferenceProvidersMap;
 
-    public BulkShardRequestInferenceProvider(InferenceProvider inferenceProvider) {
-        this.inferenceProvider = inferenceProvider;
+    private record InferenceProvider (Model model, InferenceService service) {
+        private InferenceProvider {
+            Objects.requireNonNull(model);
+            Objects.requireNonNull(service);
+        }
+    }
+
+    private BulkShardRequestInferenceProvider(Map<String, InferenceProvider> inferenceProvidersMap) {
+        this.inferenceProvidersMap = inferenceProvidersMap;
+    }
+
+    public static void executeWithInferenceProvider(
+        InferenceServiceRegistry inferenceServiceRegistry,
+        ModelRegistry modelRegistry,
+        Metadata clusterMetadata,
+        Set<ShardId> shardIds,
+        Consumer<BulkShardRequestInferenceProvider> action
+    ) {
+        Set<String> inferenceIds = new HashSet<>();
+        shardIds.stream().map(ShardId::getIndex).collect(Collectors.toSet()).stream().forEach(index -> {
+            var fieldsForModels = clusterMetadata.index(index).getFieldsForModels();
+            inferenceIds.addAll(fieldsForModels.keySet());
+        });
+        final Map<String, InferenceProvider> inferenceProviderMap = new ConcurrentHashMap<>();
+        Runnable onModelLoadingComplete = () -> action.accept(new BulkShardRequestInferenceProvider(inferenceProviderMap));
+        try (var refs = new RefCountingRunnable(onModelLoadingComplete)) {
+            for (var inferenceId : inferenceIds) {
+                ActionListener<ModelRegistry.UnparsedModel> modelLoadingListener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(ModelRegistry.UnparsedModel unparsedModel) {
+                        var service = inferenceServiceRegistry.getService(unparsedModel.service());
+                        if (service.isEmpty() == false) {
+                            InferenceProvider inferenceProvider = new InferenceProvider(
+                                service.get().parsePersistedConfig(
+                                    inferenceId,
+                                    unparsedModel.taskType(),
+                                    unparsedModel.settings()),
+                                service.get()
+                            );
+                            inferenceProviderMap.put(inferenceId, inferenceProvider);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // Do nothing - let it fail afterwards
+                    }
+                };
+
+                modelRegistry.getModel(inferenceId, ActionListener.releaseAfter(modelLoadingListener, refs.acquire()));
+            }
+        }
     }
 
     public void processBulkShardRequest(
@@ -89,10 +146,6 @@ public class BulkShardRequestInferenceProvider {
         TriConsumer<BulkShardRequest, BulkItemRequest, Exception> onBulkItemFailure,
         Releasable releaseOnFinish
     ) {
-        if (inferenceProvider.performsInference() == false) {
-            releaseOnFinish.close();
-            return;
-        }
 
         DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();
         Map<String, Object> sourceMap = null;
@@ -138,13 +191,25 @@ public class BulkShardRequestInferenceProvider {
 
                 docRef.acquire();
 
-                inferenceProvider.textInference(
-                    modelId,
+                InferenceProvider inferenceProvider = inferenceProvidersMap.get(modelId);
+                if (inferenceProvider == null) {
+                    onBulkItemFailure.apply(
+                        bulkShardRequest,
+                        bulkItemRequest,
+                        new IllegalArgumentException("No inference provider found for model ID " + modelId)
+                    );
+                    docRef.close();
+                    continue;
+                }
+                inferenceProvider.service().infer(
+                    inferenceProvider.model,
                     inferenceFieldNames.stream().map(docMap::get).map(String::valueOf).collect(Collectors.toList()),
+                    // TODO check for additional settings needed
+                    Map.of(),
                     new ActionListener<>() {
 
                         @Override
-                        public void onResponse(List<InferenceResults> results) {
+                        public void onResponse(InferenceServiceResults results) {
 
                             if (results == null) {
                                 throw new IllegalArgumentException(
@@ -153,7 +218,7 @@ public class BulkShardRequestInferenceProvider {
                             }
 
                             int i = 0;
-                            for (InferenceResults inferenceResults : results) {
+                            for (InferenceResults inferenceResults : results.transformToLegacyFormat()) {
                                 String fieldName = inferenceFieldNames.get(i++);
                                 @SuppressWarnings("unchecked")
                                 Map<String, Object> inferenceFieldMap = (Map<String, Object>) rootInferenceFieldMap.computeIfAbsent(
@@ -191,25 +256,4 @@ public class BulkShardRequestInferenceProvider {
         }
         return inferenceFieldNames;
     }
-
-    @SuppressWarnings("unchecked")
-    private static String findMapValue(Map<String, Object> map, String... path) {
-        Map<String, Object> currentMap = map;
-        for (int i = 0; i < path.length - 1; i++) {
-            Object value = currentMap.get(path[i]);
-
-            if (value instanceof Map) {
-                currentMap = (Map<String, Object>) value;
-            } else {
-                // Invalid path or non-Map value encountered
-                return null;
-            }
-        }
-
-        // Retrieve the final value in the map, if it's a String
-        Object finalValue = currentMap.get(path[path.length - 1]);
-
-        return (finalValue instanceof String) ? (String) finalValue : null;
-    }
-
 }

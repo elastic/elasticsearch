@@ -55,6 +55,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -65,7 +66,8 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.inference.InferenceProvider;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -111,7 +113,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
-    private final BulkShardRequestInferenceProvider bulkShardRequestInferenceProvider;
+    private final InferenceServiceRegistry inferenceServiceRegistry;
+    private final ModelRegistry modelRegistry;
 
     @Inject
     public TransportBulkAction(
@@ -124,7 +127,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        InferenceProvider inferenceProvider
+        @Nullable
+        InferenceServiceRegistry inferenceServiceRegistry,
+        @Nullable
+        ModelRegistry modelRegistry
     ) {
         this(
             threadPool,
@@ -137,7 +143,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexingPressure,
             systemIndices,
             System::nanoTime,
-            inferenceProvider
+            inferenceServiceRegistry,
+            modelRegistry
         );
     }
 
@@ -152,7 +159,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider,
-        InferenceProvider inferenceProvider
+        @Nullable
+        InferenceServiceRegistry inferenceServiceRegistry,
+        @Nullable
+        ModelRegistry modelRegistry
     ) {
         this(
             BulkAction.INSTANCE,
@@ -167,7 +177,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexingPressure,
             systemIndices,
             relativeTimeProvider,
-            inferenceProvider
+            inferenceServiceRegistry,
+            modelRegistry
         );
     }
 
@@ -184,7 +195,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider,
-        InferenceProvider inferenceProvider
+        @Nullable
+        InferenceServiceRegistry inferenceServiceRegistry,
+        @Nullable
+        ModelRegistry modelRegistry
     ) {
         super(bulkAction.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         Objects.requireNonNull(relativeTimeProvider);
@@ -198,8 +212,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
-        Objects.requireNonNull(inferenceProvider);
-        this.bulkShardRequestInferenceProvider = new BulkShardRequestInferenceProvider(inferenceProvider);
+        this.inferenceServiceRegistry = inferenceServiceRegistry;
+        this.modelRegistry = modelRegistry;
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
@@ -740,7 +754,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return;
             }
 
-            String nodeId = clusterService.localNode().getId();
+            BulkShardRequestInferenceProvider.executeWithInferenceProvider(inferenceServiceRegistry, modelRegistry, clusterState.metadata(),
+                requestsByShard.keySet(),
+                bulkShardRequestInferenceProvider -> {
+                    processBulkItemRequests(requestsByShard, clusterState, bulkShardRequestInferenceProvider);
+                });
+
+        }
+
+        private void processBulkItemRequests(Map<ShardId, List<BulkItemRequest>> requestsByShard, ClusterState clusterState,
+                                             BulkShardRequestInferenceProvider bulkShardRequestInferenceProvider) {
             Runnable onBulkItemsComplete = () -> {
                 listener.onResponse(
                     new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
@@ -762,7 +785,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     bulkShardRequest.timeout(bulkRequest.timeout());
                     bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
                     if (task != null) {
-                        bulkShardRequest.setParentTask(nodeId, task.getId());
+                        bulkShardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     }
 
                     Releasable ref = bulkItemRequestCompleteRefCount.acquire();
@@ -772,7 +795,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         (bulkShardRequest1, request, e) -> onBulkItemInferenceFailure(bulkShardRequest1, request, e, ref),
                         bsr -> executeBulkShardRequest(bsr, b -> ref.close())
                     );
-
                 }
             }
         }

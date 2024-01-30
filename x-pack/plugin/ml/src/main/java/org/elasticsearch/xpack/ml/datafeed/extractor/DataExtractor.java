@@ -18,14 +18,10 @@ public interface DataExtractor {
 
     record Result(SearchInterval searchInterval, Optional<InputStream> data) {}
 
-    interface DataSummary {
-        long estimateChunk();
-
-        boolean hasData();
-
-        long earliestTime();
-
-        long getDataTimeSpread();
+    record DataSummary(Long earliestTime, Long latestTime, Long totalHits) {
+        public boolean hasData() {
+            return earliestTime != null;
+        }
     }
 
     DataSummary getSummary();
@@ -79,5 +75,4 @@ public interface DataExtractor {
             );
         }
     }
-
 }

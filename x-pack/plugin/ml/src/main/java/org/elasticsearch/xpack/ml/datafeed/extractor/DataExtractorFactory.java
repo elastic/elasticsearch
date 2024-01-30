@@ -30,10 +30,6 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorF
 
 public interface DataExtractorFactory {
 
-    default DataSummary getDataSummary(long start, long end) {
-        return newExtractor(start, end).getSummary();
-    }
-
     DataExtractor newExtractor(long start, long end);
 
     /**

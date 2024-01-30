@@ -38,8 +38,8 @@ import java.util.Optional;
  * searches in smaller chunks of the time range.
  *
  * <p> The chunk span can be either specified or not. When not specified,
- * a heuristic is employed (see {@link DataSummary#estimateChunk()}) to automatically determine the chunk span.
- * The search is set up (see {@link #setUpChunkedSearch()} by querying a data summary for the given time range
+ * a heuristic is employed (see {@link #setUpChunkedSearch()}) to automatically determine the chunk span.
+ * The search is set up by querying a data summary for the given time range
  * that includes the number of total hits and the earliest/latest times. Those are then used to determine the chunk span,
  * when necessary, and to jump the search forward to the time where the earliest data can be found.
  * If a search for a chunk returns empty, the set up is performed again for the remaining time.
@@ -118,15 +118,29 @@ public class ChunkedDataExtractor implements DataExtractor {
         if (dataSummary.hasData()) {
             currentStart = context.timeAligner.alignToFloor(dataSummary.earliestTime());
             currentEnd = currentStart;
-            chunkSpan = context.chunkSpan == null ? dataSummary.estimateChunk() : context.chunkSpan.getMillis();
+
+            if (context.chunkSpan != null) {
+                chunkSpan = context.chunkSpan.getMillis();
+            } else if (context.hasAggregations) {
+                // This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig}
+                chunkSpan = DatafeedConfig.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * context.histogramInterval;
+            } else {
+                long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
+                if (timeSpread <= 0) {
+                    chunkSpan = context.end - currentEnd;
+                } else {
+                    // The heuristic here is that we want a time interval where we expect roughly scrollSize documents
+                    // (assuming data are uniformly spread over time).
+                    // We have totalHits documents over dataTimeSpread (latestTime - earliestTime), we want scrollSize documents over chunk.
+                    // Thus, the interval would be (scrollSize * dataTimeSpread) / totalHits.
+                    // However, assuming this as the chunk span may often lead to half-filled pages or empty searches.
+                    // It is beneficial to take a multiple of that. Based on benchmarking, we set this to 10x.
+                    chunkSpan = Math.max(MIN_CHUNK_SPAN, 10 * (context.scrollSize * timeSpread) / dataSummary.totalHits());
+                }
+            }
+
             chunkSpan = context.timeAligner.alignToCeil(chunkSpan);
-            LOGGER.debug(
-                "[{}] Chunked search configured: kind = {}, dataTimeSpread = {} ms, chunk span = {} ms",
-                context.jobId,
-                dataSummary.getClass().getSimpleName(),
-                dataSummary.getDataTimeSpread(),
-                chunkSpan
-            );
+            LOGGER.debug("[{}] Chunked search configured: chunk span = {} ms", context.jobId, chunkSpan);
         } else {
             // search is over
             currentEnd = context.end;
@@ -199,7 +213,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         currentStart = currentEnd;
         currentEnd = Math.min(currentStart + chunkSpan, context.end);
         currentExtractor = dataExtractorFactory.newExtractor(currentStart, currentEnd);
-        LOGGER.trace("[{}] advances time to [{}, {})", context.jobId, currentStart, currentEnd);
+        LOGGER.debug("[{}] advances time to [{}, {})", context.jobId, currentStart, currentEnd);
     }
 
     @Override
@@ -255,17 +269,15 @@ public class ChunkedDataExtractor implements DataExtractor {
                 LOGGER.debug("[{}] Scrolling Data summary response was obtained", context.jobId);
                 timingStatsReporter.reportSearchDuration(searchResponse.getTook());
 
-                long earliestTime = 0;
-                long latestTime = 0;
+                Aggregations aggregations = searchResponse.getAggregations();
                 long totalHits = searchResponse.getHits().getTotalHits().value;
-                if (totalHits > 0) {
-                    Aggregations aggregations = searchResponse.getAggregations();
-                    Min min = aggregations.get(EARLIEST_TIME);
-                    earliestTime = (long) min.value();
-                    Max max = aggregations.get(LATEST_TIME);
-                    latestTime = (long) max.value();
+                if (totalHits == 0) {
+                    return new DataSummary(null, null, 0L);
+                } else {
+                    long earliestTime = (long) (aggregations.<Min>get(EARLIEST_TIME)).value();
+                    long latestTime = (long) (aggregations.<Max>get(LATEST_TIME)).value();
+                    return new DataSummary(earliestTime, latestTime, totalHits);
                 }
-                return new ScrolledDataSummary(earliestTime, latestTime, totalHits);
             } finally {
                 searchResponse.decRef();
             }
@@ -286,11 +298,12 @@ public class ChunkedDataExtractor implements DataExtractor {
                 // by checking for zero hits, because aggregations that work on rollups return zero hits even
                 // when they retrieve data.
                 if (aggregations == null) {
-                    return AggregatedDataSummary.noDataSummary(context.histogramInterval);
+                    return new DataSummary(null, null, null);
+                } else {
+                    long earliestTime = (long) (aggregations.<Min>get(EARLIEST_TIME)).value();
+                    long latestTime = (long) (aggregations.<Max>get(LATEST_TIME)).value();
+                    return new DataSummary(earliestTime, latestTime, null);
                 }
-                Min min = aggregations.get(EARLIEST_TIME);
-                Max max = aggregations.get(LATEST_TIME);
-                return new AggregatedDataSummary(min.value(), max.value(), context.histogramInterval);
             } finally {
                 searchResponse.decRef();
             }
@@ -318,93 +331,6 @@ public class ChunkedDataExtractor implements DataExtractor {
                 .allowPartialSearchResults(false)
                 .source(rangeSearchBuilder());
             return new RollupSearchAction.RequestBuilder(client, searchRequest);
-        }
-    }
-
-    private class ScrolledDataSummary implements DataSummary {
-
-        private final long earliestTime;
-        private final long latestTime;
-        private final long totalHits;
-
-        private ScrolledDataSummary(long earliestTime, long latestTime, long totalHits) {
-            this.earliestTime = earliestTime;
-            this.latestTime = latestTime;
-            this.totalHits = totalHits;
-        }
-
-        @Override
-        public long earliestTime() {
-            return earliestTime;
-        }
-
-        @Override
-        public long getDataTimeSpread() {
-            return latestTime - earliestTime;
-        }
-
-        /**
-         * The heuristic here is that we want a time interval where we expect roughly scrollSize documents
-         * (assuming data are uniformly spread over time).
-         * We have totalHits documents over dataTimeSpread (latestTime - earliestTime), we want scrollSize documents over chunk.
-         * Thus, the interval would be (scrollSize * dataTimeSpread) / totalHits.
-         * However, assuming this as the chunk span may often lead to half-filled pages or empty searches.
-         * It is beneficial to take a multiple of that. Based on benchmarking, we set this to 10x.
-         */
-        @Override
-        public long estimateChunk() {
-            long dataTimeSpread = getDataTimeSpread();
-            if (totalHits <= 0 || dataTimeSpread <= 0) {
-                return context.end - currentEnd;
-            }
-            long estimatedChunk = 10 * (context.scrollSize * getDataTimeSpread()) / totalHits;
-            return Math.max(estimatedChunk, MIN_CHUNK_SPAN);
-        }
-
-        @Override
-        public boolean hasData() {
-            return totalHits > 0;
-        }
-    }
-
-    static class AggregatedDataSummary implements DataSummary {
-
-        private final double earliestTime;
-        private final double latestTime;
-        private final long histogramIntervalMillis;
-
-        static AggregatedDataSummary noDataSummary(long histogramInterval) {
-            // hasData() uses infinity to mean no data
-            return new AggregatedDataSummary(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, histogramInterval);
-        }
-
-        AggregatedDataSummary(double earliestTime, double latestTime, long histogramInterval) {
-            this.earliestTime = earliestTime;
-            this.latestTime = latestTime;
-            this.histogramIntervalMillis = histogramInterval;
-        }
-
-        /**
-         * This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig}
-         */
-        @Override
-        public long estimateChunk() {
-            return DatafeedConfig.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis;
-        }
-
-        @Override
-        public boolean hasData() {
-            return (Double.isInfinite(earliestTime) || Double.isInfinite(latestTime)) == false;
-        }
-
-        @Override
-        public long earliestTime() {
-            return (long) earliestTime;
-        }
-
-        @Override
-        public long getDataTimeSpread() {
-            return (long) latestTime - (long) earliestTime;
         }
     }
 }

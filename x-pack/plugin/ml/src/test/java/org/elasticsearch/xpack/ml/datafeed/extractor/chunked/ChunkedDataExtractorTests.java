@@ -548,7 +548,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     }
 
     public void testNoDataSummaryHasNoData() {
-        DataSummary summary = ChunkedDataExtractor.AggregatedDataSummary.noDataSummary(randomNonNegativeLong());
+        DataSummary summary = new DataSummary(null, null, null);
         assertFalse(summary.hasData());
     }
 

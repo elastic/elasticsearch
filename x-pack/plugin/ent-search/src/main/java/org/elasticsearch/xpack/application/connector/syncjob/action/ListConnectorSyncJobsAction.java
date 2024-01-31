@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobSearchResult;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 
@@ -30,14 +31,12 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class ListConnectorSyncJobsAction extends ActionType<ListConnectorSyncJobsAction.Response> {
+public class ListConnectorSyncJobsAction {
 
-    public static final ListConnectorSyncJobsAction INSTANCE = new ListConnectorSyncJobsAction();
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/list";
+    public static final ActionType<ListConnectorSyncJobsAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public ListConnectorSyncJobsAction() {
-        super(NAME);
-    }
+    private ListConnectorSyncJobsAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
         public static final ParseField CONNECTOR_ID_FIELD = new ParseField("connector_id");
@@ -135,14 +134,14 @@ public class ListConnectorSyncJobsAction extends ActionType<ListConnectorSyncJob
     public static class Response extends ActionResponse implements ToXContentObject {
         public static final ParseField RESULTS_FIELD = new ParseField("results");
 
-        final QueryPage<ConnectorSyncJob> queryPage;
+        final QueryPage<ConnectorSyncJobSearchResult> queryPage;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.queryPage = new QueryPage<>(in, ConnectorSyncJob::new);
+            this.queryPage = new QueryPage<>(in, ConnectorSyncJobSearchResult::new);
         }
 
-        public Response(List<ConnectorSyncJob> items, Long totalResults) {
+        public Response(List<ConnectorSyncJobSearchResult> items, Long totalResults) {
             this.queryPage = new QueryPage<>(items, totalResults, RESULTS_FIELD);
         }
 

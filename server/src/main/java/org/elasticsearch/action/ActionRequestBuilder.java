@@ -13,7 +13,9 @@ import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 
-public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse> {
+public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse>
+    implements
+        RequestBuilder<Request, Response> {
 
     protected final ActionType<Response> action;
     protected final Request request;

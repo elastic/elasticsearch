@@ -264,7 +264,7 @@ public class ElserMlNodeService implements InferenceService {
             : TextExpansionConfigUpdate.EMPTY_UPDATE;
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
-            model.getConfigurations().getModelId(),
+            model.getConfigurations().getInferenceEntityId(),
             configUpdate,
             input,
             TimeValue.timeValueSeconds(10)  // TODO get timeout from request

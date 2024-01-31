@@ -203,9 +203,10 @@ public abstract class PackagingTestCase extends Assert {
     public void teardown() throws Exception {
         // move log file so we can avoid false positives when grepping for
         // messages in logs during test
-        if (installation != null && failed == false) {
-
-            if (Files.exists(installation.logs)) {
+        if (installation != null) {
+            if (failed) {
+                dumpDebug();
+            } else if (Files.exists(installation.logs)) {
                 Path logFile = installation.logs.resolve("elasticsearch.log");
                 String prefix = this.getClass().getSimpleName() + "." + testNameRule.getMethodName();
                 if (Files.exists(logFile)) {

@@ -1104,7 +1104,7 @@ ck:l | cb:l | cd:l | ci:l | c:l | csv:l
 221  | 204  | 183  | 183  | 100 | 100
 ;
 
-nestedAggsNoGrouping
+nestedAggsNoGrouping#[skip:-8.12.99,reason:supported in 8.13+]
 FROM employees
 | STATS x = AVG(salary) /2 + MAX(salary), a = AVG(salary), m = MAX(salary)
 ;
@@ -1113,7 +1113,7 @@ x:d       | a:d      | m:i
 99123.275 | 48248.55 |74999
 ;
 
-nestedAggsWithGrouping
+nestedAggsWithGrouping#[skip:-8.12.99,reason:supported in 8.13+]
 FROM employees
 | STATS x = ROUND(AVG(salary % 3)) + MAX(emp_no), y = MIN(emp_no / 3) + 10 - MEDIAN(salary) by z = languages % 2
 | SORT z
@@ -1125,7 +1125,7 @@ x:d   | y:d       | z:i
 10030 | -44714.5  | null
 ;
 
-nestedAggsWithScalars
+nestedAggsWithScalars#[skip:-8.12.99,reason:supported in 8.13+]
 FROM employees
 | STATS x = CONCAT(TO_STRING(ROUND(AVG(salary % 3))), TO_STRING(MAX(emp_no))), 
         y = ROUND((MIN(emp_no / 3) + PI() - MEDIAN(salary))/E()) 

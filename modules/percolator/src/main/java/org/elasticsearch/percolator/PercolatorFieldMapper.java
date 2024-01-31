@@ -162,7 +162,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             fieldType.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
 
             return new PercolatorFieldMapper(
-                fieldType.concreteFieldName(),
+                name(),
                 fieldType,
                 multiFields,
                 copyTo,

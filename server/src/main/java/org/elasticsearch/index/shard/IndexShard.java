@@ -17,7 +17,6 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfos;
@@ -105,7 +104,6 @@ import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -232,8 +230,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // sys prop to disable the field has value feature, defaults to true (enabled) if set to false (disabled) the
     // field caps always returns empty fields ignoring the value of the query param `include_fields_with_no_value`.
     private final boolean enableFieldHasValue = Booleans.parseBoolean(System.getProperty("es.field_has_value", Boolean.TRUE.toString()));
-    private final AtomicBoolean availableFieldsLoaded = new AtomicBoolean(false);
-    private final CountDownLatch lazyLoadCompleted = new CountDownLatch(1);
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -292,6 +288,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicLong lastSearcherAccess = new AtomicLong();
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
+    private final RefreshFieldHasValueListener refreshFieldHasValueListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile long startedRelativeTimeInNanos;
@@ -408,6 +405,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
+        this.refreshFieldHasValueListener = new RefreshFieldHasValueListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
         this.fieldHasValue = fieldHasValue; // fieldHasValue Map is shared between all shards for a certain index in a data node
@@ -997,21 +995,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             verifyNotClosed(e);
             return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo, sourceToParse.id());
         }
-        Engine.IndexResult indexResult = index(engine, operation);
-        if (enableFieldHasValue
-            && indexResult.getResultType().equals(Engine.Result.Type.SUCCESS)
-            && origin.equals(Engine.Operation.Origin.PRIMARY)) {
-            updateFieldHasValueWithFieldsFromParsedDoc(operation.parsedDoc());
-        }
-        return indexResult;
-    }
-
-    private void updateFieldHasValueWithFieldsFromParsedDoc(ParsedDocument document) {
-        for (LuceneDocument doc : document.docs()) {
-            for (IndexableField field : doc.getFields()) {
-                setFieldHasValue(field.name());
-            }
-        }
+        return index(engine, operation);
     }
 
     public void setFieldHasValue(String fieldName) {
@@ -1019,28 +1003,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public boolean fieldHasValue(String fieldName) {
-        if (enableFieldHasValue == false) return true; // if we disable the feature we always return that a certain field has value
-        loadNonEmptyFields();
+        if (enableFieldHasValue == false) return true; // if we disable the feature we always return that a certain field has value]
         return fieldHasValue.getOrDefault(fieldName, false);
-    }
-
-    private void loadNonEmptyFields() {
-        if (availableFieldsLoaded.compareAndSet(false, true)) {
-            try (Engine.Searcher hasValueSearcher = acquireSearcher("field_has_value")) {
-                IndexReader hasValueReader = hasValueSearcher.getIndexReader();
-                for (LeafReaderContext leaf : hasValueReader.leaves()) {
-                    LeafReader leafReader = leaf.reader();
-                    for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
-                        setFieldHasValue(fieldInfo.getName());
-                    }
-                }
-            }
-            lazyLoadCompleted.countDown();
-        } else {
-            try {
-                lazyLoadCompleted.await();
-            } catch (InterruptedException ignore) {}
-        }
     }
 
     public static Engine.Index prepareIndex(
@@ -3471,7 +3435,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             cachingPolicy,
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-            List.of(refreshListeners, refreshPendingLocationListener),
+            List.of(refreshListeners, refreshPendingLocationListener, refreshFieldHasValueListener),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
             indexSort,
             circuitBreakerService,
@@ -4021,6 +3985,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         return pendingLocation;
                     }
                 });
+            }
+        }
+    }
+
+    private class RefreshFieldHasValueListener implements ReferenceManager.RefreshListener {
+
+        @Override
+        public void beforeRefresh() throws IOException {
+
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) throws IOException {
+            if (enableFieldHasValue && didRefresh) {
+                try (Engine.Searcher hasValueSearcher = acquireSearcher("field_has_value")) {
+                    IndexReader hasValueReader = hasValueSearcher.getIndexReader();
+                    for (LeafReaderContext leaf : hasValueReader.leaves()) {
+                        LeafReader leafReader = leaf.reader();
+                        for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
+                            setFieldHasValue(fieldInfo.getName());
+                        }
+                    }
+                }
             }
         }
     }

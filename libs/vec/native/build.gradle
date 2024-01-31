@@ -1,0 +1,35 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'c'
+
+// This task is deliberately not depended upon. Run it manually if you
+// modify the native code, then commit the native library:
+//   ./gradlew :libs:elasticsearch-vec:native:vecSharedLibrary
+//
+// Look at the disassemble:
+//  objdump --disassemble-symbols=_dot8s libs/vec/native/build/libs/vec/shared/libvec.dylib
+model {
+  platforms {
+    aarch64 {
+      architecture "aarch64"
+    }
+  }
+  components {
+    vec(NativeLibrarySpec) {
+      targetPlatform "aarch64"
+      binaries.withType(SharedLibraryBinarySpec) {
+        cCompiler.args "-O3"
+        linker.args "-march=native"
+        linker.args "-mcpu=native"
+        linker.args "-mtune=native"
+      }
+    }
+  }
+}
+
+

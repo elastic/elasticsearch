@@ -307,13 +307,13 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
             // setup prefix trees regardless of strategy (this is used for the QueryBuilder)
             // recursive:
-            RecursivePrefixTreeStrategy rpts = new RecursivePrefixTreeStrategy(prefixTree, ft.name());
+            RecursivePrefixTreeStrategy rpts = new RecursivePrefixTreeStrategy(prefixTree, ft.concreteFieldName());
             rpts.setDistErrPct(ft.distanceErrorPct());
             rpts.setPruneLeafyBranches(false);
             ft.recursiveStrategy = rpts;
 
             // term:
-            TermQueryPrefixTreeStrategy termStrategy = new TermQueryPrefixTreeStrategy(prefixTree, ft.name());
+            TermQueryPrefixTreeStrategy termStrategy = new TermQueryPrefixTreeStrategy(prefixTree, ft.concreteFieldName());
             termStrategy.setDistErrPct(ft.distanceErrorPct());
             ft.termStrategy = termStrategy;
 
@@ -560,7 +560,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedFieldType.concreteFieldName(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -600,7 +600,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
         }
         context.doc().addAll(Arrays.asList(fieldType().defaultPrefixTreeStrategy().createIndexableFields(shape)));
-        context.addToFieldNames(fieldType().name());
+        context.addToFieldNames(fieldType().concreteFieldName());
     }
 
     @Override

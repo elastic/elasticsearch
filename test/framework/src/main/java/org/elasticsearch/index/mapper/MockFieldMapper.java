@@ -88,7 +88,7 @@ public class MockFieldMapper extends FieldMapper {
         @Override
         public MockFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MockFieldMapper(concreteFieldName(), fieldType, multiFields, copyTo);
+            return new MockFieldMapper(fieldType.name(), fieldType, multiFields, copyTo);
         }
     }
 }

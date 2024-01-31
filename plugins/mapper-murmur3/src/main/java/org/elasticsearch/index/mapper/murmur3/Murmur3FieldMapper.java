@@ -80,12 +80,12 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new);
+            return new SortedNumericIndexFieldData.Builder(concreteFieldName(), NumericType.LONG, Murmur3DocValueField::new);
         }
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+            return SourceValueFetcher.toString(concreteFieldName(), context, format);
         }
 
         @Override
@@ -114,9 +114,9 @@ public class Murmur3FieldMapper extends FieldMapper {
         if (value != null) {
             final BytesRef bytes = new BytesRef(value);
             final long hash = MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
-            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), hash));
+            context.doc().add(new SortedNumericDocValuesField(fieldType().concreteFieldName(), hash));
             if (fieldType().isStored()) {
-                context.doc().add(new StoredField(name(), hash));
+                context.doc().add(new StoredField(fieldType().concreteFieldName(), hash));
             }
         }
     }

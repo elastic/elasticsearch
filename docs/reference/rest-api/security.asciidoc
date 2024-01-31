@@ -95,6 +95,7 @@ native realm:
 * <<security-api-disable-user,Disable users>>
 * <<security-api-enable-user,Enable users>>
 * <<security-api-get-user,Get users>>
+* <<security-api-query-user,Query users>>
 
 [discrete]
 [[security-service-account-apis]]
@@ -187,6 +188,7 @@ include::security/get-role-mappings.asciidoc[]
 include::security/get-roles.asciidoc[]
 include::security/get-service-accounts.asciidoc[]
 include::security/get-service-credentials.asciidoc[]
+include::security/get-settings.asciidoc[]
 include::security/get-tokens.asciidoc[]
 include::security/get-user-privileges.asciidoc[]
 
@@ -199,7 +201,9 @@ include::security/oidc-prepare-authentication-api.asciidoc[]
 include::security/oidc-authenticate-api.asciidoc[]
 include::security/oidc-logout-api.asciidoc[]
 include::security/query-api-key.asciidoc[]
+include::security/query-user.asciidoc[]
 include::security/update-api-key.asciidoc[]
+include::security/update-settings.asciidoc[]
 include::security/bulk-update-api-keys.asciidoc[]
 include::security/saml-prepare-authentication-api.asciidoc[]
 include::security/saml-authenticate-api.asciidoc[]

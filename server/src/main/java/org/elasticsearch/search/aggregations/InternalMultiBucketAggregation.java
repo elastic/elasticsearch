@@ -211,7 +211,7 @@ public abstract class InternalMultiBucketAggregation<
             if (path.isEmpty()) {
                 return this;
             }
-            Aggregations aggregations = getAggregations();
+            InternalAggregations aggregations = getAggregations();
             String aggName = path.get(0);
             if (aggName.equals("_count")) {
                 if (path.size() > 1) {

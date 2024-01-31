@@ -7,28 +7,25 @@
 
 package org.elasticsearch.xpack.profiling;
 
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
 import java.util.Map;
 
-final class CostEntry implements ToXContentObject {
-    final double costFactor;
+final class CostEntry {
+    final double usd_per_hour;
 
-    CostEntry(double costFactor) {
-        this.costFactor = costFactor;
+    CostEntry(double usdPerHour) {
+        this.usd_per_hour = usdPerHour;
     }
 
     public static CostEntry fromSource(Map<String, Object> source) {
-        return new CostEntry((Double) source.get("cost_factor"));
-    }
+        var val = source.get("usd_per_hour");
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("cost_factor", this.costFactor);
-        builder.endObject();
-        return builder;
+        if (val instanceof Number n) {
+            // Some JSON values have no decimal places and are passed in as Integers.
+            return new CostEntry(n.doubleValue());
+        } else if (val == null) {
+            return new CostEntry(CostCalculator.DEFAULT_COST_USD_PER_CORE_HOUR * HostMetadata.DEFAULT_PROFILING_NUM_CORES);
+        }
+
+        throw new IllegalArgumentException("[" + val + "] is an invalid value for [usd_per_hour]");
     }
 }

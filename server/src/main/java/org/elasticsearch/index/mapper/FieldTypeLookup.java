@@ -90,15 +90,18 @@ final class FieldTypeLookup {
                 continue;
             }
 
+            Map<String, List<String>> targetToSourceFieldMap = fieldsForModels.computeIfAbsent(inferenceModel, v -> new HashMap<>());
+            String sourceField = fieldName;
             if (fullSubfieldNameToParentPath.containsKey(fieldName)) {
-                // TODO: Handle multi-field source
-            }
-            if (fieldToCopiedFields.containsKey(fieldName)) {
-                // TODO: Handle copy_to source(s)
+                sourceField = fullSubfieldNameToParentPath.get(fieldName);
             }
 
-            Map<String, List<String>> targetToSourceFieldMap = fieldsForModels.computeIfAbsent(inferenceModel, v -> new HashMap<>());
-            targetToSourceFieldMap.put(fieldName, List.of(fieldName));
+            Set<String> copiedFields = fieldToCopiedFields.get(sourceField);
+            if (copiedFields != null) {
+                targetToSourceFieldMap.put(fieldName, List.copyOf(copiedFields));
+            } else {
+                targetToSourceFieldMap.put(fieldName, List.of(sourceField));
+            }
         }
 
         int maxParentPathDots = 0;

@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
@@ -121,12 +122,15 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
             if (mappingLookup.getMapper(field) instanceof KeywordFieldMapper) {
                 return true;
             }
+            if (mappingLookup.getMapper(field) instanceof TimeSeriesIdFieldMapper) {
+                return true;
+            }
         }
         return false;
     }
 
     private boolean isTimeSeriesModeIndex() {
-        return IndexMode.TIME_SERIES.equals(mapperService.getIndexSettings().getMode());
+        return IndexMode.TIME_SERIES == mapperService.getIndexSettings().getMode();
     }
 
 }

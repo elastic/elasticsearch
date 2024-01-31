@@ -203,38 +203,33 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 commitService
             )
         ) {
+            final var initialGen = engine.getCurrentGeneration();
             engine.index(randomDoc(String.valueOf(0)));
             if (randomBoolean()) {
                 engine.refresh("test");
             }
-            // todo: annoyingly we need 2 flush'es to get the first entry closed due to the order of commit, write and update of
-            // lastCommittedSegmentInfos.
-            engine.flush(true, true);
             engine.flush(true, true);
             assertThat(closedReaderGenerations, empty());
             // external reader manager refresh.
             engine.refresh("test");
             List<Long> expectedClosed = new ArrayList<>();
-            expectedClosed.add(2L);
+            expectedClosed.add(initialGen);
             assertThat(closedReaderGenerations, equalTo(expectedClosed));
 
+            final var gen = engine.getCurrentGeneration();
             int commits = between(1, 10);
             NavigableMap<Long, Engine.Searcher> searchers = new TreeMap<>();
             for (int i = 0; i < commits; ++i) {
                 if (randomBoolean()) {
-                    // the generation lacks one behind due to the order of commit, refresh and lastCommittedSegmentInfos update.
-                    searchers.put(i + 3L, engine.acquireSearcher("test"));
+                    searchers.put(i + gen, engine.acquireSearcher("test"));
                 }
                 engine.index(randomDoc(String.valueOf(i + 1)));
                 engine.flush(true, true);
                 engine.refresh("test");
             }
-            // need a second flush for same reason as above.
-            engine.flush(true, true);
-            engine.refresh("test");
 
             Runnable refreshExpectedClosed = () -> {
-                long releasedUntil = searchers.isEmpty() ? commits + 4L : searchers.firstKey();
+                long releasedUntil = searchers.isEmpty() ? commits + gen : searchers.firstKey();
                 for (long generation = expectedClosed.get(expectedClosed.size() - 1) + 1; generation < releasedUntil; ++generation) {
                     expectedClosed.add(generation);
                 }

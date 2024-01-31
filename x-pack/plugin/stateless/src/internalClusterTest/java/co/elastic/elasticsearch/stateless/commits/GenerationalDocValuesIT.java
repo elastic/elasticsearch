@@ -315,11 +315,6 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         assertThat(searchEngine.getLastCommittedSegmentInfos().getGeneration(), equalTo(7L));
         assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(new PrimaryTermAndGeneration(primaryTerm, 7L)));
 
-        // at this stage, compound commit for generation 5 should be deleted from the object store but it is still referenced,
-        // so we need to create an extra commit
-        // TODO https://elasticco.atlassian.net/browse/ES-7336
-        refresh(indexName);
-
         // There is also a bug in ref counting that prevents the deletion of the stateless_commit_5 files, so we delete it manually for now:
         // TODO https://github.com/elastic/elasticsearch-serverless/pull/1165
         indexDirectory.getSearchDirectory()
@@ -336,10 +331,10 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         searchCacheService.forceEvict(fileCacheKey -> compoundCommitBlobName_5.equals(fileCacheKey.fileName()));
 
         Exception e = expectThrows(Exception.class, () -> {
-            try (var searcher_8 = searchShard.acquireSearcher("searcher_generation_8")) {
-                assertThat(searcher_8.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(8L));
+            try (var searcher_7 = searchShard.acquireSearcher("searcher_generation_7")) {
+                assertThat(searcher_7.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(7L));
                 // make sure to read the generation files to trigger a cache misss
-                readGenerationalDocValues(searcher_8);
+                readGenerationalDocValues(searcher_7);
             }
         });
         var cause = ExceptionsHelper.unwrap(e, NoSuchFileException.class);

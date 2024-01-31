@@ -115,7 +115,7 @@ public final class GeoShapeScriptFieldType extends AbstractScriptFieldType<Geome
     @Override
     public GeoShapeScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
         return new GeoShapeScriptFieldData.Builder(
-            name(),
+            concreteFieldName(),
             leafFactory(fieldDataContext.lookupSupplier().get()),
             GeoShapeWithDocValuesFieldMapper.GeoShapeDocValuesField::new
         );
@@ -124,7 +124,7 @@ public final class GeoShapeScriptFieldType extends AbstractScriptFieldType<Geome
     @Override
     public Query existsQuery(SearchExecutionContext context) {
         applyScriptContext(context);
-        return new GeoShapeScriptFieldExistsQuery(script, leafFactory(context), name());
+        return new GeoShapeScriptFieldExistsQuery(script, leafFactory(context), concreteFieldName());
     }
 
     @Override

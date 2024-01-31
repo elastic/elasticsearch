@@ -176,7 +176,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
 
-        return Arrays.asList(
+        return List.of(
             new RestPutTransformAction(),
             new RestStartTransformAction(),
             new RestStopTransformAction(),

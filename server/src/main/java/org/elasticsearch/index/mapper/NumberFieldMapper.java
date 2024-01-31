@@ -1853,7 +1853,7 @@ public class NumberFieldMapper extends FieldMapper {
                 context.addIgnoredField(mappedFieldType.concreteFieldName());
                 if (storeMalformedFields) {
                     // Save a copy of the field so synthetic source can load it
-                    context.doc().add(IgnoreMalformedStoredValues.storedField(concreteFieldName(), context.parser()));
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(fieldType().concreteFieldName(), context.parser()));
                 }
                 return;
             } else {

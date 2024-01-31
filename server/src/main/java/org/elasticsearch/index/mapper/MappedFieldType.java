@@ -128,6 +128,15 @@ public abstract class MappedFieldType {
         return name;
     }
 
+    /**
+     * Returns the lucene field name, defaults to name() needs to be overwritten
+     * if mapping field name is different from lucene field name.
+     * @return the lucene field name
+     * */
+    public String concreteFieldName() {
+        return name();
+    }
+
     public boolean hasDocValues() {
         return docValues;
     }

@@ -53,8 +53,8 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
 
         ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(2000, 5000);
 
-        assertThat(dataExtractor.getContext().start, equalTo(2000L));
-        assertThat(dataExtractor.getContext().end, equalTo(5000L));
+        assertThat(dataExtractor.getContext().start(), equalTo(2000L));
+        assertThat(dataExtractor.getContext().end(), equalTo(5000L));
     }
 
     public void testNewExtractor_GivenNonAlignedTimes() {
@@ -62,8 +62,8 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
 
         ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(3980, 9200);
 
-        assertThat(dataExtractor.getContext().start, equalTo(4000L));
-        assertThat(dataExtractor.getContext().end, equalTo(9000L));
+        assertThat(dataExtractor.getContext().start(), equalTo(4000L));
+        assertThat(dataExtractor.getContext().end(), equalTo(9000L));
     }
 
     public void testIntervalTimeAligner() {

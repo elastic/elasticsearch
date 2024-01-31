@@ -51,8 +51,8 @@ public class ChunkedDataExtractor implements DataExtractor {
     public ChunkedDataExtractor(DataExtractorFactory dataExtractorFactory, ChunkedDataExtractorContext context) {
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
         this.context = Objects.requireNonNull(context);
-        this.currentStart = context.start;
-        this.currentEnd = context.start;
+        this.currentStart = context.start();
+        this.currentEnd = context.start();
         this.isCancelled = false;
     }
 
@@ -67,7 +67,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         if (isCancelled()) {
             return currentHasNext;
         }
-        return currentHasNext || currentEnd < context.end;
+        return currentHasNext || currentEnd < context.end();
     }
 
     @Override
@@ -85,20 +85,20 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     private void setUpChunkedSearch() {
-        DataSummary dataSummary = dataExtractorFactory.newExtractor(currentStart, context.end).getSummary();
+        DataSummary dataSummary = dataExtractorFactory.newExtractor(currentStart, context.end()).getSummary();
         if (dataSummary.hasData()) {
-            currentStart = context.timeAligner.alignToFloor(dataSummary.earliestTime());
+            currentStart = context.timeAligner().alignToFloor(dataSummary.earliestTime());
             currentEnd = currentStart;
 
-            if (context.chunkSpan != null) {
-                chunkSpan = context.chunkSpan.getMillis();
-            } else if (context.hasAggregations) {
+            if (context.chunkSpan() != null) {
+                chunkSpan = context.chunkSpan().getMillis();
+            } else if (context.hasAggregations()) {
                 // This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig}
-                chunkSpan = DatafeedConfig.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * context.histogramInterval;
+                chunkSpan = DatafeedConfig.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * context.histogramInterval();
             } else {
                 long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
                 if (timeSpread <= 0) {
-                    chunkSpan = context.end - currentEnd;
+                    chunkSpan = context.end() - currentEnd;
                 } else {
                     // The heuristic here is that we want a time interval where we expect roughly scrollSize documents
                     // (assuming data are uniformly spread over time).
@@ -106,21 +106,21 @@ public class ChunkedDataExtractor implements DataExtractor {
                     // Thus, the interval would be (scrollSize * dataTimeSpread) / totalHits.
                     // However, assuming this as the chunk span may often lead to half-filled pages or empty searches.
                     // It is beneficial to take a multiple of that. Based on benchmarking, we set this to 10x.
-                    chunkSpan = Math.max(MIN_CHUNK_SPAN, 10 * (context.scrollSize * timeSpread) / dataSummary.totalHits());
+                    chunkSpan = Math.max(MIN_CHUNK_SPAN, 10 * (context.scrollSize() * timeSpread) / dataSummary.totalHits());
                 }
             }
 
-            chunkSpan = context.timeAligner.alignToCeil(chunkSpan);
-            LOGGER.debug("[{}] Chunked search configured: chunk span = {} ms", context.jobId, chunkSpan);
+            chunkSpan = context.timeAligner().alignToCeil(chunkSpan);
+            LOGGER.debug("[{}] Chunked search configured: chunk span = {} ms", context.jobId(), chunkSpan);
         } else {
             // search is over
-            currentEnd = context.end;
-            LOGGER.debug("[{}] Chunked search configured: no data found", context.jobId);
+            currentEnd = context.end();
+            LOGGER.debug("[{}] Chunked search configured: no data found", context.jobId());
         }
     }
 
     private Result getNextStream() throws IOException {
-        SearchInterval lastSearchInterval = new SearchInterval(context.start, context.end);
+        SearchInterval lastSearchInterval = new SearchInterval(context.start(), context.end());
         while (hasNext()) {
             boolean isNewSearch = false;
 
@@ -163,9 +163,9 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     private void advanceTime() {
         currentStart = currentEnd;
-        currentEnd = Math.min(currentStart + chunkSpan, context.end);
+        currentEnd = Math.min(currentStart + chunkSpan, context.end());
         currentExtractor = dataExtractorFactory.newExtractor(currentStart, currentEnd);
-        LOGGER.debug("[{}] advances time to [{}, {})", context.jobId, currentStart, currentEnd);
+        LOGGER.debug("[{}] advances time to [{}, {})", context.jobId(), currentStart, currentEnd);
     }
 
     @Override
@@ -191,7 +191,7 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     @Override
     public long getEndTime() {
-        return context.end;
+        return context.end();
     }
 
     ChunkedDataExtractorContext getContext() {

@@ -450,6 +450,37 @@ public class FieldTypeLookupTests extends ESTestCase {
 //        assertEquals(Set.of("foo3"), fieldsForModels.get("bar2"));
     }
 
+    public void testInferenceModelFieldTypeInMultiField() {
+        MockFieldMapper inferenceModelFieldMapper = new MockFieldMapper(new MockInferenceModelFieldType("field.semantic", "test_model"));
+        MockFieldMapper.Builder parentFieldMapperBuilder = new MockFieldMapper.Builder("field").addMultiField(inferenceModelFieldMapper);
+        MapperBuilderContext context = MapperBuilderContext.root(false, false);
+
+        // TODO: testSourcePathWithMultiFields doesn't pass mappers that are multi-fields directly to FieldTypeLookup.
+        //       Is this a problem?
+        {
+            FieldTypeLookup lookup = new FieldTypeLookup(
+                List.of(parentFieldMapperBuilder.build(context), inferenceModelFieldMapper),
+                emptyList(),
+                emptyList()
+            );
+            assertEquals(Set.of("field"), lookup.sourcePaths("field.semantic"));
+            assertEquals(Map.of("test_model", Map.of("field.semantic", List.of("field"))), lookup.getFieldsForModels());
+        }
+        {
+            // Invert mapper order to test that processing order in FieldTypeLookup constructor does not matter
+            FieldTypeLookup lookup = new FieldTypeLookup(
+                List.of(inferenceModelFieldMapper, parentFieldMapperBuilder.build(context)),
+                emptyList(),
+                emptyList()
+            );
+            assertEquals(Set.of("field"), lookup.sourcePaths("field.semantic"));
+            assertEquals(Map.of("test_model", Map.of("field.semantic", List.of("field"))), lookup.getFieldsForModels());
+        }
+    }
+
+    // TODO: Add copy_to test
+    // TODO: Add combined copy_to & multi-field test
+
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {
         return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.root(false, false));
     }

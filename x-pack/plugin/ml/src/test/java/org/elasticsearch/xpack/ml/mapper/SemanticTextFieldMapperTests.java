@@ -49,6 +49,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("field [model_id] must be specified"));
     }
 
+    // TODO: Fix multi-field test
     public void testCannotBeUsedInMultiFields() {
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "text");

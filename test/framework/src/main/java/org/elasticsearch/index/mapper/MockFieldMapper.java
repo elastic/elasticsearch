@@ -80,6 +80,11 @@ public class MockFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder addMultiField(FieldMapper mapper) {
+            this.multiFieldsBuilder.add(mapper);
+            return this;
+        }
+
         public Builder copyTo(String field) {
             this.copyTo = copyTo.withAddedFields(List.of(field));
             return this;

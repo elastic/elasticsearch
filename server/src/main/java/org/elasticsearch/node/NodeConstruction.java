@@ -974,7 +974,7 @@ class NodeConstruction {
             repositoryService
         );
 
-        final TimeValue metricsInterval = settings.getAsTime("tracing.apm.agent.metrics_interval", TimeValue.timeValueSeconds(10));
+        final TimeValue metricsInterval = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));
         final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
 
         final SearchService searchService = serviceProvider.newSearchService(

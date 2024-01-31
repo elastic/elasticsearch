@@ -48,6 +48,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -84,7 +85,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
@@ -527,6 +530,14 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             }
         }
         throw new AssertionError("IndexShard instance not found for shard " + new ShardId(index, shardId) + " on node [" + nodeName + ']');
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static <E extends Engine> E getShardEngine(IndexShard indexShard, Class<E> engineClass) {
+        var engine = indexShard.getEngineOrNull();
+        assertThat(engine, notNullValue());
+        assertThat(engine, instanceOf(engineClass));
+        return (E) engine;
     }
 
     protected static Map<Index, Integer> resolveIndices() {

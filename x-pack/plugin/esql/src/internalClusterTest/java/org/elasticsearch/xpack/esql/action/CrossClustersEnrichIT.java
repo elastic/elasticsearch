@@ -441,7 +441,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
     }
 
     public void testEnrichCoordinatorThenEnrichRemote() {
-        String query = String.format("""
+        String query = String.format(Locale.ROOT, """
             FROM *:events,events
             | eval ip= TO_STR(host)
             | %s

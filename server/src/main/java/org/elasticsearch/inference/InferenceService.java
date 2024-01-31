@@ -76,6 +76,7 @@ public interface InferenceService extends Closeable {
      * @param model The model
      * @param input Inference input
      * @param taskSettings Settings in the request to override the model's defaults
+     * @param inputType For search, ingest etc
      * @param listener Inference result listener
      */
     void infer(
@@ -94,6 +95,7 @@ public interface InferenceService extends Closeable {
      * @param model The model
      * @param input Inference input
      * @param taskSettings Settings in the request to override the model's defaults
+     * @param inputType For search, ingest etc
      * @param chunkingOptions The window and span options to apply
      * @param listener Inference result listener
      */
@@ -101,6 +103,7 @@ public interface InferenceService extends Closeable {
         Model model,
         List<String> input,
         Map<String, Object> taskSettings,
+        InputType inputType,
         ChunkingOptions chunkingOptions,
         ActionListener<ChunkedInferenceServiceResults> listener
     );

@@ -250,6 +250,7 @@ public class ElserMlNodeService implements InferenceService {
         Model model,
         List<String> input,
         Map<String, Object> taskSettings,
+        InputType inputType,
         ChunkingOptions chunkingOptions,
         ActionListener<ChunkedInferenceServiceResults> listener
     ) {

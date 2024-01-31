@@ -61,11 +61,12 @@ public abstract class SenderService implements InferenceService {
         Model model,
         List<String> input,
         Map<String, Object> taskSettings,
+        InputType inputType,
         ChunkingOptions chunkingOptions,
         ActionListener<ChunkedInferenceServiceResults> listener
     ) {
         init();
-        doChunkedInfer(model, input, taskSettings, chunkingOptions, listener);
+        doChunkedInfer(model, input, taskSettings, inputType, chunkingOptions, listener);
     }
 
     protected abstract void doInfer(
@@ -80,6 +81,7 @@ public abstract class SenderService implements InferenceService {
         Model model,
         List<String> input,
         Map<String, Object> taskSettings,
+        InputType inputType,
         ChunkingOptions chunkingOptions,
         ActionListener<ChunkedInferenceServiceResults> listener
     );

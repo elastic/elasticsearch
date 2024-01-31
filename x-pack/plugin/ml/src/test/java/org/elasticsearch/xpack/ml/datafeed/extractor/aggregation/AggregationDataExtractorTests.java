@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -16,10 +17,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
@@ -50,6 +55,8 @@ import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.Aggregat
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -294,6 +301,35 @@ public class AggregationDataExtractorTests extends ESTestCase {
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
     }
 
+    public void testGetSummary() {
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2300L);
+        extractor.setNextResponse(createSummaryResponse(1001L, 2299L, 10L));
+
+        DataExtractor.DataSummary summary = extractor.getSummary();
+        assertThat(summary.earliestTime(), equalTo(1001L));
+        assertThat(summary.latestTime(), equalTo(2299L));
+        assertThat(summary.totalHits(), nullValue());
+
+        String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
+        assertThat(searchRequest, containsString("\"size\":0"));
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
+                    + "{\"range\":{\"time\":{\"gte\":1000,\"lt\":2300,"
+                    + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
+            )
+        );
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," + "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"
+            )
+        );
+        assertThat(searchRequest, not(containsString("\"track_total_hits\":false")));
+        assertThat(searchRequest, not(containsString("\"sort\"")));
+    }
+
     private AggregationDataExtractorContext createContext(long start, long end) {
         return new AggregationDataExtractorContext(
             jobId,
@@ -327,6 +363,17 @@ public class AggregationDataExtractorTests extends ESTestCase {
         when(searchResponse.getScrollId()).thenReturn(randomAlphaOfLength(1000));
         when(searchResponse.getAggregations()).thenReturn(aggregations);
         when(searchResponse.getTook()).thenReturn(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        return searchResponse;
+    }
+
+    private SearchResponse createSummaryResponse(long start, long end, long totalHits) {
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(
+            new SearchHits(SearchHits.EMPTY, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1)
+        );
+        when(searchResponse.getAggregations()).thenReturn(
+            new Aggregations(List.of(new Min("earliest_time", start, null, null), new Max("latest_time", end, null, null)))
+        );
         return searchResponse;
     }
 

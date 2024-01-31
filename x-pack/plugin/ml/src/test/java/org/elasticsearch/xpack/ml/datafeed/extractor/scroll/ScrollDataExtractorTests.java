@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor.DataSummary;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.TimeField;
@@ -519,9 +520,12 @@ public class ScrollDataExtractorTests extends ESTestCase {
     public void testGetSummary() {
         ScrollDataExtractorContext context = createContext(1000L, 2300L);
         TestDataExtractor extractor = new TestDataExtractor(context);
-        extractor.setNextResponse(createSummaryResponse(1000L, 2300L, 10L));
+        extractor.setNextResponse(createSummaryResponse(1001L, 2299L, 10L));
 
-        extractor.getSummary();
+        DataSummary summary = extractor.getSummary();
+        assertThat(summary.earliestTime(), equalTo(1001L));
+        assertThat(summary.latestTime(), equalTo(2299L));
+        assertThat(summary.totalHits(), equalTo(10L));
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");

@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -29,9 +29,9 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
 
     private final long total;
     private final Item[] items;
-    private final @Nullable Aggregations aggregations;
+    private final @Nullable InternalAggregations aggregations;
 
-    public QueryApiKeyResponse(long total, Collection<Item> items, @Nullable Aggregations aggregations) {
+    public QueryApiKeyResponse(long total, Collection<Item> items, @Nullable InternalAggregations aggregations) {
         this.total = total;
         Objects.requireNonNull(items, "items must be provided");
         this.items = items.toArray(new Item[0]);
@@ -54,7 +54,7 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         return items.length;
     }
 
-    public Aggregations getAggregations() {
+    public InternalAggregations getAggregations() {
         return aggregations;
     }
 

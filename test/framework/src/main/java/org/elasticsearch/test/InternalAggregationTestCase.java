@@ -413,7 +413,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         }
 
         @Override
-        public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
             throw new UnsupportedOperationException();
         }
 

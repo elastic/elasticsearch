@@ -97,7 +97,7 @@ public final class GeoTileGridAggregationBuilder extends GeoGridAggregationBuild
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new GeoTileGridAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

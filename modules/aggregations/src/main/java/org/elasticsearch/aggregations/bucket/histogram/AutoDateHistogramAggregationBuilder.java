@@ -157,7 +157,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new AutoDateHistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

@@ -190,7 +190,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new MultiTermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

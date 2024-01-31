@@ -58,7 +58,7 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Metr
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new StatsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

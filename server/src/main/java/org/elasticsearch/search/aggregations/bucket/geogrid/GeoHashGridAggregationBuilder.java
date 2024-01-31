@@ -101,7 +101,7 @@ public final class GeoHashGridAggregationBuilder extends GeoGridAggregationBuild
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new GeoHashGridAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

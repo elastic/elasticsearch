@@ -107,7 +107,7 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new TimeSeriesAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

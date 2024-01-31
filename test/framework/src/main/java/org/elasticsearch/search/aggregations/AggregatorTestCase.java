@@ -1453,7 +1453,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
 
         @Override
-        public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
             throw new UnsupportedOperationException();
         }
 

@@ -65,7 +65,7 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new ValueCountAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

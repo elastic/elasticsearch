@@ -67,7 +67,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
     }
 
     @Override
-    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new ChildrenAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

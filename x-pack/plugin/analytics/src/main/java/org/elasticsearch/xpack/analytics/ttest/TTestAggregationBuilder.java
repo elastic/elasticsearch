@@ -107,7 +107,7 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new TTestAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

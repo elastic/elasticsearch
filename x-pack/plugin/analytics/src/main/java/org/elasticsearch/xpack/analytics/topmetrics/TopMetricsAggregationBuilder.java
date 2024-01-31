@@ -179,7 +179,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new TopMetricsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

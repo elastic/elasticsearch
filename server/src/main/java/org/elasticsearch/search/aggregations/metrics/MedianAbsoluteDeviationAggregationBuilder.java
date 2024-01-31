@@ -103,7 +103,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new MedianAbsoluteDeviationAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

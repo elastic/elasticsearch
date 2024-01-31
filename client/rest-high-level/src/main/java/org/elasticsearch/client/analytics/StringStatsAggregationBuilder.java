@@ -96,7 +96,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         throw new UnsupportedOperationException();
     }
 

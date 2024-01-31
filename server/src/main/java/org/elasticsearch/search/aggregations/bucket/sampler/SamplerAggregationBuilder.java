@@ -43,7 +43,7 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
     }
 
     @Override
-    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new SamplerAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

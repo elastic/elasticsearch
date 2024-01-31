@@ -49,7 +49,7 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     }
 
     @Override
-    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new MockDeprecatedAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

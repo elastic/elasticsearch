@@ -42,7 +42,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     }
 
     @Override
-    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new ReverseNestedAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

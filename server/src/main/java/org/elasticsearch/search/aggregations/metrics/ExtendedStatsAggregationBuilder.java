@@ -64,7 +64,7 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new ExtendedStatsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

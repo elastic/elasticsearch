@@ -64,7 +64,7 @@ public class CartesianCentroidAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new CartesianCentroidAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

@@ -64,7 +64,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder.
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new GeoBoundsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

@@ -46,7 +46,7 @@ public class DelayedShardAggregationBuilder extends AbstractAggregationBuilder<D
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
         return new DelayedShardAggregationBuilder(name, delay);
     }
 

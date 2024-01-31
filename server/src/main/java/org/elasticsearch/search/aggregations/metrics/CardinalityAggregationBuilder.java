@@ -92,7 +92,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new CardinalityAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

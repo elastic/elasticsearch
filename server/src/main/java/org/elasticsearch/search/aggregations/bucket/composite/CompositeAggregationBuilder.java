@@ -89,7 +89,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new CompositeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 

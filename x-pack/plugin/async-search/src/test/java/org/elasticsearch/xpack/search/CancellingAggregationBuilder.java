@@ -48,7 +48,7 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
     }
 
     @Override
-    public AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new CancellingAggregationBuilder(name, randomUID);
     }
 

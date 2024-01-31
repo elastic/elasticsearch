@@ -1,0 +1,6 @@
+pr: 104905
+summary: "Allow implicit rollover with the `auto_configure` #104732"
+area: Data streams
+type: bug
+issues:
+ - 104732

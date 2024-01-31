@@ -31,17 +31,64 @@ import java.util.function.Consumer;
 
 public class LuceneGeometriesUtils {
 
-    @FunctionalInterface
-    interface DoubleFunction {
-        double apply(double d);
+    public interface Quantizer {
+        double quantizeLat(double lat);
+
+        double quantizeLon(double lon);
+
+        double[] quantizeLats(double[] lats);
+
+        double[] quantizeLons(double[] lons);
     }
 
-    private static final DoubleFunction IDENTITY = d -> d;
+    public static final Quantizer NOOP_QUANTIZER = new Quantizer() {
+        @Override
+        public double quantizeLat(double lat) {
+            return lat;
+        }
+
+        @Override
+        public double quantizeLon(double lon) {
+            return lon;
+        }
+
+        @Override
+        public double[] quantizeLats(double[] lats) {
+            return lats;
+        }
+
+        @Override
+        public double[] quantizeLons(double[] lons) {
+            return lons;
+        }
+    };
+
+    public static Quantizer LATLON_QUANTIZER = new Quantizer() {
+        @Override
+        public double quantizeLat(double lat) {
+            return GeoUtils.quantizeLat(lat);
+        }
+
+        @Override
+        public double quantizeLon(double lon) {
+            return GeoUtils.quantizeLon(lon);
+        }
+
+        @Override
+        public double[] quantizeLats(double[] lats) {
+            return Arrays.stream(lats).map(this::quantizeLat).toArray();
+        }
+
+        @Override
+        public double[] quantizeLons(double[] lons) {
+            return Arrays.stream(lons).map(this::quantizeLon).toArray();
+        }
+    };
 
     /**
      * Transform an Elasticsearch {@link Geometry} into a lucene {@link LatLonGeometry}
      *
-     * @param geometry the geometry tio transform
+     * @param geometry the geometry to transform
      * @param quantize if true, the coordinates of the geometry will be quantized using lucene quantization.
      *                 This is useful for queries so  the latitude and longitude values to match the values on the index.
      * @param checker call for every {@link ShapeType} found in the Geometry. It allows to throw an error if a geometry is
@@ -58,14 +105,13 @@ public class LuceneGeometriesUtils {
             geometry = GeometryNormalizer.apply(Orientation.CCW, geometry);
         }
         final List<LatLonGeometry> geometries = new ArrayList<>();
-        final DoubleFunction lonFunction = quantize ? GeoUtils::quantizeLon : IDENTITY;
-        final DoubleFunction latFunction = quantize ? GeoUtils::quantizeLat : IDENTITY;
+        final Quantizer quantizer = quantize ? LATLON_QUANTIZER : NOOP_QUANTIZER;
         geometry.visit(new GeometryVisitor<>() {
             @Override
             public Void visit(Circle circle) {
                 checker.accept(ShapeType.CIRCLE);
                 if (circle.isEmpty() == false) {
-                    geometries.add(toLatLonCircle(circle, latFunction, lonFunction));
+                    geometries.add(toLatLonCircle(circle, quantizer));
                 }
                 return null;
             }
@@ -85,7 +131,7 @@ public class LuceneGeometriesUtils {
             public Void visit(org.elasticsearch.geometry.Line line) {
                 checker.accept(ShapeType.LINESTRING);
                 if (line.isEmpty() == false) {
-                    geometries.add(toLatLonLine(line, latFunction, lonFunction));
+                    geometries.add(toLatLonLine(line, quantizer));
                 }
                 return null;
             }
@@ -132,7 +178,7 @@ public class LuceneGeometriesUtils {
             public Void visit(Point point) {
                 checker.accept(ShapeType.POINT);
                 if (point.isEmpty() == false) {
-                    geometries.add(toLatLonPoint(point, latFunction, lonFunction));
+                    geometries.add(toLatLonPoint(point, quantizer));
                 }
                 return null;
             }
@@ -141,14 +187,7 @@ public class LuceneGeometriesUtils {
             public Void visit(org.elasticsearch.geometry.Polygon polygon) {
                 checker.accept(ShapeType.POLYGON);
                 if (polygon.isEmpty() == false) {
-                    org.apache.lucene.geo.Polygon[] holes = new org.apache.lucene.geo.Polygon[polygon.getNumberOfHoles()];
-                    for (int i = 0; i < holes.length; i++) {
-                        holes[i] = new org.apache.lucene.geo.Polygon(
-                            quantizeLats(polygon.getHole(i).getY(), latFunction),
-                            quantizeLons(polygon.getHole(i).getX(), lonFunction)
-                        );
-                    }
-                    geometries.add(toLatLonPolygon(polygon, latFunction, lonFunction));
+                    geometries.add(toLatLonPolygon(polygon, quantizer));
                 }
                 return null;
             }
@@ -157,7 +196,7 @@ public class LuceneGeometriesUtils {
             public Void visit(Rectangle r) {
                 checker.accept(ShapeType.ENVELOPE);
                 if (r.isEmpty() == false) {
-                    geometries.add(toLatLonRectangle(r, latFunction, lonFunction));
+                    geometries.add(toLatLonRectangle(r, quantizer));
                 }
                 return null;
             }
@@ -167,44 +206,44 @@ public class LuceneGeometriesUtils {
 
     /**
      * Transform an Elasticsearch {@link Point} into a lucene {@link org.apache.lucene.geo.Point}
-     **/
+     */
     public static org.apache.lucene.geo.Point toLatLonPoint(Point point) {
-        return toLatLonPoint(point, IDENTITY, IDENTITY);
+        return toLatLonPoint(point, NOOP_QUANTIZER);
     }
 
-    private static org.apache.lucene.geo.Point toLatLonPoint(Point point, DoubleFunction latFunction, DoubleFunction lonFunction) {
-        return new org.apache.lucene.geo.Point(latFunction.apply(point.getLat()), lonFunction.apply(point.getLon()));
+    private static org.apache.lucene.geo.Point toLatLonPoint(Point point, Quantizer quantizer) {
+        return new org.apache.lucene.geo.Point(quantizer.quantizeLat(point.getLat()), quantizer.quantizeLon(point.getLon()));
     }
 
     /**
      * Transform an Elasticsearch {@link Line} into a lucene {@link org.apache.lucene.geo.Line}
-     **/
+     */
     public static org.apache.lucene.geo.Line toLatLonLine(Line line) {
-        return toLatLonLine(line, IDENTITY, IDENTITY);
+        return toLatLonLine(line, NOOP_QUANTIZER);
     }
 
-    private static org.apache.lucene.geo.Line toLatLonLine(Line line, DoubleFunction latFunction, DoubleFunction lonFunction) {
-        return new org.apache.lucene.geo.Line(quantizeLats(line.getLats(), latFunction), quantizeLons(line.getLons(), lonFunction));
+    private static org.apache.lucene.geo.Line toLatLonLine(Line line, Quantizer quantizer) {
+        return new org.apache.lucene.geo.Line(quantizer.quantizeLats(line.getLats()), quantizer.quantizeLons(line.getLons()));
     }
 
     /**
      * Transform an Elasticsearch {@link Polygon} into a lucene {@link org.apache.lucene.geo.Polygon}
-     **/
+     */
     public static org.apache.lucene.geo.Polygon toLatLonPolygon(Polygon polygon) {
-        return toLatLonPolygon(polygon, IDENTITY, IDENTITY);
+        return toLatLonPolygon(polygon, NOOP_QUANTIZER);
     }
 
-    private static org.apache.lucene.geo.Polygon toLatLonPolygon(Polygon polygon, DoubleFunction latFunction, DoubleFunction lonFunction) {
+    private static org.apache.lucene.geo.Polygon toLatLonPolygon(Polygon polygon, Quantizer quantizer) {
         org.apache.lucene.geo.Polygon[] holes = new org.apache.lucene.geo.Polygon[polygon.getNumberOfHoles()];
         for (int i = 0; i < holes.length; i++) {
             holes[i] = new org.apache.lucene.geo.Polygon(
-                quantizeLats(polygon.getHole(i).getY(), latFunction),
-                quantizeLons(polygon.getHole(i).getX(), lonFunction)
+                quantizer.quantizeLats(polygon.getHole(i).getY()),
+                quantizer.quantizeLons(polygon.getHole(i).getX())
             );
         }
         return new org.apache.lucene.geo.Polygon(
-            quantizeLats(polygon.getPolygon().getY(), latFunction),
-            quantizeLons(polygon.getPolygon().getX(), lonFunction),
+            quantizer.quantizeLats(polygon.getPolygon().getY()),
+            quantizer.quantizeLons(polygon.getPolygon().getX()),
             holes
         );
 
@@ -212,41 +251,33 @@ public class LuceneGeometriesUtils {
 
     /**
      * Transform an Elasticsearch {@link Rectangle} into a lucene {@link org.apache.lucene.geo.Rectangle}
-     **/
+     */
     public static org.apache.lucene.geo.Rectangle toLatLonRectangle(Rectangle rectangle) {
-        return toLatLonRectangle(rectangle, IDENTITY, IDENTITY);
+        return toLatLonRectangle(rectangle, NOOP_QUANTIZER);
     }
 
-    private static org.apache.lucene.geo.Rectangle toLatLonRectangle(Rectangle r, DoubleFunction latFunction, DoubleFunction lonFunction) {
+    private static org.apache.lucene.geo.Rectangle toLatLonRectangle(Rectangle r, Quantizer quantizer) {
         return new org.apache.lucene.geo.Rectangle(
-            latFunction.apply(r.getMinLat()),
-            latFunction.apply(r.getMaxLat()),
-            lonFunction.apply(r.getMinLon()),
-            lonFunction.apply(r.getMaxLon())
+            quantizer.quantizeLat(r.getMinLat()),
+            quantizer.quantizeLat(r.getMaxLat()),
+            quantizer.quantizeLon(r.getMinLon()),
+            quantizer.quantizeLon(r.getMaxLon())
         );
     }
 
     /**
      * Transform an Elasticsearch {@link Circle} into a lucene {@link org.apache.lucene.geo.Circle}
-     **/
+     */
     public static org.apache.lucene.geo.Circle toLatLonCircle(Circle circle) {
-        return toLatLonCircle(circle, IDENTITY, IDENTITY);
+        return toLatLonCircle(circle, NOOP_QUANTIZER);
     }
 
-    private static org.apache.lucene.geo.Circle toLatLonCircle(Circle circle, DoubleFunction latFunction, DoubleFunction lonFunction) {
+    private static org.apache.lucene.geo.Circle toLatLonCircle(Circle circle, Quantizer quantizer) {
         return new org.apache.lucene.geo.Circle(
-            latFunction.apply(circle.getLat()),
-            lonFunction.apply(circle.getLon()),
+            quantizer.quantizeLat(circle.getLat()),
+            quantizer.quantizeLon(circle.getLon()),
             circle.getRadiusMeters()
         );
-    }
-
-    static double[] quantizeLats(double[] lats, DoubleFunction function) {
-        return Arrays.stream(lats).map(function::apply).toArray();
-    }
-
-    static double[] quantizeLons(double[] lons, DoubleFunction function) {
-        return Arrays.stream(lons).map(function::apply).toArray();
     }
 
     /**
@@ -257,7 +288,6 @@ public class LuceneGeometriesUtils {
      *                a geometry is not supported.
      * @return an array of {@link XYGeometry}
      */
-
     public static XYGeometry[] toXYGeometry(Geometry geometry, Consumer<ShapeType> checker) {
         if (geometry == null || geometry.isEmpty()) {
             return new XYGeometry[0];
@@ -363,21 +393,21 @@ public class LuceneGeometriesUtils {
 
     /**
      * Transform an Elasticsearch {@link Point} into a lucene {@link org.apache.lucene.geo.XYPoint}
-     **/
+     */
     public static org.apache.lucene.geo.XYPoint toXYPoint(Point point) {
         return new org.apache.lucene.geo.XYPoint((float) point.getX(), (float) point.getY());
     }
 
     /**
      * Transform an Elasticsearch {@link Line} into a lucene {@link org.apache.lucene.geo.XYLine}
-     **/
+     */
     public static org.apache.lucene.geo.XYLine toXYLine(Line line) {
         return new org.apache.lucene.geo.XYLine(doubleArrayToFloatArray(line.getX()), doubleArrayToFloatArray(line.getY()));
     }
 
     /**
      * Transform an Elasticsearch {@link Polygon} into a lucene {@link org.apache.lucene.geo.XYPolygon}
-     **/
+     */
     public static org.apache.lucene.geo.XYPolygon toXYPolygon(Polygon polygon) {
         org.apache.lucene.geo.XYPolygon[] holes = new org.apache.lucene.geo.XYPolygon[polygon.getNumberOfHoles()];
         for (int i = 0; i < holes.length; i++) {
@@ -395,14 +425,14 @@ public class LuceneGeometriesUtils {
 
     /**
      * Transform an Elasticsearch {@link Rectangle} into a lucene {@link org.apache.lucene.geo.XYRectangle}
-     **/
+     */
     public static org.apache.lucene.geo.XYRectangle toXYRectangle(Rectangle r) {
         return new org.apache.lucene.geo.XYRectangle((float) r.getMinX(), (float) r.getMaxX(), (float) r.getMinY(), (float) r.getMaxY());
     }
 
     /**
      * Transform an Elasticsearch {@link Circle} into a lucene {@link org.apache.lucene.geo.XYCircle}
-     **/
+     */
     public static org.apache.lucene.geo.XYCircle toXYCircle(Circle circle) {
         return new org.apache.lucene.geo.XYCircle((float) circle.getX(), (float) circle.getY(), (float) circle.getRadiusMeters());
     }

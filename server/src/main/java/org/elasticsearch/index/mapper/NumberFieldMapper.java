@@ -267,7 +267,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public NumberFieldMapper build(MapperBuilderContext context) {
-            if (context.parentFieldContainsDimensions()) {
+            if (context.parentObjectContainsDimensions()) {
                 dimension.setValue(true);
             }
 

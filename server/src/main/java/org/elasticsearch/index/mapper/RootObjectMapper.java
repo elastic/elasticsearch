@@ -13,12 +13,13 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -74,6 +75,8 @@ public class RootObjectMapper extends ObjectMapper {
         protected final Map<String, RuntimeField> runtimeFields = new HashMap<>();
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
+
+        private static final Logger logger = LogManager.getLogger(RootObjectMapper.Builder.class);
 
         public Builder(String name, Explicit<Boolean> subobjects) {
             super(name, subobjects);
@@ -137,7 +140,7 @@ public class RootObjectMapper extends ObjectMapper {
                             if (conflict != null) {
                                 if (conflict.typeName().equals(FieldAliasMapper.CONTENT_TYPE) == false
                                     || ((FieldAliasMapper) conflict).path().equals(fieldMapper.mappedFieldType.name()) == false) {
-                                    HeaderWarning.addWarning(
+                                    logger.warn(
                                         "Root alias for field "
                                             + fieldMapper.name()
                                             + " conflicts with existing field or alias, skipping alias creation."

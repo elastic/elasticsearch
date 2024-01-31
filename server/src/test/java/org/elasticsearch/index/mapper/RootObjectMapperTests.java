@@ -404,7 +404,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         );
         mappers.put("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context));
         assertTrue(new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(mappers, context).isEmpty());
-        assertWarnings("Root alias for field host conflicts with existing field or alias, skipping alias creation.");
     }
 
     public void testEmptyType() throws Exception {

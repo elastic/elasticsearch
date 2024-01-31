@@ -299,7 +299,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
-            if (context.parentFieldContainsDimensions()) {
+            if (context.parentObjectContainsDimensions()) {
                 dimension(true);
             }
             return new KeywordFieldType(

@@ -1,0 +1,5 @@
+pr: 104968
+summary: Mapped field type to expose lucene field name
+area: Mapping
+type: enhancement
+issues: []

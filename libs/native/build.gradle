@@ -44,7 +44,9 @@ dependencies {
   api project(':libs:elasticsearch-core')
   api project(':libs:elasticsearch-logging')
   jnaImpl project(':libs:elasticsearch-native:jna')
-  testImplementation(project(":test:framework"))
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-native'
+  }
 }
 
 Directory generatedResourcesDir = layout.buildDirectory.dir('generated-resources').get()

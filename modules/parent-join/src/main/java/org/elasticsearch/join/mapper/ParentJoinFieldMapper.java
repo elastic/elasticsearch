@@ -117,7 +117,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             relations.get()
                 .stream()
                 .map(relation -> new ParentIdFieldMapper(name + "#" + relation.parent(), eagerGlobalOrdinals.get()))
-                .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
+                .forEach(mapper -> parentIdFields.put(mapper.fieldType().concreteFieldName(), mapper));
             Joiner joiner = new Joiner(name(), relations.get());
             return new ParentJoinFieldMapper(
                 name,
@@ -155,7 +155,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
+                concreteFieldName(),
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new DelegateDocValuesField(
                     new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
@@ -169,7 +169,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return SourceValueFetcher.identity(name(), context, format);
+            return SourceValueFetcher.identity(concreteFieldName(), context, format);
         }
 
         @Override
@@ -207,7 +207,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedFieldType.concreteFieldName(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -295,9 +295,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         BytesRef binaryValue = new BytesRef(name);
-        Field field = new StringField(fieldType().name(), binaryValue, Field.Store.NO);
+        Field field = new StringField(fieldType().concreteFieldName(), binaryValue, Field.Store.NO);
         context.doc().add(field);
-        context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
+        context.doc().add(new SortedDocValuesField(fieldType().concreteFieldName(), binaryValue));
         context.path().remove();
     }
 

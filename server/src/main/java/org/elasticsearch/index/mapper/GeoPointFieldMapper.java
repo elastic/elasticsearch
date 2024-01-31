@@ -291,15 +291,15 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     @Override
     protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
         if (fieldType().isIndexed()) {
-            context.doc().add(new LatLonPoint(fieldType().name(), geometry.lat(), geometry.lon()));
+            context.doc().add(new LatLonPoint(fieldType().concreteFieldName(), geometry.lat(), geometry.lon()));
         }
         if (fieldType().hasDocValues()) {
-            context.doc().add(new LatLonDocValuesField(fieldType().name(), geometry.lat(), geometry.lon()));
+            context.doc().add(new LatLonDocValuesField(fieldType().concreteFieldName(), geometry.lat(), geometry.lon()));
         } else if (fieldType().isStored() || fieldType().isIndexed()) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(fieldType().concreteFieldName());
         }
         if (fieldType().isStored()) {
-            context.doc().add(new StoredField(fieldType().name(), geometry.toString()));
+            context.doc().add(new StoredField(fieldType().concreteFieldName(), geometry.toString()));
         }
         // TODO phase out geohash (which is currently used in the CompletionSuggester)
         // we only expose the geohash value and disallow advancing tokens, hence we can reuse the same parser throughout multiple sub-fields
@@ -461,15 +461,15 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 : CoreValuesSourceType.GEOPOINT;
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return new LatLonPointIndexFieldData.Builder(name(), valuesSourceType, GeoPointDocValuesField::new);
+                return new LatLonPointIndexFieldData.Builder(concreteFieldName(), valuesSourceType, GeoPointDocValuesField::new);
             }
 
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
-                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
+                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(concreteFieldName());
 
                 return new SourceValueFetcherMultiGeoPointIndexFieldData.Builder(
-                    name(),
+                    concreteFieldName(),
                     valuesSourceType,
                     valueFetcher(sourcePaths, null, null),
                     searchLookup,
@@ -499,12 +499,18 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
             if (isIndexed()) {
                 // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
-                return LatLonPoint.newDistanceFeatureQuery(name(), 1.0f, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
+                return LatLonPoint.newDistanceFeatureQuery(
+                    concreteFieldName(),
+                    1.0f,
+                    originGeoPoint.lat(),
+                    originGeoPoint.lon(),
+                    pivotDouble
+                );
             } else {
                 return new GeoPointScriptFieldDistanceFeatureQuery(
                     new Script(""),
-                    ctx -> new SortedNumericDocValuesLongFieldScript(name(), context.lookup(), ctx),
-                    name(),
+                    ctx -> new SortedNumericDocValuesLongFieldScript(concreteFieldName(), context.lookup(), ctx),
+                    concreteFieldName(),
                     originGeoPoint.lat(),
                     originGeoPoint.lon(),
                     pivotDouble
@@ -590,7 +596,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName(), ignoreMalformed()) {
+        return new SortedNumericDocValuesSyntheticFieldLoader(fieldType().concreteFieldName(), simpleName(), ignoreMalformed()) {
             final GeoPoint point = new GeoPoint();
 
             @Override

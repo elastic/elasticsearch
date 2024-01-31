@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.elasticsearch.xpack.core.async.AsyncExecutionIdTests.randomAsyncId;
 
 public class GetAsyncStatusRequestTests extends AbstractWireSerializingTestCase<GetAsyncStatusRequest> {
@@ -30,7 +32,13 @@ public class GetAsyncStatusRequestTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected GetAsyncStatusRequest mutateInstance(GetAsyncStatusRequest instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        final GetAsyncStatusRequest statusRequest = new GetAsyncStatusRequest(randomInt() + "");
+        if (instance.getKeepAlive() != TimeValue.MINUS_ONE && randomBoolean()) {
+            statusRequest.setKeepAlive(TimeValue.MINUS_ONE);
+        } else {
+            statusRequest.setKeepAlive(new TimeValue(randomLongBetween(0, 9999999), TimeUnit.SECONDS));
+        }
+        return statusRequest;
     }
 
     public static String randomSearchId() {

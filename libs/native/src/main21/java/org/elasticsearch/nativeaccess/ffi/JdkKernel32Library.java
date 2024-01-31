@@ -27,6 +27,7 @@ import static java.lang.foreign.MemoryLayout.paddingLayout;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BOOLEAN;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+import static java.lang.foreign.ValueLayout.JAVA_CHAR;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
@@ -34,6 +35,15 @@ import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.upcallHandle;
 import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.upcallStub;
 
 class JdkKernel32Library implements Kernel32Library {
+
+    static {
+        System.loadLibrary("kernel32");
+    }
+
+    // GetLastError can change from other Java threads so capture it
+    private static final StructLayout CAPTURE_GETLASTERROR_LAYOUT = Linker.Option.captureStateLayout();
+    private static final Linker.Option CAPTURE_GETLASTERROR_OPTION = Linker.Option.captureCallState("GetLastError");
+    private static final VarHandle GetLastError$vh = CAPTURE_GETLASTERROR_LAYOUT.varHandle(groupElement("GetLastError"));
 
     private static final MethodHandle GetCurrentProcess$mh;
     private static final MethodHandle CloseHandle$mh;
@@ -53,7 +63,7 @@ class JdkKernel32Library implements Kernel32Library {
 
     static {
         GetCurrentProcess$mh = downcallHandle("GetCurrentProcess", FunctionDescriptor.of(ADDRESS));
-        CloseHandle$mh = downcallHandleWithError("CloseHandle", FunctionDescriptor.ofVoid(ADDRESS));
+        CloseHandle$mh = downcallHandleWithError("CloseHandle", FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS));
         VirtualLock$mh = downcallHandleWithError("VirtualLock", FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_LONG));
         VirtualQueryEx$mh = downcallHandleWithError(
             "VirtualQueryEx",
@@ -85,11 +95,6 @@ class JdkKernel32Library implements Kernel32Library {
 
         ConsoleCtrlHandler_handle$mh = upcallHandle(ConsoleCtrlHandler.class, "handle", ConsoleCtrlHandler_handle$fd);
     }
-
-    // GetLastError can change from other Java threads so capture it
-    private static final StructLayout CAPTURE_GETLASTERROR_LAYOUT = Linker.Option.captureStateLayout();
-    private static final Linker.Option CAPTURE_GETLASTERROR_OPTION = Linker.Option.captureCallState("GetLastError");
-    private static final VarHandle GetLastError$vh = CAPTURE_GETLASTERROR_LAYOUT.varHandle(groupElement("GetLastError"));
 
     private static MethodHandle downcallHandleWithError(String function, FunctionDescriptor functionDescriptor) {
         return downcallHandle(function, functionDescriptor, CAPTURE_GETLASTERROR_OPTION);
@@ -169,9 +174,9 @@ class JdkKernel32Library implements Kernel32Library {
         private static final MemoryLayout layout = MemoryLayout.structLayout(
             paddingLayout(16),
             JAVA_INT,
-            paddingLayout(16),
+            paddingLayout(20),
             JAVA_INT,
-            paddingLayout(16)
+            paddingLayout(20)
         ).withByteAlignment(8);
 
         private static final VarHandle LimitFlags$vh = layout.varHandle(groupElement(1));
@@ -182,6 +187,7 @@ class JdkKernel32Library implements Kernel32Library {
         JdkJobObjectBasicLimitInformation() {
             var arena = Arena.ofAuto();
             this.segment = arena.allocate(layout);
+            segment.fill((byte) 0);
         }
 
         @Override
@@ -298,12 +304,20 @@ class JdkKernel32Library implements Kernel32Library {
         try (Arena arena = Arena.ofConfined()) {
             // TODO: in Java 22 this can use allocateFrom to encode the string
             MemorySegment wideFileName = arena.allocateArray(JAVA_BYTE, (lpszLongPath + "\0").getBytes(StandardCharsets.UTF_16LE));
-            MemorySegment shortPath = null;
+            MemorySegment shortPath;
             if (lpszShortPath != null) {
-                shortPath = MemorySegment.ofArray(lpszShortPath);
+                shortPath = arena.allocateArray(JAVA_CHAR, cchBuffer);
+            } else {
+                shortPath = MemorySegment.NULL;
             }
 
-            return (int) GetShortPathNameW$mh.invokeExact(lastErrorState, wideFileName, shortPath, cchBuffer);
+            int ret = (int) GetShortPathNameW$mh.invokeExact(lastErrorState, wideFileName, shortPath, cchBuffer);
+            if (shortPath != MemorySegment.NULL) {
+                for (int i = 0; i < cchBuffer; ++i) {
+                    lpszShortPath[i] = shortPath.getAtIndex(JAVA_CHAR, i);
+                }
+            }
+            return ret;
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -324,7 +338,7 @@ class JdkKernel32Library implements Kernel32Library {
     @Override
     public Handle CreateJobObjectW() {
         try {
-            return new JdkHandle((MemorySegment) CreateJobObjectW$mh.invokeExact(lastErrorState, null, null));
+            return new JdkHandle((MemorySegment) CreateJobObjectW$mh.invokeExact(lastErrorState, MemorySegment.NULL, MemorySegment.NULL));
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -362,8 +376,8 @@ class JdkKernel32Library implements Kernel32Library {
                 jdkJob.address,
                 infoClass,
                 jdkInfo.segment,
-                jdkInfo.segment.byteSize(),
-                null
+                (int) jdkInfo.segment.byteSize(),
+                MemorySegment.NULL
             );
         } catch (Throwable t) {
             throw new AssertionError(t);
@@ -383,7 +397,7 @@ class JdkKernel32Library implements Kernel32Library {
                 jdkJob.address,
                 infoClass,
                 jdkInfo.segment,
-                jdkInfo.segment.byteSize()
+                (int) jdkInfo.segment.byteSize()
             );
         } catch (Throwable t) {
             throw new AssertionError(t);

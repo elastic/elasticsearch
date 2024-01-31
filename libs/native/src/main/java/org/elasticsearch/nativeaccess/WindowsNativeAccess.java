@@ -105,7 +105,7 @@ class WindowsNativeAccess extends AbstractNativeAccess {
         try {
             // retrieve the current basic limits of the job
             int clazz = JOBOBJECT_BASIC_LIMIT_INFORMATION_CLASS;
-            Kernel32Library.JobObjectBasicLimitInformation info = kernel.newJobObjectBasicLimitInformation();
+            var info = kernel.newJobObjectBasicLimitInformation();
             if (kernel.QueryInformationJobObject(job, clazz, info) == false) {
                 throw new UnsupportedOperationException("QueryInformationJobObject: " + kernel.GetLastError());
             }

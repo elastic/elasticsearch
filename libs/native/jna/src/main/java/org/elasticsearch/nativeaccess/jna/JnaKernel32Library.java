@@ -8,6 +8,7 @@
 
 package org.elasticsearch.nativeaccess.jna;
 
+import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.WString;
 import com.sun.jna.ptr.IntByReference;
@@ -58,7 +59,8 @@ class JnaKernel32Library implements Kernel32Library {
 
     @Override
     public int GetLastError() {
-        return JnaStaticKernel32Library.GetLastError();
+        // JNA does not like linking direclty to GetLastError, so we must use the Native helper function
+        return Native.getLastError();
     }
 
     @Override

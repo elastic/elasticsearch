@@ -120,11 +120,6 @@ class JnaStaticKernel32Library {
     static native boolean CloseHandle(Pointer handle);
 
     /**
-     * @see Kernel32Library#GetLastError()
-     */
-    static native int GetLastError();
-
-    /**
      * @see Kernel32Library#VirtualLock(Address, long)
      */
     static native boolean VirtualLock(Pointer address, SizeT size);
@@ -189,9 +184,9 @@ class JnaStaticKernel32Library {
             Kernel32Library.JobObjectBasicLimitInformation {
         public byte[] _ignore1 = new byte[16];
         public int LimitFlags;
-        public byte[] _ignore2 = new byte[16];
+        public byte[] _ignore2 = new byte[20];
         public int ActiveProcessLimit;
-        public byte[] _ignore3 = new byte[16];
+        public byte[] _ignore3 = new byte[20];
 
         JnaJobObjectBasicLimitInformation() {
             super(8);

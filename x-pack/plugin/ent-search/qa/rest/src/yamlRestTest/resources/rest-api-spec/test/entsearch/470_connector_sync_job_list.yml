@@ -167,6 +167,13 @@ setup:
   - match: { results.0.id: $sync-job-one-id }
 
 ---
+"List Connector Sync Jobs - with invalid job status":
+  - do:
+      catch: bad_request
+      connector_sync_job.list:
+        status: invalid_job_status
+
+---
 "List Connector Sync Jobs - Get jobs with single job type":
   - do:
       connector_sync_job.post:

@@ -42,9 +42,9 @@ public class RestListConnectorSyncJobsAction extends BaseRestHandler {
         String connectorId = restRequest.param(ListConnectorSyncJobsAction.Request.CONNECTOR_ID_FIELD.getPreferredName());
         String statusString = restRequest.param(ConnectorSyncJob.STATUS_FIELD.getPreferredName());
         ConnectorSyncStatus status = statusString != null ? ConnectorSyncStatus.fromString(statusString) : null;
-        String jobTypeString = restRequest.param(ConnectorSyncJob.JOB_TYPE_FIELD.getPreferredName());
-        List<ConnectorSyncJobType> jobTypeList = jobTypeString != null
-            ? Arrays.stream(jobTypeString.split(",")).map(ConnectorSyncJobType::fromString).toList()
+        String[] jobTypeStringArray = restRequest.paramAsStringArray(ConnectorSyncJob.JOB_TYPE_FIELD.getPreferredName(), null);
+        List<ConnectorSyncJobType> jobTypeList = jobTypeStringArray != null
+            ? Arrays.stream(jobTypeStringArray).map(ConnectorSyncJobType::fromString).toList()
             : null;
 
         ListConnectorSyncJobsAction.Request request = new ListConnectorSyncJobsAction.Request(

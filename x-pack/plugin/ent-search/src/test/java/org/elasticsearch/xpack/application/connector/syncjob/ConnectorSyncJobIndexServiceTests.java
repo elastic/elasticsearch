@@ -358,7 +358,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         ConnectorSyncJobIndexService.ConnectorSyncJobsResult connectorSyncJobsResult = awaitListConnectorSyncJobs(
             0,
             100,
-            connectorOneId,
+            null,
             ConnectorSyncStatus.PENDING,
             null
         );

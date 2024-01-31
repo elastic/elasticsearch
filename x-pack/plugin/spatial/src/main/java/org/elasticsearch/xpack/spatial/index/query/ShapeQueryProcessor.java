@@ -11,7 +11,7 @@ import org.apache.lucene.geo.XYGeometry;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.geo.LuceneGeometriesUtil;
+import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.IndexVersions;
@@ -40,7 +40,7 @@ public class ShapeQueryProcessor {
         }
         final XYGeometry[] luceneGeometries;
         try {
-            luceneGeometries = LuceneGeometriesUtil.toXYGeometry(geometry, t -> {});
+            luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
         } catch (IllegalArgumentException e) {
             throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
         }

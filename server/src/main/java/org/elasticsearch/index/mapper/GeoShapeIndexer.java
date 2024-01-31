@@ -13,7 +13,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryNormalizer;
-import org.elasticsearch.common.geo.LuceneGeometriesUtil;
+import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -95,7 +95,7 @@ public class GeoShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Line line) {
-            addFields(LatLonShape.createIndexableFields(name, LuceneGeometriesUtil.toLuceneLine(line)));
+            addFields(LatLonShape.createIndexableFields(name, LuceneGeometriesUtils.toLuceneLine(line)));
             return null;
         }
 
@@ -136,7 +136,7 @@ public class GeoShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Polygon polygon) {
-            addFields(LatLonShape.createIndexableFields(name, LuceneGeometriesUtil.toLucenePolygon(polygon), true));
+            addFields(LatLonShape.createIndexableFields(name, LuceneGeometriesUtils.toLucenePolygon(polygon), true));
             return null;
         }
 

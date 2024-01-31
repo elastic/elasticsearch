@@ -11,7 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.geo.LuceneGeometriesUtil;
+import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.geometry.Geometry;
@@ -40,7 +40,7 @@ public interface GeoShapeQueryable {
         final LatLonGeometry[] luceneGeometries;
         try {
             // quantize the geometries to match the values on the index
-            luceneGeometries = LuceneGeometriesUtil.toLatLonGeometry(geometry, true, checker);
+            luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, true, checker);
         } catch (IllegalArgumentException e) {
             throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
         }

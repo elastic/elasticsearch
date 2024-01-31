@@ -32,17 +32,17 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class LuceneGeometriesUtilTests extends ESTestCase {
+public class LuceneGeometriesUtilsTests extends ESTestCase {
 
     public void testLatLonPoint() {
         Point point = GeometryTestUtils.randomPoint();
         {
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(point, false, t -> assertEquals(ShapeType.POINT, t));
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(point, false, t -> assertEquals(ShapeType.POINT, t));
             assertEquals(1, geometries.length);
             assertLatLonPoint(point, geometries[0]);
         }
         {
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(point, true, t -> assertEquals(ShapeType.POINT, t));
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(point, true, t -> assertEquals(ShapeType.POINT, t));
             assertEquals(1, geometries.length);
             assertLatLonPoint(quantize(point), geometries[0]);
         }
@@ -52,7 +52,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(randomBoolean());
         {
             int[] counter = new int[] { 0 };
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiPoint, false, t -> {
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(multiPoint, false, t -> {
                 if (counter[0]++ == 0) {
                     assertEquals(ShapeType.MULTIPOINT, t);
                 } else {
@@ -66,7 +66,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         }
         {
             int[] counter = new int[] { 0 };
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiPoint, true, t -> {
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(multiPoint, true, t -> {
                 if (counter[0]++ == 0) {
                     assertEquals(ShapeType.MULTIPOINT, t);
                 } else {
@@ -85,12 +85,12 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         org.apache.lucene.geo.Point lalonPoint = (org.apache.lucene.geo.Point) geometry;
         assertThat(lalonPoint.getLon(), equalTo(point.getLon()));
         assertThat(lalonPoint.getLat(), equalTo(point.getLat()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtil.toLucenePoint(point)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLucenePoint(point)));
     }
 
     public void testXYPoint() {
         Point point = ShapeTestUtils.randomPoint();
-        XYGeometry[] geometries = LuceneGeometriesUtil.toXYGeometry(point, t -> assertEquals(ShapeType.POINT, t));
+        XYGeometry[] geometries = LuceneGeometriesUtils.toXYGeometry(point, t -> assertEquals(ShapeType.POINT, t));
         assertEquals(1, geometries.length);
         assertXYPoint(point, geometries[0]);
         assertThat(geometries[0], instanceOf(org.apache.lucene.geo.XYPoint.class));
@@ -99,7 +99,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
     public void testXYMultiPoint() {
         MultiPoint multiPoint = ShapeTestUtils.randomMultiPoint(randomBoolean());
         int[] counter = new int[] { 0 };
-        XYGeometry[] geometries = LuceneGeometriesUtil.toXYGeometry(multiPoint, t -> {
+        XYGeometry[] geometries = LuceneGeometriesUtils.toXYGeometry(multiPoint, t -> {
             if (counter[0]++ == 0) {
                 assertEquals(ShapeType.MULTIPOINT, t);
             } else {
@@ -117,18 +117,18 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         org.apache.lucene.geo.XYPoint xyPoint = (org.apache.lucene.geo.XYPoint) geometry;
         assertThat(xyPoint.getX(), equalTo((float) point.getX()));
         assertThat(xyPoint.getY(), equalTo((float) point.getY()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtil.toLuceneXYPoint(point)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneXYPoint(point)));
     }
 
     public void testLatLonLine() {
         Line line = GeometryTestUtils.randomLine(randomBoolean());
         {
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(line, false, t -> assertEquals(ShapeType.LINESTRING, t));
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(line, false, t -> assertEquals(ShapeType.LINESTRING, t));
             assertEquals(1, geometries.length);
             assertLatLonLine(line, geometries[0]);
         }
         {
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(line, true, t -> assertEquals(ShapeType.LINESTRING, t));
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(line, true, t -> assertEquals(ShapeType.LINESTRING, t));
             assertEquals(1, geometries.length);
             assertLatLonLine(quantize(line), geometries[0]);
         }
@@ -138,7 +138,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         MultiLine multiLine = GeometryTestUtils.randomMultiLine(randomBoolean());
         {
             int[] counter = new int[] { 0 };
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiLine, false, t -> {
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(multiLine, false, t -> {
                 if (counter[0]++ == 0) {
                     assertEquals(ShapeType.MULTILINESTRING, t);
                 } else {
@@ -152,7 +152,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         }
         {
             int[] counter = new int[] { 0 };
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiLine, true, t -> {
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(multiLine, true, t -> {
                 if (counter[0]++ == 0) {
                     assertEquals(ShapeType.MULTILINESTRING, t);
                 } else {
@@ -171,12 +171,12 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         org.apache.lucene.geo.Line lalonLine = (org.apache.lucene.geo.Line) geometry;
         assertThat(lalonLine.getLons(), equalTo(line.getLons()));
         assertThat(lalonLine.getLats(), equalTo(line.getLats()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtil.toLuceneLine(line)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneLine(line)));
     }
 
     public void testXYLine() {
         Line line = ShapeTestUtils.randomLine(randomBoolean());
-        XYGeometry[] geometries = LuceneGeometriesUtil.toXYGeometry(line, t -> assertEquals(ShapeType.LINESTRING, t));
+        XYGeometry[] geometries = LuceneGeometriesUtils.toXYGeometry(line, t -> assertEquals(ShapeType.LINESTRING, t));
         assertEquals(1, geometries.length);
         assertXYLine(line, geometries[0]);
     }
@@ -184,7 +184,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
     public void testXYMultiLine() {
         MultiLine multiLine = ShapeTestUtils.randomMultiLine(randomBoolean());
         int[] counter = new int[] { 0 };
-        XYGeometry[] geometries = LuceneGeometriesUtil.toXYGeometry(multiLine, t -> {
+        XYGeometry[] geometries = LuceneGeometriesUtils.toXYGeometry(multiLine, t -> {
             if (counter[0]++ == 0) {
                 assertEquals(ShapeType.MULTILINESTRING, t);
             } else {
@@ -200,20 +200,20 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
     private void assertXYLine(Line line, XYGeometry geometry) {
         assertThat(geometry, instanceOf(org.apache.lucene.geo.XYLine.class));
         org.apache.lucene.geo.XYLine xyLine = (org.apache.lucene.geo.XYLine) geometry;
-        assertThat(xyLine.getX(), equalTo(LuceneGeometriesUtil.doubleArrayToFloatArray(line.getLons())));
-        assertThat(xyLine.getY(), equalTo(LuceneGeometriesUtil.doubleArrayToFloatArray(line.getLats())));
-        assertThat(geometry, equalTo(LuceneGeometriesUtil.toLuceneXYLine(line)));
+        assertThat(xyLine.getX(), equalTo(LuceneGeometriesUtils.doubleArrayToFloatArray(line.getLons())));
+        assertThat(xyLine.getY(), equalTo(LuceneGeometriesUtils.doubleArrayToFloatArray(line.getLats())));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneXYLine(line)));
     }
 
     public void testLatLonPolygon() {
         Polygon polygon = validRandomPolygon(randomBoolean());
         {
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(polygon, false, t -> assertEquals(ShapeType.POLYGON, t));
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(polygon, false, t -> assertEquals(ShapeType.POLYGON, t));
             assertEquals(1, geometries.length);
             assertLatLonPolygon(polygon, geometries[0]);
         }
         {
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(polygon, true, t -> assertEquals(ShapeType.POLYGON, t));
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(polygon, true, t -> assertEquals(ShapeType.POLYGON, t));
             assertEquals(1, geometries.length);
             assertLatLonPolygon(quantize(polygon), geometries[0]);
         }
@@ -223,7 +223,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         MultiPolygon multiPolygon = validRandomMultiPolygon(randomBoolean());
         {
             int[] counter = new int[] { 0 };
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiPolygon, false, t -> {
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(multiPolygon, false, t -> {
                 if (counter[0]++ == 0) {
                     assertEquals(ShapeType.MULTIPOLYGON, t);
                 } else {
@@ -237,7 +237,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         }
         {
             int[] counter = new int[] { 0 };
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiPolygon, true, t -> {
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(multiPolygon, true, t -> {
                 if (counter[0]++ == 0) {
                     assertEquals(ShapeType.MULTIPOLYGON, t);
                 } else {
@@ -256,12 +256,12 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         org.apache.lucene.geo.Polygon lalonPolygon = (org.apache.lucene.geo.Polygon) geometry;
         assertThat(lalonPolygon.getPolyLons(), equalTo(polygon.getPolygon().getLons()));
         assertThat(lalonPolygon.getPolyLats(), equalTo(polygon.getPolygon().getLats()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtil.toLucenePolygon(polygon)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLucenePolygon(polygon)));
     }
 
     public void testXYPolygon() {
         Polygon polygon = ShapeTestUtils.randomPolygon(randomBoolean());
-        XYGeometry[] geometries = LuceneGeometriesUtil.toXYGeometry(polygon, t -> assertEquals(ShapeType.POLYGON, t));
+        XYGeometry[] geometries = LuceneGeometriesUtils.toXYGeometry(polygon, t -> assertEquals(ShapeType.POLYGON, t));
         assertEquals(1, geometries.length);
         assertXYPolygon(polygon, geometries[0]);
     }
@@ -269,7 +269,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
     public void testXYMultiPolygon() {
         MultiPolygon multiPolygon = ShapeTestUtils.randomMultiPolygon(randomBoolean());
         int[] counter = new int[] { 0 };
-        XYGeometry[] geometries = LuceneGeometriesUtil.toXYGeometry(multiPolygon, t -> {
+        XYGeometry[] geometries = LuceneGeometriesUtils.toXYGeometry(multiPolygon, t -> {
             if (counter[0]++ == 0) {
                 assertEquals(ShapeType.MULTIPOLYGON, t);
             } else {
@@ -285,9 +285,9 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
     private void assertXYPolygon(Polygon polygon, XYGeometry geometry) {
         assertThat(geometry, instanceOf(org.apache.lucene.geo.XYPolygon.class));
         org.apache.lucene.geo.XYPolygon xyPolygon = (org.apache.lucene.geo.XYPolygon) geometry;
-        assertThat(xyPolygon.getPolyX(), equalTo(LuceneGeometriesUtil.doubleArrayToFloatArray(polygon.getPolygon().getX())));
-        assertThat(xyPolygon.getPolyY(), equalTo(LuceneGeometriesUtil.doubleArrayToFloatArray(polygon.getPolygon().getY())));
-        assertThat(geometry, equalTo(LuceneGeometriesUtil.toLuceneXYPolygon(polygon)));
+        assertThat(xyPolygon.getPolyX(), equalTo(LuceneGeometriesUtils.doubleArrayToFloatArray(polygon.getPolygon().getX())));
+        assertThat(xyPolygon.getPolyY(), equalTo(LuceneGeometriesUtils.doubleArrayToFloatArray(polygon.getPolygon().getY())));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneXYPolygon(polygon)));
     }
 
     public void testLatLonGeometryCollection() {
@@ -298,7 +298,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         GeometryCollection<Geometry> geometryCollection = new GeometryCollection<>(List.of(point, line, polygon));
         {
             int[] counter = new int[] { 0 };
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(geometryCollection, false, t -> {
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(geometryCollection, false, t -> {
                 if (counter[0] == 0) {
                     assertEquals(ShapeType.GEOMETRYCOLLECTION, t);
                 } else if (counter[0] == 1) {
@@ -319,7 +319,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         }
         {
             int[] counter = new int[] { 0 };
-            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(geometryCollection, true, t -> {
+            LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(geometryCollection, true, t -> {
                 if (counter[0] == 0) {
                     assertEquals(ShapeType.GEOMETRYCOLLECTION, t);
                 } else if (counter[0] == 1) {
@@ -347,7 +347,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         Polygon polygon = ShapeTestUtils.randomPolygon(hasZ);
         GeometryCollection<Geometry> geometryCollection = new GeometryCollection<>(List.of(point, line, polygon));
         int[] counter = new int[] { 0 };
-        XYGeometry[] geometries = LuceneGeometriesUtil.toXYGeometry(geometryCollection, t -> {
+        XYGeometry[] geometries = LuceneGeometriesUtils.toXYGeometry(geometryCollection, t -> {
             if (counter[0] == 0) {
                 assertEquals(ShapeType.GEOMETRYCOLLECTION, t);
             } else if (counter[0] == 1) {
@@ -376,7 +376,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
 
     public void testLatLonRectangle() {
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
-        LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(rectangle, false, t -> assertEquals(ShapeType.ENVELOPE, t));
+        LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(rectangle, false, t -> assertEquals(ShapeType.ENVELOPE, t));
         assertEquals(1, geometries.length);
         assertLatLonRectangle(rectangle, geometries[0]);
     }
@@ -388,12 +388,12 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         assertThat(lalonRectangle.minLon, equalTo(rectangle.getMinLon()));
         assertThat(lalonRectangle.maxLat, equalTo(rectangle.getMaxLat()));
         assertThat(lalonRectangle.minLat, equalTo(rectangle.getMinLat()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtil.toLuceneRectangle(rectangle)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneRectangle(rectangle)));
     }
 
     public void testXYRectangle() {
         Rectangle rectangle = ShapeTestUtils.randomRectangle();
-        XYGeometry[] geometries = LuceneGeometriesUtil.toXYGeometry(rectangle, t -> assertEquals(ShapeType.ENVELOPE, t));
+        XYGeometry[] geometries = LuceneGeometriesUtils.toXYGeometry(rectangle, t -> assertEquals(ShapeType.ENVELOPE, t));
         assertEquals(1, geometries.length);
         assertXYRectangle(rectangle, geometries[0]);
     }
@@ -405,12 +405,12 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         assertThat(xyRectangle.minX, equalTo((float) rectangle.getMinX()));
         assertThat(xyRectangle.maxY, equalTo((float) rectangle.getMaxY()));
         assertThat(xyRectangle.minY, equalTo((float) rectangle.getMinY()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtil.toLuceneXYRectangle(rectangle)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneXYRectangle(rectangle)));
     }
 
     public void testLatLonCircle() {
         Circle circle = GeometryTestUtils.randomCircle(randomBoolean());
-        LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(circle, false, t -> assertEquals(ShapeType.CIRCLE, t));
+        LatLonGeometry[] geometries = LuceneGeometriesUtils.toLatLonGeometry(circle, false, t -> assertEquals(ShapeType.CIRCLE, t));
         assertEquals(1, geometries.length);
         assertLatLonCircle(circle, geometries[0]);
     }
@@ -421,12 +421,12 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         assertThat(lalonCircle.getLon(), equalTo(circle.getLon()));
         assertThat(lalonCircle.getLat(), equalTo(circle.getLat()));
         assertThat(lalonCircle.getRadius(), equalTo(circle.getRadiusMeters()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtil.toLuceneCircle(circle)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneCircle(circle)));
     }
 
     public void testXYCircle() {
         Circle circle = ShapeTestUtils.randomCircle(randomBoolean());
-        XYGeometry[] geometries = LuceneGeometriesUtil.toXYGeometry(circle, t -> assertEquals(ShapeType.CIRCLE, t));
+        XYGeometry[] geometries = LuceneGeometriesUtils.toXYGeometry(circle, t -> assertEquals(ShapeType.CIRCLE, t));
         assertEquals(1, geometries.length);
         assertXYCircle(circle, geometries[0]);
     }
@@ -437,7 +437,7 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         assertThat(xyCircle.getX(), equalTo((float) circle.getX()));
         assertThat(xyCircle.getY(), equalTo((float) circle.getY()));
         assertThat(xyCircle.getRadius(), equalTo((float) circle.getRadiusMeters()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtil.toLuceneXYCircle(circle)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneXYCircle(circle)));
     }
 
     private MultiPolygon validRandomMultiPolygon(boolean hasLat) {
@@ -454,8 +454,8 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
 
     private Line quantize(Line line) {
         return new Line(
-            LuceneGeometriesUtil.quantizeLons(line.getLons(), GeoUtils::quantizeLon),
-            LuceneGeometriesUtil.quantizeLats(line.getLats(), GeoUtils::quantizeLat)
+            LuceneGeometriesUtils.quantizeLons(line.getLons(), GeoUtils::quantizeLon),
+            LuceneGeometriesUtils.quantizeLats(line.getLats(), GeoUtils::quantizeLat)
         );
     }
 
@@ -469,8 +469,8 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
 
     private LinearRing quantize(LinearRing linearRing) {
         return new LinearRing(
-            LuceneGeometriesUtil.quantizeLons(linearRing.getLons(), GeoUtils::quantizeLon),
-            LuceneGeometriesUtil.quantizeLats(linearRing.getLats(), GeoUtils::quantizeLat)
+            LuceneGeometriesUtils.quantizeLons(linearRing.getLons(), GeoUtils::quantizeLon),
+            LuceneGeometriesUtils.quantizeLats(linearRing.getLats(), GeoUtils::quantizeLat)
         );
     }
 }

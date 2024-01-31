@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.XYShape;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.geo.LuceneGeometriesUtil;
+import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -70,7 +70,7 @@ public class CartesianShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Line line) {
-            addFields(XYShape.createIndexableFields(name, LuceneGeometriesUtil.toLuceneXYLine(line)));
+            addFields(XYShape.createIndexableFields(name, LuceneGeometriesUtils.toLuceneXYLine(line)));
             return null;
         }
 
@@ -111,7 +111,7 @@ public class CartesianShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Polygon polygon) {
-            addFields(XYShape.createIndexableFields(name, LuceneGeometriesUtil.toLuceneXYPolygon(polygon), true));
+            addFields(XYShape.createIndexableFields(name, LuceneGeometriesUtils.toLuceneXYPolygon(polygon), true));
             return null;
         }
 

@@ -29,7 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class LuceneGeometriesUtil {
+public class LuceneGeometriesUtils {
 
     @FunctionalInterface
     interface DoubleFunction {
@@ -415,5 +415,5 @@ public class LuceneGeometriesUtil {
         return result;
     }
 
-    private LuceneGeometriesUtil() {}
+    private LuceneGeometriesUtils() {}
 }

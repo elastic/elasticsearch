@@ -11,7 +11,7 @@ import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.geo.XYGeometry;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.geo.LuceneGeometriesUtil;
+import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
@@ -35,7 +35,7 @@ public class ShapeQueryPointProcessor {
                 throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + t + " queries");
             }
         };
-        final XYGeometry[] luceneGeometries = LuceneGeometriesUtil.toXYGeometry(geometry, checker);
+        final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, checker);
         Query query = XYPointField.newGeometryQuery(fieldName, luceneGeometries);
         if (hasDocValues) {
             final Query queryDocValues = XYDocValuesField.newSlowGeometryQuery(fieldName, luceneGeometries);

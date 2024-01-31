@@ -17,15 +17,15 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
 import org.junit.Before;
 
@@ -119,7 +119,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     public void testExtraction() throws IOException {
-        List<Histogram.Bucket> histogramBuckets = Arrays.asList(
+        List<InternalHistogram.Bucket> histogramBuckets = Arrays.asList(
             createHistogramBucket(
                 1000L,
                 3,
@@ -189,7 +189,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
 
     public void testExtractionGivenResponseHasEmptyAggs() throws IOException {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
-        Aggregations emptyAggs = AggregationTestUtils.createAggs(Collections.emptyList());
+        InternalAggregations emptyAggs = AggregationTestUtils.createAggs(Collections.emptyList());
         SearchResponse response = createSearchResponse(emptyAggs);
         extractor.setNextResponse(response);
 
@@ -215,12 +215,12 @@ public class AggregationDataExtractorTests extends ESTestCase {
     public void testExtractionGivenResponseHasMultipleTopLevelAggs() {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 
-        Histogram histogram1 = mock(Histogram.class);
+        InternalHistogram histogram1 = mock(InternalHistogram.class);
         when(histogram1.getName()).thenReturn("hist_1");
-        Histogram histogram2 = mock(Histogram.class);
+        InternalHistogram histogram2 = mock(InternalHistogram.class);
         when(histogram2.getName()).thenReturn("hist_2");
 
-        Aggregations aggs = AggregationTestUtils.createAggs(Arrays.asList(histogram1, histogram2));
+        InternalAggregations aggs = AggregationTestUtils.createAggs(Arrays.asList(histogram1, histogram2));
         SearchResponse response = createSearchResponse(aggs);
         extractor.setNextResponse(response);
 
@@ -240,7 +240,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
 
     public void testExtractionGivenCancelHalfWay() throws IOException {
         int buckets = 1200;
-        List<Histogram.Bucket> histogramBuckets = new ArrayList<>(buckets);
+        List<InternalHistogram.Bucket> histogramBuckets = new ArrayList<>(buckets);
         long timestamp = 1000;
         for (int i = 0; i < buckets; i++) {
             histogramBuckets.add(
@@ -312,16 +312,16 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private SearchResponse createSearchResponse(String histogramName, List<Histogram.Bucket> histogramBuckets) {
-        Histogram histogram = mock(Histogram.class);
+    private SearchResponse createSearchResponse(String histogramName, List<InternalHistogram.Bucket> histogramBuckets) {
+        InternalHistogram histogram = mock(InternalHistogram.class);
         when(histogram.getName()).thenReturn(histogramName);
-        when((List<Histogram.Bucket>) histogram.getBuckets()).thenReturn(histogramBuckets);
+        when(histogram.getBuckets()).thenReturn(histogramBuckets);
 
-        Aggregations searchAggs = AggregationTestUtils.createAggs(Collections.singletonList(histogram));
+        InternalAggregations searchAggs = AggregationTestUtils.createAggs(Collections.singletonList(histogram));
         return createSearchResponse(searchAggs);
     }
 
-    private SearchResponse createSearchResponse(Aggregations aggregations) {
+    private SearchResponse createSearchResponse(InternalAggregations aggregations) {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         when(searchResponse.getScrollId()).thenReturn(randomAlphaOfLength(1000));

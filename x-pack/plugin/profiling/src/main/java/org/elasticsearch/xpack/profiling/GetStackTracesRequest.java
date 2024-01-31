@@ -47,7 +47,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private static final int DEFAULT_SAMPLE_SIZE = 20_000;
 
     private QueryBuilder query;
-    private Integer sampleSize;
+    private int sampleSize;
     private String indices;
     private String stackTraceIds;
     private Double requestedDuration;
@@ -80,7 +80,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         Double customPerCoreWattARM64,
         Double customCostPerCoreHour
     ) {
-        this.sampleSize = sampleSize;
+        this.sampleSize = sampleSize != null ? sampleSize : DEFAULT_SAMPLE_SIZE;
         this.requestedDuration = requestedDuration;
         this.awsCostFactor = awsCostFactor;
         this.query = query;
@@ -98,8 +98,8 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         TransportAction.localOnly();
     }
 
-    public Integer getSampleSize() {
-        return sampleSize != null ? sampleSize : DEFAULT_SAMPLE_SIZE;
+    public int getSampleSize() {
+        return sampleSize;
     }
 
     public Double getRequestedDuration() {

@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
+import org.elasticsearch.action.admin.indices.rollover.AutoRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -151,7 +152,11 @@ public final class IndexPrivilege extends Privilege {
         "indices:admin/synced_flush",
         "indices:admin/forcemerge*"
     );
-    private static final Automaton AUTO_CONFIGURE_AUTOMATON = patterns(TransportAutoPutMappingAction.TYPE.name(), AutoCreateAction.NAME);
+    private static final Automaton AUTO_CONFIGURE_AUTOMATON = patterns(
+        TransportAutoPutMappingAction.TYPE.name(),
+        AutoCreateAction.NAME,
+        AutoRolloverAction.NAME
+    );
 
     private static final Automaton CROSS_CLUSTER_REPLICATION_AUTOMATON = patterns(
         "indices:data/read/xpack/ccr/shard_changes*",

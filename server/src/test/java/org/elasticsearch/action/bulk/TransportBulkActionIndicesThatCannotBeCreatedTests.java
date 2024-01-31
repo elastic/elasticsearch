@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
@@ -41,6 +42,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -114,11 +116,14 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
         final ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        FeatureService mockFeatureService = mock(FeatureService.class);
+        when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
         TransportBulkAction action = new TransportBulkAction(
             threadPool,
             transportService,
             clusterService,
             null,
+            mockFeatureService,
             null,
             mock(ActionFilters.class),
             indexNameExpressionResolver,

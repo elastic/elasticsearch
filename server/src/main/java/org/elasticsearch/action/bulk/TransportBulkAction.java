@@ -25,7 +25,7 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.AutoRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -57,6 +57,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
@@ -101,6 +102,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IngestService ingestService;
+    private final FeatureService featureService;
     private final LongSupplier relativeTimeProvider;
     private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
@@ -115,6 +117,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
+        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -126,6 +129,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             transportService,
             clusterService,
             ingestService,
+            featureService,
             client,
             actionFilters,
             indexNameExpressionResolver,
@@ -140,6 +144,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
+        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -154,6 +159,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             transportService,
             clusterService,
             ingestService,
+            featureService,
             client,
             actionFilters,
             indexNameExpressionResolver,
@@ -170,6 +176,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
+        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -183,6 +190,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.ingestService = ingestService;
+        this.featureService = featureService;
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
@@ -372,10 +380,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().isRequireDataStream));
 
         // Step 3: Collect all the data streams that need to be rolled over before writing
-        Set<String> dataStreamsToBeRolledOver = indices.keySet().stream().filter(target -> {
-            DataStream dataStream = state.metadata().dataStreams().get(target);
-            return dataStream != null && dataStream.rolloverOnWrite();
-        }).collect(Collectors.toSet());
+        Set<String> dataStreamsToBeRolledOver = featureService.clusterHasFeature(state, AutoRolloverAction.DATA_STREAM_AUTO_ROLLOVER)
+            ? indices.keySet().stream().filter(target -> {
+                DataStream dataStream = state.metadata().dataStreams().get(target);
+                return dataStream != null && dataStream.rolloverOnWrite();
+            }).collect(Collectors.toSet())
+            : Set.of();
 
         // Step 4: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
         createMissingIndicesAndIndexData(
@@ -579,7 +589,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     void rolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
         rolloverRequest.masterNodeTimeout(timeout);
-        client.execute(RolloverAction.INSTANCE, rolloverRequest, listener);
+        client.execute(AutoRolloverAction.INSTANCE, rolloverRequest, listener);
     }
 
     private static boolean setResponseFailureIfIndexMatches(

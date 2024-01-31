@@ -74,6 +74,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 clusterService,
                 null,
                 null,
+                null,
                 new ActionFilters(Collections.emptySet()),
                 new TransportBulkActionTookTests.Resolver(),
                 new IndexingPressure(Settings.EMPTY),

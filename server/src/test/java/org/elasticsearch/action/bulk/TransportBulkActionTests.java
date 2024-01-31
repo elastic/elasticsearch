@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -61,6 +62,9 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportBulkActionTests extends ESTestCase {
 
@@ -70,6 +74,7 @@ public class TransportBulkActionTests extends ESTestCase {
     private TestThreadPool threadPool;
 
     private TestTransportBulkAction bulkAction;
+    private FeatureService mockFeatureService;
 
     class TestTransportBulkAction extends TransportBulkAction {
 
@@ -83,6 +88,7 @@ public class TransportBulkActionTests extends ESTestCase {
                 transportService,
                 clusterService,
                 null,
+                mockFeatureService,
                 null,
                 new ActionFilters(Collections.emptySet()),
                 new Resolver(),
@@ -128,6 +134,8 @@ public class TransportBulkActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
+        mockFeatureService = mock(FeatureService.class);
+        when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
         bulkAction = new TestTransportBulkAction();
     }
 

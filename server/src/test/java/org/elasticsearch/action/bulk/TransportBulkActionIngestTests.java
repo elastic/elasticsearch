@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -86,6 +87,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     private static final Settings SETTINGS = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true).build();
 
     private static final Thread DUMMY_WRITE_THREAD = new Thread(ThreadPool.Names.WRITE);
+    private FeatureService mockFeatureService;
 
     /** Services needed by bulk action */
     TransportService transportService;
@@ -131,6 +133,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 transportService,
                 clusterService,
                 ingestService,
+                mockFeatureService,
                 null,
                 new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
@@ -194,6 +197,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
+        mockFeatureService = mock(FeatureService.class);
+        when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
         Metadata metadata = Metadata.builder()
             .indices(
                 Map.of(

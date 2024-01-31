@@ -831,8 +831,10 @@ FROM employees
 // end::statsCalcMultipleValues[]
 ;
 
+// tag::statsCalcMultipleValues-result[]
 avg_lang:double | max_lang:integer
 3.1222222222222222|5
+// end::statsCalcMultipleValues-result[]
 ;
 
 docsStatsGroupByMultipleValues
@@ -982,4 +984,131 @@ ROW a = 1, c = null
 
 COUNT(c):long | a:integer
             0 | 1
+;
+
+
+countVersion#[skip:-8.12.99,reason:bug fixed in 8.13+]
+from apps | stats c = count(version), cd = count_distinct(version);
+
+c:long | cd:long
+12     | 9
+;
+
+
+docsStatsAvgNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsAvgNestedExpression[]
+FROM employees
+| STATS avg_salary_change = AVG(MV_AVG(salary_change))
+// end::docsStatsAvgNestedExpression[]
+;
+
+// tag::docsStatsAvgNestedExpression-result[]
+avg_salary_change:double
+1.3904535864978902
+// end::docsStatsAvgNestedExpression-result[]
+;
+
+docsStatsByExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsByExpression[]
+FROM employees
+| STATS my_count = COUNT() BY LEFT(last_name, 1)
+| SORT `LEFT(last_name, 1)`
+// end::docsStatsByExpression[]
+;
+
+// tag::docsStatsByExpression-result[]
+my_count:long    |LEFT(last_name, 1):keyword
+2              |A                 
+11             |B                 
+5              |C                 
+5              |D                 
+2              |E                 
+4              |F                 
+4              |G                 
+6              |H                 
+2              |J                 
+3              |K                 
+5              |L                 
+12             |M                 
+4              |N                 
+1              |O                 
+7              |P                 
+5              |R                 
+13             |S                 
+4              |T                 
+2              |W                 
+3              |Z
+// end::docsStatsByExpression-result[]
+;
+
+docsStatsMaxNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsMaxNestedExpression[]
+FROM employees
+| STATS max_avg_salary_change = MAX(MV_AVG(salary_change))
+// end::docsStatsMaxNestedExpression[]
+;
+
+// tag::docsStatsMaxNestedExpression-result[]
+max_avg_salary_change:double
+13.75
+// end::docsStatsMaxNestedExpression-result[]
+;
+
+docsStatsMinNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsMinNestedExpression[]
+FROM employees
+| STATS min_avg_salary_change = MIN(MV_AVG(salary_change))
+// end::docsStatsMinNestedExpression[]
+;
+
+// tag::docsStatsMinNestedExpression-result[]
+min_avg_salary_change:double
+-8.46
+// end::docsStatsMinNestedExpression-result[]
+;
+
+docsStatsSumNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsSumNestedExpression[]
+FROM employees
+| STATS total_salary_changes = SUM(MV_MAX(salary_change))
+// end::docsStatsSumNestedExpression[]
+;
+
+// tag::docsStatsSumNestedExpression-result[]
+total_salary_changes:double
+446.75
+// end::docsStatsSumNestedExpression-result[]
+;
+
+docsCountWithExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsCountWithExpression[]
+ROW words="foo;bar;baz;qux;quux;foo"
+| STATS word_count = COUNT(SPLIT(words, ";"))
+// end::docsCountWithExpression[]
+;
+
+// tag::docsCountWithExpression-result[]
+word_count:long
+6
+// end::docsCountWithExpression-result[]
+;
+
+countMultiValuesRow
+ROW keyword_field = ["foo", "bar"], int_field = [1, 2, 3] | STATS ck = COUNT(keyword_field), ci = COUNT(int_field), c = COUNT(*);
+
+ck:l | ci:l | c:l 
+2    | 3    | 1
+;
+
+countSource
+FROM employees | 
+STATS ck = COUNT(job_positions), 
+      cb = COUNT(is_rehired), 
+      cd = COUNT(salary_change), 
+      ci = COUNT(salary_change.int), 
+      c = COUNT(*), 
+      csv = COUNT(emp_no);
+
+ck:l | cb:l | cd:l | ci:l | c:l | csv:l 
+221  | 204  | 183  | 183  | 100 | 100
 ;

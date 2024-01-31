@@ -47,7 +47,7 @@ public final class InstanceTypeService {
                     for (Map<String, Object> entry : rawData) {
                         tmp.put(
                             new InstanceType(
-                                dedupString.apply((String) entry.get("provider")),
+                                provider,
                                 dedupString.apply((String) entry.get("region")),
                                 dedupString.apply((String) entry.get("instance_type"))
                             ),

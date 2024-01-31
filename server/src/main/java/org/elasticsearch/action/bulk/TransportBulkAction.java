@@ -607,6 +607,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             clusterService,
             bulkRequest,
             client,
+            responses,
             indicesThatCannotBeCreated,
             indexNameExpressionResolver,
             relativeTimeProvider,

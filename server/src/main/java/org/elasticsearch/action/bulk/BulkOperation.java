@@ -77,6 +77,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ClusterService clusterService,
         BulkRequest bulkRequest,
         NodeClient client,
+        AtomicArray<BulkItemResponse> responses,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         IndexNameExpressionResolver indexNameExpressionResolver,
         LongSupplier relativeTimeProvider,
@@ -87,7 +88,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.task = task;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.responses = new AtomicArray<>(bulkRequest.requests.size());
+        this.responses = responses;
         this.bulkRequest = bulkRequest;
         this.listener = listener;
         this.startTimeNanos = startTimeNanos;

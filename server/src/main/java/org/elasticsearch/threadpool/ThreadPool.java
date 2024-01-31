@@ -341,7 +341,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(settings).millis()
         );
         this.cachedTimeThread.start();
-        this.relativeTimeInMillisSupplier = cachedTimeThread.relativeTimeInMillisSupplier();
+        this.relativeTimeInMillisSupplier = new RelativeTimeInMillisSupplier(cachedTimeThread);
     }
 
     private static ArrayList<Instrument> setupMetrics(MeterRegistry meterRegistry, String name, ExecutorHolder holder) {
@@ -420,7 +420,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     /**
-     * Effectively the same as {@code this::relativeTimeInMillis}, except that it returns a constant
+     * Effectively the same as {@code this::relativeTimeInMillis}, except that it returns a constant to save on allocation.
      */
     public LongSupplier relativeTimeInMillisSupplier() {
         return relativeTimeInMillisSupplier;
@@ -863,19 +863,23 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 }
             }
         }
+    }
 
-        LongSupplier relativeTimeInMillisSupplier() {
-            return new LongSupplier() {
-                @Override
-                public long getAsLong() {
-                    return CachedTimeThread.this.relativeTimeInMillis();
-                }
+    private static class RelativeTimeInMillisSupplier implements LongSupplier {
+        private final CachedTimeThread cachedTimeThread;
 
-                @Override
-                public String toString() {
-                    return CachedTimeThread.class.getCanonicalName() + "::relativeTimeInMillis";
-                }
-            };
+        private RelativeTimeInMillisSupplier(CachedTimeThread cachedTimeThread) {
+            this.cachedTimeThread = cachedTimeThread;
+        }
+
+        @Override
+        public long getAsLong() {
+            return cachedTimeThread.relativeTimeInMillis();
+        }
+
+        @Override
+        public String toString() {
+            return ThreadPool.class.getCanonicalName() + "::relativeTimeInMillis";
         }
     }
 

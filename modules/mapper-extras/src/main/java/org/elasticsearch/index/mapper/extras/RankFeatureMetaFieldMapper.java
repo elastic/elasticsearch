@@ -45,18 +45,23 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String concreteFieldName() {
+            return NAME;
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
         }
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            throw new UnsupportedOperationException("Cannot run exists query on [_feature]");
+            throw new UnsupportedOperationException("Cannot run exists query on [" + concreteFieldName() + "]");
         }
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new UnsupportedOperationException("The [_feature] field may not be queried directly");
+            throw new UnsupportedOperationException("The [" + concreteFieldName() + "] field may not be queried directly");
         }
     }
 

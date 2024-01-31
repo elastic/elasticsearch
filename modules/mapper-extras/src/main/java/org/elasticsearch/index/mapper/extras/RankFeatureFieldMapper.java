@@ -122,13 +122,18 @@ public class RankFeatureFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
+        @Override
+        public String concreteFieldName() {
+            return "_feature";
+        }
+
         public boolean positiveScoreImpact() {
             return positiveScoreImpact;
         }
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return new TermQuery(new Term("_feature", name()));
+            return new TermQuery(new Term(concreteFieldName(), name()));
         }
 
         @Override
@@ -208,7 +213,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
             value = 1 / value;
         }
 
-        context.doc().addWithKey(name(), new FeatureField("_feature", name(), value));
+        context.doc().addWithKey(name(), new FeatureField(mappedFieldType.concreteFieldName(), name(), value));
     }
 
     private static Float objectToFloat(Object value) {

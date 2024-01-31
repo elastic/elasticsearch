@@ -361,6 +361,9 @@ public class RBACEngine implements AuthorizationEngine {
                 }
             } else if (action.equals(TransportClosePointInTimeAction.TYPE.name())) {
                 listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
+                // TODO should this be a cluster privilege?
+            } else if (action.startsWith("internal:data/read/esql/")) {
+                listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
             } else {
                 assert false
                     : "only scroll and async-search related requests are known indices api that don't "

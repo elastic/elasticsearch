@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -144,7 +145,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
-            if (roleDescriptor.hasPrivilegesOtherThanIndex()) {
+            if (false == allPrivilegesSupported(roleDescriptor)) {
                 final String message = "Role descriptor for cross cluster access can only contain index privileges "
                     + "but other privileges found for subject ["
                     + crossClusterAccessRoleReference.getUserPrincipal()
@@ -166,6 +167,22 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
         listener.onResponse(rolesRetrievalResult);
+    }
+
+    private boolean allPrivilegesSupported(RoleDescriptor roleDescriptor) {
+        if (roleDescriptor.hasConfigurableClusterPrivileges()
+            || roleDescriptor.hasApplicationPrivileges()
+            || roleDescriptor.hasRunAs()
+            || roleDescriptor.hasRemoteIndicesPrivileges()
+            || roleDescriptor.hasWorkflowsRestriction()) {
+            return false;
+        }
+        final Set<String> supportedClusterPrivileges = Set.of(
+            "cluster:monitor/xpack/enrich/esql/resolve_policy",
+            "cluster:admin/xpack/security/user/has_privileges"
+        );
+        return false == roleDescriptor.hasClusterPrivileges()
+            || Arrays.stream(roleDescriptor.getClusterPrivileges()).allMatch(supportedClusterPrivileges::contains);
     }
 
     private void resolveRoleNames(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {

@@ -36,7 +36,7 @@ public class SystemUser extends InternalUser {
         new RoleDescriptor.IndicesPrivileges[] {
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices("*")
-                .privileges("cross_cluster_replication", "cross_cluster_replication_internal")
+                .privileges("read_cross_cluster", "cross_cluster_replication", "cross_cluster_replication_internal")
                 .allowRestrictedIndices(true)
                 .build() },
         null,

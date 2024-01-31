@@ -199,17 +199,25 @@ public class SimpleRole implements Role {
         if (remoteIndicesPermission.remoteIndicesGroups().isEmpty()) {
             return RoleDescriptorsIntersection.EMPTY;
         }
+        boolean addEnrichEsqlResolvePolicyClusterPrivilege = false;
         final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
         for (RemoteIndicesPermission.RemoteIndicesGroup remoteIndicesGroup : remoteIndicesPermission.remoteIndicesGroups()) {
             for (IndicesPermission.Group indicesGroup : remoteIndicesGroup.indicesPermissionGroups()) {
                 indicesPrivileges.add(toIndicesPrivileges(indicesGroup));
+                if (false == addEnrichEsqlResolvePolicyClusterPrivilege
+                    && indicesGroup.privilege().predicate().test("cluster:monitor/xpack/enrich/esql/resolve_policy")) {
+                    addEnrichEsqlResolvePolicyClusterPrivilege = true;
+                }
             }
         }
 
         return new RoleDescriptorsIntersection(
             new RoleDescriptor(
                 REMOTE_USER_ROLE_NAME,
-                null,
+                new String[] {
+                    "cluster:monitor/xpack/enrich/esql/resolve_policy",
+                    // TODO this does not belong here
+                    "cluster:admin/xpack/security/user/has_privileges" },
                 // The role descriptors constructed here may be cached in raw byte form, using a hash of their content as a
                 // cache key; we therefore need deterministic order when constructing them here, to ensure cache hits for
                 // equivalent role descriptors

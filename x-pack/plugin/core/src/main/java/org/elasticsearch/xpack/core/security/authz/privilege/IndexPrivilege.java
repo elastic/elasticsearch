@@ -73,7 +73,7 @@ import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndM
 public final class IndexPrivilege extends Privilege {
     private static final Logger logger = LogManager.getLogger(IndexPrivilege.class);
 
-    private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
+    private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*", "internal:data/read/esql/*");
     private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
@@ -82,7 +82,9 @@ public final class IndexPrivilege extends Privilege {
         // cross clusters query for ESQL
         "internal:data/read/esql/open_exchange",
         "internal:data/read/esql/exchange",
-        "indices:data/read/esql/cluster"
+        "indices:data/read/esql/cluster",
+        // ???
+        "cluster:monitor/xpack/enrich/esql/resolve_policy"
     );
     private static final Automaton CREATE_AUTOMATON = patterns(
         "indices:data/write/index*",

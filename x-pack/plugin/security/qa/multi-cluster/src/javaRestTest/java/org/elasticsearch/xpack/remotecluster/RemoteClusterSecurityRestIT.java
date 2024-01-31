@@ -94,7 +94,12 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                         {
                           "search": [
                             {
-                                "names": ["index*", "not_found_index", "shared-metrics"]
+                                "names": ["employees", "index*", "not_found_index", "shared-metrics"]
+                            }
+                          ],
+                          "replication": [
+                            {
+                                "names": ["employees"]
                             }
                           ]
                         }""");
@@ -558,7 +563,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                       "privileges": ["read"]
                     }
                   ],
-                  "cluster": [ "monitor_enrich" ],
+                  "cluster": [ "monitor_enrich", "read_ccr" ],
                   "remote_indices": [
                     {
                       "names": ["employees"],

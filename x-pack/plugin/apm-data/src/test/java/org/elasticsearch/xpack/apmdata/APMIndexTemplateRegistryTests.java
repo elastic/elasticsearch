@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -55,11 +56,12 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.XPackSettings.APM_DATA_ENABLED;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
@@ -77,20 +79,28 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
 
     @Before
     public void createRegistryAndClient() {
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Set.of(APMPlugin.APM_DATA_REGISTRY_ENABLED).stream())
+                .collect(Collectors.toSet())
+        );
+
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         FeatureService featureService = new FeatureService(List.of());
         stackTemplateRegistryAccessor = new StackTemplateRegistryAccessor(
             new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY, featureService)
         );
+
         apmIndexTemplateRegistry = new APMIndexTemplateRegistry(
-            Settings.builder().put(APM_DATA_ENABLED.getKey(), true).build(),
+            Settings.EMPTY,
             clusterService,
             threadPool,
             client,
             NamedXContentRegistry.EMPTY
         );
+        apmIndexTemplateRegistry.setEnabled(true);
     }
 
     @After
@@ -111,6 +121,28 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), nodes);
         apmIndexTemplateRegistry.clusterChanged(event);
+    }
+
+    public void testThatDisablingRegistryDoesNothing() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        apmIndexTemplateRegistry.setEnabled(false);
+        assertThat(apmIndexTemplateRegistry.getComponentTemplateConfigs().entrySet(), hasSize(0));
+        assertThat(apmIndexTemplateRegistry.getComposableTemplateConfigs().entrySet(), hasSize(0));
+        assertThat(apmIndexTemplateRegistry.getIngestPipelines(), hasSize(0));
+
+        client.setVerifier((a, r, l) -> {
+            fail("if the registry is disabled nothing should happen");
+            return null;
+        });
+        ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), nodes);
+        apmIndexTemplateRegistry.clusterChanged(event);
+
+        apmIndexTemplateRegistry.setEnabled(true);
+        assertThat(apmIndexTemplateRegistry.getComponentTemplateConfigs().entrySet(), not(hasSize(0)));
+        assertThat(apmIndexTemplateRegistry.getComposableTemplateConfigs().entrySet(), not(hasSize(0)));
+        assertThat(apmIndexTemplateRegistry.getIngestPipelines(), not(hasSize(0)));
     }
 
     public void testThatIndependentTemplatesAreAddedImmediatelyIfMissing() throws Exception {

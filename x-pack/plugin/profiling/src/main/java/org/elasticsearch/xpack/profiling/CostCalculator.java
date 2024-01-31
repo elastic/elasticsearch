@@ -13,7 +13,7 @@ final class CostCalculator {
     private static final double DEFAULT_SAMPLING_FREQUENCY = 20.0d;
     private static final double SECONDS_PER_HOUR = 60 * 60;
     private static final double SECONDS_PER_YEAR = SECONDS_PER_HOUR * 24 * 365.0d; // unit: seconds
-    private static final double DEFAULT_COST_USD_PER_CORE_HOUR = 0.0425d; // unit: USD / (core * hour)
+    public static final double DEFAULT_COST_USD_PER_CORE_HOUR = 0.0425d; // unit: USD / (core * hour)
     private static final double DEFAULT_AWS_COST_FACTOR = 1.0d;
     private final Map<String, HostMetadata> hostMetadata;
     private final double samplingDurationInSeconds;
@@ -47,7 +47,7 @@ final class CostCalculator {
             return annualCoreHours * customCostPerCoreHour * providerCostFactor;
         }
 
-        return annualCoreHours * costs.costFactor * providerCostFactor;
+        return annualCoreHours * (costs.usd_per_hour / host.profilingNumCores) * providerCostFactor;
     }
 
     public static double annualCoreHours(double duration, double samples, double samplingFrequency) {

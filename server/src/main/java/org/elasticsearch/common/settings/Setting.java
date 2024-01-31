@@ -1073,6 +1073,9 @@ public class Setting<T> implements ToXContentObject {
             matchStream(settings).distinct().forEach(key -> {
                 String namespace = this.key.getNamespace(key);
                 Setting<T> concreteSetting = getConcreteSetting(namespace, key);
+                if (map.containsKey(namespace) && this.key.isFallback(key)) {
+                    return;
+                }
                 map.put(namespace, concreteSetting.get(settings));
             });
             return Collections.unmodifiableMap(map);
@@ -2053,7 +2056,20 @@ public class Setting<T> implements ToXContentObject {
      */
     public static <T> AffixSetting<T> prefixKeySetting(String prefix, Function<String, Setting<T>> delegateFactory) {
         BiFunction<String, String, Setting<T>> delegateFactoryWithNamespace = (ns, k) -> delegateFactory.apply(k);
-        return affixKeySetting(new AffixKey(prefix), delegateFactoryWithNamespace);
+        return affixKeySetting(new AffixKey(prefix, null, null), delegateFactoryWithNamespace);
+    }
+
+    /**
+     * Same as above but also matches the fallback prefix in addition to the prefix of the setting.
+     * @param nsDelegateFactory instantiate a setting given the namespace and the qualified key
+     */
+    public static <T> AffixSetting<T> prefixKeySetting(
+        String prefix,
+        String fallbackPrefix,
+        BiFunction<String, String, Setting<T>> nsDelegateFactory
+    ) {
+        Setting<T> delegate = nsDelegateFactory.apply("_na_", "_na_");
+        return new AffixSetting<>(new AffixKey(prefix, null, fallbackPrefix), delegate, nsDelegateFactory);
     }
 
     /**
@@ -2068,7 +2084,7 @@ public class Setting<T> implements ToXContentObject {
         AffixSettingDependency... dependencies
     ) {
         BiFunction<String, String, Setting<T>> delegateFactoryWithNamespace = (ns, k) -> delegateFactory.apply(k);
-        return affixKeySetting(new AffixKey(prefix, suffix), delegateFactoryWithNamespace, dependencies);
+        return affixKeySetting(new AffixKey(prefix, suffix, null), delegateFactoryWithNamespace, dependencies);
     }
 
     public static <T> AffixSetting<T> affixKeySetting(
@@ -2078,7 +2094,7 @@ public class Setting<T> implements ToXContentObject {
         AffixSettingDependency... dependencies
     ) {
         Setting<T> delegate = delegateFactory.apply("_na_", "_na_");
-        return new AffixSetting<>(new AffixKey(prefix, suffix), delegate, delegateFactory, dependencies);
+        return new AffixSetting<>(new AffixKey(prefix, suffix, null), delegate, delegateFactory, dependencies);
     }
 
     private static <T> AffixSetting<T> affixKeySetting(
@@ -2159,28 +2175,39 @@ public class Setting<T> implements ToXContentObject {
      */
     public static final class AffixKey implements Key {
         private final Pattern pattern;
+        private final Pattern fallbackPattern;
         private final String prefix;
         private final String suffix;
-
+        private final String fallbackPrefix;
         private final String keyString;
 
-        AffixKey(String prefix) {
-            this(prefix, null);
-        }
-
-        AffixKey(String prefix, String suffix) {
+        AffixKey(String prefix, String suffix, String fallbackPrefix) {
             assert prefix != null || suffix != null : "Either prefix or suffix must be non-null";
+            assert fallbackPrefix == null || prefix != null : "prefix must be non-null if fallbackPrefix is non-null";
 
             this.prefix = prefix;
             if (prefix.endsWith(".") == false) {
                 throw new IllegalArgumentException("prefix must end with a '.'");
             }
+
+            String prefixPattern;
+            this.fallbackPrefix = fallbackPrefix;
+            if (fallbackPrefix != null) {
+                if (fallbackPrefix.endsWith(".") == false) {
+                    throw new IllegalArgumentException("prefix must end with a '.'");
+                }
+                fallbackPattern = Pattern.compile("(" + Pattern.quote(fallbackPrefix) + ")" + "((?:[-\\w]+[.])*[-\\w]+$)");
+                prefixPattern = "(" + Pattern.quote(prefix) + "|" + Pattern.quote(fallbackPrefix) + ")";
+            } else {
+                fallbackPattern = null;
+                prefixPattern = "(" + Pattern.quote(prefix) + ")";
+            }
             this.suffix = suffix;
             if (suffix == null) {
-                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "((?:[-\\w]+[.])*[-\\w]+$))");
+                pattern = Pattern.compile("(" + prefixPattern + "((?:[-\\w]+[.])*[-\\w]+$))");
             } else {
                 // the last part of this regexp is to support both list and group keys
-                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\..*)?");
+                pattern = Pattern.compile("(" + prefixPattern + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\..*)?");
             }
             StringBuilder sb = new StringBuilder();
             sb.append(prefix);
@@ -2198,6 +2225,20 @@ public class Setting<T> implements ToXContentObject {
         }
 
         /**
+         * Does this key have a fallback prefix?
+         */
+        private boolean hasFallback() {
+            return fallbackPattern != null;
+        }
+
+        /**
+         * Does the key start with the fallback prefix?
+         */
+        public boolean isFallback(String key) {
+            return hasFallback() && fallbackPattern.matcher(key).matches();
+        }
+
+        /**
          * Returns a string representation of the concrete setting key
          */
         String getConcreteString(String key) {
@@ -2209,14 +2250,14 @@ public class Setting<T> implements ToXContentObject {
         }
 
         /**
-         * Returns a string representation of the concrete setting key
+         * Returns a string representation of the namespace, without prefix and suffix, of the affix key
          */
         String getNamespace(String key) {
             Matcher matcher = pattern.matcher(key);
             if (matcher.matches() == false) {
-                throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");
+                throw new IllegalStateException("can't get namespace for key " + key + " key doesn't match");
             }
-            return Settings.internKeyOrValue(matcher.group(2));
+            return Settings.internKeyOrValue(matcher.group(3));
         }
 
         public SimpleKey toConcreteKey(String missingPart) {
@@ -2242,12 +2283,14 @@ public class Setting<T> implements ToXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             AffixKey that = (AffixKey) o;
-            return Objects.equals(prefix, that.prefix) && Objects.equals(suffix, that.suffix);
+            return Objects.equals(prefix, that.prefix)
+                && Objects.equals(suffix, that.suffix)
+                && Objects.equals(fallbackPrefix, that.fallbackPrefix);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(prefix, suffix);
+            return Objects.hash(prefix, suffix, fallbackPrefix);
         }
     }
 }

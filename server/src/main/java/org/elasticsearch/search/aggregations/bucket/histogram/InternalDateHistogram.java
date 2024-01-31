@@ -9,13 +9,13 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -112,7 +112,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -232,6 +232,14 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         this.downsampledResultsOffset = downsampledResultsOffset;
     }
 
+    boolean versionSupportsDownsamplingTimezone(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ)
+            || version.between(
+                TransportVersions.DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ_8_12_PATCH,
+                TransportVersions.NODE_STATS_REQUEST_SIMPLIFIED
+            );
+    }
+
     /**
      * Stream from a stream.
      */
@@ -247,7 +255,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         offset = in.readLong();
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ)) {
+        if (versionSupportsDownsamplingTimezone(in.getTransportVersion())) {
             downsampledResultsOffset = in.readBoolean();
         } else {
             downsampledResultsOffset = false;
@@ -265,7 +273,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         out.writeLong(offset);
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ)) {
+        if (versionSupportsDownsamplingTimezone(out.getTransportVersion())) {
             out.writeBoolean(downsampledResultsOffset);
         }
         out.writeCollection(buckets);
@@ -390,7 +398,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         long docCount = 0;
         for (Bucket bucket : buckets) {
             docCount += bucket.docCount;
-            aggregations.add((InternalAggregations) bucket.getAggregations());
+            aggregations.add(bucket.getAggregations());
         }
         InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         return createBucket(buckets.get(0).key, docCount, aggs);

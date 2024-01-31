@@ -279,7 +279,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(name());
+            return context.fieldExistsInIndex(concreteFieldName());
         }
 
         @Override
@@ -345,17 +345,17 @@ public class WildcardFieldMapper extends FieldMapper {
                 clauseCount++;
             }
             Automaton automaton = caseInsensitive
-                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern))
-                : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
+                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(concreteFieldName(), wildcardPattern))
+                : WildcardQuery.toAutomaton(new Term(concreteFieldName(), wildcardPattern));
             if (clauseCount > 0) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery approxQuery = rewritten.build();
-                return new BinaryDvConfirmedAutomatonQuery(approxQuery, name(), wildcardPattern, automaton);
+                return new BinaryDvConfirmedAutomatonQuery(approxQuery, concreteFieldName(), wildcardPattern, automaton);
             } else if (numWildcardChars == 0 || numWildcardStrings > 0) {
                 // We have no concrete characters and we're not a pure length query e.g. ???
-                return new FieldExistsQuery(name());
+                return new FieldExistsQuery(concreteFieldName());
             }
-            return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), wildcardPattern, automaton);
+            return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), concreteFieldName(), wildcardPattern, automaton);
 
         }
 
@@ -390,7 +390,7 @@ public class WildcardFieldMapper extends FieldMapper {
             Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
 
             // We can accelerate execution with the ngram query
-            return new BinaryDvConfirmedAutomatonQuery(approxNgramQuery, name(), value, automaton);
+            return new BinaryDvConfirmedAutomatonQuery(approxNgramQuery, concreteFieldName(), value, automaton);
         }
 
         // Convert a regular expression to a simplified query consisting of BooleanQuery and TermQuery objects
@@ -593,7 +593,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 return;
             }
             // Break fragment into multiple Ngrams
-            TokenStream tokenizer = analyzer.tokenStream(name(), fragment);
+            TokenStream tokenizer = analyzer.tokenStream(concreteFieldName(), fragment);
             CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
             int foundTokens = 0;
             try {
@@ -629,10 +629,10 @@ public class WildcardFieldMapper extends FieldMapper {
                 return;
             }
             if (tokenSize == NGRAM_SIZE) {
-                TermQuery tq = new TermQuery(new Term(name(), token));
+                TermQuery tq = new TermQuery(new Term(concreteFieldName(), token));
                 bqBuilder.add(new BooleanClause(tq, occur));
             } else {
-                PrefixQuery wq = new PrefixQuery(new Term(name(), token), MultiTermQuery.CONSTANT_SCORE_REWRITE);
+                PrefixQuery wq = new PrefixQuery(new Term(concreteFieldName(), token), MultiTermQuery.CONSTANT_SCORE_REWRITE);
                 bqBuilder.add(new BooleanClause(wq, occur));
             }
         }
@@ -680,10 +680,10 @@ public class WildcardFieldMapper extends FieldMapper {
                         }
 
                         if (tokenSize == NGRAM_SIZE) {
-                            TermQuery tq = new TermQuery(new Term(name(), token));
+                            TermQuery tq = new TermQuery(new Term(concreteFieldName(), token));
                             bqBuilder.add(new BooleanClause(tq, Occur.FILTER));
                         } else {
-                            PrefixQuery wq = new PrefixQuery(new Term(name(), token), MultiTermQuery.CONSTANT_SCORE_REWRITE);
+                            PrefixQuery wq = new PrefixQuery(new Term(concreteFieldName(), token), MultiTermQuery.CONSTANT_SCORE_REWRITE);
                             bqBuilder.add(new BooleanClause(wq, Occur.FILTER));
                         }
                     }
@@ -696,9 +696,9 @@ public class WildcardFieldMapper extends FieldMapper {
             Automaton automaton = TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
 
             if (accelerationQuery == null) {
-                return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), lower + "-" + upper, automaton);
+                return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), concreteFieldName(), lower + "-" + upper, automaton);
             }
-            return new BinaryDvConfirmedAutomatonQuery(accelerationQuery, name(), lower + "-" + upper, automaton);
+            return new BinaryDvConfirmedAutomatonQuery(accelerationQuery, concreteFieldName(), lower + "-" + upper, automaton);
         }
 
         @Override
@@ -729,7 +729,7 @@ public class WildcardFieldMapper extends FieldMapper {
                     }
                 }
                 // Tokenize all content after the prefix
-                TokenStream tokenizer = analyzer.tokenStream(name(), postPrefixString);
+                TokenStream tokenizer = analyzer.tokenStream(concreteFieldName(), postPrefixString);
                 CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
                 ArrayList<String> postPrefixTokens = new ArrayList<>();
                 String firstToken = null;
@@ -772,14 +772,14 @@ public class WildcardFieldMapper extends FieldMapper {
                 // Verification query
                 FuzzyQuery fq = rewriteMethod == null
                     ? new FuzzyQuery(
-                        new Term(name(), searchTerm),
+                        new Term(concreteFieldName(), searchTerm),
                         fuzziness.asDistance(searchTerm),
                         prefixLength,
                         maxExpansions,
                         transpositions
                     )
                     : new FuzzyQuery(
-                        new Term(name(), searchTerm),
+                        new Term(concreteFieldName(), searchTerm),
                         fuzziness.asDistance(searchTerm),
                         prefixLength,
                         maxExpansions,
@@ -787,10 +787,15 @@ public class WildcardFieldMapper extends FieldMapper {
                         rewriteMethod
                     );
                 if (ngramQ.clauses().size() == 0) {
-                    return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), searchTerm, fq.getAutomata().automaton);
+                    return new BinaryDvConfirmedAutomatonQuery(
+                        new MatchAllDocsQuery(),
+                        concreteFieldName(),
+                        searchTerm,
+                        fq.getAutomata().automaton
+                    );
                 }
 
-                return new BinaryDvConfirmedAutomatonQuery(ngramQ, name(), searchTerm, fq.getAutomata().automaton);
+                return new BinaryDvConfirmedAutomatonQuery(ngramQ, concreteFieldName(), searchTerm, fq.getAutomata().automaton);
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
             }
@@ -855,7 +860,7 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return new BlockDocValuesReader.BytesRefsFromBinaryBlockLoader(name());
+                return new BlockDocValuesReader.BytesRefsFromBinaryBlockLoader(concreteFieldName());
             }
             return null;
         }
@@ -864,7 +869,7 @@ public class WildcardFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return (cache, breakerService) -> new StringBinaryIndexFieldData(
-                name(),
+                concreteFieldName(),
                 CoreValuesSourceType.KEYWORD,
                 WildcardDocValuesField::new
             );
@@ -876,7 +881,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return new SourceValueFetcher(concreteFieldName(), context, nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
@@ -923,7 +928,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), fieldType().analyzer);
+        return Map.of(mappedFieldType.concreteFieldName(), fieldType().analyzer);
     }
 
     /** Values that have more chars than the return value of this method will
@@ -954,7 +959,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (value.length() <= ignoreAbove) {
                 createFields(value, parseDoc, fields);
             } else {
-                context.addIgnoredField(name());
+                context.addIgnoredField(fieldType().concreteFieldName());
                 if (storeIgnored) {
                     parseDoc.add(new StoredField(originalName(), new BytesRef(value)));
                 }
@@ -964,18 +969,18 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     private String originalName() {
-        return name() + "._original";
+        return fieldType().concreteFieldName() + "._original";
     }
 
     void createFields(String value, LuceneDocument parseDoc, List<IndexableField> fields) {
         String ngramValue = addLineEndChars(value);
-        Field ngramField = new Field(fieldType().name(), ngramValue, NGRAM_FIELD_TYPE);
+        Field ngramField = new Field(fieldType().concreteFieldName(), ngramValue, NGRAM_FIELD_TYPE);
         fields.add(ngramField);
 
-        CustomBinaryDocValuesField dvField = (CustomBinaryDocValuesField) parseDoc.getByKey(fieldType().name());
+        CustomBinaryDocValuesField dvField = (CustomBinaryDocValuesField) parseDoc.getByKey(fieldType().concreteFieldName());
         if (dvField == null) {
-            dvField = new CustomBinaryDocValuesField(fieldType().name(), value.getBytes(StandardCharsets.UTF_8));
-            parseDoc.addWithKey(fieldType().name(), dvField);
+            dvField = new CustomBinaryDocValuesField(fieldType().concreteFieldName(), value.getBytes(StandardCharsets.UTF_8));
+            parseDoc.addWithKey(fieldType().concreteFieldName(), dvField);
         } else {
             dvField.add(value.getBytes(StandardCharsets.UTF_8));
         }
@@ -1023,7 +1028,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            BinaryDocValues values = leafReader.getBinaryDocValues(name());
+            BinaryDocValues values = leafReader.getBinaryDocValues(fieldType().concreteFieldName());
             if (values == null) {
                 docValueCount = 0;
                 return null;

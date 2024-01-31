@@ -2,4 +2,9 @@ pr: 104761
 summary: "[8.12.1] Upgrade to Lucene 9.9.2"
 area: Search
 type: upgrade
-issues: []
+issues:
+  - 104617
+highlight:
+  title: "New Lucene 9.9.2 Release"
+  body: |-
+    - https://github.com/apache/lucene/pull/13027: Fix NPE when sampling for quantization in Lucene99HnswScalarQuantizedVectorsFormat. This fixes bug #104617.

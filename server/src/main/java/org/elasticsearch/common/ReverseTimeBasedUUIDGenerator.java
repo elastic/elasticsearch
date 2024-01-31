@@ -39,13 +39,13 @@ public class ReverseTimeBasedUUIDGenerator extends TimeBasedUUIDGenerator {
         assert macAddress.length == 6;
         System.arraycopy(macAddress, 0, uuidBytes, i, macAddress.length);
         i += macAddress.length;
+        uuidBytes[i++] = (byte) (sequenceId >>> 16);
 
         // From hereinafter everything is almost like random and does not compress well
         // due to unlikely prefix-sharing
         uuidBytes[i++] = (byte) (timestamp >>> 8);
         uuidBytes[i++] = (byte) (sequenceId >>> 8);
         uuidBytes[i++] = (byte) timestamp;
-        uuidBytes[i++] = (byte) (sequenceId >>> 16);
         uuidBytes[i++] = (byte) sequenceId;
         assert i == uuidBytes.length;
 

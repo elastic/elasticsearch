@@ -119,13 +119,12 @@ public class Log extends ScalarFunction implements OptionalArgument, EvaluatorMa
             var baseEval = Cast.cast(source(), base.dataType(), DataTypes.DOUBLE, toEvaluator.apply(base));
             return new LogEvaluator.Factory(source(), baseEval, valueEval);
         }
-
         return new LogConstantEvaluator.Factory(source(), valueEval);
     }
 
     @Override
     public int hashCode() {
-        return base != null ? Objects.hash(base, value) : Objects.hash(value);
+        return Objects.hash(base, value);
     }
 
     @Override
@@ -134,7 +133,6 @@ public class Log extends ScalarFunction implements OptionalArgument, EvaluatorMa
             return false;
         }
         Log other = (Log) obj;
-        if (other.base == null && base == null) return Objects.equals(other.value, value);
-        else return Objects.equals(other.base, base) && Objects.equals(other.value, value);
+        return Objects.equals(other.base, base) && Objects.equals(other.value, value);
     }
 }

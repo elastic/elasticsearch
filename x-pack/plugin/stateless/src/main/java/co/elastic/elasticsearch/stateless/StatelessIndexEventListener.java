@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -59,17 +60,20 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final Supplier<ObjectStoreService> objectStoreService;
     private final Supplier<TranslogReplicator> translogReplicator;
     private final Supplier<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler;
+    private final Supplier<SharedBlobCacheWarmingService> sharedBlobCacheWarmingService;
 
     StatelessIndexEventListener(
         StatelessCommitService statelessCommitService,
         Supplier<ObjectStoreService> objectStoreService,
         Supplier<TranslogReplicator> translogReplicator,
-        Supplier<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler
+        Supplier<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler,
+        Supplier<SharedBlobCacheWarmingService> sharedBlobCacheWarmingService
     ) {
         this.statelessCommitService = statelessCommitService;
         this.objectStoreService = objectStoreService;
         this.translogReplicator = translogReplicator;
         this.recoveryCommitRegistrationHandler = recoveryCommitRegistrationHandler;
+        this.sharedBlobCacheWarmingService = sharedBlobCacheWarmingService;
     }
 
     @Override
@@ -158,6 +162,8 @@ class StatelessIndexEventListener implements IndexEventListener {
             final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
             if (commit != null) {
                 indexDirectory.updateCommit(commit, null);
+                var warmingService = sharedBlobCacheWarmingService.get();
+                warmingService.warmCacheForIndexingShardRecovery(indexShard, commit);
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);

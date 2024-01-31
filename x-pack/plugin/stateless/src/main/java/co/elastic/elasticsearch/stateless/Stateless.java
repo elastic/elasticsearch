@@ -38,6 +38,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizeCollector;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesPublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.search.TransportPublishShardSizes;
 import co.elastic.elasticsearch.stateless.cache.ClearBlobCacheRestHandler;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesResponse;
 import co.elastic.elasticsearch.stateless.cache.action.TransportClearBlobCacheAction;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
@@ -224,6 +225,7 @@ public class Stateless extends Plugin
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
     private final SetOnce<SharedBlobCacheService<FileCacheKey>> sharedBlobCacheService = new SetOnce<>();
+    private final SetOnce<SharedBlobCacheWarmingService> sharedBlobCacheWarmingService = new SetOnce<>();
     private final SetOnce<BlobStoreHealthIndicator> blobStoreHealthIndicator = new SetOnce<>();
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
@@ -356,10 +358,11 @@ public class Stateless extends Plugin
             createObjectStoreService(settings, services.repositoriesServiceSupplier(), threadPool, clusterService)
         );
         components.add(objectStoreService);
-        var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(
-            setAndGet(this.sharedBlobCacheService, createSharedBlobCacheService(services, nodeEnvironment, settings, threadPool))
-        );
+        var cacheService = createSharedBlobCacheService(services, nodeEnvironment, settings, threadPool);
+        var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
+        var cacheWarmingService = createSharedBlobCacheWarmingService(cacheService, threadPool);
+        setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
         var statelessElectionStrategy = setAndGet(
             this.electionStrategy,
             new StatelessElectionStrategy(objectStoreService::getClusterStateBlobContainer, threadPool)
@@ -494,6 +497,18 @@ public class Stateless extends Plugin
             SHARD_READ_THREAD_POOL,
             new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
         );
+    }
+
+    public SharedBlobCacheWarmingService getSharedBlobCacheWarmingService() {
+        return Objects.requireNonNull(sharedBlobCacheWarmingService.get());
+    }
+
+    // Can be overridden by tests
+    protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+        SharedBlobCacheService<FileCacheKey> cacheService,
+        ThreadPool threadPool
+    ) {
+        return new SharedBlobCacheWarmingService(cacheService, threadPool);
     }
 
     @Override
@@ -731,7 +746,8 @@ public class Stateless extends Plugin
                 statelessCommitService,
                 objectStoreService::get,
                 translogReplicator::get,
-                recoveryCommitRegistrationHandler::get
+                recoveryCommitRegistrationHandler::get,
+                sharedBlobCacheWarmingService::get
             )
         );
     }

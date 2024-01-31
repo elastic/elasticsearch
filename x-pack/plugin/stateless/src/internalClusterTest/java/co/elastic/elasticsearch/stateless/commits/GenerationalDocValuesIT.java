@@ -51,7 +51,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.junit.Before;
@@ -76,7 +75,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -368,14 +366,6 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
             orphanIndexInputs,
             not(empty())
         );
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <E extends Engine> E getShardEngine(IndexShard indexShard, Class<E> engineClass) {
-        var engine = indexShard.getEngineOrNull();
-        assertThat(engine, notNullValue());
-        assertThat(engine, instanceOf(engineClass));
-        return (E) engine;
     }
 
     private static void executeBulk(Consumer<BulkRequestBuilder> consumer) {

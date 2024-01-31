@@ -16,11 +16,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DiskIoBufferPool;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
@@ -219,12 +221,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     /**
      * Add the given bytes to the translog with the specified sequence number; returns the location the bytes were written to.
      *
-     * @param data  the bytes to write
+     * @param outputConsumer  the bytes to write
      * @param seqNo the sequence number associated with the operation
      * @return the location the bytes were written to
      * @throws IOException if writing to the translog resulted in an I/O exception
      */
-    public Translog.Location add(final BytesReference data, final long seqNo) throws IOException {
+    Translog.Location add(final CheckedConsumer<BytesStreamOutput, IOException> outputConsumer, final long seqNo) throws IOException {
         long bufferedBytesBeforeAdd = this.bufferedBytes;
         if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
             writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
@@ -238,8 +240,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             }
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
-            totalOffset += data.length();
-            data.writeTo(buffer);
+
+            var initialPosition = buffer.position();
+            outputConsumer.accept(buffer);
+            int dataLength = (int) (buffer.position() - initialPosition);
+            totalOffset += dataLength;
 
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
@@ -251,9 +256,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
             operationCounter++;
 
+            final BytesReference data = buffer.bytes().slice((int) initialPosition, dataLength);
             assert assertNoSeqNumberConflict(seqNo, data);
 
-            location = new Translog.Location(generation, offset, data.length());
+            location = new Translog.Location(generation, offset, dataLength);
             operationListener.operationAdded(data, seqNo, location);
             bufferedBytes = buffer.size();
         }

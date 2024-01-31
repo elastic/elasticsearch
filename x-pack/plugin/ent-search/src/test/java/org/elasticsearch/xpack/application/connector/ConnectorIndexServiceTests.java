@@ -12,7 +12,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
@@ -30,11 +37,14 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServi
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -50,6 +60,13 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     @Before
     public void setup() {
         this.connectorIndexService = new ConnectorIndexService(client());
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
+        plugins.add(MockPainlessScriptEngine.TestPlugin.class);
+        return plugins;
     }
 
     public void testPutConnector() throws Exception {
@@ -93,21 +110,16 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
-        Map<String, ConnectorConfiguration> connectorConfiguration = connector.getConfiguration()
-            .entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, entry -> ConnectorTestUtils.getRandomConnectorConfigurationField()));
-
         UpdateConnectorConfigurationAction.Request updateConfigurationRequest = new UpdateConnectorConfigurationAction.Request(
             connectorId,
-            connectorConfiguration
+            connector.getConfiguration()
         );
 
         DocWriteResponse updateResponse = awaitUpdateConnectorConfiguration(updateConfigurationRequest);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
-        Connector indexedConnector = awaitGetConnector(connectorId);
-        assertThat(connectorConfiguration, equalTo(indexedConnector.getConfiguration()));
-        assertThat(indexedConnector.getStatus(), equalTo(ConnectorStatus.CONFIGURED));
+
+        // Configuration update is handled via painless script. ScriptEngine is mocked for unit tests.
+        // More comprehensive tests are defined in yamlRestTest.
     }
 
     public void testUpdateConnectorPipeline() throws Exception {
@@ -705,6 +717,46 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         }
         assertNotNull("Received null response from update error request", resp.get());
         return resp.get();
+    }
+
+    /**
+     * Update configuration action is handled via painless script. This implementation mocks the painless script engine
+     * for unit tests.
+     */
+    private static class MockPainlessScriptEngine extends MockScriptEngine {
+
+        public static final String NAME = "painless";
+
+        public static class TestPlugin extends MockScriptPlugin {
+            @Override
+            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+                return new ConnectorIndexServiceTests.MockPainlessScriptEngine();
+            }
+
+            @Override
+            protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+                return Collections.emptyMap();
+            }
+        }
+
+        @Override
+        public String getType() {
+            return NAME;
+        }
+
+        @Override
+        public <T> T compile(String name, String script, ScriptContext<T> context, Map<String, String> options) {
+            if (context.instanceClazz.equals(UpdateScript.class)) {
+                UpdateScript.Factory factory = (params, ctx) -> new UpdateScript(params, ctx) {
+                    @Override
+                    public void execute() {
+
+                    }
+                };
+                return context.factoryClazz.cast(factory);
+            }
+            throw new IllegalArgumentException("mock painless does not know how to handle context [" + context.name + "]");
+        }
     }
 
 }

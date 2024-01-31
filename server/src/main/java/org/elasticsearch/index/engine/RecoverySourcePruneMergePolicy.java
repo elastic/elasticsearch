@@ -9,6 +9,8 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.codecs.FieldsProducer;
+import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CodecReader;
@@ -18,10 +20,12 @@ import org.apache.lucene.index.FilterNumericDocValues;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -32,10 +36,12 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -65,6 +71,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         if (recoverySource == null || recoverySource.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
             return reader; // early terminate - nothing to do here since non of the docs has a recovery source anymore.
         }
+
         IndexSearcher s = new IndexSearcher(reader);
         s.setQueryCache(null);
         Weight weight = s.createWeight(s.rewrite(retainSourceQuerySupplier.get()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
@@ -143,6 +150,72 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                 recoverySourceField,
                 pruneIdField
             );
+        }
+
+        @Override
+        public FieldsProducer getPostingsReader() {
+            FieldsProducer postingsReader = super.getPostingsReader();
+            if (postingsReader == null
+                || pruneIdField == false
+                || (recoverySourceToKeep != null && recoverySourceToKeep.cardinality() > 0)) {
+                return postingsReader;
+            }
+            return new FieldsProducer() {
+                @Override
+                public void close() throws IOException {
+                    postingsReader.close();
+                }
+
+                @Override
+                public void checkIntegrity() throws IOException {
+                    postingsReader.checkIntegrity();
+                }
+
+                @Override
+                public Iterator<String> iterator() {
+                    return postingsReader.iterator();
+                }
+
+                @Override
+                public Terms terms(String field) throws IOException {
+                    if (IdFieldMapper.NAME.equals(field)) {
+                        return null;
+                    }
+                    return postingsReader.terms(field);
+                }
+
+                @Override
+                public int size() {
+                    return postingsReader.size();
+                }
+            };
+        }
+
+        @Override
+        public PointsReader getPointsReader() {
+            PointsReader pointsReader = super.getPointsReader();
+            if (pointsReader == null || pruneIdField == false || (recoverySourceToKeep != null && recoverySourceToKeep.cardinality() > 0)) {
+                return pointsReader;
+            }
+            return new PointsReader() {
+                @Override
+                public void checkIntegrity() throws IOException {
+                    pointsReader.checkIntegrity();
+                }
+
+                @Override
+                public PointValues getValues(String field) throws IOException {
+                    if (SeqNoFieldMapper.NAME.equals(field)) {
+                        return null;
+                    }
+                    return pointsReader.getValues(field);
+                }
+
+                @Override
+                public void close() throws IOException {
+                    pointsReader.close();
+                }
+            };
         }
 
         @Override

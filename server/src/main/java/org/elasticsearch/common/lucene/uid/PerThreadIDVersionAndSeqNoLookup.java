@@ -9,6 +9,7 @@
 package org.elasticsearch.common.lucene.uid;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -16,13 +17,17 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 
@@ -66,26 +71,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
         throws IOException {
         this.uidField = uidField;
         final Terms terms = reader.terms(uidField);
-        if (terms == null) {
-            // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
-            final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
-            final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
-            // this is a special case when we pruned away all IDs in a segment since all docs are deleted.
-            final boolean allDocsDeleted = (softDeletesDV != null && reader.numDocs() == 0);
-            if ((softDeletesDV == null || tombstoneDV == null) && allDocsDeleted == false) {
-                throw new IllegalArgumentException(
-                    "reader does not have _uid terms but not a no-op segment; "
-                        + "_soft_deletes ["
-                        + softDeletesDV
-                        + "], _tombstone ["
-                        + tombstoneDV
-                        + "]"
-                );
-            }
-            termsEnum = null;
-        } else {
-            termsEnum = terms.iterator();
-        }
+        this.termsEnum = (terms == null) ? null : terms.iterator();
         if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
             throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field; _uid terms [" + terms + "]");
         }
@@ -145,21 +131,36 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * */
     private int getDocID(BytesRef id, LeafReaderContext context) throws IOException {
         // termsEnum can possibly be null here if this leaf contains only no-ops.
-        if (termsEnum != null && termsEnum.seekExact(id)) {
-            final Bits liveDocs = context.reader().getLiveDocs();
-            int docID = DocIdSetIterator.NO_MORE_DOCS;
-            // there may be more than one matching docID, in the case of nested docs, so we want the last one:
-            docsEnum = termsEnum.postings(docsEnum, 0);
-            for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
-                if (liveDocs != null && liveDocs.get(d) == false) {
-                    continue;
+        if (termsEnum != null) {
+            if (termsEnum.seekExact(id)) {
+                final Bits liveDocs = context.reader().getLiveDocs();
+                int docID = DocIdSetIterator.NO_MORE_DOCS;
+                // there may be more than one matching docID, in the case of nested docs, so we want the last one:
+                docsEnum = termsEnum.postings(docsEnum, 0);
+                for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
+                    if (liveDocs != null && liveDocs.get(d) == false) {
+                        continue;
+                    }
+                    docID = d;
                 }
-                docID = d;
+                return docID;
             }
-            return docID;
-        } else {
             return DocIdSetIterator.NO_MORE_DOCS;
         }
+        if (id.length < 12) {
+            return DocIdSetIterator.NO_MORE_DOCS;
+        }
+
+        // There's no inverted index available, decode the id and perform a lookup using the timestamp and the tsid.
+        long timestamp = ByteUtils.readLongBE(id.bytes, 4);
+        BytesRef tsid = new BytesRef(id.bytes, 12, id.length - 12);
+
+        IndexSearcher searcher = new IndexSearcher(context.reader());
+        BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
+        booleanQuery.add(SortedSetDocValuesField.newSlowExactQuery("_tsid", tsid), BooleanClause.Occur.FILTER);
+        booleanQuery.add(LongPoint.newRangeQuery("@timestamp", timestamp, timestamp), BooleanClause.Occur.FILTER);
+        TopDocs topDocs = searcher.search(booleanQuery.build(), 1);
+        return (topDocs.scoreDocs.length > 0) ? topDocs.scoreDocs[0].doc : DocIdSetIterator.NO_MORE_DOCS;
     }
 
     private static long readNumericDocValues(LeafReader reader, String field, int docId) throws IOException {

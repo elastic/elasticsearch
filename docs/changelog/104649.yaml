@@ -1,0 +1,5 @@
+pr: 104649
+summary: Drop postings for `_id` field in TSDB
+area: TSDB
+type: enhancement
+issues: []

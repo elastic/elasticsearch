@@ -450,7 +450,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet();
 
         // index some data
-        int numBulkRequests = 32;
+        int numBulkRequests = 128;
         int numDocsPerBulk = 256;
         String indexName = null;
         {
@@ -493,6 +493,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                             "fields",
                             matchesMap().extraOk()
                                 .entry("_id", matchesMap().extraOk().entry("stored_fields_in_bytes", greaterThanOrEqualTo(1)))
+                                .entry("_seq_no", matchesMap().extraOk().entry("points_in_bytes", greaterThanOrEqualTo(1)))
                         )
                 )
         );
@@ -509,7 +510,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             );
         });
 
-        // Force merge should trim the _id stored field away for all segments:
+        // Force merge should trim the _id stored field and postings away for all segments:
         var forceMergeResponse = client().admin().indices().forceMerge(new ForceMergeRequest(dataStreamName).maxNumSegments(1)).actionGet();
         assertThat(forceMergeResponse.getTotalShards(), equalTo(1));
         assertThat(forceMergeResponse.getSuccessfulShards(), equalTo(1));
@@ -519,7 +520,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         getSegmentsResponse = client().admin().indices().segments(new IndicesSegmentsRequest(dataStreamName)).actionGet();
         assertThat(getSegmentsResponse.getIndices().get(indexName).getShards().get(0).shards()[0].getSegments(), hasSize(1));
 
-        // Check the _id stored field uses no disk space:
+        // Check whether the _id field is trimmed away:
         diskUsageResponse = client().execute(
             AnalyzeIndexDiskUsageAction.INSTANCE,
             new AnalyzeIndexDiskUsageRequest(new String[] { dataStreamName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
@@ -533,7 +534,9 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                     matchesMap().extraOk()
                         .entry(
                             "fields",
-                            matchesMap().extraOk().entry("_id", matchesMap().extraOk().entry("stored_fields_in_bytes", equalTo(0)))
+                            matchesMap().extraOk()
+                                .entry("_id", null)
+                                .entry("_seq_no", matchesMap().extraOk().entry("points_in_bytes", equalTo(0)))
                         )
                 )
         );

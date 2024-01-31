@@ -16,8 +16,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.common.hash.MurmurHash3;
-import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -112,7 +110,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             );
         }
         long timestamp = timestampFields.get(0).numericValue().longValue();
-        byte[] suffix = new byte[16];
+        byte[] suffix = new byte[8 + tsid.length];
         String id = createId(context.hasDynamicMappers() == false, routingBuilder, tsid, timestamp, suffix);
         /*
          * Make sure that _id from extracting the tsid matches that _id
@@ -152,14 +150,21 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         boolean dynamicMappersExists,
         IndexRouting.ExtractFromSource.Builder routingBuilder,
         BytesRef tsid,
+        long timestamp
+    ) {
+        byte[] suffix = new byte[8 + tsid.length];
+        return createId(dynamicMappersExists, routingBuilder, tsid, timestamp, suffix);
+    }
+
+    public static String createId(
+        boolean dynamicMappersExists,
+        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        BytesRef tsid,
         long timestamp,
         byte[] suffix
     ) {
-        Hash128 hash = new Hash128();
-        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
-
-        ByteUtils.writeLongLE(hash.h1, suffix, 0);
-        ByteUtils.writeLongBE(timestamp, suffix, 8);   // Big Ending shrinks the inverted index by ~37%
+        ByteUtils.writeLongBE(timestamp, suffix, 0);   // Big Ending shrinks the inverted index by ~37%
+        System.arraycopy(tsid.bytes, tsid.offset, suffix, 8, tsid.length);
 
         String id = routingBuilder.createId(suffix, () -> {
             if (dynamicMappersExists == false) {

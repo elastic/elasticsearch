@@ -107,7 +107,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // ignore format parameter
-            return new SourceValueFetcher(name(), context) {
+            return new SourceValueFetcher(concreteFieldName(), context) {
 
                 @Override
                 protected Object parseSourceValue(Object value) {

@@ -15,6 +15,6 @@ public final class CleanupRepositoryAction extends ActionType<CleanupRepositoryR
     public static final String NAME = "cluster:admin/repository/_cleanup";
 
     private CleanupRepositoryAction() {
-        super(NAME, CleanupRepositoryResponse::new);
+        super(NAME);
     }
 }

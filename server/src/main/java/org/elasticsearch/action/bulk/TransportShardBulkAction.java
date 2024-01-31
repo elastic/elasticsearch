@@ -76,7 +76,7 @@ import static org.elasticsearch.core.Strings.format;
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
-    public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME, BulkShardResponse::new);
+    public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
 
@@ -377,7 +377,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         .merge(
                             MapperService.SINGLE_MAPPING_NAME,
                             new CompressedXContent(result.getRequiredMappingUpdate()),
-                            MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
+                            MapperService.MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT
                         )
                 ).map(DocumentMapper::mappingSource);
                 Optional<CompressedXContent> previousSource = Optional.ofNullable(primary.mapperService().documentMapper())

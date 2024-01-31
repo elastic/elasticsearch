@@ -19,16 +19,16 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -559,7 +559,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
-        List<Aggregation> aggs = new ArrayList<>();
+        List<InternalAggregation> aggs = new ArrayList<>();
         Min min = mock(Min.class);
         when(min.value()).thenReturn((double) earliestTime);
         when(min.getName()).thenReturn("earliest_time");
@@ -568,8 +568,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         when(max.value()).thenReturn((double) latestTime);
         when(max.getName()).thenReturn("latest_time");
         aggs.add(max);
-        Aggregations aggregations = new Aggregations(aggs) {
-        };
+        InternalAggregations aggregations = InternalAggregations.from(aggs);
         when(searchResponse.getAggregations()).thenReturn(aggregations);
         return searchResponse;
     }
@@ -580,7 +579,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         SearchHits searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
-        List<Aggregation> aggs = new ArrayList<>();
+        List<InternalAggregation> aggs = new ArrayList<>();
         Min min = mock(Min.class);
         when(min.value()).thenReturn(Double.POSITIVE_INFINITY);
         when(min.getName()).thenReturn("earliest_time");
@@ -589,8 +588,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         when(max.value()).thenReturn(Double.POSITIVE_INFINITY);
         when(max.getName()).thenReturn("latest_time");
         aggs.add(max);
-        Aggregations aggregations = new Aggregations(aggs) {
-        };
+        InternalAggregations aggregations = InternalAggregations.from(aggs);
         when(searchResponse.getAggregations()).thenReturn(aggregations);
         return searchResponse;
     }

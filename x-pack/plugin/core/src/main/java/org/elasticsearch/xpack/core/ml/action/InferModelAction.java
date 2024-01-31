@@ -45,7 +45,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
     public static final InferModelAction EXTERNAL_INSTANCE = new InferModelAction(EXTERNAL_NAME);
 
     private InferModelAction(String name) {
-        super(name, Response::new);
+        super(name);
     }
 
     public static class Request extends ActionRequest {

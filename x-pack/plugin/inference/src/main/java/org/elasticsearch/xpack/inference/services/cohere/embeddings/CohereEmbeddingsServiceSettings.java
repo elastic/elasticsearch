@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
@@ -37,7 +38,7 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
             EMBEDDING_TYPE,
             ModelConfigurations.SERVICE_SETTINGS,
             CohereEmbeddingType::fromString,
-            CohereEmbeddingType.values(),
+            EnumSet.allOf(CohereEmbeddingType.class),
             validationException
         );
 

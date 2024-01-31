@@ -195,7 +195,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
             return;
         }
         context.doc().addAll(indexer.indexShape(geometry));
-        context.addToFieldNames(fieldType().name());
+        context.addToFieldNames(fieldType().concreteFieldName());
     }
 
     @Override

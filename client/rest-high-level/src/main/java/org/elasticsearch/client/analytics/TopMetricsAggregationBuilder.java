@@ -97,7 +97,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     }
 
     @Override
-    public AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         throw new UnsupportedOperationException();
     }
 

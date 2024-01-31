@@ -39,6 +39,10 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
             repos.mavenLocal();
         }
         repos.mavenCentral();
+        repos.maven(r -> {
+            r.setUrl("https://storage.googleapis.com/elasticsearch-third-party-libs/maven");
+            r.metadataSources(MavenArtifactRepository.MetadataSources::artifact);
+        });
 
         String luceneVersion = VersionProperties.getLucene();
         if (luceneVersion.contains("-snapshot")) {

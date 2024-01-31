@@ -9,6 +9,7 @@
 
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
@@ -299,7 +300,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles =
+    libFiles = { platform ->
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
@@ -331,6 +332,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from(configurations.libsAnsiConsole)
         }
       }
+    }
 
     modulesFiles = { platform ->
       copySpec {
@@ -624,4 +626,8 @@ artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
 tasks.named('resolveAllDependencies') {
   // We don't want to build all our distribution artifacts when priming our dependency cache
   configs = []
+}
+
+public enum Architecture {
+  FOO
 }

@@ -15,7 +15,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
-        with libFiles
+        with libFiles("$platform-" + ((architecture == 'x64') ? 'x86_64' : architecture))
       }
       into('config') {
         dirMode 0750

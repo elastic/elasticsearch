@@ -91,7 +91,7 @@ public class RepositoriesCheckTests extends ESTestCase {
         var builder = mock(UpdateHealthInfoCacheAction.Request.Builder.class);
         var health = new RepositoriesHealthInfo(List.of(), List.of());
 
-        repositoriesCheck.setBuilder(builder, health);
+        repositoriesCheck.addHealthToBuilder(builder, health);
 
         verify(builder).setRepositoriesHealthInfo(health);
     }

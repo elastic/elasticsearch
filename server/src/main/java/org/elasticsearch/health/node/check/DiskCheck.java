@@ -31,7 +31,7 @@ import java.util.Set;
 /**
  * Determines the disk health of this node by checking if it exceeds the thresholds defined in the health metadata.
  */
-public class DiskCheck extends HealthCheck<DiskHealthInfo> {
+public class DiskCheck implements HealthCheck<DiskHealthInfo> {
     private static final Logger logger = LogManager.getLogger(DiskCheck.class);
 
     private final NodeService nodeService;
@@ -87,7 +87,7 @@ public class DiskCheck extends HealthCheck<DiskHealthInfo> {
     }
 
     @Override
-    public void setBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, DiskHealthInfo healthInfo) {
+    public void addHealthToBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, DiskHealthInfo healthInfo) {
         builder.setDiskHealthInfo(healthInfo);
     }
 

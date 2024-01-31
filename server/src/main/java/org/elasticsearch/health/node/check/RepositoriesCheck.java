@@ -19,7 +19,7 @@ import java.util.ArrayList;
 /**
  * Determines the health of repositories on this node.
  */
-public class RepositoriesCheck extends HealthCheck<RepositoriesHealthInfo> {
+public class RepositoriesCheck implements HealthCheck<RepositoriesHealthInfo> {
     private final RepositoriesService repositoriesService;
 
     public RepositoriesCheck(RepositoriesService repositoriesService) {
@@ -41,7 +41,7 @@ public class RepositoriesCheck extends HealthCheck<RepositoriesHealthInfo> {
     }
 
     @Override
-    public void setBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, RepositoriesHealthInfo healthInfo) {
+    public void addHealthToBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, RepositoriesHealthInfo healthInfo) {
         builder.setRepositoriesHealthInfo(healthInfo);
     }
 }

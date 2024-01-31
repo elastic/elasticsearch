@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -71,7 +70,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private volatile boolean prerequisitesFulfilled;
 
     // List of health checks to be executed in each monitoring cycle.
-    private final List<HealthCheck<?>> healthChecks;
+    private final List<HealthCheckWithRef<?>> healthChecksWithRefs;
     // Keeps the last seen health node. We use this variable to ensure that there wasn't a health node
     // change between the time we send an update until the time we update the references of the health checks.
     private final AtomicReference<String> lastSeenHealthNode = new AtomicReference<>();
@@ -93,7 +92,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         this.clusterService = clusterService;
         this.client = client;
         this.featureService = featureService;
-        this.healthChecks = healthChecks;
+        this.healthChecksWithRefs = healthChecks.stream().<HealthCheckWithRef<?>>map(HealthCheckWithRef::new).toList();
     }
 
     public static LocalHealthMonitor create(
@@ -153,7 +152,14 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private void startMonitoringIfNecessary() {
         if (prerequisitesFulfilled && enabled) {
             if (isMonitorRunning() == false) {
-                monitoring = Monitoring.start(monitorInterval, threadPool, lastSeenHealthNode, healthChecks, clusterService, client);
+                monitoring = Monitoring.start(
+                    monitorInterval,
+                    threadPool,
+                    lastSeenHealthNode,
+                    healthChecksWithRefs,
+                    clusterService,
+                    client
+                );
                 logger.debug("Local health monitoring started {}", monitoring);
             } else {
                 logger.trace("Local health monitoring already started {}, skipping", monitoring);
@@ -177,7 +183,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             // health info gets reset to null, to ensure it will be resent.
             lastSeenHealthNode.set(currentHealthNode == null ? null : currentHealthNode.getId());
             // Reset the reference of each HealthCheck.
-            healthChecks.forEach(HealthCheck::reset);
+            healthChecksWithRefs.forEach(HealthCheckWithRef::reset);
             if (logger.isDebugEnabled()) {
                 String reason;
                 if (healthNodeChanged && masterNodeChanged) {
@@ -224,6 +230,10 @@ public class LocalHealthMonitor implements ClusterStateListener {
             || Objects.equals(previousHealthNode, currentHealthNode) == false;
     }
 
+    protected List<HealthCheckWithRef<?>> getHealthChecksWithRefs() {
+        return healthChecksWithRefs;
+    }
+
     /**
      * This class is responsible for running the health monitoring. It evaluates and checks the health info of this node
      * in the configured intervals. The first run happens upon initialization. If there is an exception, it will log it
@@ -238,7 +248,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         private final Client client;
 
         private final AtomicReference<String> lastSeenHealthNode;
-        private final List<HealthCheck<?>> healthChecks;
+        private final List<HealthCheckWithRef<?>> healthChecksWithRefs;
 
         private volatile boolean cancelled = false;
         private volatile Scheduler.ScheduledCancellable scheduledRun;
@@ -248,7 +258,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             Scheduler scheduler,
             Executor executor,
             AtomicReference<String> lastSeenHealthNode,
-            List<HealthCheck<?>> healthChecks,
+            List<HealthCheckWithRef<?>> healthChecksWithRefs,
             ClusterService clusterService,
             Client client
         ) {
@@ -257,7 +267,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             this.scheduler = scheduler;
             this.lastSeenHealthNode = lastSeenHealthNode;
             this.clusterService = clusterService;
-            this.healthChecks = healthChecks;
+            this.healthChecksWithRefs = healthChecksWithRefs;
             this.client = client;
         }
 
@@ -268,7 +278,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             TimeValue interval,
             ThreadPool threadPool,
             AtomicReference<String> lastSeenHealthNode,
-            List<HealthCheck<?>> healthChecks,
+            List<HealthCheckWithRef<?>> healthChecksWithRefs,
             ClusterService clusterService,
             Client client
         ) {
@@ -277,7 +287,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 threadPool,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT),
                 lastSeenHealthNode,
-                healthChecks,
+                healthChecksWithRefs,
                 clusterService,
                 client
             );
@@ -319,7 +329,33 @@ public class LocalHealthMonitor implements ClusterStateListener {
             boolean nextRunScheduled = false;
             Runnable scheduleNextRun = new RunOnce(this::scheduleNextRunIfNecessary);
             try {
-                nextRunScheduled = sendUpdate(scheduleNextRun);
+                var changedHealthInfos = getChangedHealthInfos();
+                if (changedHealthInfos.isEmpty() == false) {
+                    // Create builder and add the current value of each (changed) health check to the request.
+                    var builder = new UpdateHealthInfoCacheAction.Request.Builder().setNodeId(clusterService.localNode().getId());
+                    changedHealthInfos.forEach(changedHealthInfo -> changedHealthInfo.addHealthToBuilder(builder));
+
+                    var healthNodeId = lastSeenHealthNode.get();
+                    var listener = ActionListener.<AcknowledgedResponse>wrap(response -> {
+                        // Don't update the latest health info if the health node has changed while this request was being processed.
+                        if (Objects.equals(healthNodeId, lastSeenHealthNode.get()) == false) {
+                            return;
+                        }
+                        changedHealthInfos.forEach(ChangedHealthInfo::compareAndSet);
+                    }, e -> {
+                        if (e.getCause() instanceof NodeNotConnectedException || e.getCause() instanceof HealthNodeNotDiscoveredException) {
+                            logger.debug("Failed to connect to the health node [{}], will try again.", e.getCause().getMessage());
+                        } else {
+                            logger.debug(() -> format("Failed to send health info to health node, will try again."), e);
+                        }
+                    });
+                    client.execute(
+                        UpdateHealthInfoCacheAction.INSTANCE,
+                        builder.build(),
+                        ActionListener.runAfter(listener, scheduleNextRun)
+                    );
+                    nextRunScheduled = true;
+                }
             } catch (Exception e) {
                 logger.warn(() -> format("Failed to run scheduled health monitoring on thread pool [%s]", executor), e);
             } finally {
@@ -331,45 +367,22 @@ public class LocalHealthMonitor implements ClusterStateListener {
         }
 
         /**
-         * This method evaluates the health info of this node and if there is a change it sends an update request to the health node.
+         * Retrieve the current health of each check and return a list of the ones that have changed.
          *
-         * @return whether the next run has been scheduled.
+         * @return a list of changed health info's.
          */
-        private boolean sendUpdate(Runnable scheduleNextRun) {
-            ClusterState clusterState = clusterService.state();
-            HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(clusterState);
+        private List<ChangedHealthInfo<?>> getChangedHealthInfos() {
+            var healthMetadata = HealthMetadata.getFromClusterState(clusterService.state());
+            // Don't try to run the current health checks if the HealthMetadata is not available.
             if (healthMetadata == null) {
-                return false;
+                return List.of();
             }
 
-            // Create a request builder to which the health checks will add their (changed) health info.
-            var builder = new UpdateHealthInfoCacheAction.Request.Builder().setNodeId(clusterService.localNode().getId());
-            // Perform the health checks and collect all non-null callbacks.
-            var callbacks = healthChecks.stream()
-                .map(healthCheck -> healthCheck.performHealthCheck(builder))
-                .filter(Objects::nonNull)
+            return healthChecksWithRefs.stream()
+                .<ChangedHealthInfo<?>>map(HealthCheckWithRef::changedHealthInfo)
+                // Only return changed values.
+                .filter(changedHealthInfo -> changedHealthInfo.currentHealth().equals(changedHealthInfo.previousHealth()) == false)
                 .toList();
-            // If we don't have any callbacks, there were no changes in health, so we don't send an update request.
-            if (callbacks.isEmpty()) {
-                return false;
-            }
-
-            String healthNodeId = lastSeenHealthNode.get();
-            ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(response -> {
-                // Don't update the latest health info if the health node has changed while this request was being processed.
-                if (Objects.equals(healthNodeId, lastSeenHealthNode.get()) == false) {
-                    return;
-                }
-                callbacks.forEach(Runnable::run);
-            }, e -> {
-                if (e.getCause() instanceof NodeNotConnectedException || e.getCause() instanceof HealthNodeNotDiscoveredException) {
-                    logger.debug("Failed to connect to the health node [{}], will try again.", e.getCause().getMessage());
-                } else {
-                    logger.debug(() -> format("Failed to send health info to health node, will try again."), e);
-                }
-            });
-            client.execute(UpdateHealthInfoCacheAction.INSTANCE, builder.build(), ActionListener.runAfter(listener, scheduleNextRun));
-            return true;
         }
 
         private void scheduleNextRunIfNecessary() {
@@ -386,6 +399,59 @@ public class LocalHealthMonitor implements ClusterStateListener {
         @Override
         public String toString() {
             return "Monitoring{interval=" + interval + ", cancelled=" + cancelled + "}";
+        }
+    }
+
+    /**
+     * A record to accompany a health check with a reference to its last reported value.
+     *
+     * @param healthCheck a health check
+     * @param reference the last reported value of the health check.
+     * @param <T> the type that the health check returns
+     */
+    record HealthCheckWithRef<T>(HealthCheck<T> healthCheck, AtomicReference<T> reference) {
+        HealthCheckWithRef(HealthCheck<T> healthCheck) {
+            this(healthCheck, new AtomicReference<>());
+        }
+
+        /**
+         * Reset the latest health info reference to null. Should be used when, for example, the master or health node has changed.
+         */
+        public void reset() {
+            reference.set(null);
+        }
+
+        /**
+         * Construct a new changed health info record by getting the current value of the reference and obtaining the current health from
+         * the health check.
+         * @return a new changed health info instance representing the current state
+         */
+        public ChangedHealthInfo<T> changedHealthInfo() {
+            return new ChangedHealthInfo<>(this, reference.get(), healthCheck.getHealth());
+        }
+    }
+
+    /**
+     * A record for storing the previous and current value of a health check. This allows us to be sure no concurrent processes have
+     * updated the health check's reference value.
+     *
+     * @param healthCheckWithRef the health check with reference that this changed health info originated from
+     * @param previousHealth the health previously stored in the reference (i.e. the last reported value of the health check)
+     * @param currentHealth the current health info that will be/was just sent to the health node
+     * @param <T> the type that the health check returns
+     */
+    private record ChangedHealthInfo<T>(HealthCheckWithRef<T> healthCheckWithRef, T previousHealth, T currentHealth) {
+        public void addHealthToBuilder(UpdateHealthInfoCacheAction.Request.Builder builder) {
+            healthCheckWithRef.healthCheck().addHealthToBuilder(builder, currentHealth);
+        }
+
+        /**
+         * Update the reference value of the health check with the health info that was stored in this record instance.
+         */
+        public void compareAndSet() {
+            if (healthCheckWithRef.reference().compareAndSet(previousHealth, currentHealth)) {
+                logger.debug("Health info [{}] successfully sent, last reported value: {}.", currentHealth, previousHealth);
+            }
         }
     }
 }

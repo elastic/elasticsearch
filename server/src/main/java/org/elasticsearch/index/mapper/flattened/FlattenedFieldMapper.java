@@ -276,7 +276,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
+            Term term = new Term(concreteFieldName(), FlattenedFieldParser.createKeyedValue(key, ""));
             return new PrefixQuery(term);
         }
 
@@ -362,12 +362,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
-            return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+            return AutomatonQueries.caseInsensitiveTermQuery(new Term(concreteFieldName(), indexedValueForSearch(value)));
         }
 
         @Override
         public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
-            Terms terms = MultiTerms.getTerms(reader, name());
+            Terms terms = MultiTerms.getTerms(reader, concreteFieldName());
             if (terms == null) {
                 // Field does not exist on this shard.
                 return null;
@@ -407,7 +407,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
+            return new KeyedFlattenedFieldData.Builder(
+                concreteFieldName(),
+                key,
+                (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n)
+            );
         }
 
         @Override
@@ -709,7 +713,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
+                concreteFieldName(),
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n)
             );
@@ -717,12 +721,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+            return SourceValueFetcher.identity(concreteFieldName(), context, format);
         }
 
         @Override
         public MappedFieldType getChildFieldType(String childPath) {
-            return new KeyedFlattenedFieldType(name(), childPath, this);
+            return new KeyedFlattenedFieldType(concreteFieldName(), childPath, this);
         }
 
         @Override
@@ -759,8 +763,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         this.builder = builder;
         this.fieldParser = new FlattenedFieldParser(
-            mappedFieldType.name(),
-            mappedFieldType.name() + KEYED_FIELD_SUFFIX,
+            mappedFieldType.concreteFieldName(),
+            mappedFieldType.concreteFieldName() + KEYED_FIELD_SUFFIX,
             mappedFieldType,
             builder.depthLimit.get(),
             builder.ignoreAbove.get(),
@@ -770,7 +774,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedFieldType.concreteFieldName(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -817,7 +821,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         if (mappedFieldType.hasDocValues() == false) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(fieldType().concreteFieldName());
         }
     }
 
@@ -832,7 +836,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
         if (fieldType().hasDocValues()) {
-            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(name() + "._keyed", simpleName());
+            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(fieldType().concreteFieldName() + "._keyed", simpleName());
         }
 
         throw new IllegalArgumentException(

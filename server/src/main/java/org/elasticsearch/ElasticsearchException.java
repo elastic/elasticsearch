@@ -32,8 +32,8 @@ import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.IllegalArgumentSearchException;
 import org.elasticsearch.search.SearchException;
-import org.elasticsearch.search.SearchUsageException;
 import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -1898,7 +1898,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             175,
             TransportVersions.MISSED_INDICES_UPDATE_EXCEPTION_ADDED
         ),
-        SEARCH_USAGE_EXCEPTION(SearchUsageException.class, SearchUsageException::new, 176, TransportVersions.SEARCH_USAGE_EXCEPTION_ADDED);
+        SEARCH_USAGE_EXCEPTION(
+            IllegalArgumentSearchException.class,
+            IllegalArgumentSearchException::new,
+            176,
+            TransportVersions.SEARCH_USAGE_EXCEPTION_ADDED
+        );
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

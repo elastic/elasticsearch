@@ -18,6 +18,7 @@ public class DfsPhaseExecutionException extends SearchException {
 
     public DfsPhaseExecutionException(SearchShardTarget shardTarget, String msg, Throwable t) {
         super(shardTarget, "Dfs Failed [" + msg + "]", t);
+        assert t != null : "Cause in DfsPhaseExecutionException should not be null";
     }
 
     public DfsPhaseExecutionException(StreamInput in) throws IOException {

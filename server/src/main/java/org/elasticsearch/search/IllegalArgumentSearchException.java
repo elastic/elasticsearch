@@ -17,13 +17,13 @@ import java.io.IOException;
  * A subclass of SearchException that indicates a user error when constructing a search
  * request. These will always return HTTP status code 400 (BAD REQUEST).
  */
-public class SearchUsageException extends SearchException {
+public class IllegalArgumentSearchException extends SearchException {
 
-    public SearchUsageException(SearchShardTarget shardTarget, String msg) {
+    public IllegalArgumentSearchException(SearchShardTarget shardTarget, String msg) {
         super(shardTarget, msg, null);
     }
 
-    public SearchUsageException(StreamInput in) throws IOException {
+    public IllegalArgumentSearchException(StreamInput in) throws IOException {
         super(in);
     }
 

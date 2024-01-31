@@ -13,8 +13,8 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.IllegalArgumentSearchException;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchUsageException;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -105,9 +105,9 @@ public class MetadataFetchingIT extends ESIntegTestCase {
                 SearchPhaseExecutionException.class,
                 prepareSearch("test").setFetchSource(true).storedFields("_none_")
             );
-            Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchUsageException.class);
+            Throwable rootCause = ExceptionsHelper.unwrap(exc, IllegalArgumentSearchException.class);
             assertNotNull(rootCause);
-            assertThat(rootCause.getClass(), equalTo(SearchUsageException.class));
+            assertThat(rootCause.getClass(), equalTo(IllegalArgumentSearchException.class));
             assertThat(rootCause.getMessage(), equalTo("[stored_fields] cannot be disabled if [_source] is requested"));
         }
         {
@@ -115,9 +115,9 @@ public class MetadataFetchingIT extends ESIntegTestCase {
                 SearchPhaseExecutionException.class,
                 prepareSearch("test").storedFields("_none_").addFetchField("field")
             );
-            Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchUsageException.class);
+            Throwable rootCause = ExceptionsHelper.unwrap(exc, IllegalArgumentSearchException.class);
             assertNotNull(rootCause);
-            assertThat(rootCause.getClass(), equalTo(SearchUsageException.class));
+            assertThat(rootCause.getClass(), equalTo(IllegalArgumentSearchException.class));
             assertThat(rootCause.getMessage(), equalTo("[stored_fields] cannot be disabled when using the [fields] option"));
         }
         {

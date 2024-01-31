@@ -18,6 +18,7 @@ public class FetchPhaseExecutionException extends SearchException {
 
     public FetchPhaseExecutionException(SearchShardTarget shardTarget, String msg, Throwable t) {
         super(shardTarget, "Fetch Failed [" + msg + "]", t);
+        assert t != null : "Cause in FetchPhaseExecutionException should not be null";
     }
 
     public FetchPhaseExecutionException(StreamInput in) throws IOException {

@@ -32,8 +32,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Log extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
 
-    private final Expression base;
-    private final Expression value;
+    private final Expression base, value;
 
     @FunctionInfo(returnType = "double", description = "Returns the logarithm of a value to a base.")
     public Log(
@@ -52,20 +51,14 @@ public class Log extends ScalarFunction implements OptionalArgument, EvaluatorMa
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = null;
         if (base != null) {
-            resolution = isNumeric(base, sourceText(), FIRST);
+            TypeResolution resolution = isNumeric(base, sourceText(), FIRST);
             if (resolution.unresolved()) {
                 return resolution;
             }
         }
 
-        resolution = isNumeric(value, sourceText(), base != null ? SECOND : FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        return TypeResolution.TYPE_RESOLVED;
+        return isNumeric(value, sourceText(), base != null ? SECOND : FIRST);
     }
 
     @Override

@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -119,13 +118,14 @@ public class ListConnectorSyncJobsAction {
             return Objects.hash(pageParams, connectorId, connectorSyncStatus, connectorSyncJobTypeList);
         }
 
+        @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<ListConnectorSyncJobsAction.Request, String> PARSER = new ConstructingObjectParser<>(
             "list_connector_sync_jobs_request",
             p -> new ListConnectorSyncJobsAction.Request(
                 (PageParams) p[0],
                 (String) p[1],
                 p[2] != null ? ConnectorSyncStatus.fromString((String) p[2]) : null,
-                p[3] != null ? Arrays.stream(((String) p[3]).split(",")).map(ConnectorSyncJobType::fromString).toList() : null
+                p[3] != null ? ((List<String>) p[3]).stream().map(ConnectorSyncJobType::fromString).toList() : null
             )
         );
 
@@ -133,7 +133,7 @@ public class ListConnectorSyncJobsAction {
             PARSER.declareObject(constructorArg(), (p, c) -> PageParams.fromXContent(p), PAGE_PARAMS_FIELD);
             PARSER.declareString(optionalConstructorArg(), CONNECTOR_ID_FIELD);
             PARSER.declareString(optionalConstructorArg(), ConnectorSyncJob.STATUS_FIELD);
-            PARSER.declareString(optionalConstructorArg(), ConnectorSyncJob.JOB_TYPE_FIELD);
+            PARSER.declareStringArray(optionalConstructorArg(), ConnectorSyncJob.JOB_TYPE_FIELD);
         }
 
         public static ListConnectorSyncJobsAction.Request parse(XContentParser parser) {

@@ -92,7 +92,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+            return SourceValueFetcher.identity(concreteFieldName(), context, format);
         }
 
         @Override
@@ -122,7 +122,7 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
+            return new BytesBinaryIndexFieldData.Builder(concreteFieldName(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
@@ -162,14 +162,14 @@ public class BinaryFieldMapper extends FieldMapper {
             return;
         }
         if (stored) {
-            context.doc().add(new StoredField(fieldType().name(), value));
+            context.doc().add(new StoredField(fieldType().concreteFieldName(), value));
         }
 
         if (hasDocValues) {
-            CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().name());
+            CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().concreteFieldName());
             if (field == null) {
-                field = new CustomBinaryDocValuesField(fieldType().name(), value);
-                context.doc().addWithKey(fieldType().name(), field);
+                field = new CustomBinaryDocValuesField(fieldType().concreteFieldName(), value);
+                context.doc().addWithKey(fieldType().concreteFieldName(), field);
             } else {
                 field.add(value);
             }
@@ -177,7 +177,7 @@ public class BinaryFieldMapper extends FieldMapper {
             // Only add an entry to the field names field if the field is stored
             // but has no doc values so exists query will work on a field with
             // no doc values
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(fieldType().concreteFieldName());
         }
     }
 

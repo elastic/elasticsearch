@@ -74,7 +74,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), context, DEFAULT_VALUE) {
+            return new SourceValueFetcher(concreteFieldName(), context, DEFAULT_VALUE) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if ("".equals(value)) {
@@ -98,13 +98,13 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         // Check that _doc_count is a single value and not an array
         if (context.doc().getByKey(NAME) != null) {
-            throw new IllegalArgumentException("Arrays are not allowed for field [" + fieldType().name() + "].");
+            throw new IllegalArgumentException("Arrays are not allowed for field [" + fieldType().concreteFieldName() + "].");
         }
 
         int value = parser.intValue(false);
         if (value <= 0) {
             throw new IllegalArgumentException(
-                "Field [" + fieldType().name() + "] must be a positive integer. Value [" + value + "] is not allowed."
+                "Field [" + fieldType().concreteFieldName() + "] must be a positive integer. Value [" + value + "] is not allowed."
             );
         }
         context.doc().addWithKey(NAME, field(value));

@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockBuilder;
 import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
+import org.elasticsearch.compute.operator.CountingCircuitBreaker;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -1400,7 +1401,9 @@ public class TopNOperatorTests extends OperatorTestCase {
     public void testRowResizes() {
         int columns = 1000;
         int rows = 1000;
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
+        CountingCircuitBreaker breaker = new CountingCircuitBreaker(
+            new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1))
+        );
         List<ElementType> types = Collections.nCopies(columns, INT);
         List<TopNEncoder> encoders = Collections.nCopies(columns, DEFAULT_UNSORTABLE);
         try (
@@ -1424,7 +1427,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             block.decRef();
             op.addInput(new Page(blocks));
 
-            assertThat(op.getRowResizes(), is(61));
+            assertThat(breaker.getMemoryRequestCount(), is(94L));
         }
     }
 

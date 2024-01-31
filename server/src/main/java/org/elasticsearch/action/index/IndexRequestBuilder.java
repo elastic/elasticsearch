@@ -292,19 +292,15 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         IndexRequest request = new IndexRequest();
         super.apply(request);
         request.id(id);
-        if (sourceMap != null) {
-            if (sourceContentType == null) {
-                request.source(sourceMap);
-            } else {
-                request.source(sourceMap, sourceContentType);
-            }
+        if (sourceMap != null && sourceContentType != null) {
+            request.source(sourceMap, sourceContentType);
+        } else if (sourceMap != null) {
+            request.source(sourceMap);
         }
-        if (sourceArray != null) {
-            if (sourceContentType == null) {
-                request.source(sourceArray);
-            } else {
-                request.source(sourceContentType, sourceArray);
-            }
+        if (sourceArray != null && sourceContentType != null) {
+            request.source(sourceContentType, sourceArray);
+        } else if (sourceArray != null) {
+            request.source(sourceArray);
         }
         if (sourceXContentBuilder != null) {
             request.source(sourceXContentBuilder);

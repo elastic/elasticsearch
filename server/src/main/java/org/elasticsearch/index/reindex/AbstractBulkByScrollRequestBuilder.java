@@ -47,7 +47,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     }
 
     /*
-     * The following is normally done within the bstractBulkByScrollRequest constructor. But that constructor is not called until the
+     * The following is normally done within the AbstractBulkByScrollRequest constructor. But that constructor is not called until the
      * request() method is called once this builder is complete. Doing it there blows away changes made to the source request.
      */
     private void initSourceSearchRequest() {

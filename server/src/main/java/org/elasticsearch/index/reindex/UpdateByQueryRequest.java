@@ -52,7 +52,7 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
         pipeline = in.readOptionalString();
     }
 
-    public UpdateByQueryRequest(SearchRequest search, boolean setDefaults) {
+    UpdateByQueryRequest(SearchRequest search, boolean setDefaults) {
         super(search, setDefaults);
     }
 

@@ -248,7 +248,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(name());
+            return context.fieldExistsInIndex(concreteFieldName());
         }
 
         @Override
@@ -258,7 +258,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (longValue == null) {
                 return new MatchNoDocsQuery();
             }
-            return LongPoint.newExactQuery(name(), unsignedToSortableSignedLong(longValue));
+            return LongPoint.newExactQuery(concreteFieldName(), unsignedToSortableSignedLong(longValue));
         }
 
         @Override
@@ -278,7 +278,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (upTo != lvalues.length) {
                 lvalues = Arrays.copyOf(lvalues, upTo);
             }
-            return LongPoint.newSetQuery(name(), lvalues);
+            return LongPoint.newSetQuery(concreteFieldName(), lvalues);
         }
 
         @Override
@@ -304,12 +304,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             if (l > u) return new MatchNoDocsQuery();
 
-            Query query = LongPoint.newRangeQuery(name(), l, u);
+            Query query = LongPoint.newRangeQuery(concreteFieldName(), l, u);
             if (hasDocValues()) {
-                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(concreteFieldName(), l, u);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
-                if (context.indexSortedOnField(name())) {
-                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                if (context.indexSortedOnField(concreteFieldName())) {
+                    query = new IndexSortSortedNumericDocValuesRangeQuery(concreteFieldName(), l, u, query);
                 }
             }
             return query;
@@ -322,9 +322,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 return BlockLoader.CONSTANT_NULLS;
             }
             if (hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
+                return new BlockDocValuesReader.LongsBlockLoader(concreteFieldName());
             }
-            ValueFetcher valueFetcher = new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
+            ValueFetcher valueFetcher = new SourceValueFetcher(blContext.sourcePaths(concreteFieldName()), nullValueFormatted) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -334,7 +334,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             };
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
-                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), concreteFieldName())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup);
         }
@@ -354,7 +354,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
                 return (cache, breakerService) -> {
                     final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
-                        name(),
+                        concreteFieldName(),
                         IndexNumericFieldData.NumericType.LONG,
                         valuesSourceType,
                         (dv, n) -> {
@@ -367,10 +367,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
-                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
+                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(concreteFieldName());
 
                 return new SourceValueFetcherSortedUnsignedLongIndexFieldData.Builder(
-                    name(),
+                    concreteFieldName(),
                     valuesSourceType,
                     sourceValueFetcher(sourcePaths),
                     searchLookup,
@@ -386,7 +386,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(concreteFieldName()) : Collections.emptySet());
         }
 
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
@@ -620,7 +620,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value() && parser.currentToken().isValue()) {
-                    context.addIgnoredField(mappedFieldType.name());
+                    context.addIgnoredField(mappedFieldType.concreteFieldName());
                     return;
                 } else {
                     throw e;
@@ -637,26 +637,26 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         if (dimension && numericValue != null) {
-            context.getDimensions().addUnsignedLong(fieldType().name(), numericValue);
+            context.getDimensions().addUnsignedLong(fieldType().concreteFieldName(), numericValue);
         }
 
         List<Field> fields = new ArrayList<>();
         if (indexed && hasDocValues) {
-            fields.add(new LongField(fieldType().name(), numericValue));
+            fields.add(new LongField(fieldType().concreteFieldName(), numericValue));
         } else if (hasDocValues) {
-            fields.add(new SortedNumericDocValuesField(fieldType().name(), numericValue));
+            fields.add(new SortedNumericDocValuesField(fieldType().concreteFieldName(), numericValue));
         } else if (indexed) {
-            fields.add(new LongPoint(fieldType().name(), numericValue));
+            fields.add(new LongPoint(fieldType().concreteFieldName(), numericValue));
         }
         if (stored) {
             // for stored field, keeping original unsigned_long value in the String form
             String storedValued = isNullValue ? nullValue : Long.toUnsignedString(unsignedToSortableSignedLong(numericValue));
-            fields.add(new StoredField(fieldType().name(), storedValued));
+            fields.add(new StoredField(fieldType().concreteFieldName(), storedValued));
         }
         context.doc().addAll(fields);
 
         if (hasDocValues == false && (stored || indexed)) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(fieldType().concreteFieldName());
         }
     }
 
@@ -736,7 +736,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     @Override
     public void doValidate(MappingLookup lookup) {
-        if (dimension && null != lookup.nestedLookup().getNestedParent(name())) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(fieldType().concreteFieldName())) {
             throw new IllegalArgumentException(
                 TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
             );

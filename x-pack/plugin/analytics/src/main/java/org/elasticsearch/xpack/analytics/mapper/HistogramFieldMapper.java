@@ -156,13 +156,13 @@ public class HistogramFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+            return SourceValueFetcher.identity(concreteFieldName(), context, format);
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return (cache, breakerService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
+            return (cache, breakerService) -> new IndexHistogramFieldData(concreteFieldName(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                 @Override
                 public LeafHistogramFieldData load(LeafReaderContext context) {
@@ -403,8 +403,8 @@ public class HistogramFieldMapper extends FieldMapper {
                 }
             }
             BytesRef docValue = streamOutput.bytes().toBytesRef();
-            Field field = new BinaryDocValuesField(name(), docValue);
-            if (context.doc().getByKey(fieldType().name()) != null) {
+            Field field = new BinaryDocValuesField(fieldType().concreteFieldName(), docValue);
+            if (context.doc().getByKey(fieldType().concreteFieldName()) != null) {
                 throw new IllegalArgumentException(
                     "Field ["
                         + name()
@@ -413,13 +413,13 @@ public class HistogramFieldMapper extends FieldMapper {
                         + "] doesn't not support indexing multiple values for the same field in the same document"
                 );
             }
-            context.doc().addWithKey(fieldType().name(), field);
+            context.doc().addWithKey(fieldType().concreteFieldName(), field);
 
         } catch (Exception ex) {
             if (ignoreMalformed.value() == false) {
                 throw new DocumentParsingException(
                     context.parser().getTokenLocation(),
-                    "failed to parse field [" + fieldType().name() + "] of type [" + fieldType().typeName() + "]",
+                    "failed to parse field [" + fieldType().concreteFieldName() + "] of type [" + fieldType().typeName() + "]",
                     ex
                 );
             }
@@ -428,7 +428,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 // close the subParser so we advance to the end of the object
                 subParser.close();
             }
-            context.addIgnoredField(fieldType().name());
+            context.addIgnoredField(fieldType().concreteFieldName());
         }
         context.path().remove();
     }
@@ -507,7 +507,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
             @Override
             public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-                BinaryDocValues docValues = leafReader.getBinaryDocValues(fieldType().name());
+                BinaryDocValues docValues = leafReader.getBinaryDocValues(fieldType().concreteFieldName());
                 if (docValues == null) {
                     // No values in this leaf
                     binaryValue = null;

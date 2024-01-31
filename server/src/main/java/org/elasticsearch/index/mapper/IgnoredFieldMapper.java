@@ -52,7 +52,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             // quality of the data, so we may use a slow query. It shouldn't
             // be too slow in practice since the number of unique terms in this
             // field is bounded by the number of fields in the mappings.
-            return new TermRangeQuery(name(), null, null, true, true);
+            return new TermRangeQuery(concreteFieldName(), null, null, true, true);
         }
 
         @Override

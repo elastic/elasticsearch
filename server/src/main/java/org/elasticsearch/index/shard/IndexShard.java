@@ -3485,11 +3485,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired, long timeout, TimeUnit timeUnit) {
-        ActionListener.runWithResource(
-            onPermitAcquired,
-            refreshListeners::forceRefreshes,
-            (listener, releasable) -> indexShardOperationPermits.blockOperations(listener, timeout, timeUnit, threadPool.generic())
-        );
+        final Releasable forceRefreshes = refreshListeners.forceRefreshes();
+        final ActionListener<Releasable> wrappedListener = ActionListener.wrap(r -> {
+            forceRefreshes.close();
+            onPermitAcquired.onResponse(r);
+        }, e -> {
+            forceRefreshes.close();
+            onPermitAcquired.onFailure(e);
+        });
+        try {
+            indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, threadPool.generic());
+        } catch (Exception e) {
+            forceRefreshes.close();
+            throw e;
+        }
     }
 
     /**

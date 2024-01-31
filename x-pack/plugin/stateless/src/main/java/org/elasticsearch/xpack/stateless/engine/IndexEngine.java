@@ -41,6 +41,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Optional;
@@ -106,21 +107,19 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected ElasticsearchReaderManager createInternalReaderManager(ElasticsearchDirectoryReader directoryReader) {
-        long generation = getLastCommittedSegmentInfos().getGeneration();
-        ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> closedReader(generation));
+        final long initialGeneration = safeGeneration(directoryReader);
+        ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> closedReader(initialGeneration));
 
         return new ElasticsearchReaderManager(directoryReader) {
             @Override
             protected ElasticsearchDirectoryReader refreshIfNeeded(ElasticsearchDirectoryReader referenceToRefresh) throws IOException {
-                // get this first, ensuring that the refreshed reader is based on this or a newer generation.
-                // todo: we should be able to use a better generation sooner after the commit
-                long generation = getLastCommittedSegmentInfos().getGeneration();
                 ElasticsearchDirectoryReader next = super.refreshIfNeeded(referenceToRefresh);
                 if (next == null) {
                     return null;
                 }
                 boolean success = false;
                 try {
+                    long generation = next.getIndexCommit().getGeneration();
                     assert openReadersPerGeneration.isEmpty() || openReadersPerGeneration.firstKey() <= generation
                         : "generation must be monotonically increasing " + openReadersPerGeneration.firstKey() + " > " + generation;
                     ElasticsearchDirectoryReader.addReaderCloseListener(next, ignored -> closedReader(generation));
@@ -134,7 +133,15 @@ public class IndexEngine extends InternalEngine {
                 return next;
             }
         };
+    }
 
+    private static long safeGeneration(ElasticsearchDirectoryReader reader) {
+        try {
+            return reader.getIndexCommit().getGeneration();
+        } catch (IOException e) {
+            assert false : e;
+            throw new UncheckedIOException(e);
+        }
     }
 
     private void closedReader(long generation) {

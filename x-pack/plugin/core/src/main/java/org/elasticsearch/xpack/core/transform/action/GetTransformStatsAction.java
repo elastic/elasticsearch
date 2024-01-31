@@ -54,13 +54,13 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
         private final String id;
         private PageParams pageParams = PageParams.defaultParams();
         private boolean allowNoMatch = true;
-        private boolean isBasicStats = false;
+        private final boolean basic;
 
         public static final int MAX_SIZE_RETURN = 1000;
         // used internally to expand the queried id expression
         private List<String> expandedIds;
 
-        public Request(String id, @Nullable TimeValue timeout, boolean isBasicStats) {
+        public Request(String id, @Nullable TimeValue timeout, boolean basic) {
             setTimeout(timeout);
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
                 this.id = Metadata.ALL;
@@ -68,7 +68,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
                 this.id = id;
             }
             this.expandedIds = Collections.singletonList(this.id);
-            this.isBasicStats = isBasicStats;
+            this.basic = basic;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -78,9 +78,9 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             pageParams = new PageParams(in);
             allowNoMatch = in.readBoolean();
             if (in.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_BASIC_STATS)) {
-                isBasicStats = in.readBoolean();
+                basic = in.readBoolean();
             } else {
-                isBasicStats = false;
+                basic = false;
             }
         }
 
@@ -119,8 +119,8 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             this.allowNoMatch = allowNoMatch;
         }
 
-        public boolean isBasicStats() {
-            return isBasicStats;
+        public boolean isBasic() {
+            return basic;
         }
 
         @Override
@@ -131,7 +131,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             pageParams.writeTo(out);
             out.writeBoolean(allowNoMatch);
             if (out.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_BASIC_STATS)) {
-                out.writeBoolean(isBasicStats);
+                out.writeBoolean(basic);
             }
         }
 
@@ -149,7 +149,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, pageParams, allowNoMatch, isBasicStats);
+            return Objects.hash(id, pageParams, allowNoMatch, basic);
         }
 
         @Override
@@ -164,7 +164,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             return Objects.equals(id, other.id)
                 && Objects.equals(pageParams, other.pageParams)
                 && allowNoMatch == other.allowNoMatch
-                && isBasicStats == other.isBasicStats;
+                && basic == other.basic;
         }
 
         @Override

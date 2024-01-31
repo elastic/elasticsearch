@@ -793,10 +793,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     bulkShardRequestInferenceProvider.processBulkShardRequest(
                         bulkShardRequest,
                         clusterState,
-                        (bulkShardRequest1, request, e) -> onBulkItemInferenceFailure(bulkShardRequest1, request, e, ref),
-                        bsr -> executeBulkShardRequest(bsr, ActionListener.releaseAfter(ActionListener.noop(), ref),
-                        (request, e) -> {
-                            markBulkItemRequestFailed(request, e);
+                        (bsr, request, e) -> {
+                            markBulkItemRequestFailed(bsr, request, e);
+                            // make sure the request gets never processed again
+                            bulkShardRequest.items()[request.id()] = null;
+                        },
+                        shardReq -> executeBulkShardRequest(shardReq, ActionListener.releaseAfter(ActionListener.noop(), ref),
+                        (itemReq, e) -> {
+                            markBulkItemRequestFailed(bulkShardRequest, itemReq, e);
                             ref.close();
                         })
                     );
@@ -804,30 +808,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
-        private void onBulkItemInferenceFailure(
-            BulkShardRequest bulkShardRequest,
-            BulkItemRequest request,
-            Exception e,
-            Releasable refCount
-        ) {
-            markBulkItemRequestFailed(request, new IllegalArgumentException("Inference failed: " + e.getMessage(), e));
-            // make sure the request gets never processed again
-            bulkShardRequest.items()[request.id()] = null;
-            refCount.close();
-        }
+        private void markBulkItemRequestFailed(BulkShardRequest shardRequest, BulkItemRequest itemRequest, Exception e) {
+            final String indexName = itemRequest.index();
 
-        private void markBulkItemRequestFailed(BulkItemRequest request, Exception e) {
-            final String indexName = request.index();
-
-            DocWriteRequest<?> docWriteRequest = request.request();
+            DocWriteRequest<?> docWriteRequest = itemRequest.request();
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
-            responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
+            responses.set(itemRequest.id(), BulkItemResponse.failure(itemRequest.id(), docWriteRequest.opType(), failure));
+
+            // make sure the request gets never processed again
+            shardRequest.items()[itemRequest.id()] = null;
         }
 
         private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, ActionListener<BulkShardRequest> listener,
                                              BiConsumer<BulkItemRequest, Exception> bulkItemErrorListener) {
             if (bulkShardRequest.items().length == 0) {
                 // No requests to execute due to previous errors, terminate early
+                listener.onResponse(bulkShardRequest);
                 return;
             }
 
@@ -850,7 +846,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     for (BulkItemRequest request : bulkShardRequest.items()) {
                         bulkItemErrorListener.accept(request, e);
                     }
-                    listener.onResponse(bulkShardRequest);
+                    listener.onFailure(e);
                 }
             });
         }

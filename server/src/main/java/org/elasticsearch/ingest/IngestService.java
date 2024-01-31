@@ -742,6 +742,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         final Releasable ref = refs.acquire();
                         DocumentParsingObserver documentParsingObserver = documentParsingObserverSupplier.get();
                         final IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
+                        final org.elasticsearch.script.Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
                         // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
                         final ActionListener<IngestPipelinesExecutionResult> documentListener = ActionListener.runAfter(
@@ -756,7 +757,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                     } else {
                                         // We were given a failure result in the onResponse method, so we must store the failure
                                         // Recover the original document state, track a failed ingest, and pass it along
-                                        updateIndexRequestMetadata(indexRequest, ingestDocument.getOriginalMetadata());
+                                        updateIndexRequestMetadata(indexRequest, originalDocumentMetadata);
                                         totalMetrics.ingestFailed();
                                         onStoreFailure.apply(slot, result.failedIndex, result.exception);
                                     }

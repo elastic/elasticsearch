@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -82,8 +83,34 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         AllocationService allocationService,
         MetadataDataStreamsService metadataDataStreamsService
     ) {
+        this(
+            RolloverAction.INSTANCE,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver,
+            rolloverService,
+            client,
+            allocationService,
+            metadataDataStreamsService
+        );
+    }
+
+    protected TransportRolloverAction(
+        ActionType<RolloverResponse> rolloverAction,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MetadataRolloverService rolloverService,
+        Client client,
+        AllocationService allocationService,
+        MetadataDataStreamsService metadataDataStreamsService
+    ) {
         super(
-            RolloverAction.NAME,
+            rolloverAction.name(),
             transportService,
             clusterService,
             threadPool,
@@ -178,56 +205,77 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             }
         }
 
-        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
-            .clear()
-            .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
-            .docs(true)
-            .indexing(true);
-        statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        // Rollover can sometimes happen concurrently, to handle these cases, we treat rollover in the same way we would treat a
-        // "synchronized" block, in that we have a "before" world, where we calculate naming and condition matching, we then enter our
-        // synchronization (in this case, the submitStateUpdateTask which is serialized on the master node), where we then regenerate the
-        // names and re-check conditions. More explanation follows inline below.
-        client.execute(
-            IndicesStatsAction.INSTANCE,
-            statsRequest,
+        if (rolloverRequest.getConditions().hasConditions()) {
+            IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
+                .clear()
+                .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
+                .docs(true)
+                .indexing(true);
+            statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+            // Rollover can sometimes happen concurrently, to handle these cases, we treat rollover in the same way we would treat a
+            // "synchronized" block, in that we have a "before" world, where we calculate naming and condition matching, we then enter our
+            // synchronization (in this case, the submitStateUpdateTask which is serialized on the master node), where we then regenerate
+            // the
+            // names and re-check conditions. More explanation follows inline below.
+            client.execute(
+                IndicesStatsAction.INSTANCE,
+                statsRequest,
+                listener.delegateFailureAndWrap(
+                    (delegate, statsResponse) -> maybeRollover(
+                        rolloverRequest,
+                        metadata,
+                        trialSourceIndexName,
+                        trialRolloverIndexName,
+                        statsResponse,
+                        delegate
+                    )
+                )
+            );
+        } else {
+            maybeRollover(rolloverRequest, metadata, trialSourceIndexName, trialRolloverIndexName, null, listener);
+        }
+    }
 
-            listener.delegateFailureAndWrap((delegate, statsResponse) -> {
-
-                // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
-                final Map<String, Boolean> trialConditionResults = evaluateConditions(
-                    rolloverRequest.getConditionValues(),
-                    buildStats(metadata.index(trialSourceIndexName), statsResponse)
-                );
-
-                final RolloverResponse trialRolloverResponse = new RolloverResponse(
-                    trialSourceIndexName,
-                    trialRolloverIndexName,
-                    trialConditionResults,
-                    rolloverRequest.isDryRun(),
-                    false,
-                    false,
-                    false,
-                    rolloverRequest.isLazy()
-                );
-
-                // If this is a dry run, return with the results without invoking a cluster state update
-                if (rolloverRequest.isDryRun()) {
-                    delegate.onResponse(trialRolloverResponse);
-                    return;
-                }
-
-                // Pre-check the conditions to see whether we should submit a new cluster state task
-                if (rolloverRequest.areConditionsMet(trialConditionResults)) {
-                    String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
-                    RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, delegate);
-                    rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
-                } else {
-                    // conditions not met
-                    delegate.onResponse(trialRolloverResponse);
-                }
-            })
+    private void maybeRollover(
+        RolloverRequest rolloverRequest,
+        Metadata metadata,
+        String trialSourceIndexName,
+        String trialRolloverIndexName,
+        @Nullable IndicesStatsResponse statsResponse,
+        ActionListener<RolloverResponse> listener
+    ) {
+        // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
+        final Map<String, Boolean> trialConditionResults = evaluateConditions(
+            rolloverRequest.getConditionValues(),
+            buildStats(metadata.index(trialSourceIndexName), statsResponse)
         );
+
+        final RolloverResponse trialRolloverResponse = new RolloverResponse(
+            trialSourceIndexName,
+            trialRolloverIndexName,
+            trialConditionResults,
+            rolloverRequest.isDryRun(),
+            false,
+            false,
+            false,
+            rolloverRequest.isLazy()
+        );
+
+        // If this is a dry run, return with the results without invoking a cluster state update
+        if (rolloverRequest.isDryRun()) {
+            listener.onResponse(trialRolloverResponse);
+            return;
+        }
+
+        // Pre-check the conditions to see whether we should submit a new cluster state task
+        if (rolloverRequest.areConditionsMet(trialConditionResults)) {
+            String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
+            RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, listener);
+            rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
+        } else {
+            // conditions not met
+            listener.onResponse(trialRolloverResponse);
+        }
     }
 
     static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions, @Nullable final Condition.Stats stats) {
@@ -284,7 +332,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     record RolloverTask(
         RolloverRequest rolloverRequest,
-        IndicesStatsResponse statsResponse,
+        @Nullable IndicesStatsResponse statsResponse,
         RolloverResponse trialRolloverResponse,
         ActionListener<RolloverResponse> listener
     ) implements ClusterStateTaskListener {

@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
 /**
@@ -117,7 +118,18 @@ public abstract class AggregationBuilder
     /**
      * Create a shallow copy of this builder and replacing {@link #factoriesBuilder} and <code>metadata</code>.
      */
-    public abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata);
+    protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata);
+
+    public static AggregationBuilder copy(AggregationBuilder orig, Function<AggregationBuilder, AggregationBuilder> visitor) {
+        AggregatorFactories.Builder subAggregations = new AggregatorFactories.Builder();
+        for (AggregationBuilder subAggregation : orig.getSubAggregations()) {
+            subAggregations.addAggregator(copy(subAggregation, visitor));
+        }
+        for (PipelineAggregationBuilder subPipelineAggregation : orig.getPipelineAggregations()) {
+            subAggregations.addPipelineAggregator(subPipelineAggregation);
+        }
+        return visitor.apply(orig.shallowCopy(subAggregations, orig.getMetadata()));
+    }
 
     @Override
     public final AggregationBuilder rewrite(QueryRewriteContext context) throws IOException {

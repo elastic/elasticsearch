@@ -255,13 +255,16 @@ public class MappingLookupTests extends ESTestCase {
         final String indexedValue;
 
         FakeFieldMapper(FakeFieldType fieldType, String indexedValue) {
-            super(fieldType.name(), fieldType, MultiFields.empty(), CopyTo.empty());
+            super(fieldType.concreteFieldName(), fieldType, MultiFields.empty(), CopyTo.empty());
             this.indexedValue = indexedValue;
         }
 
         @Override
         public Map<String, NamedAnalyzer> indexAnalyzers() {
-            return Map.of(mappedFieldType.name(), new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)));
+            return Map.of(
+                mappedFieldType.concreteFieldName(),
+                new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue))
+            );
         }
 
         @Override

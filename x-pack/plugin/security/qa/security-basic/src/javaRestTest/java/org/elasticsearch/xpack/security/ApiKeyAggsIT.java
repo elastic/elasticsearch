@@ -23,6 +23,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testFiltersAggs() throws IOException {
+        // admin keys
         createApiKey(
             "key1",
             Map.of("tags", List.of("prod", "est"), "label", "value1", "environment", Map.of("system", false, "hostname", "my-org-host-1")),
@@ -38,9 +39,22 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             Map.of("tags", List.of("prod", "south"), "label", "value3", "environment", Map.of("system", true, "hostname", "my-org-host-2")),
             API_KEY_ADMIN_AUTH_HEADER
         );
+        // user keys
         createApiKey(
             "key4",
             Map.of("tags", List.of("prod", "north"), "label", "value4", "environment", Map.of("system", true, "hostname", "my-org-host-1")),
+            API_KEY_USER_AUTH_HEADER
+        );
+        createApiKey(
+            "wild",
+            Map.of(
+                "tags",
+                List.of("staging", "west"),
+                "label",
+                "value5",
+                "environment",
+                Map.of("system", true, "hostname", "my-org-host-3")
+            ),
             API_KEY_USER_AUTH_HEADER
         );
         assertAggs(API_KEY_ADMIN_AUTH_HEADER, """
@@ -57,6 +71,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
               }
             }
             """, aggs -> {
+            assertThat(((Map<String, Object>) ((Map<String, Object>) aggs.get("hostnames")).get("buckets")).size(), is(2));
             assertThat(
                 ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get("hostnames")).get("buckets")).get(
                     "my-org-host-1"
@@ -68,6 +83,69 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                     "my-org-host-2"
                 )).get("doc_count"),
                 is(2)
+            );
+        });
+        assertAggs(API_KEY_USER_AUTH_HEADER, """
+            {
+              "aggs": {
+                "only_user_keys": {
+                  "filters": {
+                    "other_bucket_key": "other_user_keys",
+                    "filters": {
+                      "only_key4_match": { "bool": { "should": [{"prefix": {"name": "key"}}, {"match": {"metadata.tags": "prod"}}]}}
+                    }
+                  }
+                }
+              }
+            }
+            """, aggs -> {
+            assertThat(((Map<String, Object>) ((Map<String, Object>) aggs.get("only_user_keys")).get("buckets")).size(), is(2));
+            assertThat(
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get("only_user_keys")).get("buckets")).get(
+                    "only_key4_match"
+                )).get("doc_count"),
+                is(1)
+            );
+            assertThat(
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get("only_user_keys")).get("buckets")).get(
+                    "other_user_keys"
+                )).get("doc_count"),
+                is(1)
+            );
+        });
+        assertAggs(API_KEY_USER_AUTH_HEADER, """
+            {
+              "aggs": {
+                "all_user_keys": {
+                  "filters": {
+                    "other_bucket_key": "other_user_keys",
+                    "filters": [
+                      {"match_all": {}},
+                      {"exists": {"field": "username"}},
+                      {"wildcard": {"name": {"value": "*"}}}
+                    ]
+                  }
+                }
+              }
+            }
+            """, aggs -> {
+            assertThat(((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_user_keys")).get("buckets")).size(), is(4));
+            assertThat(
+                ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_user_keys")).get("buckets")).get(0).get("doc_count"),
+                is(2)
+            );
+            assertThat(
+                ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_user_keys")).get("buckets")).get(1).get("doc_count"),
+                is(2)
+            );
+            assertThat(
+                ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_user_keys")).get("buckets")).get(2).get("doc_count"),
+                is(2)
+            );
+            // other
+            assertThat(
+                ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_user_keys")).get("buckets")).get(3).get("doc_count"),
+                is(0)
             );
         });
     }

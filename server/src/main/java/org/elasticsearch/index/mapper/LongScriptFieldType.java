@@ -112,13 +112,17 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
     @Override
     public LongScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-        return new LongScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), LongDocValuesField::new);
+        return new LongScriptFieldData.Builder(
+            concreteFieldName(),
+            leafFactory(fieldDataContext.lookupSupplier().get()),
+            LongDocValuesField::new
+        );
     }
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
         applyScriptContext(context);
-        return new LongScriptFieldExistsQuery(script, leafFactory(context)::newInstance, name());
+        return new LongScriptFieldExistsQuery(script, leafFactory(context)::newInstance, concreteFieldName());
     }
 
     @Override
@@ -137,7 +141,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
             upperTerm,
             includeLower,
             includeUpper,
-            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context)::newInstance, name(), l, u)
+            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context)::newInstance, concreteFieldName(), l, u)
         );
     }
 
@@ -147,7 +151,12 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
             return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
         }
         applyScriptContext(context);
-        return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), NumberType.objectToLong(value, true));
+        return new LongScriptFieldTermQuery(
+            script,
+            leafFactory(context)::newInstance,
+            concreteFieldName(),
+            NumberType.objectToLong(value, true)
+        );
     }
 
     @Override
@@ -166,6 +175,6 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
             return Queries.newMatchNoDocsQuery("All values have a decimal part");
         }
         applyScriptContext(context);
-        return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);
+        return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, concreteFieldName(), terms);
     }
 }

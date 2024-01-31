@@ -428,7 +428,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             Collections.singletonList(ConnectorSyncJobType.FULL)
         );
         long numberOfResults = connectorSyncJobsResult.totalResults();
-        String idOfReturnedSyncJob = connectorSyncJobsResult.connectorSyncJobs().get(0).getId();
+        String idOfReturnedSyncJob = connectorSyncJobsResult.connectorSyncJobs().get(0).getDocId();
 
         assertThat(numberOfResults, equalTo(1L));
         assertThat(idOfReturnedSyncJob, equalTo(syncJobOneId));
@@ -462,7 +462,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             Collections.singletonList(ConnectorSyncJobType.INCREMENTAL)
         );
         long numberOfResults = connectorSyncJobsResult.totalResults();
-        String idOfReturnedSyncJob = connectorSyncJobsResult.connectorSyncJobs().get(0).getId();
+        String idOfReturnedSyncJob = connectorSyncJobsResult.connectorSyncJobs().get(0).getDocId();
 
         assertThat(numberOfResults, equalTo(1L));
         assertThat(idOfReturnedSyncJob, equalTo(syncJobTwoId));
@@ -496,7 +496,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             Collections.singletonList(ConnectorSyncJobType.ACCESS_CONTROL)
         );
         long numberOfResults = connectorSyncJobsResult.totalResults();
-        String idOfReturnedSyncJob = connectorSyncJobsResult.connectorSyncJobs().get(0).getId();
+        String idOfReturnedSyncJob = connectorSyncJobsResult.connectorSyncJobs().get(0).getDocId();
 
         assertThat(numberOfResults, equalTo(1L));
         assertThat(idOfReturnedSyncJob, equalTo(syncJobThreeId));
@@ -531,8 +531,8 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             Arrays.asList(ConnectorSyncJobType.FULL, ConnectorSyncJobType.INCREMENTAL)
         );
         long numberOfResults = connectorSyncJobsResult.totalResults();
-        String idOfReturnedSyncJobOne = connectorSyncJobsResult.connectorSyncJobs().get(0).getId();
-        String idOfReturnedSyncJobTwo = connectorSyncJobsResult.connectorSyncJobs().get(1).getId();
+        String idOfReturnedSyncJobOne = connectorSyncJobsResult.connectorSyncJobs().get(0).getDocId();
+        String idOfReturnedSyncJobTwo = connectorSyncJobsResult.connectorSyncJobs().get(1).getDocId();
 
         assertThat(numberOfResults, equalTo(2L));
         assertThat(idOfReturnedSyncJobOne, equalTo(syncJobOneId));

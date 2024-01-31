@@ -84,7 +84,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 }
                 return Uid.encodeId(idObject.toString());
             }).toArray(BytesRef[]::new);
-            return new TermInSetQuery(name(), bytesRefs);
+            return new TermInSetQuery(concreteFieldName(), bytesRefs);
         }
 
         @Override

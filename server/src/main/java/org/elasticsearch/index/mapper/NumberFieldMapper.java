@@ -1609,7 +1609,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(this.name());
+            return context.fieldExistsInIndex(this.concreteFieldName());
         }
 
         public boolean isSearchable() {
@@ -1619,14 +1619,14 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            return type.termQuery(name(), value, isIndexed());
+            return type.termQuery(concreteFieldName(), value, isIndexed());
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (isIndexed()) {
-                return type.termsQuery(name(), values);
+                return type.termsQuery(concreteFieldName(), values);
             } else {
                 return super.termsQuery(values, context);
             }
@@ -1641,7 +1641,16 @@ public class NumberFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
-            return type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues(), context, isIndexed());
+            return type.rangeQuery(
+                concreteFieldName(),
+                lowerTerm,
+                upperTerm,
+                includeLower,
+                includeUpper,
+                hasDocValues(),
+                context,
+                isIndexed()
+            );
         }
 
         @Override
@@ -1659,12 +1668,12 @@ public class NumberFieldMapper extends FieldMapper {
                 return BlockLoader.CONSTANT_NULLS;
             }
             if (hasDocValues()) {
-                return type.blockLoaderFromDocValues(name());
+                return type.blockLoaderFromDocValues(concreteFieldName());
             }
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
-                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), concreteFieldName())
                 : BlockSourceReader.lookupMatchingAll();
-            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(concreteFieldName())), lookup);
         }
 
         @Override
@@ -1680,13 +1689,18 @@ public class NumberFieldMapper extends FieldMapper {
                 : type.numericType.getValuesSourceType();
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return type.getFieldDataBuilder(name(), valuesSourceType);
+                return type.getFieldDataBuilder(concreteFieldName(), valuesSourceType);
             }
 
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
-                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
-                return type.getValueFetcherFieldDataBuilder(name(), valuesSourceType, searchLookup, sourceValueFetcher(sourcePaths));
+                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(concreteFieldName());
+                return type.getValueFetcherFieldDataBuilder(
+                    concreteFieldName(),
+                    valuesSourceType,
+                    searchLookup,
+                    sourceValueFetcher(sourcePaths)
+                );
             }
 
             throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
@@ -1708,7 +1722,7 @@ public class NumberFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(concreteFieldName()) : Collections.emptySet());
         }
 
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
@@ -1836,10 +1850,10 @@ public class NumberFieldMapper extends FieldMapper {
             value = value(context.parser());
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
-                context.addIgnoredField(mappedFieldType.name());
+                context.addIgnoredField(mappedFieldType.concreteFieldName());
                 if (storeMalformedFields) {
                     // Save a copy of the field so synthetic source can load it
-                    context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(concreteFieldName(), context.parser()));
                 }
                 return;
             } else {
@@ -1879,21 +1893,21 @@ public class NumberFieldMapper extends FieldMapper {
      */
     public void indexValue(DocumentParserContext context, Number numericValue) {
         if (dimension && numericValue != null) {
-            context.getDimensions().addLong(fieldType().name(), numericValue.longValue());
+            context.getDimensions().addLong(fieldType().concreteFieldName(), numericValue.longValue());
         }
-        fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
+        fieldType().type.addFields(context.doc(), fieldType().concreteFieldName(), numericValue, indexed, hasDocValues, stored);
 
         if (false == allowMultipleValues && (indexed || hasDocValues || stored)) {
             // the last field is the current field, Add to the key map, so that we can validate if it has been added
             List<IndexableField> fields = context.doc().getFields();
             IndexableField last = fields.get(fields.size() - 1);
-            assert last.name().equals(fieldType().name())
+            assert last.name().equals(fieldType().concreteFieldName())
                 : "last field name [" + last.name() + "] mis match field name [" + fieldType().name() + "]";
-            context.doc().onlyAddKey(fieldType().name(), fields.get(fields.size() - 1));
+            context.doc().onlyAddKey(fieldType().concreteFieldName(), fields.get(fields.size() - 1));
         }
 
         if (hasDocValues == false && (stored || indexed)) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(fieldType().concreteFieldName());
         }
     }
 
@@ -1918,7 +1932,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public void doValidate(MappingLookup lookup) {
-        if (dimension && null != lookup.nestedLookup().getNestedParent(name())) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(fieldType().concreteFieldName())) {
             throw new IllegalArgumentException(
                 TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
             );
@@ -1940,7 +1954,7 @@ public class NumberFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return type.syntheticFieldLoader(name(), simpleName(), ignoreMalformed.value());
+        return type.syntheticFieldLoader(fieldType().concreteFieldName(), simpleName(), ignoreMalformed.value());
     }
 
     // For testing only:

@@ -190,7 +190,7 @@ setup:
   - match: { results.0.id: $sync-job-one-id }
 
 ---
-"List Connector Sync Jobs - Get jobs with single job type":
+"List Connector Sync Jobs - Get jobs with multiple job types":
   - do:
       connector_sync_job.post:
         body:

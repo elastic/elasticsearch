@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.InferenceResults;
@@ -34,6 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -102,7 +102,7 @@ public class BulkShardRequestInferenceProvider {
     public void processBulkShardRequest(
         BulkShardRequest bulkShardRequest,
         ClusterState clusterState,
-        TriConsumer<BulkShardRequest, BulkItemRequest, Exception> onBulkItemFailure,
+        BiConsumer<BulkItemRequest, Exception> onBulkItemFailure,
         Consumer<BulkShardRequest> nextAction
     ) {
 
@@ -143,7 +143,7 @@ public class BulkShardRequestInferenceProvider {
         BulkShardRequest bulkShardRequest,
         BulkItemRequest bulkItemRequest,
         Map<String, Set<String>> fieldsForModels,
-        TriConsumer<BulkShardRequest, BulkItemRequest, Exception> onBulkItemFailure,
+        BiConsumer<BulkItemRequest, Exception> onBulkItemFailure,
         Releasable releaseOnFinish
     ) {
 
@@ -191,8 +191,7 @@ public class BulkShardRequestInferenceProvider {
 
                 InferenceProvider inferenceProvider = inferenceProvidersMap.get(modelId);
                 if (inferenceProvider == null) {
-                    onBulkItemFailure.apply(
-                        bulkShardRequest,
+                    onBulkItemFailure.accept(
                         bulkItemRequest,
                         new IllegalArgumentException("No inference provider found for model ID " + modelId)
                     );
@@ -212,10 +211,8 @@ public class BulkShardRequestInferenceProvider {
                         for (InferenceResults inferenceResults : results.transformToLegacyFormat()) {
                             String fieldName = inferenceFieldNames.get(i++);
                             @SuppressWarnings("unchecked")
-                            List<Map<String, Object>> inferenceFieldResultList = (List<Map<String, Object>>) rootInferenceFieldMap.computeIfAbsent(
-                                fieldName,
-                                k -> new ArrayList<>()
-                            );
+                            List<Map<String, Object>> inferenceFieldResultList = (List<Map<String, Object>>) rootInferenceFieldMap
+                                .computeIfAbsent(fieldName, k -> new ArrayList<>());
 
                             // TODO Check inference result type to change subfield name
                             var inferenceFieldMap = Map.of(
@@ -228,7 +225,7 @@ public class BulkShardRequestInferenceProvider {
 
                     @Override
                     public void onFailure(Exception e) {
-                        onBulkItemFailure.apply(bulkShardRequest, bulkItemRequest, e);
+                        onBulkItemFailure.accept(bulkItemRequest, e);
                     }
                 };
                 inferenceProvider.service().infer(

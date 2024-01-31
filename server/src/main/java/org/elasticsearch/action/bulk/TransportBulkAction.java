@@ -16,7 +16,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
@@ -793,10 +792,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     bulkShardRequestInferenceProvider.processBulkShardRequest(
                         bulkShardRequest,
                         clusterState,
-                        (bsr, request, e) -> {
-                            markBulkItemRequestFailed(bsr, request, e);
+                        (itemReq, e) -> {
+                            markBulkItemRequestFailed(bulkShardRequest, itemReq, e);
                             // make sure the request gets never processed again
-                            bulkShardRequest.items()[request.id()] = null;
+                            bulkShardRequest.items()[itemReq.id()] = null;
                         },
                         shardReq -> executeBulkShardRequest(shardReq, ActionListener.releaseAfter(ActionListener.noop(), ref),
                         (itemReq, e) -> {

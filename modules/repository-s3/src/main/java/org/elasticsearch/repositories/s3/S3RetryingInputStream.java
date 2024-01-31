@@ -252,7 +252,7 @@ class S3RetryingInputStream extends InputStream {
                 action,
                 blobStore.bucket(),
                 blobKey,
-                purpose,
+                purpose.getKey(),
                 attempt - initialAttempt
             );
         }

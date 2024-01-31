@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -261,21 +262,23 @@ public class ConnectorSyncJobIndexService {
     /**
      * List the {@link ConnectorSyncJob} in ascending order of their 'created_at'.
      *
-     * @param from          From index to start the search from.
-     * @param size          The maximum number of {@link Connector}s to return.
-     * @param connectorId   The id of a {@link Connector} to return sync jobs from.
-     * @param syncStatus    The status to filter the sync jobs on.
-     * @param listener      The action listener to invoke on response/failure.
+     * @param from                  From index to start the search from.
+     * @param size                  The maximum number of {@link Connector}s to return.
+     * @param connectorId           The id of a {@link Connector} to return sync jobs from.
+     * @param syncStatus            The status to filter the sync jobs on.
+     * @param jobTypeList           The list of job types to filter the sync jobs on.
+     * @param listener              The action listener to invoke on response/failure.
      */
     public void listConnectorSyncJobs(
         int from,
         int size,
         String connectorId,
         ConnectorSyncStatus syncStatus,
+        List<ConnectorSyncJobType> jobTypeList,
         ActionListener<ConnectorSyncJobIndexService.ConnectorSyncJobsResult> listener
     ) {
         try {
-            QueryBuilder query = buildListQuery(connectorId, syncStatus);
+            QueryBuilder query = buildListQuery(connectorId, syncStatus, jobTypeList);
 
             final SearchSourceBuilder searchSource = new SearchSourceBuilder().from(from)
                 .size(size)
@@ -309,8 +312,8 @@ public class ConnectorSyncJobIndexService {
         }
     }
 
-    private static QueryBuilder buildListQuery(String connectorId, ConnectorSyncStatus syncStatus) {
-        boolean usesFilter = Stream.of(connectorId, syncStatus).anyMatch(Objects::nonNull);
+    private static QueryBuilder buildListQuery(String connectorId, ConnectorSyncStatus syncStatus, List<ConnectorSyncJobType> jobTypeList) {
+        boolean usesFilter = Stream.of(connectorId, syncStatus, jobTypeList).anyMatch(Objects::nonNull);
         BoolQueryBuilder boolFilterQueryBuilder = new BoolQueryBuilder();
 
         if (usesFilter) {
@@ -325,6 +328,14 @@ public class ConnectorSyncJobIndexService {
             if (Objects.nonNull(syncStatus)) {
                 TermQueryBuilder syncStatusQuery = new TermQueryBuilder(ConnectorSyncJob.STATUS_FIELD.getPreferredName(), syncStatus);
                 boolFilterQueryBuilder.must().add(syncStatusQuery);
+            }
+
+            if ((jobTypeList == null || jobTypeList.isEmpty()) == false) {
+                TermsQueryBuilder syncJobTypeQuery = new TermsQueryBuilder(
+                    ConnectorSyncJob.JOB_TYPE_FIELD.getPreferredName(),
+                    jobTypeList.stream().map(ConnectorSyncJobType::toString).toList()
+                );
+                boolFilterQueryBuilder.must().add(syncJobTypeQuery);
             }
         }
 

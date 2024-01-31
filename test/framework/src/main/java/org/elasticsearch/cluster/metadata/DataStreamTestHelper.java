@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -69,6 +68,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.DataStream.BACKING_INDEX_PREFIX;
 import static org.elasticsearch.cluster.metadata.DataStream.DATE_FORMATTER;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
+import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureStoreName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -82,7 +82,6 @@ import static org.mockito.Mockito.when;
 
 public final class DataStreamTestHelper {
 
-    private static final Version DATE_IN_BACKING_INDEX_VERSION = Version.V_7_11_0;
     private static final Settings.Builder SETTINGS = ESTestCase.settings(IndexVersion.current()).put("index.hidden", true);
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
@@ -113,7 +112,19 @@ public final class DataStreamTestHelper {
         boolean replicated,
         @Nullable DataStreamLifecycle lifecycle
     ) {
-        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, lifecycle, false, List.of());
+        return newInstance(name, indices, generation, metadata, replicated, lifecycle, List.of());
+    }
+
+    public static DataStream newInstance(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated,
+        @Nullable DataStreamLifecycle lifecycle,
+        List<Index> failureStores
+    ) {
+        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, lifecycle, false, failureStores);
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -263,7 +274,8 @@ public final class DataStreamTestHelper {
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
             failureStore,
-            failureIndices
+            failureIndices,
+            randomBoolean()
         );
     }
 
@@ -320,8 +332,20 @@ public final class DataStreamTestHelper {
         int replicas,
         boolean replicated
     ) {
+        return getClusterStateWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, replicated, false);
+    }
+
+    public static ClusterState getClusterStateWithDataStreams(
+        List<Tuple<String, Integer>> dataStreams,
+        List<String> indexNames,
+        long currentTime,
+        Settings settings,
+        int replicas,
+        boolean replicated,
+        boolean storeFailures
+    ) {
         Metadata.Builder builder = Metadata.builder();
-        getClusterStateWithDataStreams(builder, dataStreams, indexNames, currentTime, settings, replicas, replicated);
+        getClusterStateWithDataStreams(builder, dataStreams, indexNames, currentTime, settings, replicas, replicated, storeFailures);
         return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
     }
 
@@ -332,13 +356,16 @@ public final class DataStreamTestHelper {
         long currentTime,
         Settings settings,
         int replicas,
-        boolean replicated
+        boolean replicated,
+        boolean storeFailures
     ) {
         builder.put(
             "template_1",
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("*"))
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .dataStreamTemplate(
+                    new ComposableIndexTemplate.DataStreamTemplate(false, false, DataStream.isFailureStoreEnabled() && storeFailures)
+                )
                 .build()
         );
 
@@ -352,12 +379,29 @@ public final class DataStreamTestHelper {
             }
             allIndices.addAll(backingIndices);
 
+            List<IndexMetadata> failureStores = new ArrayList<>();
+            if (DataStream.isFailureStoreEnabled() && storeFailures) {
+                for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
+                    failureStores.add(
+                        createIndexMetadata(
+                            getDefaultFailureStoreName(dsTuple.v1(), failureStoreNumber, currentTime),
+                            true,
+                            settings,
+                            replicas
+                        )
+                    );
+                }
+                allIndices.addAll(failureStores);
+            }
+
             DataStream ds = DataStreamTestHelper.newInstance(
                 dsTuple.v1(),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
                 dsTuple.v2(),
                 null,
-                replicated
+                replicated,
+                null,
+                failureStores.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
             );
             builder.put(ds);
         }

@@ -10,7 +10,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -25,6 +24,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -77,8 +77,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         if (refeshOnOperation == false) {
             client.admin().indices().prepareRefresh(expression).get();
         }
-        SearchResponse searchResponse = client.prepareSearch(expression).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
+        assertHitCount(client.prepareSearch(expression).setQuery(QueryBuilders.matchAllQuery()), 1);
 
         assertResponse(
             client.prepareMultiSearch().add(client.prepareSearch(expression).setQuery(QueryBuilders.matchAllQuery()).request()),

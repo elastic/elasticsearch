@@ -201,15 +201,22 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     try {
                         mockServer.start();
                         node.setting("telemetry.metrics.enabled", "true");
-                        node.setting("tracing.apm.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
+                        node.setting("telemetry.tracing.enabled", "true");
+                        node.setting("telemetry.agent.transaction_sample_rate", "0.10");
+                        node.setting("telemetry.agent.metrics_interval", "10s");
+                        node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
                     } catch (IOException e) {
                         logger.warn("Unable to start APM server", e);
                     }
-                } else if (node.getSettingKeys().contains("telemetry.metrics.enabled") == false) {
-                    // in serverless metrics are enabled by default
-                    // if metrics were not enabled explicitly for gradlew run we should disable them
-                    node.setting("telemetry.metrics.enabled", "false");
                 }
+                // in serverless metrics are enabled by default
+                // if metrics were not enabled explicitly for gradlew run we should disable them
+                else if (node.getSettingKeys().contains("telemetry.metrics.enabled") == false) { // metrics
+                    node.setting("telemetry.metrics.enabled", "false");
+                } else if (node.getSettingKeys().contains("telemetry.tracing.enabled") == false
+                    && node.getSettingKeys().contains("tracing.apm.enabled") == false) { // tracing
+                        node.setting("telemetry.tracing.enable", "false");
+                    }
 
             }
         }

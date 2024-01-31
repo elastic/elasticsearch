@@ -7,21 +7,19 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiErrorResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
-import java.io.IOException;
-
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
+import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
     /**
@@ -36,12 +34,15 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     // The remaining number of tokens that are permitted before exhausting the rate limit.
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
-    public OpenAiResponseHandler(String requestType, CheckedFunction<HttpResult, InferenceServiceResults, IOException> parseFunction) {
+    static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
+    static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
+
+    public OpenAiResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, OpenAiErrorResponseEntity::fromResponse);
     }
 
     @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, HttpRequestBase request, HttpResult result)
+    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
         throws RetryException {
         checkForFailureStatusCode(request, result);
         checkForEmptyBody(throttlerManager, logger, request, result);
@@ -51,21 +52,27 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
      * Validates the status code throws an RetryException if not in the range [200, 300).
      *
      * The OpenAI API error codes are documented <a href="https://platform.openai.com/docs/guides/error-codes/api-errors">here</a>.
-     * @param request The http request
+     * @param request The originating request
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
-    void checkForFailureStatusCode(HttpRequestBase request, HttpResult result) throws RetryException {
+    void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode >= 200 && statusCode < 300) {
             return;
         }
 
         // handle error codes
-        if (statusCode >= 500) {
+        if (statusCode == 500) {
+            throw new RetryException(true, buildError(SERVER_ERROR, request, result));
+        } else if (statusCode == 503) {
+            throw new RetryException(true, buildError(OPENAI_SERVER_BUSY, request, result));
+        } else if (statusCode > 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
-            throw new RetryException(true, buildError(buildRateLimitErrorMessage(request, result), request, result));
+            throw new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
+        } else if (isContentTooLarge(result)) {
+            throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
         } else if (statusCode == 401) {
             throw new RetryException(false, buildError(AUTHENTICATION, request, result));
         } else if (statusCode >= 300 && statusCode < 400) {
@@ -75,9 +82,24 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
     }
 
-    static String buildRateLimitErrorMessage(HttpRequestBase request, HttpResult result) {
-        var response = result.response();
+    private static boolean isContentTooLarge(HttpResult result) {
         int statusCode = result.response().getStatusLine().getStatusCode();
+
+        if (statusCode == 413) {
+            return true;
+        }
+
+        if (statusCode == 400) {
+            var errorEntity = OpenAiErrorResponseEntity.fromResponse(result);
+
+            return errorEntity != null && errorEntity.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE);
+        }
+
+        return false;
+    }
+
+    static String buildRateLimitErrorMessage(HttpResult result) {
+        var response = result.response();
         var tokenLimit = getFirstHeaderOrUnknown(response, TOKENS_LIMIT);
         var remainingTokens = getFirstHeaderOrUnknown(response, REMAINING_TOKENS);
         var requestLimit = getFirstHeaderOrUnknown(response, REQUESTS_LIMIT);
@@ -92,13 +114,5 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         );
 
         return RATE_LIMIT + ". " + usageMessage;
-    }
-
-    private static String getFirstHeaderOrUnknown(HttpResponse response, String name) {
-        var header = response.getFirstHeader(name);
-        if (header != null && header.getElements().length > 0) {
-            return header.getElements()[0].getName();
-        }
-        return "unknown";
     }
 }

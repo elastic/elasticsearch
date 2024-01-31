@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasables;
 
@@ -17,8 +16,6 @@ import java.io.IOException;
  * Wrapper around {@link DocVector} to make a valid {@link Block}.
  */
 public class DocBlock extends AbstractVectorBlock implements Block {
-
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocBlock.class);
 
     private final DocVector vector;
 
@@ -67,12 +64,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
-    }
-
-    @Override
-    public boolean isReleased() {
-        return super.isReleased() || vector.isReleased();
+        return vector.ramBytesUsed();
     }
 
     @Override
@@ -84,8 +76,8 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     /**
      * A builder the for {@link DocBlock}.
      */
-    public static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return new Builder(estimatedSize, blockFactory);
+    public static Builder newBlockBuilder(BlockFactory blockFactory, int estimatedSize) {
+        return new Builder(blockFactory, estimatedSize);
     }
 
     public static class Builder implements Block.Builder {
@@ -93,10 +85,22 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
 
-        private Builder(int estimatedSize, BlockFactory blockFactory) {
-            shards = IntVector.newVectorBuilder(estimatedSize, blockFactory);
-            segments = IntVector.newVectorBuilder(estimatedSize, blockFactory);
-            docs = IntVector.newVectorBuilder(estimatedSize, blockFactory);
+        private Builder(BlockFactory blockFactory, int estimatedSize) {
+            IntVector.Builder shards = null;
+            IntVector.Builder segments = null;
+            IntVector.Builder docs = null;
+            try {
+                shards = blockFactory.newIntVectorBuilder(estimatedSize);
+                segments = blockFactory.newIntVectorBuilder(estimatedSize);
+                docs = blockFactory.newIntVectorBuilder(estimatedSize);
+            } finally {
+                if (docs == null) {
+                    Releasables.closeExpectNoException(shards, segments, docs);
+                }
+            }
+            this.shards = shards;
+            this.segments = segments;
+            this.docs = docs;
         }
 
         public Builder appendShard(int shard) {
@@ -159,7 +163,21 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         @Override
         public DocBlock build() {
             // Pass null for singleSegmentNonDecreasing so we calculate it when we first need it.
-            return new DocVector(shards.build(), segments.build(), docs.build(), null).asBlock();
+            IntVector shards = null;
+            IntVector segments = null;
+            IntVector docs = null;
+            DocVector result = null;
+            try {
+                shards = this.shards.build();
+                segments = this.segments.build();
+                docs = this.docs.build();
+                result = new DocVector(shards, segments, docs, null);
+                return result.asBlock();
+            } finally {
+                if (result == null) {
+                    Releasables.closeExpectNoException(shards, segments, docs);
+                }
+            }
         }
 
         @Override

@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.admin.cluster.dangling;
 
 import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.import_index.TransportImportDanglingIndexAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -41,6 +42,10 @@ public class RestImportDanglingIndexAction extends BaseRestHandler {
         importRequest.timeout(request.paramAsTime("timeout", importRequest.timeout()));
         importRequest.masterNodeTimeout(request.paramAsTime("master_timeout", importRequest.masterNodeTimeout()));
 
-        return channel -> client.admin().cluster().importDanglingIndex(importRequest, new RestToXContentListener<>(channel, r -> ACCEPTED));
+        return channel -> client.execute(
+            TransportImportDanglingIndexAction.TYPE,
+            importRequest,
+            new RestToXContentListener<>(channel, r -> ACCEPTED)
+        );
     }
 }

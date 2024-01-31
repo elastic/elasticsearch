@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.tasks.TaskId;
@@ -76,7 +76,7 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
 
     protected abstract void doExecute(ActionListener<StepResponse> listener);
 
-    protected void refreshDestAsync(ActionListener<RefreshResponse> refreshListener) {
+    protected void refreshDestAsync(ActionListener<BroadcastResponse> refreshListener) {
         ParentTaskAssigningClient parentTaskClient = parentTaskClient();
         executeWithHeadersAsync(
             config.getHeaders(),

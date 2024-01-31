@@ -56,9 +56,23 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public enum MergeReason {
         /**
-         * Pre-flight check before sending a mapping update to the master
+         * Pre-flight check before sending a dynamic mapping update to the master
          */
-        MAPPING_UPDATE_PREFLIGHT,
+        MAPPING_AUTO_UPDATE_PREFLIGHT {
+            @Override
+            public boolean isAutoUpdate() {
+                return true;
+            }
+        },
+        /**
+         * Dynamic mapping updates
+         */
+        MAPPING_AUTO_UPDATE {
+            @Override
+            public boolean isAutoUpdate() {
+                return true;
+            }
+        },
         /**
          * Create or update a mapping.
          */
@@ -72,7 +86,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          * if a shard was moved to a different node or for administrative
          * purposes.
          */
-        MAPPING_RECOVERY
+        MAPPING_RECOVERY;
+
+        public boolean isAutoUpdate() {
+            return false;
+        }
     }
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
@@ -130,6 +148,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
 
     private volatile DocumentMapper mapper;
+    private volatile long mappingVersion;
 
     public MapperService(
         ClusterService clusterService,
@@ -298,6 +317,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 previousMapper = this.mapper;
                 assert assertRefreshIsNotNeeded(previousMapper, type, incomingMapping);
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
+                this.mappingVersion = newIndexMetadata.getMappingVersion();
             }
             String op = previousMapper != null ? "updated" : "added";
             if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
@@ -362,7 +382,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {
-        assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
+        assert reason != MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata != null) {
             merge(mappingMetadata.type(), mappingMetadata.source(), reason);
@@ -519,7 +539,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
         // We should identify these cases reliably and save expensive serialization here
         DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
-        if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
+        if (reason == MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT) {
             return newMapper;
         }
         this.mapper = newMapper;
@@ -557,11 +577,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason) {
+        return mergeMappings(currentMapper, incomingMapping, reason, Long.MAX_VALUE);
+    }
+
+    static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason, long newFieldsBudget) {
         Mapping newMapping;
         if (currentMapper == null) {
-            newMapping = incomingMapping;
+            newMapping = incomingMapping.withFieldsBudget(newFieldsBudget);
         } else {
-            newMapping = currentMapper.mapping().merge(incomingMapping, reason);
+            newMapping = currentMapper.mapping().merge(incomingMapping, reason, newFieldsBudget);
         }
         return newMapping;
     }
@@ -588,6 +612,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public DocumentMapper documentMapper() {
         return mapper;
+    }
+
+    public long mappingVersion() {
+        return mappingVersion;
     }
 
     /**

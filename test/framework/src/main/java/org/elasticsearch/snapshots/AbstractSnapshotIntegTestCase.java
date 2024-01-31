@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepos
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -47,10 +46,10 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -80,7 +79,6 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
@@ -405,24 +403,25 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             oldVersionString = currentVersionString.replace(",\"index_version\":" + IndexVersion.current(), "")
                 .replace(",\"version\":\"8.11.0\"", ",\"version\":\"" + Version.fromId(version.id()) + "\"");
         }
-        final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(
-            JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, oldVersionString),
-            repositoryData.getGenId(),
-            randomBoolean()
-        );
+        final RepositoryData downgradedRepoData;
+        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, oldVersionString)) {
+            downgradedRepoData = RepositoryData.snapshotsFromXContent(parser, repositoryData.getGenId(), randomBoolean());
+        }
         Files.write(
             repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
             BytesReference.toBytes(BytesReference.bytes(downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
             StandardOpenOption.TRUNCATE_EXISTING
         );
-        final SnapshotInfo downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(
-            repoName,
-            JsonXContent.jsonXContent.createParser(
+        final SnapshotInfo downgradedSnapshotInfo;
+        try (
+            var parser = JsonXContent.jsonXContent.createParser(
                 XContentParserConfiguration.EMPTY,
                 Strings.toString(snapshotInfo, ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS)
                     .replace(IndexVersion.current().toString(), version.toString())
             )
-        );
+        ) {
+            downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(repoName, parser);
+        }
         final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);
         PlainActionFuture.get(
             f -> blobStoreRepository.threadPool()
@@ -502,14 +501,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected long getCountForIndex(String indexName) {
-        var resp = client().search(
-            new SearchRequest(new SearchRequest(indexName).source(new SearchSourceBuilder().size(0).trackTotalHits(true)))
-        ).actionGet();
-        try {
-            return resp.getHits().getTotalHits().value;
-        } finally {
-            resp.decRef();
-        }
+        return SearchResponseUtils.getTotalHitsValue(
+            prepareSearch(indexName).setSource(new SearchSourceBuilder().size(0).trackTotalHits(true))
+        );
     }
 
     protected void assertDocCount(String index, long count) {
@@ -585,18 +579,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             viaNode,
             state -> SnapshotsInProgress.get(state).isEmpty() && SnapshotDeletionsInProgress.get(state).hasDeletionsInProgress() == false
         );
-    }
-
-    protected void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
-        awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
-    }
-
-    public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate) throws Exception {
-        awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
-    }
-
-    public static void awaitClusterState(Logger logger, String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
-        ClusterServiceUtils.awaitClusterState(logger, statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
     }
 
     protected ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String snapshotName, String repoName, String dataNode)

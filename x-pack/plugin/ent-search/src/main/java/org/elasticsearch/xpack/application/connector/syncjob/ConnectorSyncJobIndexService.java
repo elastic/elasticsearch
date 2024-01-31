@@ -38,12 +38,11 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
-import org.elasticsearch.xpack.application.connector.ConnectorConfiguration;
 import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
-import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
 
@@ -55,6 +54,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
@@ -97,14 +97,11 @@ public class ConnectorSyncJobIndexService {
                 );
 
                 try {
-                    String syncJobId = generateId();
 
-                    final IndexRequest indexRequest = new IndexRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).id(syncJobId)
-                        .opType(DocWriteRequest.OpType.INDEX)
+                    final IndexRequest indexRequest = new IndexRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-                    ConnectorSyncJob syncJob = new ConnectorSyncJob.Builder().setId(syncJobId)
-                        .setJobType(jobType)
+                    ConnectorSyncJob syncJob = new ConnectorSyncJob.Builder().setJobType(jobType)
                         .setTriggerMethod(triggerMethod)
                         .setStatus(ConnectorSyncJob.DEFAULT_INITIAL_STATUS)
                         .setConnector(connector)
@@ -195,7 +192,7 @@ public class ConnectorSyncJobIndexService {
      * @param connectorSyncJobId The id of the connector sync job object.
      * @param listener           The action listener to invoke on response/failure.
      */
-    public void getConnectorSyncJob(String connectorSyncJobId, ActionListener<ConnectorSyncJob> listener) {
+    public void getConnectorSyncJob(String connectorSyncJobId, ActionListener<ConnectorSyncJobSearchResult> listener) {
         final GetRequest getRequest = new GetRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).id(connectorSyncJobId).realtime(true);
 
         try {
@@ -208,11 +205,10 @@ public class ConnectorSyncJobIndexService {
                     }
 
                     try {
-                        final ConnectorSyncJob syncJob = ConnectorSyncJob.fromXContentBytes(
-                            getResponse.getSourceAsBytesRef(),
-                            XContentType.JSON
-                        );
-                        l.onResponse(syncJob);
+                        ConnectorSyncJobSearchResult syncJobSearchResult = new ConnectorSyncJobSearchResult.Builder().setId(
+                            getResponse.getId()
+                        ).setResultBytes(getResponse.getSourceAsBytesRef()).setResultMap(getResponse.getSourceAsMap()).build();
+                        l.onResponse(syncJobSearchResult);
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
@@ -336,7 +332,7 @@ public class ConnectorSyncJobIndexService {
     }
 
     private ConnectorSyncJobsResult mapSearchResponseToConnectorSyncJobsList(SearchResponse searchResponse) {
-        final List<ConnectorSyncJob> connectorSyncJobs = Arrays.stream(searchResponse.getHits().getHits())
+        final List<ConnectorSyncJobSearchResult> connectorSyncJobs = Arrays.stream(searchResponse.getHits().getHits())
             .map(ConnectorSyncJobIndexService::hitToConnectorSyncJob)
             .toList();
 
@@ -346,13 +342,17 @@ public class ConnectorSyncJobIndexService {
         );
     }
 
-    private static ConnectorSyncJob hitToConnectorSyncJob(SearchHit searchHit) {
+    private static ConnectorSyncJobSearchResult hitToConnectorSyncJob(SearchHit searchHit) {
         // TODO: don't return sensitive data from configuration inside connector in list endpoint
 
-        return ConnectorSyncJob.fromXContentBytes(searchHit.getSourceRef(), XContentType.JSON);
+        return new ConnectorSyncJobSearchResult.Builder().setId(searchHit.getId())
+            .setResultBytes(searchHit.getSourceRef())
+            .setResultMap(searchHit.getSourceAsMap())
+            .build();
+
     }
 
-    public record ConnectorSyncJobsResult(List<ConnectorSyncJob> connectorSyncJobs, long totalResults) {}
+    public record ConnectorSyncJobsResult(List<ConnectorSyncJobSearchResult> connectorSyncJobs, long totalResults) {}
 
     /**
     * Updates the ingestion stats of the {@link ConnectorSyncJob} in the underlying index.
@@ -429,22 +429,27 @@ public class ConnectorSyncJobIndexService {
                         onFailure(new ResourceNotFoundException("Connector with id '" + connectorId + "' does not exist."));
                         return;
                     }
+                    try {
+                        final Connector connector = Connector.fromXContentBytes(
+                            response.getSourceAsBytesRef(),
+                            connectorId,
+                            XContentType.JSON
+                        );
 
-                    Map<String, Object> source = response.getSource();
+                        // Build the connector representation for sync job
+                        final Connector syncJobConnector = new Connector.Builder().setConnectorId(connector.getConnectorId())
+                            .setSyncJobFiltering(transformConnectorFilteringToSyncJobRepresentation(connector.getFiltering()))
+                            .setIndexName(connector.getIndexName())
+                            .setLanguage(connector.getLanguage())
+                            .setPipeline(connector.getPipeline())
+                            .setServiceType(connector.getServiceType())
+                            .setConfiguration(connector.getConfiguration())
+                            .build();
 
-                    @SuppressWarnings("unchecked")
-                    final Connector syncJobConnectorInfo = new Connector.Builder().setConnectorId(connectorId)
-                        .setFiltering((List<ConnectorFiltering>) source.get(Connector.FILTERING_FIELD.getPreferredName()))
-                        .setIndexName((String) source.get(Connector.INDEX_NAME_FIELD.getPreferredName()))
-                        .setLanguage((String) source.get(Connector.LANGUAGE_FIELD.getPreferredName()))
-                        .setPipeline((ConnectorIngestPipeline) source.get(Connector.PIPELINE_FIELD.getPreferredName()))
-                        .setServiceType((String) source.get(Connector.SERVICE_TYPE_FIELD.getPreferredName()))
-                        .setConfiguration(
-                            (Map<String, ConnectorConfiguration>) source.get(Connector.CONFIGURATION_FIELD.getPreferredName())
-                        )
-                        .build();
-
-                    listener.onResponse(syncJobConnectorInfo);
+                        listener.onResponse(syncJobConnector);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
                 }
 
                 @Override
@@ -455,6 +460,20 @@ public class ConnectorSyncJobIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Transforms the first {@link ConnectorFiltering} object from a list into a {@link FilteringRules} representation for a sync job.
+     * This method specifically extracts the 'active' filtering rules from the first {@link ConnectorFiltering} object in the list,
+     * if the list is neither null nor empty.
+     *
+     * @param connectorFiltering The list of {@link ConnectorFiltering} objects to be transformed. Can be null or empty.
+     */
+    FilteringRules transformConnectorFilteringToSyncJobRepresentation(List<ConnectorFiltering> connectorFiltering) {
+        return Optional.ofNullable(connectorFiltering)
+            .filter(list -> list.isEmpty() == false)
+            .map(list -> list.get(0).getActive())
+            .orElse(null);
     }
 
     /**

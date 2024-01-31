@@ -333,6 +333,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.aggregations.bucket.nested;
     exports org.elasticsearch.search.aggregations.bucket.range;
     exports org.elasticsearch.search.aggregations.bucket.sampler;
+    exports org.elasticsearch.search.aggregations.bucket.sampler.random;
     exports org.elasticsearch.search.aggregations.bucket.terms;
     exports org.elasticsearch.search.aggregations.bucket.terms.heuristic;
     exports org.elasticsearch.search.aggregations.metrics;
@@ -419,7 +420,8 @@ module org.elasticsearch.server {
     provides org.apache.lucene.codecs.PostingsFormat
         with
             org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
-            org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+            org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
+            org.elasticsearch.index.codec.postings.ES812PostingsFormat;
     provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
 
     exports org.elasticsearch.cluster.routing.allocation.shards

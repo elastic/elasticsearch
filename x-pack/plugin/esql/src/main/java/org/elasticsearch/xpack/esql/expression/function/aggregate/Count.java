@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
@@ -27,7 +28,28 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 
 public class Count extends AggregateFunction implements EnclosedAgg, ToAggregator {
 
-    public Count(Source source, Expression field) {
+    @FunctionInfo(returnType = "long", description = "Returns the total number (count) of input values.", isAggregation = true)
+    public Count(
+        Source source,
+        @Param(
+            optional = true,
+            name = "field",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "date",
+                "double",
+                "geo_point",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
+            description = "Column or literal for which to count the number of values."
+        ) Expression field
+    ) {
         super(source, field);
     }
 
@@ -52,8 +74,8 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return CountAggregatorFunction.supplier(bigArrays, inputChannels);
+    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+        return CountAggregatorFunction.supplier(inputChannels);
     }
 
     @Override

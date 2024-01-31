@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.security.authz.store;
 
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
@@ -245,14 +245,18 @@ class KibanaOwnedReservedRoleDescriptors {
                         "profiling-*"
                     )
                     .privileges(
-                        UpdateSettingsAction.NAME,
-                        PutMappingAction.NAME,
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        TransportPutMappingAction.TYPE.name(),
                         RolloverAction.NAME,
                         "indices:admin/data_stream/lifecycle/put"
                     )
                     .build(),
-                // Endpoint specific action responses. Kibana reads from these to display responses to the user.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.action.responses-*").privileges("read").build(),
+                // Endpoint specific action responses. Kibana reads and writes (for third party agents) to the index
+                // to display action responses to the user.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-endpoint.action.responses-*")
+                    .privileges("auto_configure", "read", "write")
+                    .build(),
                 // Endpoint specific actions. Kibana reads and writes to this index to track new actions and display them.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-endpoint.actions-*")
@@ -285,7 +289,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "synthetics-browser.network-*",
                         "synthetics-browser.screenshot-*"
                     )
-                    .privileges(DeleteIndexAction.NAME)
+                    .privileges(TransportDeleteIndexAction.TYPE.name())
                     .build(),
                 // For src/dest indices of the Endpoint package that ships a transform
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -298,7 +302,14 @@ class KibanaOwnedReservedRoleDescriptors {
                         ".metrics-endpoint.metadata_current_default*",
                         ".metrics-endpoint.metadata_united_default*"
                     )
-                    .privileges("create_index", "delete_index", "read", "index", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
+                    .privileges(
+                        "create_index",
+                        "delete_index",
+                        "read",
+                        "index",
+                        TransportIndicesAliasesAction.NAME,
+                        TransportUpdateSettingsAction.TYPE.name()
+                    )
                     .build(),
                 // For destination indices of the Threat Intel (ti_*) packages that ships a transform for supporting IOC expiration
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -310,8 +321,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "index",
                         "delete",
                         "manage",
-                        IndicesAliasesAction.NAME,
-                        UpdateSettingsAction.NAME
+                        TransportIndicesAliasesAction.NAME,
+                        TransportUpdateSettingsAction.TYPE.name()
                     )
                     .build(),
                 // For source indices of the Threat Intel (ti_*) packages that ships a transform for supporting IOC expiration
@@ -319,7 +330,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices("logs-ti_*.*-*")
                     .privileges(
                         // Require "delete_index" to perform ILM policy actions
-                        DeleteIndexAction.NAME,
+                        TransportDeleteIndexAction.TYPE.name(),
                         // Require "read" and "view_index_metadata" for transform
                         "read",
                         "view_index_metadata"
@@ -334,8 +345,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "read",
                         "index",
                         "view_index_metadata",
-                        IndicesAliasesAction.NAME,
-                        UpdateSettingsAction.NAME
+                        TransportIndicesAliasesAction.NAME,
+                        TransportUpdateSettingsAction.TYPE.name()
                     )
                     .build(),
                 // For src/dest indices of the Cloud Security Posture packages that ships a transform
@@ -349,7 +360,14 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-cloud_security_posture.scores-default*",
                         "logs-cloud_security_posture.vulnerabilities_latest-default*"
                     )
-                    .privileges("create_index", "read", "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
+                    .privileges(
+                        "create_index",
+                        "read",
+                        "index",
+                        "delete",
+                        TransportIndicesAliasesAction.NAME,
+                        TransportUpdateSettingsAction.TYPE.name()
+                    )
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("risk-score.risk-*").privileges("all").build(),
                 RoleDescriptor.IndicesPrivileges.builder()

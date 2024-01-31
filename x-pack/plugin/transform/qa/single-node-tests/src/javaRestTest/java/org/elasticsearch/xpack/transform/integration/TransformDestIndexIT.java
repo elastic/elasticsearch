@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -20,6 +22,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class TransformDestIndexIT extends TransformRestTestCase {
 
@@ -109,8 +114,16 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         assertAliases(destIndex2, destAliasAll, destAliasLatest);
     }
 
-    public void testTransformDestIndexCreatedDuringUpdate() throws Exception {
-        String transformId = "test_dest_index_on_update";
+    public void testTransformDestIndexCreatedDuringUpdate_NoDeferValidation() throws Exception {
+        testTransformDestIndexCreatedDuringUpdate(false);
+    }
+
+    public void testTransformDestIndexCreatedDuringUpdate_DeferValidation() throws Exception {
+        testTransformDestIndexCreatedDuringUpdate(true);
+    }
+
+    private void testTransformDestIndexCreatedDuringUpdate(boolean deferValidation) throws Exception {
+        String transformId = "test_dest_index_on_update" + (deferValidation ? "-defer" : "");
         String destIndex = transformId + "-dest";
 
         assertFalse(indexExists(destIndex));
@@ -134,10 +147,123 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         // Note that at this point the destination index could have already been created by the indexing process of the running transform
         // but the update code should cope with this situation.
         updateTransform(transformId, """
-            { "settings": { "max_page_search_size": 123 } }""");
+            { "settings": { "max_page_search_size": 123 } }""", deferValidation);
 
         // Verify that the destination index now exists
         assertTrue(indexExists(destIndex));
+    }
+
+    public void testTransformDestIndexMappings_DeduceMappings() throws Exception {
+        testTransformDestIndexMappings("test_dest_index_mappings_deduce", true);
+    }
+
+    public void testTransformDestIndexMappings_NoDeduceMappings() throws Exception {
+        testTransformDestIndexMappings("test_dest_index_mappings_no_deduce", false);
+    }
+
+    private void testTransformDestIndexMappings(String transformId, boolean deduceMappings) throws Exception {
+        String destIndex = transformId + "-dest";
+
+        {
+            String destIndexTemplate = Strings.format("""
+                {
+                  "index_patterns": [ "%s*" ],
+                  "mappings": {
+                    "properties": {
+                      "timestamp": {
+                        "type": "date"
+                      },
+                      "reviewer": {
+                        "type": "keyword"
+                      },
+                      "avg_rating": {
+                        "type": "double"
+                      }
+                    }
+                  }
+                }""", destIndex);
+            Request createIndexTemplateRequest = new Request("PUT", "_template/test_dest_index_mappings_template");
+            createIndexTemplateRequest.setJsonEntity(destIndexTemplate);
+            createIndexTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
+            Map<String, Object> createIndexTemplateResponse = entityAsMap(client().performRequest(createIndexTemplateRequest));
+            assertThat(createIndexTemplateResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        }
+
+        // Verify that the destination index does not exist yet, even though the template already exists
+        assertFalse(indexExists(destIndex));
+
+        {
+            String config = Strings.format("""
+                {
+                  "dest": {
+                    "index": "%s"
+                  },
+                  "source": {
+                    "index": "%s"
+                  },
+                  "sync": {
+                    "time": {
+                      "field": "timestamp",
+                      "delay": "15m"
+                    }
+                  },
+                  "frequency": "1s",
+                  "pivot": {
+                    "group_by": {
+                      "timestamp": {
+                        "date_histogram": {
+                          "field": "timestamp",
+                          "fixed_interval": "10s"
+                        }
+                      },
+                      "reviewer": {
+                        "terms": {
+                          "field": "user_id"
+                        }
+                      }
+                    },
+                    "aggregations": {
+                      "avg_rating": {
+                        "avg": {
+                          "field": "stars"
+                        }
+                      }
+                    }
+                  },
+                  "settings": {
+                    "unattended": true,
+                    "deduce_mappings": %s
+                  }
+                }""", destIndex, REVIEWS_INDEX_NAME, deduceMappings);
+            createReviewsTransform(transformId, null, null, config);
+
+            startTransform(transformId);
+            waitForTransformCheckpoint(transformId, 1);
+        }
+
+        // Verify that the destination index now exists and has correct mappings from the template
+        assertTrue(indexExists(destIndex));
+        assertThat(
+            getIndexMappingAsMap(destIndex),
+            is(
+                equalTo(
+                    Map.of(
+                        "properties",
+                        Map.of(
+                            "avg_rating",
+                            Map.of("type", "double"),
+                            "reviewer",
+                            Map.of("type", "keyword"),
+                            "timestamp",
+                            Map.of("type", "date")
+                        )
+                    )
+                )
+            )
+        );
+        Map<String, Object> searchResult = getAsMap(destIndex + "/_search?q=reviewer:user_0");
+        String timestamp = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.timestamp", searchResult)).get(0);
+        assertThat(timestamp, is(equalTo("2017-01-10T10:10:10.000Z")));
     }
 
     private static void assertAliases(String index, String... aliases) throws IOException {

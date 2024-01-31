@@ -33,6 +33,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -75,23 +77,28 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     // Constants for searchWithRetry tests
     private static final SearchRequest SEARCH_REQUEST = new SearchRequest("my-index");
-    private static final SearchResponse SEARCH_RESPONSE_SUCCESS = new SearchResponse(
-        null,
+    public static final SearchResponse SEARCH_RESPONSE_SUCCESS = SearchResponseUtils.emptyWithTotalHits(
         null,
         1,
         1,
         0,
-        0,
+        1L,
         ShardSearchFailure.EMPTY_ARRAY,
         null
     );
-    private static final SearchResponse SEARCH_RESPONSE_FAILURE = new SearchResponse(
+    public static final SearchResponse SEARCH_RESPONSE_FAILURE = new SearchResponse(
+        SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
         null,
+        null,
+        false,
+        null,
+        null,
+        1,
         null,
         1,
         0,
         0,
-        0,
+        1L,
         ShardSearchFailure.EMPTY_ARRAY,
         null
     );
@@ -418,4 +425,5 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class));
         return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
     }
+
 }

@@ -98,11 +98,11 @@ field
     ;
 
 fromCommand
-    : FROM sourceIdentifier (COMMA sourceIdentifier)* metadata?
+    : FROM fromIdentifier (COMMA fromIdentifier)* metadata?
     ;
 
 metadata
-    : OPENING_BRACKET METADATA sourceIdentifier (COMMA sourceIdentifier)* CLOSING_BRACKET
+    : OPENING_BRACKET METADATA fromIdentifier (COMMA fromIdentifier)* CLOSING_BRACKET
     ;
 
 
@@ -111,29 +111,33 @@ evalCommand
     ;
 
 statsCommand
-    : STATS fields? (BY grouping)?
+    : STATS stats=fields? (BY grouping=fields)?
     ;
 
 inlinestatsCommand
-    : INLINESTATS fields (BY grouping)?
+    : INLINESTATS stats=fields (BY grouping=fields)?
     ;
 
-grouping
-    : qualifiedName (COMMA qualifiedName)*
-    ;
-
-sourceIdentifier
-    : SRC_UNQUOTED_IDENTIFIER
-    | SRC_QUOTED_IDENTIFIER
+fromIdentifier
+    : FROM_UNQUOTED_IDENTIFIER
+    | QUOTED_IDENTIFIER
     ;
 
 qualifiedName
     : identifier (DOT identifier)*
     ;
 
+qualifiedNamePattern
+    : identifierPattern (DOT identifierPattern)*
+    ;
 
 identifier
     : UNQUOTED_IDENTIFIER
+    | QUOTED_IDENTIFIER
+    ;
+
+identifierPattern
+    : UNQUOTED_ID_PATTERN
     | QUOTED_IDENTIFIER
     ;
 
@@ -163,12 +167,12 @@ orderExpression
     ;
 
 keepCommand
-    :  KEEP sourceIdentifier (COMMA sourceIdentifier)*
-    |  PROJECT sourceIdentifier (COMMA sourceIdentifier)*
+    :  KEEP qualifiedNamePattern (COMMA qualifiedNamePattern)*
+    |  PROJECT qualifiedNamePattern (COMMA qualifiedNamePattern)*
     ;
 
 dropCommand
-    : DROP sourceIdentifier (COMMA sourceIdentifier)*
+    : DROP qualifiedNamePattern (COMMA qualifiedNamePattern)*
     ;
 
 renameCommand
@@ -176,7 +180,7 @@ renameCommand
     ;
 
 renameClause:
-    oldName=sourceIdentifier AS newName=sourceIdentifier
+    oldName=qualifiedNamePattern AS newName=qualifiedNamePattern
     ;
 
 dissectCommand
@@ -188,7 +192,7 @@ grokCommand
     ;
 
 mvExpandCommand
-    : MV_EXPAND sourceIdentifier
+    : MV_EXPAND qualifiedName
     ;
 
 commandOptions
@@ -221,7 +225,7 @@ string
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : EQ | CIEQ | NEQ | LT | LTE | GT | GTE
     ;
 
 explainCommand
@@ -238,9 +242,13 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=sourceIdentifier (ON matchField=sourceIdentifier)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH setting* policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause
-    : (newName=sourceIdentifier ASSIGN)? enrichField=sourceIdentifier
+    : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
+    ;
+
+setting
+    : OPENING_BRACKET name=SETTING COLON value=SETTING CLOSING_BRACKET
     ;

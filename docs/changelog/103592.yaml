@@ -1,0 +1,5 @@
+pr: 103592
+summary: Remove deprecated Block APIs
+area: ES|QL
+type: enhancement
+issues: []

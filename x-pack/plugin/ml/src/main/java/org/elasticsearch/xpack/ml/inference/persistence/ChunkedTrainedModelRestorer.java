@@ -20,6 +20,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -30,7 +31,6 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -158,54 +157,58 @@ public class ChunkedTrainedModelRestorer {
                 SEARCH_RETRY_LIMIT,
                 SEARCH_FAILURE_RETRY_WAIT_TIME
             );
-            if (searchResponse.getHits().getHits().length == 0) {
-                errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
-                return;
-            }
-
-            // Set lastNum to a non-zero to prevent an infinite loop of
-            // search after requests in the absolute worse case where
-            // it has all gone wrong.
-            // Docs are numbered 0..N. we must have seen at least
-            // this many docs so far.
-            int lastNum = numDocsWritten - 1;
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
-                logger.debug(() -> format("[%s] Restoring model definition doc with id [%s]", modelId, hit.getId()));
-                try {
-                    TrainedModelDefinitionDoc doc = parseModelDefinitionDocLenientlyFromSource(
-                        hit.getSourceRef(),
-                        modelId,
-                        xContentRegistry
-                    );
-                    lastNum = doc.getDocNum();
-
-                    boolean continueSearching = modelConsumer.apply(doc);
-                    if (continueSearching == false) {
-                        // signal the search has finished early
-                        successConsumer.accept(Boolean.FALSE);
-                        return;
-                    }
-
-                } catch (IOException e) {
-                    logger.error(() -> "[" + modelId + "] error writing model definition", e);
-                    errorConsumer.accept(e);
+            try {
+                if (searchResponse.getHits().getHits().length == 0) {
+                    errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
                     return;
                 }
-            }
 
-            numDocsWritten += searchResponse.getHits().getHits().length;
+                // Set lastNum to a non-zero to prevent an infinite loop of
+                // search after requests in the absolute worse case where
+                // it has all gone wrong.
+                // Docs are numbered 0..N. we must have seen at least
+                // this many docs so far.
+                int lastNum = numDocsWritten - 1;
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    logger.debug(() -> format("[%s] Restoring model definition doc with id [%s]", modelId, hit.getId()));
+                    try {
+                        TrainedModelDefinitionDoc doc = parseModelDefinitionDocLenientlyFromSource(
+                            hit.getSourceRef(),
+                            modelId,
+                            xContentRegistry
+                        );
+                        lastNum = doc.getDocNum();
 
-            boolean endOfSearch = searchResponse.getHits().getHits().length < searchSize
-                || searchResponse.getHits().getTotalHits().value == numDocsWritten;
+                        boolean continueSearching = modelConsumer.apply(doc);
+                        if (continueSearching == false) {
+                            // signal the search has finished early
+                            successConsumer.accept(Boolean.FALSE);
+                            return;
+                        }
 
-            if (endOfSearch) {
-                successConsumer.accept(Boolean.TRUE);
-            } else {
-                // search again with after
-                SearchHit lastHit = searchResponse.getHits().getAt(searchResponse.getHits().getHits().length - 1);
-                SearchRequestBuilder searchRequestBuilder = buildSearchBuilder(client, modelId, index, searchSize);
-                searchRequestBuilder.searchAfter(new Object[] { lastHit.getIndex(), lastNum });
-                executorService.execute(() -> doSearch(searchRequestBuilder.request(), modelConsumer, successConsumer, errorConsumer));
+                    } catch (IOException e) {
+                        logger.error(() -> "[" + modelId + "] error writing model definition", e);
+                        errorConsumer.accept(e);
+                        return;
+                    }
+                }
+
+                numDocsWritten += searchResponse.getHits().getHits().length;
+
+                boolean endOfSearch = searchResponse.getHits().getHits().length < searchSize
+                    || searchResponse.getHits().getTotalHits().value == numDocsWritten;
+
+                if (endOfSearch) {
+                    successConsumer.accept(Boolean.TRUE);
+                } else {
+                    // search again with after
+                    SearchHit lastHit = searchResponse.getHits().getAt(searchResponse.getHits().getHits().length - 1);
+                    SearchRequestBuilder searchRequestBuilder = buildSearchBuilder(client, modelId, index, searchSize);
+                    searchRequestBuilder.searchAfter(new Object[] { lastHit.getIndex(), lastNum });
+                    executorService.execute(() -> doSearch(searchRequestBuilder.request(), modelConsumer, successConsumer, errorConsumer));
+                }
+            } finally {
+                searchResponse.decRef();
             }
         } catch (Exception e) {
             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
@@ -294,9 +297,11 @@ public class ChunkedTrainedModelRestorer {
     ) throws IOException {
 
         try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+                source,
+                XContentType.JSON
+            )
         ) {
             return TrainedModelDefinitionDoc.fromXContent(parser, true).build();
         } catch (IOException e) {

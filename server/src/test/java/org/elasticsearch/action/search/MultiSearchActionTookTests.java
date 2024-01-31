@@ -19,7 +19,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -149,8 +149,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
                     counter.decrementAndGet();
                     ActionListener.respondAndRelease(
                         listener,
-                        new SearchResponse(
-                            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                        SearchResponseUtils.emptyWithTotalHits(
                             null,
                             0,
                             0,

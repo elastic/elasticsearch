@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.settings.put;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -44,6 +45,7 @@ import static org.elasticsearch.indices.SystemIndexMappingUpdateService.MANAGED_
 
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/settings/update");
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
 
     private final MetadataUpdateSettingsService updateSettingsService;
@@ -60,7 +62,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         SystemIndices systemIndices
     ) {
         super(
-            UpdateSettingsAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

@@ -1,7 +1,0 @@
-pr: 102958
-summary: Ensure transform `_schedule_now` API only triggers the expected transform
-  task
-area: Transform
-type: bug
-issues:
- - 102956

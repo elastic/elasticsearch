@@ -29,11 +29,11 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         WriteRequestBuilder<IndexRequestBuilder> {
 
     public IndexRequestBuilder(ElasticsearchClient client) {
-        super(client, IndexAction.INSTANCE, new IndexRequest());
+        super(client, TransportIndexAction.TYPE, new IndexRequest());
     }
 
     public IndexRequestBuilder(ElasticsearchClient client, @Nullable String index) {
-        super(client, IndexAction.INSTANCE, new IndexRequest(index));
+        super(client, TransportIndexAction.TYPE, new IndexRequest(index));
     }
 
     /**
@@ -219,6 +219,14 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      */
     public IndexRequestBuilder setRequireAlias(boolean requireAlias) {
         request.setRequireAlias(requireAlias);
+        return this;
+    }
+
+    /**
+     * Sets the require_data_stream flag
+     */
+    public IndexRequestBuilder setRequireDataStream(boolean requireDataStream) {
+        request.setRequireDataStream(requireDataStream);
         return this;
     }
 }

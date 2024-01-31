@@ -289,7 +289,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                     e.id(),
                     e.source(),
                     version.onOrAfter(TransportVersions.V_7_13_0) ? e.fetchFields() : null,
-                    version.onOrAfter(TransportVersions.V_8_500_040) ? e.missing() : e.index().isEmpty()
+                    version.onOrAfter(TransportVersions.V_8_10_X) ? e.missing() : e.index().isEmpty()
                 )
             );
         }
@@ -299,10 +299,10 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
     public void testEmptyIndexAsMissingEvent() throws IOException {
         Event event = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null);
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersions.V_8_500_020);// 8.9.1
+        out.setTransportVersion(TransportVersions.V_8_9_X);// 8.9.1
         event.writeTo(out);
         ByteArrayStreamInput in = new ByteArrayStreamInput(out.bytes().array());
-        in.setTransportVersion(TransportVersions.V_8_500_020);
+        in.setTransportVersion(TransportVersions.V_8_9_X);
         Event event2 = Event.readFrom(in);
         assertTrue(event2.missing());
     }

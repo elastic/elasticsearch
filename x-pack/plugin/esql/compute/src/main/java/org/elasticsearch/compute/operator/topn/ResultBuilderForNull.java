@@ -35,7 +35,7 @@ public class ResultBuilderForNull implements ResultBuilder {
 
     @Override
     public Block build() {
-        return Block.constantNullBlock(positions, blockFactory);
+        return blockFactory.newConstantNullBlock(positions);
     }
 
     @Override

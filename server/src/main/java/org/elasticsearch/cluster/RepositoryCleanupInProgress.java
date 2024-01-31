@@ -38,7 +38,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
     }
 
     RepositoryCleanupInProgress(StreamInput in) throws IOException {
-        this.entries = in.readCollectionAsList(Entry::new);
+        this.entries = in.readCollectionAsList(Entry::readFrom);
     }
 
     public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -92,20 +92,10 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
         return TransportVersions.V_7_4_0;
     }
 
-    public static final class Entry implements Writeable, RepositoryOperation {
+    public record Entry(String repository, long repositoryStateId) implements Writeable, RepositoryOperation {
 
-        private final String repository;
-
-        private final long repositoryStateId;
-
-        private Entry(StreamInput in) throws IOException {
-            repository = in.readString();
-            repositoryStateId = in.readLong();
-        }
-
-        public Entry(String repository, long repositoryStateId) {
-            this.repository = repository;
-            this.repositoryStateId = repositoryStateId;
+        public static Entry readFrom(StreamInput in) throws IOException {
+            return new Entry(in.readString(), in.readLong());
         }
 
         @Override
@@ -122,11 +112,6 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(repository);
             out.writeLong(repositoryStateId);
-        }
-
-        @Override
-        public String toString() {
-            return "{" + repository + '}' + '{' + repositoryStateId + '}';
         }
     }
 }

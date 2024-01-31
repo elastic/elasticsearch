@@ -10,16 +10,13 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,14 +31,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class UpdateConnectorErrorAction extends ActionType<UpdateConnectorErrorAction.Response> {
+public class UpdateConnectorErrorAction {
 
-    public static final UpdateConnectorErrorAction INSTANCE = new UpdateConnectorErrorAction();
     public static final String NAME = "cluster:admin/xpack/connector/update_error";
+    public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
-    public UpdateConnectorErrorAction() {
-        super(NAME, UpdateConnectorErrorAction.Response::new);
-    }
+    private UpdateConnectorErrorAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
 
@@ -74,7 +69,7 @@ public class UpdateConnectorErrorAction extends ActionType<UpdateConnectorErrorA
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(connectorId)) {
-                validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
+                validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
 
             return validationException;
@@ -134,53 +129,6 @@ public class UpdateConnectorErrorAction extends ActionType<UpdateConnectorErrorA
         @Override
         public int hashCode() {
             return Objects.hash(connectorId, error);
-        }
-    }
-
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        final DocWriteResponse.Result result;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            result = DocWriteResponse.Result.readFrom(in);
-        }
-
-        public Response(DocWriteResponse.Result result) {
-            this.result = result;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            this.result.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("result", this.result.getLowercase());
-            builder.endObject();
-            return builder;
-        }
-
-        public RestStatus status() {
-            return switch (result) {
-                case NOT_FOUND -> RestStatus.NOT_FOUND;
-                default -> RestStatus.OK;
-            };
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response that = (Response) o;
-            return Objects.equals(result, that.result);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(result);
         }
     }
 }

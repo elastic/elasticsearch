@@ -21,8 +21,11 @@ import java.util.List;
  * Tangent trigonometric function.
  */
 public class Tan extends AbstractTrigonometricFunction {
-    @FunctionInfo(returnType = "double")
-    public Tan(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+    @FunctionInfo(returnType = "double", description = "Returns the trigonometric tangent of an angle")
+    public Tan(
+        Source source,
+        @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }, description = "An angle, in radians") Expression n
+    ) {
         super(source, n);
     }
 

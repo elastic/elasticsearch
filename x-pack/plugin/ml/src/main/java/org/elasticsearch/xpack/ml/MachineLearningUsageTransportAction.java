@@ -425,17 +425,25 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 Collections.emptySet()
             );
             getModelsRequest.setPageParams(new PageParams(0, 10_000));
-            client.execute(GetTrainedModelsAction.INSTANCE, getModelsRequest, ActionListener.wrap(getModelsResponse -> {
-                GetTrainedModelsStatsAction.Request getStatsRequest = new GetTrainedModelsStatsAction.Request("*");
-                getStatsRequest.setPageParams(new PageParams(0, 10_000));
-                client.execute(GetTrainedModelsStatsAction.INSTANCE, getStatsRequest, ActionListener.wrap(getStatsResponse -> {
-                    Map<String, Object> inferenceUsage = new LinkedHashMap<>();
-                    addInferenceIngestUsage(getStatsResponse, inferenceUsage);
-                    addTrainedModelStats(getModelsResponse, getStatsResponse, inferenceUsage);
-                    addDeploymentStats(getModelsResponse, getStatsResponse, inferenceUsage);
-                    listener.onResponse(inferenceUsage);
-                }, listener::onFailure));
-            }, listener::onFailure));
+            client.execute(
+                GetTrainedModelsAction.INSTANCE,
+                getModelsRequest,
+                listener.delegateFailureAndWrap((delegate, getModelsResponse) -> {
+                    GetTrainedModelsStatsAction.Request getStatsRequest = new GetTrainedModelsStatsAction.Request("*");
+                    getStatsRequest.setPageParams(new PageParams(0, 10_000));
+                    client.execute(
+                        GetTrainedModelsStatsAction.INSTANCE,
+                        getStatsRequest,
+                        delegate.delegateFailureAndWrap((l, getStatsResponse) -> {
+                            Map<String, Object> inferenceUsage = new LinkedHashMap<>();
+                            addInferenceIngestUsage(getStatsResponse, inferenceUsage);
+                            addTrainedModelStats(getModelsResponse, getStatsResponse, inferenceUsage);
+                            addDeploymentStats(getModelsResponse, getStatsResponse, inferenceUsage);
+                            l.onResponse(inferenceUsage);
+                        })
+                    );
+                })
+            );
         } else {
             listener.onResponse(Map.of());
         }

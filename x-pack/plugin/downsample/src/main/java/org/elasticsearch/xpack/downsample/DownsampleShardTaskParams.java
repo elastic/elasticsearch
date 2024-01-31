@@ -91,7 +91,7 @@ public record DownsampleShardTaskParams(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_500_054;
+        return TransportVersions.V_8_10_X;
     }
 
     @Override

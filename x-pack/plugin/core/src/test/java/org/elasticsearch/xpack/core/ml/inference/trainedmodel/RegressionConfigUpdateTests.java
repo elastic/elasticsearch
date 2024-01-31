@@ -53,19 +53,18 @@ public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCas
     public void testApply() {
         RegressionConfig originalConfig = randomRegressionConfig();
 
-        assertThat(originalConfig, equalTo(RegressionConfigUpdate.EMPTY_PARAMS.apply(originalConfig)));
+        assertThat(originalConfig, equalTo(originalConfig.apply(RegressionConfigUpdate.EMPTY_PARAMS)));
 
         assertThat(
             new RegressionConfig.Builder(originalConfig).setNumTopFeatureImportanceValues(5).build(),
-            equalTo(new RegressionConfigUpdate.Builder().setNumTopFeatureImportanceValues(5).build().apply(originalConfig))
+            equalTo(originalConfig.apply(new RegressionConfigUpdate.Builder().setNumTopFeatureImportanceValues(5).build()))
         );
         assertThat(
             new RegressionConfig.Builder().setNumTopFeatureImportanceValues(1).setResultsField("foo").build(),
             equalTo(
-                new RegressionConfigUpdate.Builder().setNumTopFeatureImportanceValues(1)
-                    .setResultsField("foo")
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new RegressionConfigUpdate.Builder().setNumTopFeatureImportanceValues(1).setResultsField("foo").build()
+                )
             )
         );
     }

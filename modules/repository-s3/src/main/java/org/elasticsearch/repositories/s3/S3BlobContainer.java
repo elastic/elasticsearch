@@ -628,7 +628,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                 // Step 5: Perform the compare-and-swap by completing our upload iff the witnessed value matches the expected value.
 
-                .<OptionalBytesReference>andThen((l, currentValue) -> ActionListener.completeWith(l, () -> {
+                .andThenApply(currentValue -> {
                     if (currentValue.isPresent() && currentValue.bytesReference().equals(expected)) {
                         logger.trace("[{}] completing upload [{}]", blobKey, uploadId);
                         completeMultipartUpload(uploadId, partETag);
@@ -638,7 +638,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                         safeAbortMultipartUpload(uploadId);
                     }
                     return currentValue;
-                }))
+                })
 
                 // Step 6: Complete the listener.
 

@@ -15,8 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -25,7 +24,7 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -136,24 +135,24 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testMasterNodeOperationTasks() throws Exception {
-        registerTaskManagerListeners(ClusterHealthAction.NAME);
+        registerTaskManagerListeners(TransportClusterHealthAction.NAME);
 
         // First run the health on the master node - should produce only one task on the master node
         internalCluster().masterClient().admin().cluster().prepareHealth().get();
-        assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
+        assertEquals(1, numberOfEvents(TransportClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
         // counting only unregistration events
         // When checking unregistration events there might be some delay since receiving the response from the cluster doesn't
         // guarantee that the task has been unregistered.
-        assertBusy(() -> assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)));
+        assertBusy(() -> assertEquals(1, numberOfEvents(TransportClusterHealthAction.NAME, event -> event.v1() == false)));
 
-        resetTaskManagerListeners(ClusterHealthAction.NAME);
+        resetTaskManagerListeners(TransportClusterHealthAction.NAME);
 
         // Now run the health on a non-master node - should produce one task on master and one task on another node
         internalCluster().nonMasterClient().admin().cluster().prepareHealth().get();
-        assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
+        assertEquals(2, numberOfEvents(TransportClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
         // counting only unregistration events
-        assertBusy(() -> assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)));
-        List<TaskInfo> tasks = findEvents(ClusterHealthAction.NAME, Tuple::v1);
+        assertBusy(() -> assertEquals(2, numberOfEvents(TransportClusterHealthAction.NAME, event -> event.v1() == false)));
+        List<TaskInfo> tasks = findEvents(TransportClusterHealthAction.NAME, Tuple::v1);
 
         // Verify that one of these tasks is a parent of another task
         if (tasks.get(0).parentTaskId().isSet()) {
@@ -406,7 +405,7 @@ public class TasksIT extends ESIntegTestCase {
         headers.put("Custom-Task-Header", randomAlphaOfLengthBetween(maxSize, maxSize + 100));
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> client().filterWithHeader(headers).admin().cluster().prepareListTasks().get()
+            client().filterWithHeader(headers).admin().cluster().prepareListTasks()
         );
         assertThat(ex.getMessage(), startsWith("Request exceeded the maximum size of task headers "));
     }
@@ -433,7 +432,7 @@ public class TasksIT extends ESIntegTestCase {
                 ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
                     @Override
                     public void onTaskRegistered(Task task) {
-                        if (task.getAction().startsWith(IndexAction.NAME)) {
+                        if (task.getAction().startsWith(TransportIndexAction.NAME)) {
                             taskRegistered.countDown();
                             logger.debug("Blocking [{}] starting", task);
                             try {
@@ -503,10 +502,10 @@ public class TasksIT extends ESIntegTestCase {
         );
 
         logger.info("--> cancelling the main test task");
-        CancelTasksResponse cancelTasksResponse = clusterAdmin().prepareCancelTasks().setActions(TEST_TASK_ACTION.name()).get();
+        ListTasksResponse cancelTasksResponse = clusterAdmin().prepareCancelTasks().setActions(TEST_TASK_ACTION.name()).get();
         assertEquals(1, cancelTasksResponse.getTasks().size());
 
-        expectThrows(TaskCancelledException.class, future::actionGet);
+        expectThrows(TaskCancelledException.class, future);
 
         logger.info("--> checking that test tasks are not running");
         assertEquals(0, clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "*").get().getTasks().size());
@@ -640,7 +639,7 @@ public class TasksIT extends ESIntegTestCase {
         waitForTimeoutTestCase(id -> {
             Exception e = expectThrows(
                 Exception.class,
-                () -> clusterAdmin().prepareGetTask(id).setWaitForCompletion(true).setTimeout(timeValueMillis(100)).get()
+                clusterAdmin().prepareGetTask(id).setWaitForCompletion(true).setTimeout(timeValueMillis(100))
             );
             return singleton(e);
         });
@@ -722,7 +721,7 @@ public class TasksIT extends ESIntegTestCase {
             .map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)
             .collect(Collectors.toSet());
         // Spin up a request to wait for all tasks in the cluster to make sure it doesn't cause an infinite loop
-        ListTasksResponse response = clusterAdmin().prepareListTasks().setWaitForCompletion(true).setTimeout(timeValueSeconds(10)).get();
+        ListTasksResponse response = clusterAdmin().prepareListTasks().setWaitForCompletion(true).setTimeout(timeValueSeconds(1)).get();
 
         // We expect the nodes that are running always-running-tasks to report FailedNodeException and fail to list their tasks
         assertThat(response.getNodeFailures().size(), equalTo(nodesRunningTasks.size()));

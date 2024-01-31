@@ -33,8 +33,8 @@ import java.util.List;
  * programmatically attach the agent, the Security Manager permissions required for this
  * make this approach difficult to the point of impossibility.
  * <p>
- * All settings are found under the <code>tracing.apm.</code> prefix. Any setting under
- * the <code>tracing.apm.agent.</code> prefix will be forwarded on to the APM Java agent
+ * All settings are found under the <code>telemetry.</code> prefix. Any setting under
+ * the <code>telemetry.agent.</code> prefix will be forwarded on to the APM Java agent
  * by setting appropriate system properties. Some settings can only be set once, and must be
  * set when the agent starts. We therefore also create and configure a config file in
  * the {@code APMJvmOptions} class, which we then delete when Elasticsearch starts, so that
@@ -64,16 +64,16 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     @Override
     public Collection<?> createComponents(PluginServices services) {
         final APMTracer apmTracer = telemetryProvider.get().getTracer();
+        final APMMeterService apmMeter = telemetryProvider.get().getMeterService();
 
         apmTracer.setClusterName(services.clusterService().getClusterName().value());
         apmTracer.setNodeName(services.clusterService().getNodeName());
 
         final APMAgentSettings apmAgentSettings = new APMAgentSettings();
-        apmAgentSettings.syncAgentSystemProperties(settings);
-        final APMMeterService apmMeter = new APMMeterService(settings);
-        apmAgentSettings.addClusterSettingsListeners(services.clusterService(), telemetryProvider.get(), apmMeter);
+        apmAgentSettings.initAgentSystemProperties(settings);
+        apmAgentSettings.addClusterSettingsListeners(services.clusterService(), telemetryProvider.get());
         logger.info("Sending apm metrics is {}", APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
-        logger.info("Sending apm traces is {}", APMAgentSettings.APM_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
+        logger.info("Sending apm tracing is {}", APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
 
         return List.of(apmTracer, apmMeter);
     }
@@ -81,14 +81,24 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            APMAgentSettings.APM_ENABLED_SETTING,
-            APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING,
-            APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING,
-            APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING,
-            APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES,
+            // APM general
             APMAgentSettings.APM_AGENT_SETTINGS,
-            APMAgentSettings.APM_SECRET_TOKEN_SETTING,
-            APMAgentSettings.APM_API_KEY_SETTING
+            APMAgentSettings.TELEMETRY_SECRET_TOKEN_SETTING,
+            APMAgentSettings.TELEMETRY_API_KEY_SETTING,
+            // Metrics
+            APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING,
+            // Tracing
+            APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING,
+            APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,
+            APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING,
+            APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
+            // The settings below are deprecated and are currently kept as fallback.
+            APMAgentSettings.TRACING_APM_SECRET_TOKEN_SETTING,
+            APMAgentSettings.TRACING_APM_API_KEY_SETTING,
+            APMAgentSettings.TRACING_APM_ENABLED_SETTING,
+            APMAgentSettings.TRACING_APM_NAMES_INCLUDE_SETTING,
+            APMAgentSettings.TRACING_APM_NAMES_EXCLUDE_SETTING,
+            APMAgentSettings.TRACING_APM_SANITIZE_FIELD_NAMES
         );
     }
 }

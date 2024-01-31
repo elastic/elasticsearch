@@ -2,15 +2,33 @@
 [[esql-cidr_match]]
 === `CIDR_MATCH`
 
-Returns `true` if the provided IP is contained in one of the provided CIDR
-blocks.
-
-`CIDR_MATCH` accepts two or more arguments. The first argument is the IP
-address of type `ip` (both IPv4 and IPv6 are supported). Subsequent arguments
-are the CIDR blocks to test the IP against.
+*Syntax*
 
 [source,esql]
 ----
-FROM hosts
-| WHERE CIDR_MATCH(ip, "127.0.0.2/32", "127.0.0.3/32")
+CIDR_MATCH(ip, block1[, ..., blockN])
 ----
+
+*Parameters*
+
+`ip`::
+IP address of type `ip` (both IPv4 and IPv6 are supported).
+
+`blockX`::
+CIDR block to test the IP against.
+
+*Description*
+
+Returns `true` if the provided IP is contained in one of the provided CIDR
+blocks.
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/ip.csv-spec[tag=cdirMatchMultipleArgs]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/ip.csv-spec[tag=cdirMatchMultipleArgs-result]
+|===

@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -44,6 +45,8 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
 
+    private final ES812PostingsFormat es812PostingsFormat;
+
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
             : "PerFieldMapperCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
@@ -54,6 +57,7 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
+        this.es812PostingsFormat = new ES812PostingsFormat();
     }
 
     @Override
@@ -69,7 +73,8 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
         if (format != null) {
             return format;
         }
-        return super.getPostingsFormatForField(field);
+        // return our own posting format using PFOR
+        return es812PostingsFormat;
     }
 
     boolean useBloomFilter(String field) {

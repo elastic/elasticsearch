@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -55,10 +54,9 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         parser.nextToken();
         assertTrue(parser.currentToken().isValue());
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, fieldname);
-        Map<String, List<Mapper.Builder>> dynamicMappers = ctx.getDynamicMappers();
+        List<Mapper> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
-        Mapper mapper = dynamicMappers.get(fieldname).get(0).build(MapperBuilderContext.root(false, false));
-        assertEquals(fieldname, mapper.name());
-        assertEquals(expectedType, mapper.typeName());
+        assertEquals(fieldname, dynamicMappers.get(0).name());
+        assertEquals(expectedType, dynamicMappers.get(0).typeName());
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 
 import java.util.Map;
@@ -24,11 +25,8 @@ public class SnapshotShardSizeInfo {
     }
 
     public Long getShardSize(ShardRouting shardRouting) {
-        if (shardRouting.primary()
-            && shardRouting.active() == false
-            && shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-            final RecoverySource.SnapshotRecoverySource snapshotRecoverySource = (RecoverySource.SnapshotRecoverySource) shardRouting
-                .recoverySource();
+        if (shardRouting.active() == false && shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+            final SnapshotRecoverySource snapshotRecoverySource = (SnapshotRecoverySource) shardRouting.recoverySource();
             return snapshotShardSizes.get(
                 new InternalSnapshotsInfoService.SnapshotShard(
                     snapshotRecoverySource.snapshot(),

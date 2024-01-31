@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
@@ -412,7 +413,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
 
         @Override
-        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
+        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {
             // no-op
         }
 

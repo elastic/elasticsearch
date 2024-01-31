@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +35,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteDesiredBalanceAction extends TransportMasterNodeAction<DesiredBalanceRequest, ActionResponse.Empty> {
 
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:admin/desired_balance/reset");
     @Nullable
     private final MasterServiceTaskQueue<ResetDesiredBalanceTask> resetDesiredBalanceTaskQueue;
 
@@ -48,7 +50,7 @@ public class TransportDeleteDesiredBalanceAction extends TransportMasterNodeActi
         ShardsAllocator shardsAllocator
     ) {
         super(
-            DeleteDesiredBalanceAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

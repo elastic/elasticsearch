@@ -54,7 +54,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class PainlessContextAction {
 
-    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/context", Response::new);
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/context");
 
     private static final String SCRIPT_CONTEXT_NAME_PARAM = "context";
 

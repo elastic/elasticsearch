@@ -8,9 +8,9 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
@@ -189,7 +189,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         internalCluster().clearDisruptionScheme(true);
     }
 
-    void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?> builder) {
+    void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, RequestBuilder<?, ?> builder) {
         // we clean the metadata when loosing a master, therefore all operations on indices will auto create it, if allowed
         try {
             builder.get();
@@ -204,7 +204,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         }
     }
 
-    void checkWriteAction(ActionRequestBuilder<?, ?> builder) {
+    void checkWriteAction(RequestBuilder<?, ?> builder) {
         try {
             builder.get();
             fail("Expected ClusterBlockException");
@@ -320,7 +320,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             .toList();
 
         client().execute(
-            AddVotingConfigExclusionsAction.INSTANCE,
+            TransportAddVotingConfigExclusionsAction.TYPE,
             new AddVotingConfigExclusionsRequest(nodesWithShards.toArray(new String[0]))
         ).get();
         ensureGreen("test1");
@@ -344,14 +344,11 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         GetResponse getResponse = client(randomFrom(nodesWithShards)).prepareGet("test1", "1").get();
         assertExists(getResponse);
 
-        expectThrows(Exception.class, () -> client(partitionedNode).prepareGet("test1", "1").get());
+        expectThrows(Exception.class, client(partitionedNode).prepareGet("test1", "1"));
 
         assertHitCount(client(randomFrom(nodesWithShards)).prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0), 1L);
 
-        expectThrows(
-            Exception.class,
-            () -> client(partitionedNode).prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get()
-        );
+        expectThrows(Exception.class, client(partitionedNode).prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0));
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
         client(randomFrom(nodesWithShards)).prepareUpdate("test1", "1")
@@ -361,10 +358,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         expectThrows(
             Exception.class,
-            () -> client(partitionedNode).prepareUpdate("test1", "1")
-                .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
-                .setTimeout(timeout)
-                .get()
+            client(partitionedNode).prepareUpdate("test1", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").setTimeout(timeout)
         );
 
         client(randomFrom(nodesWithShards)).prepareIndex("test1")
@@ -376,30 +370,27 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         // dynamic mapping updates fail
         expectThrows(
             MasterNotDiscoveredException.class,
-            () -> client(randomFrom(nodesWithShards)).prepareIndex("test1")
+            client(randomFrom(nodesWithShards)).prepareIndex("test1")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("new_field", "value").endObject())
                 .setTimeout(timeout)
-                .get()
         );
 
         // dynamic index creation fails
         expectThrows(
             MasterNotDiscoveredException.class,
-            () -> client(randomFrom(nodesWithShards)).prepareIndex("test2")
+            client(randomFrom(nodesWithShards)).prepareIndex("test2")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject())
                 .setTimeout(timeout)
-                .get()
         );
 
         expectThrows(
             Exception.class,
-            () -> client(partitionedNode).prepareIndex("test1")
+            client(partitionedNode).prepareIndex("test1")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject())
                 .setTimeout(timeout)
-                .get()
         );
 
         internalCluster().clearDisruptionScheme(true);

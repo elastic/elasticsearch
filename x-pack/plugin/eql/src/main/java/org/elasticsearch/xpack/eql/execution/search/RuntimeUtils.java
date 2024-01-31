@@ -18,7 +18,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
@@ -95,7 +95,7 @@ public final class RuntimeUtils {
     }
 
     private static void logSearchResponse(SearchResponse response, Logger logger) {
-        List<Aggregation> aggs = Collections.emptyList();
+        List<InternalAggregation> aggs = Collections.emptyList();
         if (response.getAggregations() != null) {
             aggs = response.getAggregations().asList();
         }
@@ -182,7 +182,8 @@ public final class RuntimeUtils {
     }
 
     public static List<SearchHit> searchHits(SearchResponse response) {
-        return Arrays.asList(response.getHits().getHits());
+        // TODO remove unpooled usage
+        return Arrays.asList(response.getHits().asUnpooled().getHits());
     }
 
     /**

@@ -155,21 +155,24 @@ public class InferenceRunner {
             client,
             () -> client.search(searchRequest).actionGet()
         );
-
-        Max maxIncrementalIdAgg = searchResponse.getAggregations().get(DestinationIndex.INCREMENTAL_ID);
-        long processedTestDocCount = searchResponse.getHits().getTotalHits().value;
-        Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.value();
-        if (lastIncrementalId != null) {
-            LOGGER.debug(
-                () -> format(
-                    "[%s] Resuming inference; last incremental id [%s]; processed test doc count [%s]",
-                    config.getId(),
-                    lastIncrementalId,
-                    processedTestDocCount
-                )
-            );
+        try {
+            Max maxIncrementalIdAgg = searchResponse.getAggregations().get(DestinationIndex.INCREMENTAL_ID);
+            long processedTestDocCount = searchResponse.getHits().getTotalHits().value;
+            Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.value();
+            if (lastIncrementalId != null) {
+                LOGGER.debug(
+                    () -> format(
+                        "[%s] Resuming inference; last incremental id [%s]; processed test doc count [%s]",
+                        config.getId(),
+                        lastIncrementalId,
+                        processedTestDocCount
+                    )
+                );
+            }
+            return new InferenceState(lastIncrementalId, processedTestDocCount);
+        } finally {
+            searchResponse.decRef();
         }
-        return new InferenceState(lastIncrementalId, processedTestDocCount);
     }
 
     // Visible for testing

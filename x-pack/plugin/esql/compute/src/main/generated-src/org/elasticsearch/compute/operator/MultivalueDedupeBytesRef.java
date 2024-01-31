@@ -49,7 +49,7 @@ public class MultivalueDedupeBytesRef {
             block.incRef();
             return block;
         }
-        try (BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -99,7 +99,7 @@ public class MultivalueDedupeBytesRef {
             block.incRef();
             return block;
         }
-        try (BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -129,7 +129,7 @@ public class MultivalueDedupeBytesRef {
             block.incRef();
             return block;
         }
-        try (BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);

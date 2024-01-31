@@ -46,12 +46,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -136,7 +134,7 @@ public class IndexRequestTests extends ESTestCase {
         IndexResponse indexResponse = new IndexResponse(shardId, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
         int total = randomIntBetween(1, 10);
         int successful = randomIntBetween(1, 10);
-        ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
+        ReplicationResponse.ShardInfo shardInfo = ReplicationResponse.ShardInfo.of(total, successful);
         indexResponse.setShardInfo(shardInfo);
         boolean forcedRefresh = false;
         if (randomBoolean()) {
@@ -463,6 +461,7 @@ public class IndexRequestTests extends ESTestCase {
         assertThat(copy.ifSeqNo(), equalTo(indexRequest.ifSeqNo()));
         assertThat(copy.getFinalPipeline(), equalTo(indexRequest.getFinalPipeline()));
         assertThat(copy.ifPrimaryTerm(), equalTo(indexRequest.ifPrimaryTerm()));
+        assertThat(copy.isRequireDataStream(), equalTo(indexRequest.isRequireDataStream()));
     }
 
     private IndexRequest createTestInstance() {
@@ -470,6 +469,7 @@ public class IndexRequestTests extends ESTestCase {
         indexRequest.setPipeline(randomAlphaOfLength(15));
         indexRequest.setRequestId(randomLong());
         indexRequest.setRequireAlias(randomBoolean());
+        indexRequest.setRequireDataStream(randomBoolean());
         indexRequest.setIfSeqNo(randomNonNegativeLong());
         indexRequest.setFinalPipeline(randomAlphaOfLength(20));
         indexRequest.setIfPrimaryTerm(randomNonNegativeLong());

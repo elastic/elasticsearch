@@ -13,6 +13,6 @@ public final class GetStackTracesAction extends ActionType<GetStackTracesRespons
     public static final String NAME = "indices:data/read/profiling/stack_traces";
 
     private GetStackTracesAction() {
-        super(NAME, GetStackTracesResponse::new);
+        super(NAME);
     }
 }

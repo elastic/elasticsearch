@@ -31,7 +31,7 @@ import java.util.function.Consumer;
 
 public class LuceneGeometriesUtils {
 
-    public interface Quantizer {
+    interface Quantizer {
         double quantizeLat(double lat);
 
         double quantizeLon(double lon);
@@ -41,7 +41,7 @@ public class LuceneGeometriesUtils {
         double[] quantizeLons(double[] lons);
     }
 
-    public static final Quantizer NOOP_QUANTIZER = new Quantizer() {
+    static final Quantizer NOOP_QUANTIZER = new Quantizer() {
         @Override
         public double quantizeLat(double lat) {
             return lat;
@@ -63,7 +63,7 @@ public class LuceneGeometriesUtils {
         }
     };
 
-    public static Quantizer LATLON_QUANTIZER = new Quantizer() {
+    static Quantizer LATLON_QUANTIZER = new Quantizer() {
         @Override
         public double quantizeLat(double lat) {
             return GeoUtils.quantizeLat(lat);

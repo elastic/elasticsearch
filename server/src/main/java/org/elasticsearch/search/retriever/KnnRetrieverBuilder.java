@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -104,6 +105,8 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
         if (preFilterQueryBuilders != null) {
             knnSearchBuilder.addFilterQueries(preFilterQueryBuilders);
         }
-        searchSourceBuilder.knnSearch(List.of(knnSearchBuilder));
+        List<KnnSearchBuilder> knnSearchBuilders = new ArrayList<>(searchSourceBuilder.knnSearch());
+        knnSearchBuilders.add(knnSearchBuilder);
+        searchSourceBuilder.knnSearch(knnSearchBuilders);
     }
 }

@@ -74,10 +74,7 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
     }
 
     private static class JdkSockFProg implements SockFProg {
-        private static final MemoryLayout layout = MemoryLayout.structLayout(
-            JAVA_SHORT,
-            paddingLayout(6),
-            ADDRESS);
+        private static final MemoryLayout layout = MemoryLayout.structLayout(JAVA_SHORT, paddingLayout(6), ADDRESS);
 
         private final MemorySegment segment;
 

@@ -10,7 +10,6 @@ package org.elasticsearch.nativeaccess.jna;
 
 import com.sun.jna.Native;
 
-import org.elasticsearch.jdk.JdkUtils;
 import org.elasticsearch.nativeaccess.jna.JnaStaticPosixCLibrary.JnaRLimit;
 import org.elasticsearch.nativeaccess.jna.JnaStaticPosixCLibrary.JnaStat;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;

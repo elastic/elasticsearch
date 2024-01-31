@@ -570,7 +570,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
     }
 
     @Override
-    public void reload(Settings settings) throws Exception {
+    public void reload(Settings settings) {
         final List<Exception> reloadExceptions = new ArrayList<>();
         for (Realm realm : this.allConfiguredRealms) {
             if (realm instanceof ReloadableSecurityComponent reloadableRealm) {

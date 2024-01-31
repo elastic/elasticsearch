@@ -220,7 +220,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm implements Rel
     }
 
     @Override
-    public void reload(Settings settings) throws Exception {
+    public void reload(Settings settings) {
         this.sessionFactory.reload(settings);
     }
 

@@ -34,10 +34,7 @@ public interface ReloadableSecurityComponent {
      *
      * @param settings
      *            Settings used at the time of reloading the component.
-     * @throws Exception
-     *             if the operation fails. The component should continue to operate as
-     *             if the failing call didn't happen.
      */
-    void reload(Settings settings) throws Exception;
+    void reload(Settings settings);
 
 }

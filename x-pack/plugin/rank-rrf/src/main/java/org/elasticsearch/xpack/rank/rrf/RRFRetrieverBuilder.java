@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -44,6 +46,9 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
     }
 
     public static RRFRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
+        if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
+        }
         return PARSER.apply(parser, context);
     }
 

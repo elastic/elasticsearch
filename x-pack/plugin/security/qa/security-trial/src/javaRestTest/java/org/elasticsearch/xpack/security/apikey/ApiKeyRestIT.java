@@ -778,6 +778,58 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(queryResponse.evaluate("api_keys.0.name"), is("test-cross-key-query-2"));
     }
 
+    public void testSortApiKeysByType() throws IOException {
+        List<String> apiKeyIds = new ArrayList<>(2);
+        // create regular api key
+        EncodedApiKey encodedApiKey = createApiKey("test-rest-key", Map.of("tag", "rest"));
+        apiKeyIds.add(encodedApiKey.id());
+        // create cross-cluster key
+        Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "test-cross-key",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "whatever" ]
+                  }
+                ]
+              },
+              "metadata": { "tag": "cross" }
+            }""");
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        ObjectPath createResponse = assertOKAndCreateObjectPath(client().performRequest(createRequest));
+        apiKeyIds.add(createResponse.evaluate("id"));
+
+        // desc sort all (2) keys - by type
+        Request queryRequest = new Request("GET", "/_security/_query/api_key");
+        queryRequest.addParameter("with_limited_by", String.valueOf(randomBoolean()));
+        queryRequest.setJsonEntity("""
+            {"sort":[{"type":{"order":"desc"}}]}""");
+        setUserForRequest(queryRequest, MANAGE_API_KEY_USER, END_USER_PASSWORD);
+        ObjectPath queryResponse = assertOKAndCreateObjectPath(client().performRequest(queryRequest));
+        assertThat(queryResponse.evaluate("total"), is(2));
+        assertThat(queryResponse.evaluate("count"), is(2));
+        assertThat(queryResponse.evaluate("api_keys.0.id"), is(apiKeyIds.get(0)));
+        assertThat(queryResponse.evaluate("api_keys.0.type"), is("rest"));
+        assertThat(queryResponse.evaluate("api_keys.1.id"), is(apiKeyIds.get(1)));
+        assertThat(queryResponse.evaluate("api_keys.1.type"), is("cross_cluster"));
+
+        // asc sort all (2) keys - by type
+        queryRequest = new Request("GET", "/_security/_query/api_key");
+        queryRequest.addParameter("with_limited_by", String.valueOf(randomBoolean()));
+        queryRequest.setJsonEntity("""
+            {"sort":[{"type":{"order":"asc"}}]}""");
+        setUserForRequest(queryRequest, MANAGE_API_KEY_USER, END_USER_PASSWORD);
+        queryResponse = assertOKAndCreateObjectPath(client().performRequest(queryRequest));
+        assertThat(queryResponse.evaluate("total"), is(2));
+        assertThat(queryResponse.evaluate("count"), is(2));
+        assertThat(queryResponse.evaluate("api_keys.0.id"), is(apiKeyIds.get(1)));
+        assertThat(queryResponse.evaluate("api_keys.0.type"), is("cross_cluster"));
+        assertThat(queryResponse.evaluate("api_keys.1.id"), is(apiKeyIds.get(0)));
+        assertThat(queryResponse.evaluate("api_keys.1.type"), is("rest"));
+    }
+
     public void testCreateCrossClusterApiKey() throws IOException {
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity("""

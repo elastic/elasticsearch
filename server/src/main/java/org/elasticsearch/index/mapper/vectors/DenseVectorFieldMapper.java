@@ -39,10 +39,8 @@ import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunct
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -67,10 +65,10 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
+import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
-import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenByteKnnVectorQuery;
-import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -1164,8 +1162,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
             Query knnQuery = parentFilter != null
-                ? new DiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
-                : new KnnByteVectorQuery(name(), queryVector, numCands, filter);
+                ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
+                : new ESKnnByteVectorQuery(name(), queryVector, numCands, filter);
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -1277,13 +1275,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         bytes[i] = (byte) queryVector[i];
                     }
                     yield parentFilter != null
-                        ? new ProfilingDiversifyingChildrenByteKnnVectorQuery(name(), bytes, filter, numCands, parentFilter)
+                        ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), bytes, filter, numCands, parentFilter)
                         : new ESKnnByteVectorQuery(name(), bytes, numCands, filter);
                 }
                 case FLOAT -> parentFilter != null
-                    ? new ProfilingDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
+                    ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
                     : new ESKnnFloatVectorQuery(name(), queryVector, numCands, filter);
-
             };
 
             if (similarityThreshold != null) {

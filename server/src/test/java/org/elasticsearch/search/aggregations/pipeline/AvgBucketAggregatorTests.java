@@ -25,10 +25,9 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -119,12 +118,12 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
 
             // Finally, reduce the pipeline agg
             PipelineAggregator avgBucketAgg = avgBucketBuilder.createInternal(Collections.emptyMap());
-            List<Aggregation> reducedAggs = new ArrayList<>(2);
+            List<InternalAggregation> reducedAggs = new ArrayList<>(2);
 
             // Histo has to go first to exercise the bug
             reducedAggs.add(histogramResult);
             reducedAggs.add(avgResult);
-            Aggregations aggregations = new Aggregations(reducedAggs);
+            InternalAggregations aggregations = InternalAggregations.from(reducedAggs);
             InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator) avgBucketAgg).doReduce(aggregations, null);
             assertNotNull(pipelineResult);
         }
@@ -174,10 +173,10 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
 
             // Finally, reduce the pipeline agg
             PipelineAggregator avgBucketAgg = avgBucketBuilder.createInternal(Collections.emptyMap());
-            List<Aggregation> reducedAggs = new ArrayList<>(4);
+            List<InternalAggregation> reducedAggs = new ArrayList<>(4);
 
             reducedAggs.add(filterResult);
-            Aggregations aggregations = new Aggregations(reducedAggs);
+            InternalAggregations aggregations = InternalAggregations.from(reducedAggs);
             InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator) avgBucketAgg).doReduce(aggregations, null);
             assertNotNull(pipelineResult);
         }

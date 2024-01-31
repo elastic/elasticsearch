@@ -38,25 +38,17 @@ import static org.mockito.Mockito.when;
 
 public class ChunkedDataExtractorTests extends ESTestCase {
 
-    private Client client;
     private String jobId;
-    private String timeField;
-    private List<String> indices;
     private int scrollSize;
     private TimeValue chunkSpan;
     private DataExtractorFactory dataExtractorFactory;
-    private DatafeedTimingStatsReporter timingStatsReporter;
 
     @Before
     public void setUpTests() {
-        client = mock(Client.class);
         jobId = "test-job";
-        timeField = "time";
-        indices = Arrays.asList("index-1", "index-2");
         scrollSize = 1000;
         chunkSpan = null;
         dataExtractorFactory = mock(DataExtractorFactory.class);
-        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(DatafeedTimingStatsPersister.class));
     }
 
     public void testExtractionGivenNoData() throws IOException {

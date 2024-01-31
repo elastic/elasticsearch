@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
 
@@ -31,9 +29,7 @@ import static org.mockito.Mockito.mock;
 
 public class ChunkedDataExtractorFactoryTests extends ESTestCase {
 
-    private Client client;
     private DataExtractorFactory dataExtractorFactory;
-    private DatafeedTimingStatsReporter timingStatsReporter;
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -43,9 +39,7 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        client = mock(Client.class);
         dataExtractorFactory = mock(DataExtractorFactory.class);
-        timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
     }
 
     public void testNewExtractor_GivenAlignedTimes() {

@@ -208,7 +208,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                     ft,
                     multiFieldsBuilder.build(this, context),
                     copyTo,
-                    new GeoShapeIndexer(orientation.get().value(), ft.name()),
+                    new GeoShapeIndexer(orientation.get().value(), ft.concreteFieldName()),
                     parser,
                     this
                 );
@@ -218,7 +218,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 ft,
                 multiFieldsBuilder.build(this, context),
                 copyTo,
-                new GeoShapeIndexer(orientation.get().value(), ft.name()),
+                new GeoShapeIndexer(orientation.get().value(), ft.concreteFieldName()),
                 parser,
                 onScriptError.get(),
                 this
@@ -252,7 +252,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return (cache, breakerService) -> new LatLonShapeIndexFieldData(
-                name(),
+                concreteFieldName(),
                 GeoShapeValuesSourceType.instance(),
                 GeoShapeDocValuesField::new
             );
@@ -290,7 +290,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (isStored()) {
                 Function<List<Geometry>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
-                return new StoredValueFetcher(context.lookup(), name()) {
+                return new StoredValueFetcher(context.lookup(), concreteFieldName()) {
                     @Override
                     public List<Object> parseStoredValues(List<Object> storedValues) {
                         final List<Geometry> values = new ArrayList<>(storedValues.size());
@@ -421,7 +421,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             context.doc().addAll(fields);
         }
         if (fieldType().hasDocValues()) {
-            final String name = fieldType().name();
+            final String name = fieldType().concreteFieldName();
             BinaryShapeDocValuesField docValuesField = (BinaryShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
                 docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
@@ -430,11 +430,12 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             // we need to pass the original geometry to compute more precisely the centroid, e.g if lon > 180
             docValuesField.add(fields, geometry);
         } else if (fieldType().isIndexed()) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(fieldType().concreteFieldName());
         }
 
         if (fieldType().isStored()) {
-            context.doc().add(new StoredField(fieldType().name(), WellKnownBinary.toWKB(normalizedGeometry, ByteOrder.LITTLE_ENDIAN)));
+            context.doc()
+                .add(new StoredField(fieldType().concreteFieldName(), WellKnownBinary.toWKB(normalizedGeometry, ByteOrder.LITTLE_ENDIAN)));
         }
     }
 

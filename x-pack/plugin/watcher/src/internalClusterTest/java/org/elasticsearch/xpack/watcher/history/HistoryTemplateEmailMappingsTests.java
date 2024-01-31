@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.watcher.history;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -106,7 +106,7 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
             response -> {
                 assertThat(response, notNullValue());
                 assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
-                Aggregations aggs = response.getAggregations();
+                InternalAggregations aggs = response.getAggregations();
                 assertThat(aggs, notNullValue());
 
                 Terms terms = aggs.get("from");

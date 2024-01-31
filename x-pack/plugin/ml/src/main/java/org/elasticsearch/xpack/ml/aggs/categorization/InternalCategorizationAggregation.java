@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -175,7 +174,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -323,7 +322,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             for (InternalAggregation aggregation : aggregations) {
                 InternalCategorizationAggregation categorizationAggregation = (InternalCategorizationAggregation) aggregation;
                 for (Bucket bucket : categorizationAggregation.buckets) {
-                    categorizer.mergeWireCategory(bucket.serializableCategory).addSubAggs((InternalAggregations) bucket.getAggregations());
+                    categorizer.mergeWireCategory(bucket.serializableCategory).addSubAggs(bucket.getAggregations());
                     if (reduceContext.isCanceled().get()) {
                         break;
                     }

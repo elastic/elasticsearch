@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.zstd.Zstd813StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
@@ -26,6 +27,8 @@ import java.util.Map;
  */
 public class CodecService {
 
+    public static final FeatureFlag ZSTD_STORED_FIELDS_FEATURE_FLAG = new FeatureFlag("zstd_stored_fields");
+
     private final Map<String, Codec> codecs;
 
     public static final String DEFAULT_CODEC = "default";
@@ -38,16 +41,26 @@ public class CodecService {
 
     public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays) {
         final var codecs = new HashMap<String, Codec>();
-        codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Zstd813StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays));
-        codecs.put(LEGACY_DEFAULT_CODEC, new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_SPEED, mapperService, bigArrays));
-        codecs.put(
-            BEST_COMPRESSION_CODEC,
-            new PerFieldMapperCodec(Zstd813StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
-        );
-        codecs.put(
-            LEGACY_BEST_COMPRESSION_CODEC,
-            new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays)
-        );
+
+        Codec legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_SPEED, mapperService, bigArrays);
+        if (ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Zstd813StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays));
+        } else {
+            codecs.put(DEFAULT_CODEC, legacyBestSpeedCodec);
+        }
+        codecs.put(LEGACY_DEFAULT_CODEC, legacyBestSpeedCodec);
+
+        Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays);
+        if (ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            codecs.put(
+                BEST_COMPRESSION_CODEC,
+                new PerFieldMapperCodec(Zstd813StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
+            );
+        } else {
+            codecs.put(BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
+        }
+        codecs.put(LEGACY_BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
+
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));

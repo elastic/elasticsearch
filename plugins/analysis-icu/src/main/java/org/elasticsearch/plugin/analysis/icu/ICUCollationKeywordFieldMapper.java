@@ -91,10 +91,12 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException(
+                    "Field [" + concreteFieldName() + "] of type [" + typeName() + "] doesn't support formats."
+                );
             }
 
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return new SourceValueFetcher(concreteFieldName(), context, nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
@@ -110,7 +112,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
+                concreteFieldName(),
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new DelegateDocValuesField(
                     new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
@@ -493,7 +495,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedFieldType.concreteFieldName(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -526,7 +528,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (value.length() > ignoreAbove) {
-            context.addIgnoredField(name());
+            context.addIgnoredField(fieldType().concreteFieldName());
             return;
         }
 
@@ -534,14 +536,14 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         final BytesRef binaryValue = new BytesRef(key.bytes, 0, key.size);
 
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(mappedFieldType.name(), binaryValue, fieldType);
+            Field field = new Field(mappedFieldType.concreteFieldName(), binaryValue, fieldType);
             context.doc().add(field);
         }
 
         if (hasDocValues) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            context.doc().add(new SortedSetDocValuesField(fieldType().concreteFieldName(), binaryValue));
         } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(fieldType().concreteFieldName());
         }
     }
 

@@ -156,7 +156,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return (a, b) -> new CartesianShapeIndexFieldData(
-                name(),
+                concreteFieldName(),
                 CartesianShapeValuesSourceType.instance(),
                 ShapeFieldMapper.CartesianShapeDocValuesField::new
             );
@@ -201,7 +201,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             parser
         );
         this.builder = builder;
-        this.indexer = new CartesianShapeIndexer(mappedFieldType.name());
+        this.indexer = new CartesianShapeIndexer(mappedFieldType.concreteFieldName());
     }
 
     @Override
@@ -215,7 +215,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             context.doc().addAll(fields);
         }
         if (fieldType().hasDocValues()) {
-            String name = fieldType().name();
+            String name = fieldType().concreteFieldName();
             BinaryShapeDocValuesField docValuesField = (BinaryShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
                 docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.CARTESIAN);
@@ -223,7 +223,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             }
             docValuesField.add(fields, geometry);
         } else if (fieldType().isIndexed()) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(fieldType().concreteFieldName());
         }
     }
 

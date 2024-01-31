@@ -147,7 +147,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new ConstantIndexFieldData.Builder(
                 value,
-                name(),
+                concreteFieldName(),
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new ConstantKeywordDocValuesField(FieldData.toString(dv), n)
             );
@@ -309,7 +309,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().value == null) {
-            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
+            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(
+                fieldType().concreteFieldName(),
+                value,
+                fieldType().meta()
+            );
             Mapper update = new ConstantKeywordFieldMapper(simpleName(), newFieldType);
             context.addDynamicMapper(update);
         } else if (Objects.equals(fieldType().value, value) == false) {

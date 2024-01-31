@@ -195,7 +195,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 meta.getValue()
             );
 
-            indexAnalyzers.put(ft.name(), indexAnalyzer);
+            indexAnalyzers.put(ft.concreteFieldName(), indexAnalyzer);
 
             // set up the prefix field
             FieldType prefixft = new FieldType();
@@ -219,7 +219,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             final PrefixFieldType prefixFieldType = new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
             final NamedAnalyzer prefixAnalyzer = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper);
             final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType);
-            indexAnalyzers.put(prefixFieldType.name(), prefixAnalyzer);
+            indexAnalyzers.put(prefixFieldType.concreteFieldName(), prefixAnalyzer);
 
             // set up the shingle fields
             final ShingleFieldMapper[] shingleFieldMappers = new ShingleFieldMapper[maxShingleSize.getValue() - 1];
@@ -255,7 +255,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 shingleFieldTypes[i] = shingleFieldType;
                 NamedAnalyzer shingleAnalyzer = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper);
                 shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType);
-                indexAnalyzers.put(shingleFieldType.name(), shingleAnalyzer);
+                indexAnalyzers.put(shingleFieldType.concreteFieldName(), shingleAnalyzer);
             }
             ft.setPrefixField(prefixFieldType);
             ft.setShingleFields(shingleFieldTypes);
@@ -335,7 +335,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+            return SourceValueFetcher.toString(concreteFieldName(), context, format);
         }
 
         @Override
@@ -372,7 +372,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             checkForPositions();
             int numPos = countPosition(stream);
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
-                return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
+                return TextFieldMapper.createPhraseQuery(stream, concreteFieldName(), slop, enablePositionIncrements);
             }
             final ShingleFieldType shingleField = shingleFieldForPositions(numPos);
             stream = new FixedShingleFilter(stream, shingleField.shingleSize);
@@ -385,7 +385,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             checkForPositions();
             int numPos = countPosition(stream);
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
-                return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
+                return TextFieldMapper.createPhraseQuery(stream, concreteFieldName(), slop, enablePositionIncrements);
             }
             final ShingleFieldType shingleField = shingleFieldForPositions(numPos);
             stream = new FixedShingleFilter(stream, shingleField.shingleSize);
@@ -399,7 +399,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 checkForPositions();
             }
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
-                return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions, null, null);
+                return TextFieldMapper.createPhrasePrefixQuery(stream, concreteFieldName(), slop, maxExpansions, null, null);
             }
             final ShingleFieldType shingleField = shingleFieldForPositions(numPos);
             stream = new FixedShingleFilter(stream, shingleField.shingleSize);
@@ -409,10 +409,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         @Override
         public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
             if (prefixField != null && prefixField.termLengthWithinBounds(value.length())) {
-                return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixField.name(), indexedValueForSearch(value))), name());
+                return new FieldMaskingSpanQuery(
+                    new SpanTermQuery(new Term(prefixField.concreteFieldName(), indexedValueForSearch(value))),
+                    concreteFieldName()
+                );
             } else {
                 SpanMultiTermQueryWrapper<?> spanMulti = new SpanMultiTermQueryWrapper<>(
-                    new PrefixQuery(new Term(name(), indexedValueForSearch(value)))
+                    new PrefixQuery(new Term(concreteFieldName(), indexedValueForSearch(value)))
                 );
                 if (method != null) {
                     spanMulti.setRewriteMethod(method);
@@ -468,8 +471,19 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             }
             Automaton automaton = Operations.concatenate(automata);
             AutomatonQuery query = method == null
-                ? new AutomatonQuery(new Term(name(), value + "*"), automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false)
-                : new AutomatonQuery(new Term(name(), value + "*"), automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
+                ? new AutomatonQuery(
+                    new Term(concreteFieldName(), value + "*"),
+                    automaton,
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                    false
+                )
+                : new AutomatonQuery(
+                    new Term(concreteFieldName(), value + "*"),
+                    automaton,
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                    false,
+                    method
+                );
             return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term(parentField, value)), BooleanClause.Occur.SHOULD)
                 .build();
@@ -479,7 +493,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
-            return SourceValueFetcher.toString(name(), context, format);
+            return SourceValueFetcher.toString(concreteFieldName(), context, format);
         }
 
         @Override
@@ -498,7 +512,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final FieldType fieldType;
 
         PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
-            super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
+            super(mappedFieldType.concreteFieldName(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
             this.fieldType = Mapper.freezeAndDeduplicateFieldType(fieldType);
         }
 
@@ -537,7 +551,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         private final FieldType fieldType;
 
         ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype) {
-            super(mappedFieldtype.name(), mappedFieldtype, MultiFields.empty(), CopyTo.empty());
+            super(mappedFieldtype.concreteFieldName(), mappedFieldtype, MultiFields.empty(), CopyTo.empty());
             this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         }
 
@@ -591,7 +605,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
-            return SourceValueFetcher.toString(name(), context, format);
+            return SourceValueFetcher.toString(concreteFieldName(), context, format);
         }
 
         @Override
@@ -624,21 +638,21 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
             throws IOException {
-            return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
+            return TextFieldMapper.createPhraseQuery(stream, concreteFieldName(), slop, enablePositionIncrements);
         }
 
         @Override
         public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
             throws IOException {
-            return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
+            return TextFieldMapper.createPhraseQuery(stream, concreteFieldName(), slop, enablePositionIncrements);
         }
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
-            final String prefixFieldName = slop > 0 ? null : prefixFieldType.name();
+            final String prefixFieldName = slop > 0 ? null : prefixFieldType.concreteFieldName();
             return TextFieldMapper.createPhrasePrefixQuery(
                 stream,
-                name(),
+                concreteFieldName(),
                 slop,
                 maxExpansions,
                 prefixFieldName,
@@ -649,10 +663,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         @Override
         public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
             if (prefixFieldType != null && prefixFieldType.termLengthWithinBounds(value.length())) {
-                return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixFieldType.name(), indexedValueForSearch(value))), name());
+                return new FieldMaskingSpanQuery(
+                    new SpanTermQuery(new Term(prefixFieldType.concreteFieldName(), indexedValueForSearch(value))),
+                    concreteFieldName()
+                );
             } else {
                 SpanMultiTermQueryWrapper<?> spanMulti = new SpanMultiTermQueryWrapper<>(
-                    new PrefixQuery(new Term(name(), indexedValueForSearch(value)))
+                    new PrefixQuery(new Term(concreteFieldName(), indexedValueForSearch(value)))
                 );
                 if (method != null) {
                     spanMulti.setRewriteMethod(method);
@@ -703,15 +720,15 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             return;
         }
 
-        context.doc().add(new Field(fieldType().name(), value, fieldType().fieldType));
+        context.doc().add(new Field(fieldType().concreteFieldName(), value, fieldType().fieldType));
         if (this.builder.index.get()) {
             for (ShingleFieldMapper subFieldMapper : shingleFields) {
-                context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.getLuceneFieldType()));
+                context.doc().add(new Field(subFieldMapper.fieldType().concreteFieldName(), value, subFieldMapper.getLuceneFieldType()));
             }
-            context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.getLuceneFieldType()));
+            context.doc().add(new Field(prefixField.fieldType().concreteFieldName(), value, prefixField.getLuceneFieldType()));
         }
         if (fieldType().fieldType.omitNorms()) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(fieldType().concreteFieldName());
         }
     }
 

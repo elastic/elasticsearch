@@ -101,12 +101,12 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+            return SourceValueFetcher.identity(concreteFieldName(), context, format);
         }
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return FeatureField.newLinearQuery(name(), indexedValueForSearch(value), DEFAULT_BOOST);
+            return FeatureField.newLinearQuery(concreteFieldName(), indexedValueForSearch(value), DEFAULT_BOOST);
         }
 
         private static String indexedValueForSearch(Object value) {
@@ -132,7 +132,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedFieldType.concreteFieldName(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -174,7 +174,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
                 } else if (token == Token.VALUE_NULL) {
                     // ignore feature, this is consistent with numeric fields
                 } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
-                    final String key = name() + "." + feature;
+                    final String key = fieldType().concreteFieldName() + "." + feature;
                     float value = context.parser().floatValue(true);
                     if (context.doc().getByKey(key) != null) {
                         throw new IllegalArgumentException(
@@ -187,7 +187,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
                     if (positiveScoreImpact == false) {
                         value = 1 / value;
                     }
-                    context.doc().addWithKey(key, new FeatureField(name(), feature, value));
+                    context.doc().addWithKey(key, new FeatureField(fieldType().concreteFieldName(), feature, value));
                 } else {
                     throw new IllegalArgumentException(
                         "[rank_features] fields take hashes that map a feature to a strictly positive "

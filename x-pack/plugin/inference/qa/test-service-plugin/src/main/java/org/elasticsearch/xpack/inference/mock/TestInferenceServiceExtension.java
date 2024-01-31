@@ -144,7 +144,14 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
         }
 
         @Override
-        public void chunkedInfer(Model model, List<String> input, Map<String, Object> taskSettings, ChunkingOptions chunkingOptions, ActionListener<ChunkedInferenceServiceResults> listener) {
+        public void chunkedInfer(
+            Model model,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            ChunkingOptions chunkingOptions,
+            ActionListener<ChunkedInferenceServiceResults> listener
+        ) {
             switch (model.getConfigurations().getTaskType()) {
                 case ANY -> listener.onResponse(makeChunkedResults(input));
                 case SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));

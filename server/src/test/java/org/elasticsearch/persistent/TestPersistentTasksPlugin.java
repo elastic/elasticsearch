@@ -76,10 +76,7 @@ import static org.junit.Assert.fail;
  */
 public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
-    public static final ActionType<TestTasksResponse> TEST_ACTION = new ActionType<>(
-        "cluster:admin/persistent/task_test",
-        TestTasksResponse::new
-    );
+    public static final ActionType<TestTasksResponse> TEST_ACTION = new ActionType<>("cluster:admin/persistent/task_test");
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

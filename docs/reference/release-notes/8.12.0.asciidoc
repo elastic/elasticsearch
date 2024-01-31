@@ -3,13 +3,24 @@
 
 Also see <<breaking-changes-8.12,Breaking changes in 8.12>>.
 
+[[known-issues-8.12.0]]
+[float]
+=== Known issues
+
+* `int8_hnsw` vector index format may fail to merge segments and prevent from indexing documents (issue: {es-issue}104617[#104617])
++
+When using `int8_hnsw` and the default `confidence_interval` (or any `confidence_interval` less than `1.0`) and when
+there are deleted documents in the segments, quantiles may fail to build and prevent merging.
+
+This issue is fixed in 8.12.1.
+
 [[breaking-8.12.0]]
 [float]
 === Breaking changes
 There are no breaking changes in 8.12
 
 [[notable-8.12.0]]
-[float]  
+[float]
 === Notable changes
 There are notable changes in 8.12 that you need to be aware of but that we do not consider breaking, items that we may consider as notable changes are
 
@@ -39,7 +50,6 @@ Aggregations::
 * Unwrap `ExecutionException` when loading from cache in `AbstractIndexOrdinalsFieldData` {es-pull}102476[#102476]
 
 Application::
-* [Connector API] Fix bug in configuration validation parser {es-pull}104198[#104198]
 * [Connector API] Fix bug with nullable tooltip field in parser {es-pull}103427[#103427]
 * [Connectors API] Fix `ClassCastException` when creating a new sync job {es-pull}103508[#103508]
 * [Connectors API] Fix bug with missing TEXT `DisplayType` enum {es-pull}103430[#103430]
@@ -67,6 +77,7 @@ Downsampling::
 
 EQL::
 * Cover head/tail commands edge cases and data types coverage {es-pull}101859[#101859] (issue: {es-issue}101724[#101724])
+* Fix NPE on missing event queries {es-pull}103611[#103611] (issue: {es-issue}103608[#103608])
 * Samples should check if the aggregations result is empty or null {es-pull}103574[#103574]
 
 ES|QL::
@@ -83,7 +94,9 @@ ES|QL::
 * ES|QL: Fix NPE on single value detection {es-pull}103150[#103150] (issue: {es-issue}103141[#103141])
 * ES|QL: Improve resolution error management in `mv_expand` {es-pull}102967[#102967] (issue: {es-issue}102964[#102964])
 * Fix layout for MV_EXPAND {es-pull}102916[#102916] (issue: {es-issue}102912[#102912])
+* Fix now in millis for ESQL search contexts {es-pull}103474[#103474] (issue: {es-issue}103455[#103455])
 * Fix planning of duplicate aggs {es-pull}102165[#102165] (issue: {es-issue}102083[#102083])
+* Fix the transport version of `PlanStreamOutput` {es-pull}103758[#103758]
 * `AsyncOperator#isFinished` must never return true on failure {es-pull}104029[#104029]
 
 Engine::
@@ -110,6 +123,7 @@ Infra/Plugins::
 
 Infra/Scripting::
 * Make IPAddress writeable {es-pull}101093[#101093] (issue: {es-issue}101082[#101082])
+* Wrap painless explain error {es-pull}103151[#103151] (issue: {es-issue}103018[#103018])
 
 Infra/Settings::
 * Report full stack trace for non-state file settings transforms {es-pull}101346[#101346]
@@ -122,7 +136,6 @@ License::
 
 Machine Learning::
 * Catch exceptions during `pytorch_inference` startup {es-pull}103873[#103873]
-* Ensure the estimated latitude is within the allowed range {ml-pull}2586[#2586]
 * Exclude quantiles when fetching model snapshots where possible {es-pull}103530[#103530]
 * Fix `frequent_item_sets` aggregation on empty index {es-pull}103116[#103116] (issue: {es-issue}103067[#103067])
 * If trained model download task is in progress, wait for it to finish before executing start trained model deployment {es-pull}102944[#102944]
@@ -130,9 +143,11 @@ Machine Learning::
 * Preserve response headers in Datafeed preview {es-pull}103923[#103923]
 * Prevent attempts to access non-existent node information during rebalancing {es-pull}103361[#103361]
 * Prevent resource over-subscription in model allocation planner {es-pull}100392[#100392]
-* Remove dependency on the IPEX library {ml-pull}2605[#2605] and {ml-pull}2606[#2606]
 * Start a new trace context before loading a trained model {es-pull}103124[#103124]
 * Wait for the model results on graceful shutdown {es-pull}103591[#103591] (issue: {es-issue}103414[#103414])
+
+Mapping::
+* Revert change {es-pull}103865[#103865]
 
 Monitoring::
 * [Monitoring] Dont get cluster state until recovery {es-pull}100565[#100565]
@@ -157,8 +172,10 @@ Search::
 * Support complex datemath expressions in index and index alias names {es-pull}100646[#100646]
 
 Snapshot/Restore::
+* Decref `SharedBytes.IO` after read is done not before {es-pull}102848[#102848]
 * More consistent logging messages for snapshot deletion {es-pull}101024[#101024]
 * Reroute on shard snapshot completion {es-pull}101585[#101585] (issue: {es-issue}101514[#101514])
+* Restore `SharedBytes.IO` refcounting on reads & writes {es-pull}102843[#102843]
 
 TSDB::
 * Throw when wrapping rate agg in `DeferableBucketAggregator` {es-pull}101032[#101032]
@@ -176,6 +193,7 @@ Vector Search::
 
 Watcher::
 * Correctly logging watcher history write failures {es-pull}101802[#101802]
+* Fix: Watcher REST API `GET /_watcher/settings` now includes product header {es-pull}103003[#103003] (issue: {es-issue}102928[#102928])
 
 [[enhancement-8.12.0]]
 [float]
@@ -306,7 +324,6 @@ Machine Learning::
 * Include ML processor limits in `_ml/info` response {es-pull}101392[#101392]
 * Read scores from downloaded vocabulary for XLM Roberta tokenizers {es-pull}101868[#101868]
 * Support for GET all models and by task type in the `_inference` API {es-pull}102806[#102806]
-* Upgrade Boost libraries to version 1.83 {ml-pull}2560[#2560]
 
 Mapping::
 * Improve analyzer reload log message {es-pull}102273[#102273]

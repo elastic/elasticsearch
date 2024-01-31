@@ -10,6 +10,6 @@ package org.elasticsearch.search.aggregations;
 
 public interface HasAggregations {
 
-    Aggregations getAggregations();
+    InternalAggregations getAggregations();
 
 }

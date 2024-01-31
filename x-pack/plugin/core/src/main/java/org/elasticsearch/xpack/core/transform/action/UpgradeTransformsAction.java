@@ -27,7 +27,7 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
     public static final String NAME = "cluster:admin/transform/upgrade";
 
     private UpgradeTransformsAction() {
-        super(NAME, UpgradeTransformsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

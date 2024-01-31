@@ -36,11 +36,11 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         if (supportsDates()) {
             return TypeResolutions.isType(
                 this,
-                e -> e.isNumeric() && e != DataTypes.UNSIGNED_LONG || e == DataTypes.DATETIME,
+                e -> e == DataTypes.DATETIME || e.isNumeric() && e != DataTypes.UNSIGNED_LONG,
                 sourceText(),
                 DEFAULT,
-                "numeric except unsigned_long",
-                "datetime"
+                "datetime",
+                "numeric except unsigned_long"
             );
         }
         return isType(

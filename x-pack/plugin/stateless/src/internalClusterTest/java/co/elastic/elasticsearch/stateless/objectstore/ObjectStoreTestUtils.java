@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
-import co.elastic.elasticsearch.stateless.cluster.coordination.ClusterStateBlockingRepository;
+import co.elastic.elasticsearch.stateless.StatelessMockRepository;
 
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 
@@ -29,8 +29,8 @@ public final class ObjectStoreTestUtils {
         return getObjectStoreMockRepository(service, MockRepository.class);
     }
 
-    public static ClusterStateBlockingRepository getObjectStoreClusterStateMockRepository(ObjectStoreService service) {
-        return getObjectStoreMockRepository(service, ClusterStateBlockingRepository.class);
+    public static StatelessMockRepository getObjectStoreStatelessMockRepository(ObjectStoreService service) {
+        return getObjectStoreMockRepository(service, StatelessMockRepository.class);
     }
 
     public static <T> T getObjectStoreMockRepository(ObjectStoreService service, Class<T> repoClass) {

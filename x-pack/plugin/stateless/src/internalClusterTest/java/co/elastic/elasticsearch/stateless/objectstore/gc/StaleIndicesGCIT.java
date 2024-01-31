@@ -18,44 +18,31 @@
 package co.elastic.elasticsearch.stateless.objectstore.gc;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
+import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesMetrics;
-import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -70,7 +57,7 @@ import static org.hamcrest.Matchers.not;
 public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), BlockingDeletesRepoPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), StatelessMockRepositoryPlugin.class);
     }
 
     @Override
@@ -198,11 +185,8 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
 
         var executingTaskNode = getNodeWhereGCTaskIsAssigned();
         var nodeWhereIndexIsAllocated = executingTaskNode.equals(indexNode2) ? indexNode : indexNode2;
-
-        var executingTaskNodeObjectStore = ObjectStoreTestUtils.getObjectStoreMockRepository(
-            internalCluster().getInstance(ObjectStoreService.class, executingTaskNode),
-            BlockingDeletesRepository.class
-        );
+        var executingTaskNodeRepositoryStrategy = new BlockingDeletesRepositoryStategy();
+        setNodeRepositoryStrategy(executingTaskNode, executingTaskNodeRepositoryStrategy);
 
         var disruption = switch (disruptionScenario) {
             case ISOLATED_NODE_RUNNING_GC -> new NetworkDisruption(
@@ -215,8 +199,8 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         disruption.startDisrupting();
 
         // Block the isolated node object store list to ensure that it will get the newly created index
-        executingTaskNodeObjectStore.blockGetChildren();
-        executingTaskNodeObjectStore.waitUntilGetChildrenIsBlocked();
+        executingTaskNodeRepositoryStrategy.blockGetChildren();
+        executingTaskNodeRepositoryStrategy.waitUntilGetChildrenIsBlocked();
 
         // Once the cluster is partitioned, all requests must go through the non-isolated nodes, so they can make progress
         var newIndex = randomIdentifier();
@@ -248,7 +232,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         var flushResponse = client(nodeWhereIndexIsAllocated).admin().indices().prepareFlush(newIndex).get();
         assertNoFailures(flushResponse);
 
-        executingTaskNodeObjectStore.unblockGetChildren();
+        executingTaskNodeRepositoryStrategy.unblockGetChildren();
         // Ensure that the isolated node has enough time to go through the listed files
         // and waits for the latest cluster state instead of deleting the newly created files
         safeSleep(5000);
@@ -274,33 +258,28 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         var indexUUID = resolveIndexUUID(newIndex);
         assertIndexExistsInObjectStore(indexUUID);
 
-        var executingTaskNodeObjectStore = ObjectStoreTestUtils.getObjectStoreMockRepository(
-            internalCluster().getInstance(ObjectStoreService.class, executingTaskNode),
-            BlockingDeletesRepository.class
-        );
+        var executingTaskNodeRepositoryStrategy = new BlockingDeletesRepositoryStategy();
+        setNodeRepositoryStrategy(executingTaskNode, executingTaskNodeRepositoryStrategy);
+        var nodeWhereIndexIsAllocatedRepositoryStrategy = new BlockingDeletesRepositoryStategy();
+        setNodeRepositoryStrategy(nodeWhereIndexIsAllocated, nodeWhereIndexIsAllocatedRepositoryStrategy);
 
-        var nodeWhereIndexIsAllocatedObjectStore = ObjectStoreTestUtils.getObjectStoreMockRepository(
-            internalCluster().getInstance(ObjectStoreService.class, nodeWhereIndexIsAllocated),
-            BlockingDeletesRepository.class
-        );
-
-        executingTaskNodeObjectStore.blockDeletes();
-        nodeWhereIndexIsAllocatedObjectStore.blockDeletes();
+        executingTaskNodeRepositoryStrategy.blockDeletes();
+        nodeWhereIndexIsAllocatedRepositoryStrategy.blockDeletes();
 
         client().admin().indices().prepareDelete(newIndex).get();
 
         // This is a bit implementation specific, but it's the only way to ensure that
         // both nodes are waiting on the deletion.
-        executingTaskNodeObjectStore.waitUntilDeleteDirectoryIsBlocked();
-        nodeWhereIndexIsAllocatedObjectStore.waitUntilSegmentDeleteIsBlocked();
+        executingTaskNodeRepositoryStrategy.waitUntilDeleteDirectoryIsBlocked();
+        nodeWhereIndexIsAllocatedRepositoryStrategy.waitUntilSegmentDeleteIsBlocked();
 
         // Unblock the deletes in random order
         if (randomBoolean()) {
-            executingTaskNodeObjectStore.unblockDeletes();
-            nodeWhereIndexIsAllocatedObjectStore.unblockDeletes();
+            executingTaskNodeRepositoryStrategy.unblockDeletes();
+            nodeWhereIndexIsAllocatedRepositoryStrategy.unblockDeletes();
         } else {
-            nodeWhereIndexIsAllocatedObjectStore.unblockDeletes();
-            executingTaskNodeObjectStore.unblockDeletes();
+            nodeWhereIndexIsAllocatedRepositoryStrategy.unblockDeletes();
+            executingTaskNodeRepositoryStrategy.unblockDeletes();
         }
 
         assertBusy(() -> assertIndexDoesNotExistsInObjectStore(indexUUID));
@@ -383,38 +362,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         });
     }
 
-    public static class BlockingDeletesRepoPlugin extends Plugin implements RepositoryPlugin {
-
-        @Override
-        public Map<String, Repository.Factory> getRepositories(
-            Environment env,
-            NamedXContentRegistry namedXContentRegistry,
-            ClusterService clusterService,
-            BigArrays bigArrays,
-            RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
-        ) {
-            return Collections.singletonMap(
-                "mock",
-                (metadata) -> new BlockingDeletesRepository(
-                    metadata,
-                    env,
-                    namedXContentRegistry,
-                    clusterService,
-                    bigArrays,
-                    recoverySettings
-                )
-            );
-        }
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of();
-        }
-    }
-
-    static class BlockingDeletesRepository extends FsRepository {
-
+    public static class BlockingDeletesRepositoryStategy extends StatelessMockRepositoryStrategy {
         final AtomicBoolean blockDeletes = new AtomicBoolean();
         volatile CountDownLatch blockDeleteLatch = new CountDownLatch(0);
         volatile CountDownLatch deleteDirectoryBlocked = new CountDownLatch(0);
@@ -426,22 +374,6 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         // This latch is decremented when a caller gets blocked. Allows another caller to wait
         // for an operation to get blocked.
         volatile CountDownLatch getChildrenBlocked = new CountDownLatch(0);
-
-        BlockingDeletesRepository(
-            RepositoryMetadata metadata,
-            Environment environment,
-            NamedXContentRegistry namedXContentRegistry,
-            ClusterService clusterService,
-            BigArrays bigArrays,
-            RecoverySettings recoverySettings
-        ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
-        }
-
-        @Override
-        protected BlobStore createBlobStore() throws Exception {
-            return new BlockingDeletesBlobStore(super.createBlobStore());
-        }
 
         void blockDeletes() {
             if (blockDeletes.compareAndSet(false, true)) {
@@ -507,45 +439,30 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
             }
         }
 
-        class BlockingDeletesBlobStore implements BlobStore {
-            private final BlobStore delegate;
+        @Override
+        public void blobStoreDeleteBlobsIgnoringIfNotExists(
+            CheckedRunnable<IOException> originalRunnable,
+            OperationPurpose purpose,
+            Iterator<String> blobNames
+        ) throws IOException {
+            maybeBlockDeletes(batchDeleteBlocked);
+            originalRunnable.run();
+        }
 
-            BlockingDeletesBlobStore(BlobStore delegate) {
-                this.delegate = delegate;
-            }
+        @Override
+        public Map<String, BlobContainer> blobContainerChildren(
+            CheckedSupplier<Map<String, BlobContainer>, IOException> originalSupplier,
+            OperationPurpose purpose
+        ) throws IOException {
+            maybeBlockGetChildren();
+            return originalSupplier.get();
+        }
 
-            @Override
-            public BlobContainer blobContainer(BlobPath path) {
-                return new FilterBlobContainer(delegate.blobContainer(path)) {
-                    @Override
-                    protected BlobContainer wrapChild(BlobContainer child) {
-                        return child;
-                    }
-
-                    @Override
-                    public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
-                        maybeBlockGetChildren();
-                        return super.children(purpose);
-                    }
-
-                    @Override
-                    public DeleteResult delete(OperationPurpose purpose) throws IOException {
-                        maybeBlockDeletes(deleteDirectoryBlocked);
-                        return super.delete(purpose);
-                    }
-                };
-            }
-
-            @Override
-            public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-                maybeBlockDeletes(batchDeleteBlocked);
-                delegate.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
-            }
-
-            @Override
-            public void close() throws IOException {
-                delegate.close();
-            }
+        @Override
+        public DeleteResult blobContainerDelete(CheckedSupplier<DeleteResult, IOException> originalSupplier, OperationPurpose purpose)
+            throws IOException {
+            maybeBlockDeletes(deleteDirectoryBlocked);
+            return originalSupplier.get();
         }
     }
 }

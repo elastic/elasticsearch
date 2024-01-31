@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class ClearPrivilegesCacheAction extends ActionType<ClearPrivilegesCacheResponse> {
 
@@ -16,6 +15,6 @@ public class ClearPrivilegesCacheAction extends ActionType<ClearPrivilegesCacheR
     public static final String NAME = "cluster:admin/xpack/security/privilege/cache/clear";
 
     protected ClearPrivilegesCacheAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 }

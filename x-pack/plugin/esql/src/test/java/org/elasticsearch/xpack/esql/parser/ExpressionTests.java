@@ -37,6 +37,8 @@ import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
@@ -129,6 +131,9 @@ public class ExpressionTests extends ESTestCase {
             () -> whereExpression("\"\"\"\"\"\" foo \"\"\"\" == abc"),
             "line 1:23: mismatched input 'foo' expecting {<EOF>,"
         );
+
+        var number = "1" + IntStream.range(0, 309).mapToObj(ignored -> "0").collect(Collectors.joining());
+        assertParsingException(() -> parse("row foo == " + number), "line 1:13: Number [" + number + "] is too large");
     }
 
     public void testBooleanLiteralsCondition() {

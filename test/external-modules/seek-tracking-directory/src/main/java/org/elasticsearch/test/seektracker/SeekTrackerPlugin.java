@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -38,7 +39,7 @@ public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope
     );
 
-    public static final ActionType<SeekStatsResponse> SEEK_STATS_ACTION = ActionType.localOnly("cluster:monitor/seek_stats");
+    public static final ActionType<SeekStatsResponse> SEEK_STATS_ACTION = new ActionType<>("cluster:monitor/seek_stats");
 
     private final SeekStatsService seekStatsService = new SeekStatsService();
     private final boolean enabled;
@@ -70,6 +71,7 @@ public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,

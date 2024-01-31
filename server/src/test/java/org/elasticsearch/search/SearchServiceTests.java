@@ -311,48 +311,36 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         IndexShard indexShard = indexService.getShard(0);
         AtomicBoolean running = new AtomicBoolean(true);
         CountDownLatch startGun = new CountDownLatch(1);
-        Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
+        final int permitCount = 100;
+        Semaphore semaphore = new Semaphore(permitCount);
         ShardRouting routing = TestShardRouting.newShardRouting(
             indexShard.shardId(),
             randomAlphaOfLength(5),
             randomBoolean(),
             ShardRoutingState.INITIALIZING
         );
-        final Thread thread = new Thread() {
-            @Override
-            public void run() {
-                startGun.countDown();
-                while (running.get()) {
-                    if (randomBoolean()) {
-                        service.afterIndexRemoved(indexService.index(), indexService.getIndexSettings(), DELETED);
-                    } else {
-                        service.beforeIndexShardCreated(routing, indexService.getIndexSettings().getSettings());
+        final Thread thread = new Thread(() -> {
+            startGun.countDown();
+            while (running.get()) {
+                if (randomBoolean()) {
+                    service.afterIndexRemoved(indexService.index(), indexService.getIndexSettings(), DELETED);
+                } else {
+                    service.beforeIndexShardCreated(routing, indexService.getIndexSettings().getSettings());
+                }
+                if (randomBoolean()) {
+                    // here we trigger some refreshes to ensure the IR go out of scope such that we hit ACE if we access a search
+                    // context in a non-sane way.
+                    try {
+                        semaphore.acquire();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
                     }
-                    if (randomBoolean()) {
-                        // here we trigger some refreshes to ensure the IR go out of scope such that we hit ACE if we access a search
-                        // context in a non-sane way.
-                        try {
-                            semaphore.acquire();
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
-                        prepareIndex("index").setSource("field", "value")
-                            .setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()))
-                            .execute(new ActionListener<DocWriteResponse>() {
-                                @Override
-                                public void onResponse(DocWriteResponse indexResponse) {
-                                    semaphore.release();
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    semaphore.release();
-                                }
-                            });
-                    }
+                    prepareIndex("index").setSource("field", "value")
+                        .setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()))
+                        .execute(ActionListener.running(semaphore::release));
                 }
             }
-        };
+        });
         thread.start();
         startGun.await();
         try {
@@ -417,7 +405,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         } finally {
             running.set(false);
             thread.join();
-            semaphore.acquire(Integer.MAX_VALUE);
+            semaphore.acquire(permitCount);
         }
 
         assertEquals(0, service.getActiveContexts());
@@ -1264,7 +1252,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             nowInMillis,
             clusterAlias
         );
-        try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+        try (SearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
             SearchShardTarget searchShardTarget = searchContext.shardTarget();
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             String expectedIndexName = clusterAlias == null ? index : clusterAlias + ":" + index;

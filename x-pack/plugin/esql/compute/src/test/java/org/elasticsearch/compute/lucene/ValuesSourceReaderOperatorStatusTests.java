@@ -24,11 +24,16 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
 
     public static String simpleToJson() {
         return """
-            {"readers_built":{"ReaderType":3},"pages_processed":123}""";
+            {
+              "readers_built" : {
+                "ReaderType" : 3
+              },
+              "pages_processed" : 123
+            }""";
     }
 
     public void testToXContent() {
-        assertThat(Strings.toString(simple()), equalTo(simpleToJson()));
+        assertThat(Strings.toString(simple(), true, true), equalTo(simpleToJson()));
     }
 
     @Override

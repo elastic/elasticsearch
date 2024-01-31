@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -27,11 +28,12 @@ import java.util.function.Supplier;
 
 public class MainRestPlugin extends Plugin implements ActionPlugin {
 
-    public static final ActionType<MainResponse> MAIN_ACTION = ActionType.localOnly("cluster:monitor/main");
+    public static final ActionType<MainResponse> MAIN_ACTION = new ActionType<>("cluster:monitor/main");
 
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,

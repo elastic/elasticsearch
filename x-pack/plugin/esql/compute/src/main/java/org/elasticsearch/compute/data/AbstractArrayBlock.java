@@ -52,7 +52,7 @@ abstract class AbstractArrayBlock extends AbstractBlock {
     }
 
     protected BitSet shiftNullsToExpandedPositions() {
-        BitSet expanded = new BitSet(getTotalValueCount());
+        BitSet expanded = new BitSet(nullsMask.size());
         int next = -1;
         while ((next = nullsMask.nextSetBit(next + 1)) != -1) {
             expanded.set(getFirstValueIndex(next));

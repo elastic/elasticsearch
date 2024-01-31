@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 
@@ -17,6 +19,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestUpdateConnectorPipelineAction extends BaseRestHandler {
 
     @Override
@@ -39,7 +42,7 @@ public class RestUpdateConnectorPipelineAction extends BaseRestHandler {
         return channel -> client.execute(
             UpdateConnectorPipelineAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, UpdateConnectorPipelineAction.Response::status, r -> null)
+            new RestToXContentListener<>(channel, ConnectorUpdateActionResponse::status)
         );
     }
 }

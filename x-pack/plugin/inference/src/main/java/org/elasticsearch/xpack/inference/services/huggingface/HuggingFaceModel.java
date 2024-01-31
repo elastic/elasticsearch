@@ -26,4 +26,6 @@ public abstract class HuggingFaceModel extends Model {
     public abstract URI getUri();
 
     public abstract SecureString getApiKey();
+
+    public abstract Integer getTokenLimit();
 }

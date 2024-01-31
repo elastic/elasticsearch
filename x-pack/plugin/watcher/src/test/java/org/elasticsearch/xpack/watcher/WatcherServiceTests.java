@@ -11,17 +11,16 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,6 +42,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -162,39 +162,31 @@ public class WatcherServiceTests extends ESTestCase {
         ClusterState clusterState = csBuilder.build();
 
         // response setup, successful refresh response
-        RefreshResponse refreshResponse = mock(RefreshResponse.class);
+        BroadcastResponse refreshResponse = mock(BroadcastResponse.class);
         when(refreshResponse.getSuccessfulShards()).thenReturn(
             clusterState.getMetadata().getIndices().get(Watch.INDEX).getNumberOfShards()
         );
         doAnswer(invocation -> {
-            ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
+            ActionListener<BroadcastResponse> listener = (ActionListener<BroadcastResponse>) invocation.getArguments()[2];
             listener.onResponse(refreshResponse);
             return null;
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(RefreshRequest.class), anyActionListener());
 
-        // empty scroll response, no further scrolling needed
-        SearchResponseSections scrollSearchSections = new SearchResponseSections(
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
-            null,
-            null,
-            false,
-            false,
-            null,
-            1
-        );
-        SearchResponse scrollSearchResponse = new SearchResponse(
-            scrollSearchSections,
-            "scrollId",
-            1,
-            1,
-            0,
-            10,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
-            listener.onResponse(scrollSearchResponse);
+            // empty scroll response, no further scrolling needed
+            ActionListener.respondAndRelease(
+                listener,
+                SearchResponseUtils.emptyWithTotalHits(
+                    "scrollId",
+                    1,
+                    1,
+                    0,
+                    10,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    SearchResponse.Clusters.EMPTY
+                )
+            );
             return null;
         }).when(client).execute(eq(TransportSearchScrollAction.TYPE), any(SearchScrollRequest.class), anyActionListener());
 
@@ -204,7 +196,7 @@ public class WatcherServiceTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[count];
         for (int i = 0; i < count; i++) {
             String id = String.valueOf(i);
-            SearchHit hit = new SearchHit(1, id);
+            SearchHit hit = SearchHit.unpooled(1, id);
             hit.version(1L);
             hit.shard(new SearchShardTarget("nodeId", new ShardId(watchIndex, 0), "whatever"));
             hits[i] = hit;
@@ -220,21 +212,28 @@ public class WatcherServiceTests extends ESTestCase {
             when(watch.status()).thenReturn(watchStatus);
             when(parser.parse(eq(id), eq(true), any(), eq(XContentType.JSON), anyLong(), anyLong())).thenReturn(watch);
         }
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
-        SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, false, null, 1);
-        SearchResponse searchResponse = new SearchResponse(
-            sections,
-            "scrollId",
-            1,
-            1,
-            0,
-            10,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
-            listener.onResponse(searchResponse);
+            ActionListener.respondAndRelease(
+                listener,
+                new SearchResponse(
+                    searchHits,
+                    null,
+                    null,
+                    false,
+                    false,
+                    null,
+                    1,
+                    "scrollId",
+                    1,
+                    1,
+                    0,
+                    10,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    SearchResponse.Clusters.EMPTY
+                )
+            );
             return null;
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
 

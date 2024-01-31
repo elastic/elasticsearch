@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -36,6 +37,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -128,6 +132,17 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
+        var assignments = TrainedModelAssignmentUtils.modelAssignments(request.getInferenceEntityId(), clusterService.state());
+        if ((assignments == null || assignments.isEmpty()) == false) {
+            listener.onFailure(
+                ExceptionsHelper.badRequestException(
+                    Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT,
+                    request.getInferenceEntityId()
+                )
+            );
+            return;
+        }
+
         if (service.get().isInClusterService()) {
             // Find the cluster platform as the service may need that
             // information when creating the model
@@ -135,7 +150,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                 if (architectures.isEmpty() && clusterIsInElasticCloud(clusterService.getClusterSettings())) {
                     parseAndStoreModel(
                         service.get(),
-                        request.getModelId(),
+                        request.getInferenceEntityId(),
                         request.getTaskType(),
                         requestAsMap,
                         // In Elastic cloud ml nodes run on Linux x86
@@ -144,24 +159,31 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                     );
                 } else {
                     // The architecture field could be an empty set, the individual services will need to handle that
-                    parseAndStoreModel(service.get(), request.getModelId(), request.getTaskType(), requestAsMap, architectures, delegate);
+                    parseAndStoreModel(
+                        service.get(),
+                        request.getInferenceEntityId(),
+                        request.getTaskType(),
+                        requestAsMap,
+                        architectures,
+                        delegate
+                    );
                 }
             }), client, threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME));
         } else {
             // Not an in cluster service, it does not care about the cluster platform
-            parseAndStoreModel(service.get(), request.getModelId(), request.getTaskType(), requestAsMap, Set.of(), listener);
+            parseAndStoreModel(service.get(), request.getInferenceEntityId(), request.getTaskType(), requestAsMap, Set.of(), listener);
         }
     }
 
     private void parseAndStoreModel(
         InferenceService service,
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Set<String> platformArchitectures,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
-        var model = service.parseRequestConfig(modelId, taskType, config, platformArchitectures);
+        var model = service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures);
 
         service.checkModelConfig(
             model,
@@ -175,11 +197,20 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         );
     }
 
-    private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {
-        service.start(
-            model,
-            listener.delegateFailureAndWrap((l, ok) -> l.onResponse(new PutInferenceModelAction.Response(model.getConfigurations())))
-        );
+    private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> finalListener) {
+        SubscribableListener.<Boolean>newForked((listener1) -> { service.putModel(model, listener1); }).<
+            PutInferenceModelAction.Response>andThen((listener2, modelDidPut) -> {
+                if (modelDidPut) {
+                    service.start(
+                        model,
+                        listener2.delegateFailureAndWrap(
+                            (l3, ok) -> l3.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()))
+                        )
+                    );
+                } else {
+                    logger.warn("Failed to put model [{}]", model.getInferenceEntityId());
+                }
+            }).addListener(finalListener);
     }
 
     private Map<String, Object> requestToMap(PutInferenceModelAction.Request request) throws IOException {

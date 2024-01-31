@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -23,9 +24,11 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -34,6 +37,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RemoteConnectionManagerTests extends ESTestCase {
 
@@ -49,6 +53,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         transport = mock(Transport.class);
         remoteConnectionManager = new RemoteConnectionManager(
             "remote-cluster",
+            RemoteClusterCredentialsManager.EMPTY,
             new ClusterConnectionManager(Settings.EMPTY, transport, new ThreadContext(Settings.EMPTY))
         );
 
@@ -120,10 +125,13 @@ public class RemoteConnectionManagerTests extends ESTestCase {
 
     public void testRewriteHandshakeAction() throws IOException {
         final Transport.Connection connection = mock(Transport.Connection.class);
+        final String clusterAlias = randomAlphaOfLengthBetween(3, 8);
+        final RemoteClusterCredentialsManager credentialsResolver = mock(RemoteClusterCredentialsManager.class);
+        when(credentialsResolver.resolveCredentials(clusterAlias)).thenReturn(new SecureString(randomAlphaOfLength(42)));
         final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
             connection,
-            randomAlphaOfLengthBetween(3, 8),
-            RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
+            clusterAlias,
+            credentialsResolver
         );
         final long requestId = randomLong();
         final TransportRequest request = mock(TransportRequest.class);
@@ -140,6 +148,25 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         Mockito.reset(connection);
         wrappedConnection.sendRequest(requestId, anotherAction, request, options);
         verify(connection).sendRequest(requestId, anotherAction, request, options);
+    }
+
+    public void testWrapAndResolveConnectionRoundTrip() {
+        final Transport.Connection connection = mock(Transport.Connection.class);
+        final String clusterAlias = randomAlphaOfLengthBetween(3, 8);
+        final RemoteClusterCredentialsManager credentialsResolver = mock(RemoteClusterCredentialsManager.class);
+        final SecureString credentials = new SecureString(randomAlphaOfLength(42));
+        // second credential will never be resolved
+        when(credentialsResolver.resolveCredentials(clusterAlias)).thenReturn(credentials, (SecureString) null);
+        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+            connection,
+            clusterAlias,
+            credentialsResolver
+        );
+
+        final Optional<RemoteConnectionManager.RemoteClusterAliasWithCredentials> actual = RemoteConnectionManager
+            .resolveRemoteClusterAliasWithCredentials(wrappedConnection);
+
+        assertThat(actual, isPresentWith(new RemoteConnectionManager.RemoteClusterAliasWithCredentials(clusterAlias, credentials)));
     }
 
     private static class TestRemoteConnection extends CloseableConnection {

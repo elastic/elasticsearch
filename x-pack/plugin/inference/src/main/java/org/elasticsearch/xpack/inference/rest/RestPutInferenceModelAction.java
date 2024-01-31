@@ -32,9 +32,14 @@ public class RestPutInferenceModelAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String taskType = restRequest.param("task_type");
-        String modelId = restRequest.param("model_id");
+        String inferenceEntityId = restRequest.param("model_id");
 
-        var request = new PutInferenceModelAction.Request(taskType, modelId, restRequest.requiredContent(), restRequest.getXContentType());
+        var request = new PutInferenceModelAction.Request(
+            taskType,
+            inferenceEntityId,
+            restRequest.requiredContent(),
+            restRequest.getXContentType()
+        );
         return channel -> client.execute(PutInferenceModelAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

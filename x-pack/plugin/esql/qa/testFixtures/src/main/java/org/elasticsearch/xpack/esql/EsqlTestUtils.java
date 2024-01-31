@@ -86,6 +86,11 @@ public final class EsqlTestUtils {
         public boolean isSingleValue(String field) {
             return false;
         }
+
+        @Override
+        public boolean isIndexed(String field) {
+            return exists(field);
+        }
     }
 
     public static final TestSearchStats TEST_SEARCH_STATS = new TestSearchStats();
@@ -140,16 +145,24 @@ public final class EsqlTestUtils {
     }
 
     public static EnrichResolution emptyPolicyResolution() {
-        return new EnrichResolution(Set.of(), Set.of());
+        return new EnrichResolution();
+    }
+
+    public static SearchStats statsForExistingField(String... names) {
+        return fieldMatchingExistOrMissing(true, names);
     }
 
     public static SearchStats statsForMissingField(String... names) {
+        return fieldMatchingExistOrMissing(false, names);
+    }
+
+    private static SearchStats fieldMatchingExistOrMissing(boolean exists, String... names) {
         return new TestSearchStats() {
-            private final Set<String> missingFields = Set.of(names);
+            private final Set<String> fields = Set.of(names);
 
             @Override
             public boolean exists(String field) {
-                return missingFields.contains(field) == false;
+                return fields.contains(field) == exists;
             }
         };
     }

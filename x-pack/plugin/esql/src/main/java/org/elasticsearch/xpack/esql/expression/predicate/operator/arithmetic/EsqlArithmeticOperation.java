@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Arith
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
@@ -107,6 +109,38 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
             dataType = EsqlDataTypeRegistry.INSTANCE.commonType(left().dataType(), right().dataType());
         }
         return dataType;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        TypeResolution typeResolution = super.resolveType();
+        if (typeResolution.unresolved()) {
+            return typeResolution;
+        }
+
+        return checkCompatibility();
+    }
+
+    /**
+     * Check if the two input types are compatible for this operation
+     *
+     * @return TypeResolution.TYPE_RESOLVED iff the types are compatible.  Otherwise, an appropriate type resolution error.
+     */
+    protected TypeResolution checkCompatibility() {
+        // This checks that unsigned longs should only be compatible with other unsigned longs
+        DataType leftType = left().dataType();
+        DataType rightType = right().dataType();
+        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataTypes.NULL)))
+            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataTypes.NULL)))) {
+            return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
+        }
+
+        // at this point, left should be null, and right should be null or numeric.
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    static String formatIncompatibleTypesMessage(String symbol, DataType leftType, DataType rightType) {
+        return format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol, leftType.typeName(), rightType.typeName());
     }
 
     @Override

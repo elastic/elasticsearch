@@ -7,20 +7,20 @@
 
 package org.elasticsearch.xpack;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.internal.Client;
@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkModule;
@@ -59,6 +60,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.LicensesMetadata;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -421,24 +423,19 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     {} timed out:
                     leader cluster state:
                     {}
-                    leader cluster hot threads:
-                    {}
                     leader cluster tasks:
                     {}
                     follower cluster state:
-                    {}
-                    follower cluster hot threads:
                     {}
                     follower cluster tasks:
                     {}""",
                 method,
                 leaderClient().admin().cluster().prepareState().get().getState(),
-                getHotThreads(leaderClient()),
-                leaderClient().admin().cluster().preparePendingClusterTasks().get(),
+                ESIntegTestCase.getClusterPendingTasks(leaderClient()),
                 followerClient().admin().cluster().prepareState().get().getState(),
-                getHotThreads(followerClient()),
-                followerClient().admin().cluster().preparePendingClusterTasks().get()
+                ESIntegTestCase.getClusterPendingTasks(followerClient())
             );
+            HotThreads.logLocalHotThreads(logger, Level.INFO, "hot threads at timeout", ReferenceDocs.LOGGING);
             fail("timed out waiting for " + color + " state");
         }
         assertThat(
@@ -448,19 +445,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         );
         logger.debug("indices {} are {}", indices.length == 0 ? "[_all]" : indices, color);
         return actionGet.getStatus();
-    }
-
-    static String getHotThreads(Client client) {
-        return client.admin()
-            .cluster()
-            .prepareNodesHotThreads()
-            .setThreads(99999)
-            .setIgnoreIdleThreads(false)
-            .get()
-            .getNodes()
-            .stream()
-            .map(NodeHotThreads::getHotThreads)
-            .collect(Collectors.joining("\n"));
     }
 
     protected final Index resolveLeaderIndex(String index) {
@@ -477,8 +461,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         return new Index(index, uuid);
     }
 
-    protected final RefreshResponse refresh(Client client, String... indices) {
-        RefreshResponse actionGet = client.admin().indices().prepareRefresh(indices).get();
+    protected final BroadcastResponse refresh(Client client, String... indices) {
+        BroadcastResponse actionGet = client.admin().indices().prepareRefresh(indices).get();
         assertNoFailures(actionGet);
         return actionGet;
     }

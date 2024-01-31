@@ -1,10 +1,27 @@
 [discrete]
 [[esql-tan]]
 === `TAN`
+
+*Syntax*
+
 [.text-center]
 image::esql/functions/signature/tan.svg[Embedded,opts=inline]
 
-https://en.wikipedia.org/wiki/Sine_and_cosine[Tangent] trigonometric function. Input expected in radians.
+*Parameters*
+
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+{wikipedia}/Sine_and_cosine[Tangent] trigonometric function. Input expected in
+radians.
+
+*Supported types*
+
+include::types/tan.asciidoc[]
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -14,7 +31,3 @@ include::{esql-specs}/floats.csv-spec[tag=tan]
 |===
 include::{esql-specs}/floats.csv-spec[tag=tan-result]
 |===
-
-Supported types:
-
-include::types/tan.asciidoc[]

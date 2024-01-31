@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 
 public class TransportUpdateConnectorSchedulingAction extends HandledTransportAction<
     UpdateConnectorSchedulingAction.Request,
-    UpdateConnectorSchedulingAction.Response> {
+    ConnectorUpdateActionResponse> {
 
     protected final ConnectorIndexService connectorIndexService;
 
@@ -45,11 +45,8 @@ public class TransportUpdateConnectorSchedulingAction extends HandledTransportAc
     protected void doExecute(
         Task task,
         UpdateConnectorSchedulingAction.Request request,
-        ActionListener<UpdateConnectorSchedulingAction.Response> listener
+        ActionListener<ConnectorUpdateActionResponse> listener
     ) {
-        connectorIndexService.updateConnectorScheduling(
-            request,
-            listener.map(r -> new UpdateConnectorSchedulingAction.Response(r.getResult()))
-        );
+        connectorIndexService.updateConnectorScheduling(request, listener.map(r -> new ConnectorUpdateActionResponse(r.getResult())));
     }
 }

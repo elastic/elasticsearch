@@ -15,27 +15,22 @@ import java.util.Arrays;
  * Vector implementation that stores an array of double values.
  * This class is generated. Do not edit it.
  */
-public final class DoubleArrayVector extends AbstractVector implements DoubleVector {
+final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class)
+        // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
+        + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class);
 
     private final double[] values;
 
-    private final DoubleBlock block;
-
-    public DoubleArrayVector(double[] values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public DoubleArrayVector(double[] values, int positionCount, BlockFactory blockFactory) {
+    DoubleArrayVector(double[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new DoubleVectorBlock(this);
     }
 
     @Override
     public DoubleBlock asBlock() {
-        return block;
+        return new DoubleVectorBlock(this);
     }
 
     @Override

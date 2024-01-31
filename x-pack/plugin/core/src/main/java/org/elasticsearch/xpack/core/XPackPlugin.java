@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -38,7 +39,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.ClusterStateLicenseService;
-import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.GetBasicStatusAction;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.license.GetTrialStatusAction;
@@ -97,7 +97,6 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.datatiers.DataTiersInfoTransportAction;
 import org.elasticsearch.xpack.core.datatiers.DataTiersUsageTransportAction;
@@ -351,14 +350,14 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, getUsageAction()));
         actions.add(new ActionHandler<>(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class));
         actions.add(new ActionHandler<>(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class));
-        actions.add(new ActionHandler<>(DeleteLicenseAction.INSTANCE, TransportDeleteLicenseAction.class));
+        actions.add(new ActionHandler<>(TransportDeleteLicenseAction.TYPE, TransportDeleteLicenseAction.class));
         actions.add(new ActionHandler<>(PostStartTrialAction.INSTANCE, TransportPostStartTrialAction.class));
         actions.add(new ActionHandler<>(GetTrialStatusAction.INSTANCE, TransportGetTrialStatusAction.class));
         actions.add(new ActionHandler<>(PostStartBasicAction.INSTANCE, TransportPostStartBasicAction.class));
         actions.add(new ActionHandler<>(GetBasicStatusAction.INSTANCE, TransportGetBasicStatusAction.class));
         actions.add(new ActionHandler<>(TransportGetFeatureUsageAction.TYPE, TransportGetFeatureUsageAction.class));
         actions.add(new ActionHandler<>(TermsEnumAction.INSTANCE, TransportTermsEnumAction.class));
-        actions.add(new ActionHandler<>(DeleteAsyncResultAction.INSTANCE, TransportDeleteAsyncResultAction.class));
+        actions.add(new ActionHandler<>(TransportDeleteAsyncResultAction.TYPE, TransportDeleteAsyncResultAction.class));
         actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class));
@@ -383,6 +382,7 @@ public class XPackPlugin extends XPackClientPlugin
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,

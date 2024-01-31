@@ -1,0 +1,6 @@
+pr: 104625
+summary: "Add support for the `type` parameter, for sorting, to the Query API Key\
+  \ API"
+area: Security
+type: enhancement
+issues: []

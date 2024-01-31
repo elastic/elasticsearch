@@ -27,7 +27,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -347,7 +346,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            final var searchHit = new SearchHit(
+            final var searchHit = SearchHit.unpooled(
                 randomIntBetween(0, Integer.MAX_VALUE),
                 NativeRoleMappingStore.getIdForName(mapping.getName())
             );
@@ -355,25 +354,24 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
                 mapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 searchHit.sourceRef(BytesReference.bytes(builder));
             }
-            final var internalSearchResponse = new InternalSearchResponse(
-                new SearchHits(
-                    new SearchHit[] { searchHit },
-                    new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                    randomFloat(),
-                    null,
-                    null,
-                    null
-                ),
-                null,
-                null,
-                null,
-                false,
-                null,
-                0
-            );
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(internalSearchResponse, randomAlphaOfLengthBetween(3, 8), 1, 1, 0, 10, null, null)
+                new SearchResponse(
+                    SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), randomFloat()),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    0,
+                    randomAlphaOfLengthBetween(3, 8),
+                    1,
+                    1,
+                    0,
+                    10,
+                    null,
+                    null
+                )
             );
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());

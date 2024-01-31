@@ -210,48 +210,6 @@ salary:integer | s:double
 73851          | 1330201
 ;
 
-isFiniteFalse
-row d = 1.0 | eval s = is_finite(d/0);
-
-d:double | s:boolean
-1.0      | false
-;
-
-isFiniteTrue
-row d = 1.0 | eval s = is_finite(d);
-
-d:double | s:boolean
-1.0      | true
-;
-
-isInfiniteFalse
-row d = 1.0 | eval s = is_infinite(d);
-
-d:double | s:boolean
-1.0      | false
-;
-
-isInfiniteTrue
-row d = 1.0/0 | eval s = is_infinite(d);
-
-d:double | s:boolean
-Infinity | true
-;
-
-isNaN
-row d = 1.0 | eval s = is_nan(d);
-
-d:double | s:boolean
-1.0      | false
-;
-
-isNaNTrue
-row d = 0.0/0.0 | eval s = is_nan(d);
-
-d:double | s:boolean
-NaN      | true
-;
-
 log10
 // tag::log10[]
 ROW d = 1000.0 
@@ -1013,13 +971,6 @@ d:double | s:double
 -1.0     | null
 ;
 
-sqrtOfNan
-row d = 0.0/0.0 | eval s = is_nan(sqrt(d));
-
-d:double | s:boolean
-NaN      | true
-;
-
 sqrtOfZero
 row d = 0.0 |eval s = sqrt(d);
 
@@ -1032,13 +983,6 @@ row d = -0.0 |eval s = sqrt(d);
 
 d:double | s:double
 -0.0     | -0.0
-;
-
-sqrtOfInfinite
-row d = 1/0.0 | eval s = is_infinite(sqrt(d));
-
-d:double | s:boolean
-Infinity | true
 ;
 
 least
@@ -1117,4 +1061,35 @@ emp_no:integer | min_plus_max:integer | are_equal:boolean
          10003 |                    6 | false
          10004 |                    7 | false
          10005 |                    3 | false
+;
+
+docsAbs
+//tag::docsAbs[]
+ROW number = -1.0 
+| EVAL abs_number = ABS(number)
+//end::docsAbs[]
+;
+
+//tag::docsAbs-result[]
+number:double  |  abs_number:double
+-1.0           |1.0    
+//end::docsAbs-result[]
+;
+
+docsAbsEmployees
+//tag::docsAbsEmployees[]
+FROM employees
+| KEEP first_name, last_name, height
+| EVAL abs_height = ABS(0.0 - height)
+//end::docsAbsEmployees[]
+| SORT first_name
+| LIMIT 3
+;
+
+//tag::docsAbsEmployees-result[]
+first_name:keyword   |   last_name:keyword | height:double  |  abs_height:double
+Alejandro      |McAlpine       |1.48           |1.48           
+Amabile        |Gomatam        |2.09           |2.09           
+Anneke         |Preusig        |1.56           |1.56     
+//end::docsAbsEmployees-result[]
 ;

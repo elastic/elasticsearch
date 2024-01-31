@@ -47,6 +47,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -64,6 +65,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -74,7 +76,7 @@ import static org.elasticsearch.core.Strings.format;
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
-    public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME, BulkShardResponse::new);
+    public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
 
@@ -370,12 +372,21 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
 
             try {
-                primary.mapperService()
-                    .merge(
-                        MapperService.SINGLE_MAPPING_NAME,
-                        new CompressedXContent(result.getRequiredMappingUpdate()),
-                        MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
-                    );
+                Optional<CompressedXContent> mergedSource = Optional.ofNullable(
+                    primary.mapperService()
+                        .merge(
+                            MapperService.SINGLE_MAPPING_NAME,
+                            new CompressedXContent(result.getRequiredMappingUpdate()),
+                            MapperService.MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT
+                        )
+                ).map(DocumentMapper::mappingSource);
+                Optional<CompressedXContent> previousSource = Optional.ofNullable(primary.mapperService().documentMapper())
+                    .map(DocumentMapper::mappingSource);
+
+                if (mergedSource.equals(previousSource)) {
+                    context.resetForNoopMappingUpdateRetry(primary.mapperService().mappingVersion());
+                    return true;
+                }
             } catch (Exception e) {
                 logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
                 assert result.getId() != null;

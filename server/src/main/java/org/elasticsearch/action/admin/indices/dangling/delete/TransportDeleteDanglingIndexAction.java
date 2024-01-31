@@ -15,9 +15,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
-import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
  * to add the index to the index graveyard.
  */
 public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMasterNodeAction<DeleteDanglingIndexRequest> {
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.acknowledgedResponse("cluster:admin/indices/dangling/delete");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/delete");
     private static final Logger logger = LogManager.getLogger(TransportDeleteDanglingIndexAction.class);
 
     private final Settings settings;
@@ -166,7 +166,7 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
 
     private void findDanglingIndex(String indexUUID, ActionListener<Index> listener) {
         this.nodeClient.execute(
-            ListDanglingIndicesAction.INSTANCE,
+            TransportListDanglingIndicesAction.TYPE,
             new ListDanglingIndicesRequest(indexUUID),
             listener.delegateFailure((l, response) -> {
                 if (response.hasFailures()) {

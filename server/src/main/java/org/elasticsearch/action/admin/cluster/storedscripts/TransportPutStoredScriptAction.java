@@ -27,7 +27,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPutStoredScriptAction extends AcknowledgedTransportMasterNodeAction<PutStoredScriptRequest> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.acknowledgedResponse("cluster:admin/script/put");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/script/put");
     private final ScriptService scriptService;
 
     @Inject

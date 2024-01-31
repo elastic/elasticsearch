@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterAp
  */
 public final class ApiKey implements ToXContentObject, Writeable {
 
-    public static final TransportVersion CROSS_CLUSTER_KEY_VERSION = TransportVersions.V_8_500_020;
+    public static final TransportVersion CROSS_CLUSTER_KEY_VERSION = TransportVersions.V_8_9_X;
 
     public enum Type {
         /**
@@ -191,7 +191,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.username = in.readString();
         this.realm = in.readString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.metadata = in.readMap();
+            this.metadata = in.readGenericMap();
         } else {
             this.metadata = Map.of();
         }

@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -47,6 +48,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *     <li>An error string capturing the latest error encountered during the connector's operation, if any.</li>
  *     <li>A {@link ConnectorFeatures} object encapsulating the set of features enabled for this connector.</li>
  *     <li>A list of {@link ConnectorFiltering} objects for applying filtering rules to the data processed by the connector.</li>
+ *     <li>An optional {@link FilteringRules} object that represents active filtering rules applied to a sync job.</li>
  *     <li>The name of the Elasticsearch index where the synchronized data is stored or managed.</li>
  *     <li>A boolean flag 'isNative' indicating whether the connector is a native Elasticsearch connector.</li>
  *     <li>The language associated with the connector.</li>
@@ -79,6 +81,8 @@ public class Connector implements NamedWriteable, ToXContentObject {
     private final ConnectorFeatures features;
     private final List<ConnectorFiltering> filtering;
     @Nullable
+    private final FilteringRules syncJobFiltering;
+    @Nullable
     private final String indexName;
     private final boolean isNative;
     @Nullable
@@ -110,6 +114,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
      * @param error              Information about the last error encountered by the connector, if any.
      * @param features           Features enabled for the connector.
      * @param filtering          Filtering settings applied by the connector.
+     * @param syncJobFiltering   Filtering settings used by a sync job, it contains subset of data from 'filtering'.
      * @param indexName          Name of the index associated with the connector.
      * @param isNative           Flag indicating whether the connector is a native type.
      * @param language           The language supported by the connector.
@@ -132,6 +137,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         String error,
         ConnectorFeatures features,
         List<ConnectorFiltering> filtering,
+        FilteringRules syncJobFiltering,
         String indexName,
         boolean isNative,
         String language,
@@ -147,22 +153,23 @@ public class Connector implements NamedWriteable, ToXContentObject {
     ) {
         this.connectorId = connectorId;
         this.apiKeyId = apiKeyId;
-        this.configuration = Objects.requireNonNull(configuration, "[configuration] cannot be null");
-        this.customScheduling = Objects.requireNonNull(customScheduling, "[custom_scheduling] cannot be null");
+        this.configuration = configuration;
+        this.customScheduling = customScheduling;
         this.description = description;
         this.error = error;
         this.features = features;
-        this.filtering = Objects.requireNonNull(filtering, "[filtering] cannot be null");
-        this.indexName = Objects.requireNonNull(indexName, "[index_name] cannot be null");
+        this.filtering = filtering;
+        this.syncJobFiltering = syncJobFiltering;
+        this.indexName = indexName;
         this.isNative = isNative;
         this.language = language;
         this.lastSeen = lastSeen;
         this.syncInfo = syncInfo;
         this.name = name;
         this.pipeline = pipeline;
-        this.scheduling = Objects.requireNonNull(scheduling, "[scheduling] cannot be null");
+        this.scheduling = scheduling;
         this.serviceType = serviceType;
-        this.status = Objects.requireNonNull(status, "[status] cannot be null");
+        this.status = status;
         this.syncCursor = syncCursor;
         this.syncNow = syncNow;
     }
@@ -176,6 +183,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         this.error = in.readOptionalString();
         this.features = in.readOptionalWriteable(ConnectorFeatures::new);
         this.filtering = in.readOptionalCollectionAsList(ConnectorFiltering::new);
+        this.syncJobFiltering = in.readOptionalWriteable(FilteringRules::new);
         this.indexName = in.readOptionalString();
         this.isNative = in.readBoolean();
         this.language = in.readOptionalString();
@@ -199,7 +207,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     static final ParseField FEATURES_FIELD = new ParseField("features");
     public static final ParseField FILTERING_FIELD = new ParseField("filtering");
     public static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
-    static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
+    public static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
     public static final ParseField LANGUAGE_FIELD = new ParseField("language");
     public static final ParseField LAST_SEEN_FIELD = new ParseField("last_seen");
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -273,7 +281,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareStringOrNull(optionalConstructorArg(), LANGUAGE_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, Connector.LAST_SEEN_FIELD.getPreferredName()),
             Connector.LAST_SEEN_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -281,7 +289,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareStringOrNull(optionalConstructorArg(), ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_ERROR);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(
+                p,
+                ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD.getPreferredName()
+            ),
             ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -294,7 +305,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareLong(optionalConstructorArg(), ConnectorSyncInfo.LAST_DELETED_DOCUMENT_COUNT_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName()),
             ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -302,7 +313,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareStringOrNull(optionalConstructorArg(), ConnectorSyncInfo.LAST_SYNC_ERROR_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, ConnectorSyncInfo.LAST_SYNC_SCHEDULED_AT_FIELD.getPreferredName()),
             ConnectorSyncInfo.LAST_SYNC_SCHEDULED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -314,7 +325,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, ConnectorSyncInfo.LAST_SYNCED_FIELD.getPreferredName()),
             ConnectorSyncInfo.LAST_SYNCED_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -345,34 +356,38 @@ public class Connector implements NamedWriteable, ToXContentObject {
         return PARSER.parse(parser, docId);
     }
 
+    public void toInnerXContent(XContentBuilder builder, Params params) throws IOException {
+        // The "id": connectorId is included in GET and LIST responses to provide the connector's docID.
+        // Note: This ID is not written to the Elasticsearch index; it's only for API response purposes.
+        if (connectorId != null) {
+            builder.field(ID_FIELD.getPreferredName(), connectorId);
+        }
+        builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
+        builder.xContentValuesMap(CONFIGURATION_FIELD.getPreferredName(), configuration);
+        builder.xContentValuesMap(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
+        builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
+        builder.field(ERROR_FIELD.getPreferredName(), error);
+        builder.field(FEATURES_FIELD.getPreferredName(), features);
+        builder.xContentList(FILTERING_FIELD.getPreferredName(), filtering);
+        builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
+        builder.field(IS_NATIVE_FIELD.getPreferredName(), isNative);
+        builder.field(LANGUAGE_FIELD.getPreferredName(), language);
+        builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
+        syncInfo.toXContent(builder, params);
+        builder.field(NAME_FIELD.getPreferredName(), name);
+        builder.field(PIPELINE_FIELD.getPreferredName(), pipeline);
+        builder.field(SCHEDULING_FIELD.getPreferredName(), scheduling);
+        builder.field(SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
+        builder.field(SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
+        builder.field(STATUS_FIELD.getPreferredName(), status.toString());
+        builder.field(SYNC_NOW_FIELD.getPreferredName(), syncNow);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            // The "id": connectorId is included in GET and LIST responses to provide the connector's docID.
-            // Note: This ID is not written to the Elasticsearch index; it's only for API response purposes.
-            if (connectorId != null) {
-                builder.field(ID_FIELD.getPreferredName(), connectorId);
-            }
-            builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
-            builder.xContentValuesMap(CONFIGURATION_FIELD.getPreferredName(), configuration);
-            builder.xContentValuesMap(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
-            builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
-            builder.field(ERROR_FIELD.getPreferredName(), error);
-            builder.field(FEATURES_FIELD.getPreferredName(), features);
-            builder.xContentList(FILTERING_FIELD.getPreferredName(), filtering);
-            builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
-            builder.field(IS_NATIVE_FIELD.getPreferredName(), isNative);
-            builder.field(LANGUAGE_FIELD.getPreferredName(), language);
-            builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
-            syncInfo.toXContent(builder, params);
-            builder.field(NAME_FIELD.getPreferredName(), name);
-            builder.field(PIPELINE_FIELD.getPreferredName(), pipeline);
-            builder.field(SCHEDULING_FIELD.getPreferredName(), scheduling);
-            builder.field(SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
-            builder.field(SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
-            builder.field(STATUS_FIELD.getPreferredName(), status.toString());
-            builder.field(SYNC_NOW_FIELD.getPreferredName(), syncNow);
+            toInnerXContent(builder, params);
         }
         builder.endObject();
         return builder;
@@ -388,6 +403,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         out.writeOptionalString(error);
         out.writeOptionalWriteable(features);
         out.writeOptionalCollection(filtering);
+        out.writeOptionalWriteable(syncJobFiltering);
         out.writeOptionalString(indexName);
         out.writeBoolean(isNative);
         out.writeOptionalString(language);
@@ -432,6 +448,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
     public List<ConnectorFiltering> getFiltering() {
         return filtering;
+    }
+
+    public FilteringRules getSyncJobFiltering() {
+        return syncJobFiltering;
     }
 
     public String getIndexName() {
@@ -497,6 +517,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
             && Objects.equals(error, connector.error)
             && Objects.equals(features, connector.features)
             && Objects.equals(filtering, connector.filtering)
+            && Objects.equals(syncJobFiltering, connector.syncJobFiltering)
             && Objects.equals(indexName, connector.indexName)
             && Objects.equals(language, connector.language)
             && Objects.equals(lastSeen, connector.lastSeen)
@@ -520,6 +541,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
             error,
             features,
             filtering,
+            syncJobFiltering,
             indexName,
             isNative,
             language,
@@ -549,19 +571,20 @@ public class Connector implements NamedWriteable, ToXContentObject {
         private String description;
         private String error;
         private ConnectorFeatures features;
-        private List<ConnectorFiltering> filtering = List.of(ConnectorFiltering.getDefaultConnectorFilteringConfig());
+        private List<ConnectorFiltering> filtering;
+        private FilteringRules syncJobFiltering;
         private String indexName;
-        private boolean isNative = false;
+        private boolean isNative;
         private String language;
         private Instant lastSeen;
         private ConnectorSyncInfo syncInfo = new ConnectorSyncInfo.Builder().build();
         private String name;
         private ConnectorIngestPipeline pipeline;
-        private ConnectorScheduling scheduling = ConnectorScheduling.getDefaultConnectorScheduling();
+        private ConnectorScheduling scheduling;
         private String serviceType;
         private ConnectorStatus status = ConnectorStatus.CREATED;
         private Object syncCursor;
-        private boolean syncNow = false;
+        private boolean syncNow;
 
         public Builder setConnectorId(String connectorId) {
             this.connectorId = connectorId;
@@ -603,6 +626,11 @@ public class Connector implements NamedWriteable, ToXContentObject {
             return this;
         }
 
+        public Builder setSyncJobFiltering(FilteringRules syncJobFiltering) {
+            this.syncJobFiltering = syncJobFiltering;
+            return this;
+        }
+
         public Builder setIndexName(String indexName) {
             this.indexName = indexName;
             return this;
@@ -610,9 +638,6 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
         public Builder setIsNative(boolean isNative) {
             this.isNative = isNative;
-            if (isNative) {
-                this.status = ConnectorStatus.NEEDS_CONFIGURATION;
-            }
             return this;
         }
 
@@ -632,7 +657,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         }
 
         public Builder setName(String name) {
-            this.name = Objects.requireNonNullElse(name, "");
+            this.name = name;
             return this;
         }
 
@@ -676,6 +701,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
                 error,
                 features,
                 filtering,
+                syncJobFiltering,
                 indexName,
                 isNative,
                 language,

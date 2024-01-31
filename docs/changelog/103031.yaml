@@ -1,9 +1,0 @@
-pr: 103031
-summary: Collect warnings in compute service
-area: ES|QL
-type: bug
-issues:
- - 100163
- - 103028
- - 102871
- - 102982

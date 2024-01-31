@@ -75,7 +75,7 @@ public record ColumnInfo(String name, String type) implements Writeable {
     }
 
     public abstract class PositionToXContent {
-        private final Block block;
+        protected final Block block;
 
         PositionToXContent(Block block) {
             this.block = block;
@@ -162,24 +162,18 @@ public record ColumnInfo(String name, String type) implements Writeable {
                     return builder.value(UTC_DATE_TIME_FORMATTER.formatMillis(longVal));
                 }
             };
-            case "geo_point" -> new PositionToXContent(block) {
+            case "geo_point", "geo_shape" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
-                    // TODO Perhaps this is just a long for geo_point? And for more advanced types we need a new block type
-                    long encoded = ((LongBlock) block).getLong(valueIndex);
-                    String wkt = GEO.pointAsString(GEO.longAsPoint(encoded));
-                    return builder.value(wkt);
+                    return builder.value(GEO.wkbToWkt(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
                 }
             };
-            case "cartesian_point" -> new PositionToXContent(block) {
+            case "cartesian_point", "cartesian_shape" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
-                    // TODO Perhaps this is just a long for cartesian_point? And for more advanced types we need a new block type
-                    long encoded = ((LongBlock) block).getLong(valueIndex);
-                    String wkt = CARTESIAN.pointAsString(CARTESIAN.longAsPoint(encoded));
-                    return builder.value(wkt);
+                    return builder.value(CARTESIAN.wkbToWkt(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
                 }
             };
             case "boolean" -> new PositionToXContent(block) {

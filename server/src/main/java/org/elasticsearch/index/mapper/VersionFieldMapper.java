@@ -56,13 +56,13 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockDocValuesReader.LongsBlockLoader(name());
+            return new BlockDocValuesReader.LongsBlockLoader(concreteFieldName());
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, VersionDocValuesField::new);
+            return new SortedNumericIndexFieldData.Builder(concreteFieldName(), NumericType.LONG, VersionDocValuesField::new);
         }
     }
 

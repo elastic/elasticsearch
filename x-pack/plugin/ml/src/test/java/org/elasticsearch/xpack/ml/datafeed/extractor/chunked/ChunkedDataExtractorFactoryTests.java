@@ -106,7 +106,6 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         datafeedConfigBuilder.setIndices(Arrays.asList("my_index"));
         return new ChunkedDataExtractorFactory(
             datafeedConfigBuilder.build(),
-            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             dataExtractorFactory

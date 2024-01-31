@@ -81,7 +81,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         this.interval = DatafeedConfigUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
         this.hasNext = true;
     }
-    
+
     @Override
     public boolean hasNext() {
         return hasNext;

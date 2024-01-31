@@ -62,7 +62,7 @@ public interface DataExtractorFactory {
         ActionListener<DataExtractorFactory> factoryHandler = ActionListener.wrap(
             factory -> listener.onResponse(
                 datafeed.getChunkingConfig().isEnabled()
-                    ? new ChunkedDataExtractorFactory(datafeed, extraFilters, job, xContentRegistry, factory)
+                    ? new ChunkedDataExtractorFactory(datafeed, job, xContentRegistry, factory)
                     : factory
             ),
             listener::onFailure

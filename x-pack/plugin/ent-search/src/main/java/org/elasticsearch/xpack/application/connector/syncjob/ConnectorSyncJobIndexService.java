@@ -97,14 +97,11 @@ public class ConnectorSyncJobIndexService {
                 );
 
                 try {
-                    String syncJobId = generateId();
 
-                    final IndexRequest indexRequest = new IndexRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).id(syncJobId)
-                        .opType(DocWriteRequest.OpType.INDEX)
+                    final IndexRequest indexRequest = new IndexRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-                    ConnectorSyncJob syncJob = new ConnectorSyncJob.Builder().setId(syncJobId)
-                        .setJobType(jobType)
+                    ConnectorSyncJob syncJob = new ConnectorSyncJob.Builder().setJobType(jobType)
                         .setTriggerMethod(triggerMethod)
                         .setStatus(ConnectorSyncJob.DEFAULT_INITIAL_STATUS)
                         .setConnector(connector)
@@ -195,7 +192,7 @@ public class ConnectorSyncJobIndexService {
      * @param connectorSyncJobId The id of the connector sync job object.
      * @param listener           The action listener to invoke on response/failure.
      */
-    public void getConnectorSyncJob(String connectorSyncJobId, ActionListener<ConnectorSyncJob> listener) {
+    public void getConnectorSyncJob(String connectorSyncJobId, ActionListener<ConnectorSyncJobSearchResult> listener) {
         final GetRequest getRequest = new GetRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).id(connectorSyncJobId).realtime(true);
 
         try {
@@ -208,11 +205,10 @@ public class ConnectorSyncJobIndexService {
                     }
 
                     try {
-                        final ConnectorSyncJob syncJob = ConnectorSyncJob.fromXContentBytes(
-                            getResponse.getSourceAsBytesRef(),
-                            XContentType.JSON
-                        );
-                        l.onResponse(syncJob);
+                        ConnectorSyncJobSearchResult syncJobSearchResult = new ConnectorSyncJobSearchResult.Builder().setId(
+                            getResponse.getId()
+                        ).setResultBytes(getResponse.getSourceAsBytesRef()).setResultMap(getResponse.getSourceAsMap()).build();
+                        l.onResponse(syncJobSearchResult);
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
@@ -336,7 +332,7 @@ public class ConnectorSyncJobIndexService {
     }
 
     private ConnectorSyncJobsResult mapSearchResponseToConnectorSyncJobsList(SearchResponse searchResponse) {
-        final List<ConnectorSyncJob> connectorSyncJobs = Arrays.stream(searchResponse.getHits().getHits())
+        final List<ConnectorSyncJobSearchResult> connectorSyncJobs = Arrays.stream(searchResponse.getHits().getHits())
             .map(ConnectorSyncJobIndexService::hitToConnectorSyncJob)
             .toList();
 
@@ -346,13 +342,17 @@ public class ConnectorSyncJobIndexService {
         );
     }
 
-    private static ConnectorSyncJob hitToConnectorSyncJob(SearchHit searchHit) {
+    private static ConnectorSyncJobSearchResult hitToConnectorSyncJob(SearchHit searchHit) {
         // TODO: don't return sensitive data from configuration inside connector in list endpoint
 
-        return ConnectorSyncJob.fromXContentBytes(searchHit.getSourceRef(), XContentType.JSON);
+        return new ConnectorSyncJobSearchResult.Builder().setId(searchHit.getId())
+            .setResultBytes(searchHit.getSourceRef())
+            .setResultMap(searchHit.getSourceAsMap())
+            .build();
+
     }
 
-    public record ConnectorSyncJobsResult(List<ConnectorSyncJob> connectorSyncJobs, long totalResults) {}
+    public record ConnectorSyncJobsResult(List<ConnectorSyncJobSearchResult> connectorSyncJobs, long totalResults) {}
 
     /**
     * Updates the ingestion stats of the {@link ConnectorSyncJob} in the underlying index.

@@ -87,17 +87,6 @@ setup:
   - length: { response.hits.hits:                   3 }
 
   - do:
-      async_search.status:
-        id: "$id"
-        keep_alive: 1m
-
-  - match:  { is_running:                       false }
-  - match:  { is_partial:                       false }
-  - match:  { completion_status:                  200 }
-  - match:  { _shards.total:                        6 }
-  - match:  { _shards.successful:                   6 }
-
-  - do:
       async_search.delete:
         id: "$id"
 

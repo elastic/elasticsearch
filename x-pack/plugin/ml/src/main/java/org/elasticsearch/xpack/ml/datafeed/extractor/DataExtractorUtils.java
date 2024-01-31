@@ -7,9 +7,17 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 /**
  * Utility methods for various DataExtractor implementations.
@@ -17,12 +25,44 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 public final class DataExtractorUtils {
 
     private static final String EPOCH_MILLIS = "epoch_millis";
+    private static final String EARLIEST_TIME = "earliest_time";
+    private static final String LATEST_TIME = "latest_time";
+
+    private DataExtractorUtils() {}
 
     /**
      * Combines a user query with a time range query.
      */
-    public static QueryBuilder wrapInTimeRangeQuery(QueryBuilder userQuery, String timeField, long start, long end) {
+    public static QueryBuilder wrapInTimeRangeQuery(QueryBuilder query, String timeField, long start, long end) {
         QueryBuilder timeQuery = new RangeQueryBuilder(timeField).gte(start).lt(end).format(EPOCH_MILLIS);
-        return new BoolQueryBuilder().filter(userQuery).filter(timeQuery);
+        return new BoolQueryBuilder().filter(query).filter(timeQuery);
+    }
+
+    public static SearchRequestBuilder getSearchRequestBuilderForSummary(Client client, DataExtractorQueryContext context) {
+        return new SearchRequestBuilder(client).setIndices(context.indices)
+            .setIndicesOptions(context.indicesOptions)
+            .setSource(getSearchSourceBuilderForSummary(context))
+            .setAllowPartialSearchResults(false)
+            .setTrackTotalHits(true);
+    }
+
+    public static SearchSourceBuilder getSearchSourceBuilderForSummary(DataExtractorQueryContext context) {
+        return new SearchSourceBuilder().size(0)
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end))
+            .runtimeMappings(context.runtimeMappings)
+            .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))
+            .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.timeField));
+    }
+
+    public static DataExtractor.DataSummary getDataSummary(SearchResponse searchResponse) {
+        Aggregations aggregations = searchResponse.getAggregations();
+        long totalHits = searchResponse.getHits().getTotalHits().value;
+        if (totalHits == 0) {
+            return new DataExtractor.DataSummary(null, null, 0L);
+        } else {
+            long earliestTime = (long) (aggregations.<Min>get(EARLIEST_TIME)).value();
+            long latestTime = (long) (aggregations.<Max>get(LATEST_TIME)).value();
+            return new DataExtractor.DataSummary(earliestTime, latestTime, totalHits);
+        }
     }
 }

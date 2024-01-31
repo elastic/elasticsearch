@@ -308,7 +308,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         DataExtractor.DataSummary summary = extractor.getSummary();
         assertThat(summary.earliestTime(), equalTo(1001L));
         assertThat(summary.latestTime(), equalTo(2299L));
-        assertThat(summary.totalHits(), nullValue());
+        assertThat(summary.totalHits(), equalTo(10L));
 
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"size\":0"));

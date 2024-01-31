@@ -10,15 +10,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.Max;
-import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
@@ -250,41 +246,14 @@ class CompositeAggregationDataExtractor implements DataExtractor {
 
     @Override
     public DataSummary getSummary() {
-        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = buildSearchRequest(rangeSearchBuilder());
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = DataExtractorUtils.getSearchRequestBuilderForSummary(client, context.queryContext);
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
         try {
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-
-            Aggregations aggregations = searchResponse.getAggregations();
-            // This can happen if all the indices the datafeed is searching are deleted after it started.
-            // Note that unlike the scrolled data summary method above we cannot check for this situation
-            // by checking for zero hits, because aggregations that work on rollups return zero hits even
-            // when they retrieve data.
-            if (aggregations == null) {
-                return new DataSummary(null, null, null);
-            } else {
-                long earliestTime = (long) (aggregations.<Min>get(EARLIEST_TIME)).value();
-                long latestTime = (long) (aggregations.<Max>get(LATEST_TIME)).value();
-                return new DataSummary(earliestTime, latestTime, null);
-            }
+            return DataExtractorUtils.getDataSummary(searchResponse);
         } finally {
             searchResponse.decRef();
         }
-    }
-
-    private SearchSourceBuilder rangeSearchBuilder() {
-        return new SearchSourceBuilder().size(0)
-            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.queryContext.query, context.queryContext.timeField, context.queryContext.start, context.queryContext.end))
-            .runtimeMappings(context.queryContext.runtimeMappings)
-            .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.queryContext.timeField))
-            .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.queryContext.timeField));
-    }
-
-    private SearchRequestBuilder buildSearchRequest(SearchSourceBuilder searchSourceBuilder) {
-        return new SearchRequestBuilder(client).setSource(searchSourceBuilder)
-            .setIndicesOptions(context.queryContext.indicesOptions)
-            .setAllowPartialSearchResults(false)
-            .setIndices(context.queryContext.indices);
     }
 }

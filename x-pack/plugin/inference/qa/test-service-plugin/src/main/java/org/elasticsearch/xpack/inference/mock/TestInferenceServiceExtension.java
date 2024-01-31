@@ -18,6 +18,7 @@ import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -128,11 +129,11 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
             Model model,
             List<String> input,
             Map<String, Object> taskSettings,
+            InputType inputType,
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case ANY -> listener.onResponse(makeResults(input));
-                case SPARSE_EMBEDDING -> listener.onResponse(makeResults(input));
+                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeResults(input));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),

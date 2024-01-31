@@ -636,7 +636,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             // We assert on the mean prediction error in order to reduce the probability
             // the test fails compared to asserting on the prediction of each individual doc.
             double meanPredictionError = predictionErrorSum / sourceData.getHits().getHits().length;
-            String str = "Failure: failed for seed %d modelId %s numberTrees %d\n";
+            String str = "Failure: failed for seed %d inferenceEntityId %s numberTrees %d\n";
             assertThat(
                 Strings.format(str, seed, modelId, numberTrees) + targetsPredictions + hyperparameters,
                 meanPredictionError,

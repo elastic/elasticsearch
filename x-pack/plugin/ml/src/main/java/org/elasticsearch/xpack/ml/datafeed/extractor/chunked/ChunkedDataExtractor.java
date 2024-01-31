@@ -14,18 +14,18 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 
 import java.io.IOException;
@@ -264,7 +264,7 @@ public class ChunkedDataExtractor implements DataExtractor {
                 long latestTime = 0;
                 long totalHits = searchResponse.getHits().getTotalHits().value;
                 if (totalHits > 0) {
-                    Aggregations aggregations = searchResponse.getAggregations();
+                    InternalAggregations aggregations = searchResponse.getAggregations();
                     Min min = aggregations.get(EARLIEST_TIME);
                     earliestTime = (long) min.value();
                     Max max = aggregations.get(LATEST_TIME);
@@ -285,7 +285,7 @@ public class ChunkedDataExtractor implements DataExtractor {
                 LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
                 timingStatsReporter.reportSearchDuration(searchResponse.getTook());
 
-                Aggregations aggregations = searchResponse.getAggregations();
+                InternalAggregations aggregations = searchResponse.getAggregations();
                 // This can happen if all the indices the datafeed is searching are deleted after it started.
                 // Note that unlike the scrolled data summary method above we cannot check for this situation
                 // by checking for zero hits, because aggregations that work on rollups return zero hits even
@@ -303,7 +303,7 @@ public class ChunkedDataExtractor implements DataExtractor {
 
         private SearchSourceBuilder rangeSearchBuilder() {
             return new SearchSourceBuilder().size(0)
-                .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, currentStart, context.end))
+                .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, currentStart, context.end))
                 .runtimeMappings(context.runtimeMappings)
                 .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))
                 .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.timeField));

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -38,7 +39,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
 
     @Override
     public HuggingFaceModel parseRequestConfig(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Set<String> platformArchitectures
@@ -46,7 +47,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
         var model = createModel(
-            modelId,
+            inferenceEntityId,
             taskType,
             serviceSettingsMap,
             serviceSettingsMap,
@@ -61,7 +62,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
 
     @Override
     public HuggingFaceModel parsePersistedConfigWithSecrets(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
@@ -69,18 +70,24 @@ public abstract class HuggingFaceBaseService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        return createModel(modelId, taskType, serviceSettingsMap, secretSettingsMap, parsePersistedConfigErrorMsg(modelId, name()));
+        return createModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            secretSettingsMap,
+            parsePersistedConfigErrorMsg(inferenceEntityId, name())
+        );
     }
 
     @Override
-    public HuggingFaceModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+    public HuggingFaceModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
-        return createModel(modelId, taskType, serviceSettingsMap, null, parsePersistedConfigErrorMsg(modelId, name()));
+        return createModel(inferenceEntityId, taskType, serviceSettingsMap, null, parsePersistedConfigErrorMsg(inferenceEntityId, name()));
     }
 
     protected abstract HuggingFaceModel createModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> secretSettings,
@@ -92,6 +99,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         Model model,
         List<String> input,
         Map<String, Object> taskSettings,
+        InputType inputType,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof HuggingFaceModel == false) {

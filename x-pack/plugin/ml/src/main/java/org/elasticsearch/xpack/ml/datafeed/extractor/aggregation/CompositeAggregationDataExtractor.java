@@ -128,10 +128,22 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         // Also, it doesn't make sense to have a derivative when grouping by time AND by some other criteria.
 
         LOGGER.trace(
-            () -> format("[%s] Executing composite aggregated search from [%s] to [%s]", context.jobId, context.queryContext.start, context.queryContext.end)
+            () -> format(
+                "[%s] Executing composite aggregated search from [%s] to [%s]",
+                context.jobId,
+                context.queryContext.start,
+                context.queryContext.end
+            )
         );
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
-            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.queryContext.query, context.queryContext.timeField, context.queryContext.start, context.queryContext.end));
+            .query(
+                DataExtractorUtils.wrapInTimeRangeQuery(
+                    context.queryContext.query,
+                    context.queryContext.timeField,
+                    context.queryContext.start,
+                    context.queryContext.end
+                )
+            );
 
         if (context.queryContext.runtimeMappings.isEmpty() == false) {
             searchSourceBuilder.runtimeMappings(context.queryContext.runtimeMappings);
@@ -246,7 +258,10 @@ class CompositeAggregationDataExtractor implements DataExtractor {
 
     @Override
     public DataSummary getSummary() {
-        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = DataExtractorUtils.getSearchRequestBuilderForSummary(client, context.queryContext);
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = DataExtractorUtils.getSearchRequestBuilderForSummary(
+            client,
+            context.queryContext
+        );
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
         try {
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);

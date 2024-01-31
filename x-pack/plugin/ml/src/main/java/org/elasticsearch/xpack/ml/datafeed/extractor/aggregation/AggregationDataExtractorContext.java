@@ -41,6 +41,15 @@ class AggregationDataExtractorContext {
         this.fields = Objects.requireNonNull(fields);
         this.aggs = Objects.requireNonNull(aggs);
         this.includeDocCount = includeDocCount;
-        this.queryContext = new DataExtractorQueryContext(indices, query, Objects.requireNonNull(timeField), start, end, headers, indicesOptions, runtimeMappings);
+        this.queryContext = new DataExtractorQueryContext(
+            indices,
+            query,
+            Objects.requireNonNull(timeField),
+            start,
+            end,
+            headers,
+            indicesOptions,
+            runtimeMappings
+        );
     }
 }

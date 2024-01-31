@@ -153,10 +153,20 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         // For derivative aggregations the first bucket will always be null
         // so query one extra histogram bucket back and hope there is data
         // in that bucket
-        long histogramSearchStartTime = Math.max(0, context.queryContext.start - DatafeedConfigUtils.getHistogramIntervalMillis(context.aggs));
+        long histogramSearchStartTime = Math.max(
+            0,
+            context.queryContext.start - DatafeedConfigUtils.getHistogramIntervalMillis(context.aggs)
+        );
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
-            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.queryContext.query, context.queryContext.timeField, histogramSearchStartTime, context.queryContext.end));
+            .query(
+                DataExtractorUtils.wrapInTimeRangeQuery(
+                    context.queryContext.query,
+                    context.queryContext.timeField,
+                    histogramSearchStartTime,
+                    context.queryContext.end
+                )
+            );
 
         if (context.queryContext.runtimeMappings.isEmpty() == false) {
             searchSourceBuilder.runtimeMappings(context.queryContext.runtimeMappings);
@@ -191,7 +201,9 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
 
     @Override
     public DataSummary getSummary() {
-        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = buildSearchRequest(DataExtractorUtils.getSearchSourceBuilderForSummary(context.queryContext));
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = buildSearchRequest(
+            DataExtractorUtils.getSearchSourceBuilderForSummary(context.queryContext)
+        );
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
         try {
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);

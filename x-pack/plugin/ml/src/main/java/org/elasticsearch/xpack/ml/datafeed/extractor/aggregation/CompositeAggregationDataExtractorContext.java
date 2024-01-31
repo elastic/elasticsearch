@@ -45,6 +45,15 @@ class CompositeAggregationDataExtractorContext {
         this.compositeAggregationBuilder = Objects.requireNonNull(compositeAggregationBuilder);
         this.compositeAggDateHistogramGroupSourceName = Objects.requireNonNull(compositeAggDateHistogramGroupSourceName);
         this.includeDocCount = includeDocCount;
-        this.queryContext = new DataExtractorQueryContext(indices, query, Objects.requireNonNull(timeField), start, end, headers, indicesOptions, runtimeMappings);
+        this.queryContext = new DataExtractorQueryContext(
+            indices,
+            query,
+            Objects.requireNonNull(timeField),
+            start,
+            end,
+            headers,
+            indicesOptions,
+            runtimeMappings
+        );
     }
 }

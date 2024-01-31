@@ -158,7 +158,14 @@ class ScrollDataExtractor implements DataExtractor {
     private SearchRequestBuilder buildSearchRequest(long start) {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(context.scrollSize)
             .sort(context.extractedFields.timeField(), SortOrder.ASC)
-            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.queryContext.query, context.extractedFields.timeField(), start, context.queryContext.end))
+            .query(
+                DataExtractorUtils.wrapInTimeRangeQuery(
+                    context.queryContext.query,
+                    context.extractedFields.timeField(),
+                    start,
+                    context.queryContext.end
+                )
+            )
             .runtimeMappings(context.queryContext.runtimeMappings);
 
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client).setScroll(SCROLL_TIMEOUT)
@@ -228,7 +235,9 @@ class ScrollDataExtractor implements DataExtractor {
                 }
                 logger.debug("[{}] search failed due to SearchPhaseExecutionException. Will attempt again with new scroll", context.jobId);
                 markScrollAsErrored();
-                searchResponse = executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.queryContext.start : lastTimestamp));
+                searchResponse = executeSearchRequest(
+                    buildSearchRequest(lastTimestamp == null ? context.queryContext.start : lastTimestamp)
+                );
             }
             logger.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());

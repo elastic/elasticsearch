@@ -40,6 +40,15 @@ class ScrollDataExtractorContext {
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.scriptFields = Objects.requireNonNull(scriptFields);
         this.scrollSize = scrollSize;
-        this.queryContext = new DataExtractorQueryContext(indices, query, extractedFields.timeField(), start, end, headers, indicesOptions, runtimeMappings);
+        this.queryContext = new DataExtractorQueryContext(
+            indices,
+            query,
+            extractedFields.timeField(),
+            start,
+            end,
+            headers,
+            indicesOptions,
+            runtimeMappings
+        );
     }
 }

@@ -166,7 +166,7 @@ public class TextEmbeddingConfig implements NlpConfig {
                 embeddingSize
             );
         } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
-            var updatedTokenization = getTokenization().updateSpanSettings(tokenizationUpdate.getSpanSettings());
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
             return new TextEmbeddingConfig(vocabularyConfig, updatedTokenization, resultsField, embeddingSize);
         } else {
             throw incompatibleUpdateException(update.getName());

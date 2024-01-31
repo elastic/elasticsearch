@@ -33,7 +33,7 @@ import java.util.List;
  * programmatically attach the agent, the Security Manager permissions required for this
  * make this approach difficult to the point of impossibility.
  * <p>
- * All settings are found under the <code>tracing.apm.</code> prefix. Any setting under
+ * All settings are found under the <code>telemetry.</code> prefix. Any setting under
  * the <code>telemetry.agent.</code> prefix will be forwarded on to the APM Java agent
  * by setting appropriate system properties. Some settings can only be set once, and must be
  * set when the agent starts. We therefore also create and configure a config file in
@@ -70,8 +70,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         apmTracer.setNodeName(services.clusterService().getNodeName());
 
         final APMAgentSettings apmAgentSettings = new APMAgentSettings();
-        apmAgentSettings.syncAgentSystemProperties(settings);
-
+        apmAgentSettings.initAgentSystemProperties(settings);
         apmAgentSettings.addClusterSettingsListeners(services.clusterService(), telemetryProvider.get());
         logger.info("Sending apm metrics is {}", APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
         logger.info("Sending apm tracing is {}", APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");

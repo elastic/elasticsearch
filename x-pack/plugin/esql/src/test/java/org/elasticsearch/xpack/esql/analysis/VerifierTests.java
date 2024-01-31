@@ -74,7 +74,7 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [numeric], found value [first_name] type [keyword]",
+            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long], found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
         assertEquals(
@@ -235,7 +235,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testSumOnDate() {
         assertEquals(
-            "1:19: argument of [sum(hire_date)] must be [numeric], found value [hire_date] type [datetime]",
+            "1:19: argument of [sum(hire_date)] must be [numeric except unsigned_long], found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
     }

@@ -49,6 +49,8 @@ import java.util.Properties;
 import java.util.PropertyPermission;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.management.MBeanPermission;
@@ -61,6 +63,7 @@ import javax.security.auth.kerberos.DelegationPermission;
 import javax.security.auth.kerberos.ServicePermission;
 
 public class PolicyUtil {
+    private static final Pattern CODEBASE_ALIAS_CLASSIFIER_PATTERN = Pattern.compile(".*-(?:\\d+(?:\\.)?)+(?:-SNAPSHOT)?(-.+)?\\.jar");
 
     // this object is checked by reference, so the value in the list does not matter
     static final List<String> ALLOW_ALL_NAMES = List.of("ALLOW ALL NAMES SENTINEL");
@@ -268,7 +271,7 @@ public class PolicyUtil {
                     // format in the jar filename. While we cannot ensure all jars in all plugins use this format, nonconformity
                     // only means policy grants would need to include the entire jar filename as they always have before.
                     String property = "codebase." + name;
-                    String aliasProperty = "codebase." + name.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
+                    String aliasProperty = getCodebaseAlias(name);
                     if (aliasProperty.equals(property) == false) {
 
                         Object previous = codebaseProperties.put(aliasProperty, url.toString());
@@ -303,6 +306,16 @@ public class PolicyUtil {
             }
         } catch (NoSuchAlgorithmException | URISyntaxException e) {
             throw new IllegalArgumentException("unable to parse policy file `" + policyFile + "`", e);
+        }
+    }
+
+    private static String getCodebaseAlias(String name) {
+        Matcher matcher = CODEBASE_ALIAS_CLASSIFIER_PATTERN.matcher(name);
+        String base = "codebase." + name.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
+        if (matcher.matches() && matcher.group(1) != null) {
+            return base + matcher.group(1);
+        } else {
+            return base;
         }
     }
 

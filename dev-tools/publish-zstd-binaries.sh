@@ -51,7 +51,7 @@ build_darwin_jar() {
 
 echo 'Building MacOS jars...'
 DARWIN_ARM_JAR=$(build_darwin_jar $DARWIN_ARM_BREW "aarch64")
-DARWIN_X86_JAR=$(build_darwin_jar $DARWIN_X86_BREW "x86_64")
+DARWIN_X86_JAR=$(build_darwin_jar $DARWIN_X86_BREW "x86-64")
 
 build_linux_jar() {
   ARTIFACT="$TEMP/zstd-$VERSION-linux-$2.jar"
@@ -65,15 +65,16 @@ build_linux_jar() {
 }
 
 echo 'Building Linux jars...'
-LINUX_ARM_JAR=$(build_linux_jar "linux/amd64" "x86_64")
+LINUX_ARM_JAR=$(build_linux_jar "linux/amd64" "x86-64")
 LINUX_X86_JAR=$(build_linux_jar "linux/arm64" "aarch64")
 
 build_windows_jar() {
-  ARTIFACT="$TEMP/zstd-$VERSION-windows-x86_64.jar"
-  OUTPUT_DIR="$TEMP/win32-x86_64"
+  ARTIFACT="$TEMP/zstd-$VERSION-windows-x86-64.jar"
+  OUTPUT_DIR="$TEMP/win32-x86-64"
   mkdir $OUTPUT_DIR
   curl -sS --retry 3 --location https://github.com/facebook/zstd/releases/download/v${VERSION}/zstd-v${VERSION}-win64.zip --output $OUTPUT_DIR/zstd.zip
   unzip -jq $OUTPUT_DIR/zstd.zip zstd-v${VERSION}-win64/dll/libzstd.dll -d $OUTPUT_DIR && rm $OUTPUT_DIR/zstd.zip
+  mv $OUTPUT_DIR/libzstd.dll $OUTPUT_DIR/zstd.dll
   download_license $OUTPUT_DIR/LICENSE
   (cd $OUTPUT_DIR/../ && zip -rq - $(basename $OUTPUT_DIR)) > $ARTIFACT && rm -rf $OUTPUT_DIR
   echo $ARTIFACT

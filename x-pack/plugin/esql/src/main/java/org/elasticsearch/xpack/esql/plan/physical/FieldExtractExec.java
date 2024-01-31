@@ -103,7 +103,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     }
 
     /**
-     * Returns DOC_VALUES if the given attribute should be preferrentially extracted from doc-values.
+     * Returns DOC_VALUES if the given attribute should be preferentially extracted from doc-values.
      */
     public MappedFieldType.FieldExtractPreference extractPreference(Attribute attr) {
         return preferDocValues.contains(attr)

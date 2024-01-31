@@ -692,7 +692,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             } else {
                 limit = context.configuration().resultTruncationMaxSize(); // user provided a limit: cap result entries to the max
             }
-            return new Limit(Source.EMPTY, new Literal(Source.EMPTY, limit, DataTypes.INTEGER), logicalPlan);
+            var source = logicalPlan.source();
+            return new Limit(source, new Literal(source, limit, DataTypes.INTEGER), logicalPlan);
         }
     }
 

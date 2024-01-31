@@ -144,12 +144,12 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+            return SourceValueFetcher.toString(concreteFieldName(), context, format);
         }
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return new FieldExistsQuery(name());
+            return new FieldExistsQuery(concreteFieldName());
         }
 
         @Override
@@ -184,7 +184,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                 );
             }
             return new RegexpQuery(
-                new Term(name(), new BytesRef(value)),
+                new Term(concreteFieldName(), new BytesRef(value)),
                 syntaxFlags,
                 matchFlags,
                 DEFAULT_PROVIDER,
@@ -233,7 +233,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                 );
             }
             return new FuzzyQuery(
-                new Term(name(), (BytesRef) value),
+                new Term(concreteFieldName(), (BytesRef) value),
                 fuzziness.asDistance(BytesRefs.toString(value)),
                 prefixLength,
                 maxExpansions,
@@ -274,8 +274,8 @@ public class VersionStringFieldMapper extends FieldMapper {
             }
 
             return method == null
-                ? new VersionFieldWildcardQuery(new Term(name(), value), caseInsensitive)
-                : new VersionFieldWildcardQuery(new Term(name(), value), caseInsensitive, method);
+                ? new VersionFieldWildcardQuery(new Term(concreteFieldName(), value), caseInsensitive)
+                : new VersionFieldWildcardQuery(new Term(concreteFieldName(), value), caseInsensitive, method);
         }
 
         @Override
@@ -295,12 +295,16 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             failIfNoDocValues();
-            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(concreteFieldName());
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, VersionStringDocValuesField::new);
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                concreteFieldName(),
+                CoreValuesSourceType.KEYWORD,
+                VersionStringDocValuesField::new
+            );
         }
 
         @Override
@@ -328,13 +332,13 @@ public class VersionStringFieldMapper extends FieldMapper {
         ) {
             BytesRef lower = lowerTerm == null ? null : indexedValueForSearch(lowerTerm);
             BytesRef upper = upperTerm == null ? null : indexedValueForSearch(upperTerm);
-            return new TermRangeQuery(name(), lower, upper, includeLower, includeUpper);
+            return new TermRangeQuery(concreteFieldName(), lower, upper, includeLower, includeUpper);
         }
 
         @Override
         public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
 
-            Terms terms = MultiTerms.getTerms(reader, name());
+            Terms terms = MultiTerms.getTerms(reader, concreteFieldName());
             if (terms == null) {
                 // Field does not exist on this shard.
                 return null;
@@ -369,7 +373,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedFieldType.concreteFieldName(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -398,8 +402,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         EncodedVersion encoding = encodeVersion(versionString);
         BytesRef encodedVersion = encoding.bytesRef;
-        context.doc().add(new Field(fieldType().name(), encodedVersion, fieldType));
-        context.doc().add(new SortedSetDocValuesField(fieldType().name(), encodedVersion));
+        context.doc().add(new Field(fieldType().concreteFieldName(), encodedVersion, fieldType));
+        context.doc().add(new SortedSetDocValuesField(fieldType().concreteFieldName(), encodedVersion));
     }
 
     @Override
@@ -448,7 +452,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedSetDocValuesSyntheticFieldLoader(name(), simpleName(), null, false) {
+        return new SortedSetDocValuesSyntheticFieldLoader(fieldType().concreteFieldName(), simpleName(), null, false) {
             @Override
             protected BytesRef convert(BytesRef value) {
                 return VersionEncoder.decodeVersion(value);

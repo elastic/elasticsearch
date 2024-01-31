@@ -986,6 +986,15 @@ COUNT(c):long | a:integer
             0 | 1
 ;
 
+
+countVersion#[skip:-8.12.99,reason:bug fixed in 8.13+]
+from apps | stats c = count(version), cd = count_distinct(version);
+
+c:long | cd:long
+12     | 9
+;
+
+
 docsStatsAvgNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
 // tag::docsStatsAvgNestedExpression[]
 FROM employees

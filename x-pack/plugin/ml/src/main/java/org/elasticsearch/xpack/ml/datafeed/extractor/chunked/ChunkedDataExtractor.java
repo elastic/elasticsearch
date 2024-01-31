@@ -61,7 +61,6 @@ public class ChunkedDataExtractor implements DataExtractor {
     private final Client client;
     private final DataExtractorFactory dataExtractorFactory;
     private final ChunkedDataExtractorContext context;
-    private final DataSummaryFactory dataSummaryFactory;
     private final DatafeedTimingStatsReporter timingStatsReporter;
     private long currentStart;
     private long currentEnd;
@@ -82,7 +81,6 @@ public class ChunkedDataExtractor implements DataExtractor {
         this.currentStart = context.start;
         this.currentEnd = context.start;
         this.isCancelled = false;
-        this.dataSummaryFactory = new DataSummaryFactory();
     }
 
     @Override
@@ -114,7 +112,7 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     private void setUpChunkedSearch() {
-        DataSummary dataSummary = dataSummaryFactory.buildDataSummary();
+        DataSummary dataSummary = dataExtractorFactory.newExtractor(currentStart, context.end).getSummary();
         if (dataSummary.hasData()) {
             currentStart = context.timeAligner.alignToFloor(dataSummary.earliestTime());
             currentEnd = currentStart;
@@ -244,75 +242,5 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     ChunkedDataExtractorContext getContext() {
         return context;
-    }
-
-    private class DataSummaryFactory {
-
-        /**
-         * If there are aggregations, an AggregatedDataSummary object is created. It returns a ScrollingDataSummary otherwise.
-         *
-         * By default a DatafeedConfig with aggregations, should already have a manual ChunkingConfig created.
-         * However, the end user could have specifically set the ChunkingConfig to AUTO, which would not really work for aggregations.
-         * So, if we need to gather an appropriate chunked time for aggregations, we can utilize the AggregatedDataSummary
-         *
-         * @return DataSummary object
-         */
-        private DataSummary buildDataSummary() {
-            return context.hasAggregations ? newAggregatedDataSummary() : newScrolledDataSummary();
-        }
-
-        private DataSummary newScrolledDataSummary() {
-            return dataExtractorFactory.newExtractor(currentStart, context.end).getSummary();
-        }
-
-        private DataSummary newAggregatedDataSummary() {
-            // TODO: once RollupSearchAction is changed from indices:admin* to indices:data/read/* this branch is not needed
-            ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder =
-                dataExtractorFactory instanceof RollupDataExtractorFactory ? rollupRangeSearchRequest() : rangeSearchRequest();
-            SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
-            try {
-                LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
-                timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-
-                Aggregations aggregations = searchResponse.getAggregations();
-                // This can happen if all the indices the datafeed is searching are deleted after it started.
-                // Note that unlike the scrolled data summary method above we cannot check for this situation
-                // by checking for zero hits, because aggregations that work on rollups return zero hits even
-                // when they retrieve data.
-                if (aggregations == null) {
-                    return new DataSummary(null, null, null);
-                } else {
-                    long earliestTime = (long) (aggregations.<Min>get(EARLIEST_TIME)).value();
-                    long latestTime = (long) (aggregations.<Max>get(LATEST_TIME)).value();
-                    return new DataSummary(earliestTime, latestTime, null);
-                }
-            } finally {
-                searchResponse.decRef();
-            }
-        }
-
-        private SearchSourceBuilder rangeSearchBuilder() {
-            return new SearchSourceBuilder().size(0)
-                .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, currentStart, context.end))
-                .runtimeMappings(context.runtimeMappings)
-                .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))
-                .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.timeField));
-        }
-
-        private SearchRequestBuilder rangeSearchRequest() {
-            return new SearchRequestBuilder(client).setIndices(context.indices)
-                .setIndicesOptions(context.indicesOptions)
-                .setSource(rangeSearchBuilder())
-                .setAllowPartialSearchResults(false)
-                .setTrackTotalHits(true);
-        }
-
-        private RollupSearchAction.RequestBuilder rollupRangeSearchRequest() {
-            SearchRequest searchRequest = new SearchRequest().indices(context.indices)
-                .indicesOptions(context.indicesOptions)
-                .allowPartialSearchResults(false)
-                .source(rangeSearchBuilder());
-            return new RollupSearchAction.RequestBuilder(client, searchRequest);
-        }
     }
 }

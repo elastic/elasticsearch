@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -57,7 +58,7 @@ import static org.mockito.Mockito.when;
 public class AggregationDataExtractorTests extends ESTestCase {
 
     private Client testClient;
-    private List<SearchRequestBuilder> capturedSearchRequests;
+    private List<ActionRequestBuilder<SearchRequest, SearchResponse>> capturedSearchRequests;
     private String jobId;
     private String timeField;
     private Set<String> fields;
@@ -77,7 +78,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         }
 
         @Override
-        protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
+        protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
             capturedSearchRequests.add(searchRequestBuilder);
             if (ex != null) {
                 throw ex;

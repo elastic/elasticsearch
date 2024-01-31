@@ -164,9 +164,18 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
     public void testExtractionGivenSpecifiedChunkAndAggs() throws IOException {
         chunkSpan = TimeValue.timeValueSeconds(1);
-        TestDataExtractor extractor = new TestDataExtractor(1000L, 2300L, true, 1000L);
-        // 0 hits with non-empty data is possible with rollups
-        extractor.setNextResponse(createSearchResponse(randomFrom(0L, 2L, 10000L), 1000L, 2200L));
+        DataExtractor summaryExtractor = new StubSubExtractor(
+            new SearchInterval(1000L, 2300L),
+            new DataSummary(1000L, 2200L, randomFrom(0L, 2L, 10000L))
+        );
+        when(dataExtractorFactory.newExtractor(1000L, 2300L)).thenReturn(summaryExtractor);
+
+        DataExtractor extractor = new ChunkedDataExtractor(
+            client,
+            dataExtractorFactory,
+            createContext(1000L, 2300L, true, 200L),
+            timingStatsReporter
+        );
 
         InputStream inputStream1 = mock(InputStream.class);
         InputStream inputStream2 = mock(InputStream.class);
@@ -195,37 +204,26 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(result.searchInterval(), equalTo(new SearchInterval(2000L, 2300L)));
         assertThat(result.data().isPresent(), is(false));
 
+        verify(dataExtractorFactory).newExtractor(1000L, 2300L);
         verify(dataExtractorFactory).newExtractor(1000L, 2000L);
         verify(dataExtractorFactory).newExtractor(2000L, 2300L);
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
-
-        assertThat(capturedSearchRequests.size(), equalTo(1));
-        String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
-        assertThat(searchRequest, containsString("\"size\":0"));
-        assertThat(
-            searchRequest,
-            containsString(
-                "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
-                    + "{\"range\":{\"time\":{\"gte\":1000,\"lt\":2300,"
-                    + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
-            )
-        );
-        assertThat(
-            searchRequest,
-            containsString(
-                "\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," + "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"
-            )
-        );
-        assertThat(searchRequest, not(containsString("\"track_total_hits\":false")));
-        assertThat(searchRequest, not(containsString("\"sort\"")));
     }
 
     public void testExtractionGivenAutoChunkAndAggs() throws IOException {
         chunkSpan = null;
-        TestDataExtractor extractor = new TestDataExtractor(100_000L, 450_000L, true, 200L);
+        DataExtractor summaryExtractor = new StubSubExtractor(
+            new SearchInterval(100_000L, 450_000L),
+            new DataSummary(100_000L, 400_000L, randomFrom(0L, 2L, 10000L))
+        );
+        when(dataExtractorFactory.newExtractor(100_000L, 450_000L)).thenReturn(summaryExtractor);
 
-        // 0 hits with non-empty data is possible with rollups
-        extractor.setNextResponse(createSearchResponse(randomFrom(0L, 2L, 10000L), 100_000L, 400_000L));
+        DataExtractor extractor = new ChunkedDataExtractor(
+            client,
+            dataExtractorFactory,
+            createContext(100_000L, 450_000L, true, 200L),
+            timingStatsReporter
+        );
 
         InputStream inputStream1 = mock(InputStream.class);
         InputStream inputStream2 = mock(InputStream.class);
@@ -250,25 +248,32 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(result.data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
+        verify(dataExtractorFactory).newExtractor(100_000L, 450_000L);
         verify(dataExtractorFactory).newExtractor(100_000L, 300_000L);
         verify(dataExtractorFactory).newExtractor(300_000L, 450_000L);
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
-
-        assertThat(capturedSearchRequests.size(), equalTo(1));
     }
 
     public void testExtractionGivenAutoChunkAndAggsAndNoData() throws IOException {
         chunkSpan = null;
-        TestDataExtractor extractor = new TestDataExtractor(100L, 500L, true, 200L);
+        DataExtractor summaryExtractor = new StubSubExtractor(
+            new SearchInterval(100L, 500L),
+            new DataSummary(null, null, null)
+        );
+        when(dataExtractorFactory.newExtractor(100L, 500L)).thenReturn(summaryExtractor);
 
-        extractor.setNextResponse(createNullSearchResponse());
+        DataExtractor extractor = new ChunkedDataExtractor(
+            client,
+            dataExtractorFactory,
+            createContext(100L, 500L, true, 200L),
+            timingStatsReporter
+        );
 
         assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
+        verify(dataExtractorFactory).newExtractor(100L, 500L);
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
-
-        assertThat(capturedSearchRequests.size(), equalTo(1));
     }
 
     public void testExtractionGivenAutoChunkAndScrollSize1000() throws IOException {
@@ -587,26 +592,6 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         aggs.add(min);
         Max max = mock(Max.class);
         when(max.value()).thenReturn((double) latestTime);
-        when(max.getName()).thenReturn("latest_time");
-        aggs.add(max);
-        InternalAggregations aggregations = InternalAggregations.from(aggs);
-        when(searchResponse.getAggregations()).thenReturn(aggregations);
-        return searchResponse;
-    }
-
-    private SearchResponse createNullSearchResponse() {
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.status()).thenReturn(RestStatus.OK);
-        SearchHits searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1);
-        when(searchResponse.getHits()).thenReturn(searchHits);
-
-        List<InternalAggregation> aggs = new ArrayList<>();
-        Min min = mock(Min.class);
-        when(min.value()).thenReturn(Double.POSITIVE_INFINITY);
-        when(min.getName()).thenReturn("earliest_time");
-        aggs.add(min);
-        Max max = mock(Max.class);
-        when(max.value()).thenReturn(Double.POSITIVE_INFINITY);
         when(max.getName()).thenReturn("latest_time");
         aggs.add(max);
         InternalAggregations aggregations = InternalAggregations.from(aggs);

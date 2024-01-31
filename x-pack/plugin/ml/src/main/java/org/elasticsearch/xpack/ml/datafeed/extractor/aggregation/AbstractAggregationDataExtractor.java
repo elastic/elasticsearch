@@ -10,15 +10,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
@@ -33,12 +38,13 @@ import java.util.Optional;
 
 /**
  * Abstract class for aggregated data extractors, e.g. {@link RollupDataExtractor}
- *
- * @param <T> The request builder type for getting data from ElasticSearch
  */
-abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<SearchRequest, SearchResponse>> implements DataExtractor {
+abstract class AbstractAggregationDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(AbstractAggregationDataExtractor.class);
+
+    private static final String EARLIEST_TIME = "earliest_time";
+    private static final String LATEST_TIME = "latest_time";
 
     protected final Client client;
     protected final AggregationDataExtractorContext context;
@@ -59,11 +65,6 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         this.hasNext = true;
         this.isCancelled = false;
         this.outputStream = new ByteArrayOutputStream();
-    }
-
-    @Override
-    public DataSummary getSummary() {
-        return null;
     }
 
     @Override
@@ -125,7 +126,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     private Aggregations search() {
         LOGGER.debug("[{}] Executing aggregated search", context.jobId);
-        T searchRequest = buildSearchRequest(buildBaseSearchSource());
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = buildSearchRequest(buildBaseSearchSource());
         assert searchRequest.request().allowPartialSearchResults() == false;
         SearchResponse searchResponse = executeSearchRequest(searchRequest);
         try {
@@ -149,7 +150,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         aggregationToJsonProcessor.process(aggs);
     }
 
-    protected SearchResponse executeSearchRequest(T searchRequestBuilder) {
+    protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
         return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
     }
 
@@ -170,7 +171,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         return searchSourceBuilder;
     }
 
-    protected abstract T buildSearchRequest(SearchSourceBuilder searchRequestBuilder);
+    protected abstract ActionRequestBuilder<SearchRequest, SearchResponse> buildSearchRequest(SearchSourceBuilder searchRequestBuilder);
 
     private static Aggregations validateAggs(@Nullable Aggregations aggs) {
         if (aggs == null) {
@@ -193,4 +194,36 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         return context;
     }
 
+    @Override
+    public DataSummary getSummary() {
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = buildSearchRequest(rangeSearchBuilder());
+        SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
+        try {
+            LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+
+            Aggregations aggregations = searchResponse.getAggregations();
+            // This can happen if all the indices the datafeed is searching are deleted after it started.
+            // Note that unlike the scrolled data summary method above we cannot check for this situation
+            // by checking for zero hits, because aggregations that work on rollups return zero hits even
+            // when they retrieve data.
+            if (aggregations == null) {
+                return new DataSummary(null, null, null);
+            } else {
+                long earliestTime = (long) (aggregations.<Min>get(EARLIEST_TIME)).value();
+                long latestTime = (long) (aggregations.<Max>get(LATEST_TIME)).value();
+                return new DataSummary(earliestTime, latestTime, null);
+            }
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    private SearchSourceBuilder rangeSearchBuilder() {
+        return new SearchSourceBuilder().size(0)
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end))
+            .runtimeMappings(context.runtimeMappings)
+            .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))
+            .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.timeField));
+    }
 }

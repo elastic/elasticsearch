@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
  * stored and they are then processed in batches. Cancellation is supported between batches.
  * Note that this class is NOT thread-safe.
  */
-class RollupDataExtractor extends AbstractAggregationDataExtractor<RollupSearchAction.RequestBuilder> {
+class RollupDataExtractor extends AbstractAggregationDataExtractor {
 
     RollupDataExtractor(
         Client client,

@@ -39,9 +39,9 @@ import java.util.stream.Collectors;
 
 public class BulkShardRequestInferenceProvider {
 
-    public static final String ROOT_RESULT_FIELD = "_ml_inference";
-    public static final String INFERENCE_FIELD = "result";
-    public static final String TEXT_FIELD = "text";
+    public static final String ROOT_INFERENCE_FIELD = "_semantic_text_inference";
+    public static final String TEXT_SUBFIELD_NAME = "text";
+    public static final String SPARSE_VECTOR_SUBFIELD_NAME = "sparse_embedding";
 
     private final Map<String, InferenceProvider> inferenceProvidersMap;
 
@@ -179,7 +179,7 @@ public class BulkShardRequestInferenceProvider {
 
                 @SuppressWarnings("unchecked")
                 Map<String, Object> rootInferenceFieldMap = (Map<String, Object>) docMap.computeIfAbsent(
-                    ROOT_RESULT_FIELD,
+                    ROOT_INFERENCE_FIELD,
                     k -> new HashMap<String, Object>()
                 );
 
@@ -189,8 +189,6 @@ public class BulkShardRequestInferenceProvider {
                     continue;
                 }
 
-                docRef.acquire();
-
                 InferenceProvider inferenceProvider = inferenceProvidersMap.get(modelId);
                 if (inferenceProvider == null) {
                     onBulkItemFailure.apply(
@@ -198,48 +196,47 @@ public class BulkShardRequestInferenceProvider {
                         bulkItemRequest,
                         new IllegalArgumentException("No inference provider found for model ID " + modelId)
                     );
-                    docRef.close();
                     continue;
                 }
+                ActionListener<InferenceServiceResults> inferenceResultsListener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(InferenceServiceResults results) {
+
+                        if (results == null) {
+                            throw new IllegalArgumentException(
+                                "No inference retrieved for model ID " + modelId + " in document " + docWriteRequest.id()
+                            );
+                        }
+
+                        int i = 0;
+                        for (InferenceResults inferenceResults : results.transformToLegacyFormat()) {
+                            String fieldName = inferenceFieldNames.get(i++);
+                            @SuppressWarnings("unchecked")
+                            List<Map<String, Object>> inferenceFieldResultList = (List<Map<String, Object>>) rootInferenceFieldMap.computeIfAbsent(
+                                fieldName,
+                                k -> new ArrayList<>()
+                            );
+
+                            // TODO Check inference result type to change subfield name
+                            var inferenceFieldMap = Map.of(
+                                SPARSE_VECTOR_SUBFIELD_NAME, inferenceResults.asMap("output").get("output"),
+                                TEXT_SUBFIELD_NAME, docMap.get(fieldName)
+                            );
+                            inferenceFieldResultList.add(inferenceFieldMap);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        onBulkItemFailure.apply(bulkShardRequest, bulkItemRequest, e);
+                    }
+                };
                 inferenceProvider.service().infer(
                     inferenceProvider.model,
                     inferenceFieldNames.stream().map(docMap::get).map(String::valueOf).collect(Collectors.toList()),
                     // TODO check for additional settings needed
                     Map.of(),
-                    new ActionListener<>() {
-
-                        @Override
-                        public void onResponse(InferenceServiceResults results) {
-
-                            if (results == null) {
-                                throw new IllegalArgumentException(
-                                    "No inference retrieved for model ID " + modelId + " in document " + docWriteRequest.id()
-                                );
-                            }
-
-                            int i = 0;
-                            for (InferenceResults inferenceResults : results.transformToLegacyFormat()) {
-                                String fieldName = inferenceFieldNames.get(i++);
-                                @SuppressWarnings("unchecked")
-                                Map<String, Object> inferenceFieldMap = (Map<String, Object>) rootInferenceFieldMap.computeIfAbsent(
-                                    fieldName,
-                                    k -> new HashMap<String, Object>()
-                                );
-
-                                inferenceFieldMap.put(INFERENCE_FIELD, inferenceResults.asMap("output").get("output"));
-                                inferenceFieldMap.put(TEXT_FIELD, docMap.get(fieldName));
-                            }
-
-                            docRef.close();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            onBulkItemFailure.apply(bulkShardRequest, bulkItemRequest, e);
-                            docRef.close();
-                        }
-                    }
-                );
+                    ActionListener.releaseAfter(inferenceResultsListener, docRef.acquire()));
             }
         }
     }

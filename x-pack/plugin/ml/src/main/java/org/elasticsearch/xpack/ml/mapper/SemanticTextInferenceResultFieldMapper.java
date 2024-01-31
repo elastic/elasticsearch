@@ -42,6 +42,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.SPARSE_VECTOR_SUBFIELD_NAME;
+import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.TEXT_SUBFIELD_NAME;
+
 /**
  * A mapper for the {@code _semantic_text_inference} field.
  * <br>
@@ -107,15 +110,11 @@ import java.util.stream.Collectors;
 public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_semantic_text_inference";
     public static final String NAME = "_semantic_text_inference";
-    public static final String SPARSE_VECTOR_SUBFIELD_NAME = "sparse_embedding";
-    public static final String TEXT_SUBFIELD_NAME = "text";
     public static final TypeParser PARSER = new FixedTypeParser(c -> new SemanticTextInferenceResultFieldMapper());
 
     private static final Map<List<String>, Set<String>> REQUIRED_SUBFIELDS_MAP = Map.of(
         List.of(),
-        Set.of(SPARSE_VECTOR_SUBFIELD_NAME, TEXT_SUBFIELD_NAME),
-        List.of(SPARSE_VECTOR_SUBFIELD_NAME),
-        Set.of(SparseEmbeddingResults.Embedding.EMBEDDING)
+        Set.of(SPARSE_VECTOR_SUBFIELD_NAME, TEXT_SUBFIELD_NAME)
     );
 
     private static final Logger logger = LogManager.getLogger(SemanticTextInferenceResultFieldMapper.class);

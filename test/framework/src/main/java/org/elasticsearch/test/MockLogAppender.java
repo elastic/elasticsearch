@@ -241,16 +241,14 @@ public class MockLogAppender extends AbstractAppender {
     }
 
     public Releasable capturing(Class<?>... classes) {
-        final var loggers = Arrays.stream(classes).map(LogManager::getLogger).toArray(Logger[]::new);
-        return appendToLoggers(loggers);
+        return appendToLoggers(Arrays.stream(classes).map(LogManager::getLogger).toList());
     }
 
     public Releasable capturing(String... names) {
-        final var loggers = Arrays.stream(names).map(LogManager::getLogger).toArray(Logger[]::new);
-        return appendToLoggers(loggers);
+        return appendToLoggers(Arrays.stream(names).map(LogManager::getLogger).toList());
     }
 
-    private Releasable appendToLoggers(Logger[] loggers) {
+    private Releasable appendToLoggers(List<Logger> loggers) {
         start();
         for (final var logger : loggers) {
             Loggers.addAppender(logger, this);

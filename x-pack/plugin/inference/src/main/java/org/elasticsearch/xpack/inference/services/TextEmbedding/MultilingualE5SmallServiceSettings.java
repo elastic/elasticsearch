@@ -11,6 +11,7 @@ package org.elasticsearch.xpack.inference.services.TextEmbedding;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -54,8 +55,6 @@ public class MultilingualE5SmallServiceSettings extends TextEmbeddingServiceSett
             if (MODEL_VARIANTS.contains(version) == false) {
                 validationException.addValidationError("unknown Multilingual-E5-Small model version [" + version + "]");
             }
-        } else {
-            version = MULTILINGUAL_E5_SMALL_MODEL_ID;
         }
 
         if (validationException.validationErrors().isEmpty() == false) {
@@ -77,6 +76,10 @@ public class MultilingualE5SmallServiceSettings extends TextEmbeddingServiceSett
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return super.toXContent(builder, params);
+    }
+
+    public MultilingualE5SmallServiceSettings(StreamInput in) throws IOException {
+        super(in.readVInt(), in.readVInt(), in.readString());
     }
 
     @Override

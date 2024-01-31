@@ -132,7 +132,7 @@ public class FieldAttribute extends TypedAttribute {
         boolean synthetic
     ) {
         FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
-        return new FieldAttribute(source, qualifiedParent, name, field, qualifier, nullability, id, synthetic);
+        return new FieldAttribute(source, qualifiedParent, name, type, field, qualifier, nullability, id, synthetic);
     }
 
     @Override

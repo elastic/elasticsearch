@@ -177,9 +177,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 var type = EsqlDataTypes.widenSmallNumericTypes(t.getDataType());
                 // due to a bug also copy the field since the Attribute hierarchy extracts the data type
                 // directly even if the data type is passed explicitly
-                if (type != t.getDataType()) {
-                    t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias());
-                }
 
                 // primitive branch
                 if (EsqlDataTypes.isPrimitive(type)) {
@@ -187,7 +184,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (t instanceof UnsupportedEsField uef) {
                         attribute = new UnsupportedAttribute(source, name, uef);
                     } else {
-                        attribute = new FieldAttribute(source, null, name, t);
+                        // The contained EsField retains its original data type, but the FieldAttribute's type is the widened one.
+                        attribute = new FieldAttribute(source, null, name, t).withDataType(type);
                     }
                     list.add(attribute);
                 }

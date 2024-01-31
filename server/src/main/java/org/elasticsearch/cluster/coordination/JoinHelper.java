@@ -176,7 +176,7 @@ public class JoinHelper {
         }
 
         logger.debug("releasing [{}] connections on successful cluster state application", releasables.size());
-        releasables.forEach(Releasables::close);
+        Releasables.close(releasables);
     }
 
     private void registerConnection(DiscoveryNode destination, Releasable connectionReference) {

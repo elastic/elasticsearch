@@ -77,11 +77,11 @@ public class PlannerUtils {
     public static boolean hasUnsupportedEnrich(PhysicalPlan plan) {
         boolean[] found = { false };
         plan.forEachDown(p -> {
-            if (p instanceof EnrichExec enrich && enrich.mode() != Enrich.Mode.ANY) {
+            if (p instanceof EnrichExec enrich && enrich.mode() == Enrich.Mode.REMOTE) {
                 found[0] = true;
             }
             if (p instanceof FragmentExec f) {
-                f.fragment().forEachDown(Enrich.class, e -> found[0] |= e.mode() != Enrich.Mode.ANY);
+                f.fragment().forEachDown(Enrich.class, e -> found[0] |= e.mode() == Enrich.Mode.REMOTE);
             }
         });
         return found[0];

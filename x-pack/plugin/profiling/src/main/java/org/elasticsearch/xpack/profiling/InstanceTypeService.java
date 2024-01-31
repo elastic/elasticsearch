@@ -29,10 +29,8 @@ public final class InstanceTypeService {
         static {
             final Logger log = LogManager.getLogger(TransportGetStackTracesAction.class);
             final StopWatch watch = new StopWatch("loadProfilingCostsData");
-            // As of 8.13, we have 50846 entries in the data files. Pre-allocate padded to 1024.
-            final Map<InstanceType, CostEntry> tmp = new HashMap<>(50 * 1024);
-            // As of 8.13, we have 1934 entries in the data files. Pre-allocate padded to 1024
-            final Map<Object, Object> objects = new HashMap<>(2048);
+            final Map<InstanceType, CostEntry> tmp = new HashMap<>();
+            final Map<Object, Object> objects = new HashMap<>();
             final Function<String, String> dedupString = s -> (String) objects.computeIfAbsent(s, Function.identity());
 
             // All files ar expected to exist.

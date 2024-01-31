@@ -449,13 +449,13 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
     }
 
     private Point quantize(Point point) {
-        return new Point(LuceneGeometriesUtil.quantizeLon(point.getLon()), LuceneGeometriesUtil.quantizeLat(point.getLat()));
+        return new Point(GeoUtils.quantizeLon(point.getLon()), GeoUtils.quantizeLat(point.getLat()));
     }
 
     private Line quantize(Line line) {
         return new Line(
-            LuceneGeometriesUtil.quantizeLons(line.getLons(), LuceneGeometriesUtil::quantizeLon),
-            LuceneGeometriesUtil.quantizeLats(line.getLats(), LuceneGeometriesUtil::quantizeLat)
+            LuceneGeometriesUtil.quantizeLons(line.getLons(), GeoUtils::quantizeLon),
+            LuceneGeometriesUtil.quantizeLats(line.getLats(), GeoUtils::quantizeLat)
         );
     }
 
@@ -469,8 +469,8 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
 
     private LinearRing quantize(LinearRing linearRing) {
         return new LinearRing(
-            LuceneGeometriesUtil.quantizeLons(linearRing.getLons(), LuceneGeometriesUtil::quantizeLon),
-            LuceneGeometriesUtil.quantizeLats(linearRing.getLats(), LuceneGeometriesUtil::quantizeLat)
+            LuceneGeometriesUtil.quantizeLons(linearRing.getLons(), GeoUtils::quantizeLon),
+            LuceneGeometriesUtil.quantizeLats(linearRing.getLats(), GeoUtils::quantizeLat)
         );
     }
 }

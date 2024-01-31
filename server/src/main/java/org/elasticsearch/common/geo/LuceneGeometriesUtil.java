@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.XYGeometry;
 import org.elasticsearch.geometry.Circle;
@@ -59,8 +58,8 @@ public class LuceneGeometriesUtil {
             geometry = GeometryNormalizer.apply(Orientation.CCW, geometry);
         }
         final List<LatLonGeometry> geometries = new ArrayList<>();
-        final DoubleFunction lonFunction = quantize ? LuceneGeometriesUtil::quantizeLon : IDENTITY;
-        final DoubleFunction latFunction = quantize ? LuceneGeometriesUtil::quantizeLat : IDENTITY;
+        final DoubleFunction lonFunction = quantize ? GeoUtils::quantizeLon : IDENTITY;
+        final DoubleFunction latFunction = quantize ? GeoUtils::quantizeLat : IDENTITY;
         geometry.visit(new GeometryVisitor<>() {
             @Override
             public Void visit(Circle circle) {
@@ -242,16 +241,8 @@ public class LuceneGeometriesUtil {
         );
     }
 
-    static double quantizeLat(double lat) {
-        return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
-    }
-
     static double[] quantizeLats(double[] lats, DoubleFunction function) {
         return Arrays.stream(lats).map(function::apply).toArray();
-    }
-
-    static double quantizeLon(double lon) {
-        return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
     }
 
     static double[] quantizeLons(double[] lons, DoubleFunction function) {
@@ -424,4 +415,5 @@ public class LuceneGeometriesUtil {
         return result;
     }
 
+    private LuceneGeometriesUtil() {}
 }

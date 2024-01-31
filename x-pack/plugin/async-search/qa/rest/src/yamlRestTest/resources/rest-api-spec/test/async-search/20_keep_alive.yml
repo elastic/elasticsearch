@@ -39,50 +39,31 @@ setup:
       indices.refresh: {}
 
 ---
-"Deprecation when retrieved from task":
+"Submit async-search":
   - skip:
       features: "warnings"
 
   - do:
-      warnings:
-        - '[deprecated] query'
-      async_search.submit:
-        index: test-*
-        wait_for_completion_timeout: 10s
-        body:
-          query:
-            deprecated: {}
-
-  - is_false: id
-  - match:  { is_partial:                   false }
-  - length: { response.hits.hits:               3 }
-
----
-"Deprecation when retrieved from store":
-  - skip:
-      features: "warnings"
-
-  - do:
-      warnings:
-        - '[deprecated] query'
       async_search.submit:
         index: test-*
         wait_for_completion_timeout: 10s
         keep_on_completion: true
-        body:
-          query:
-            deprecated: {}
+        body: { "query" : { "match_all" : {} } }
 
   - set:    { id:                              id }
   - match:  { is_partial:                   false }
   - length: { response.hits.hits:               3 }
 
   - do:
-      warnings:
-        - '[deprecated] query'
       async_search.get:
         id: "$id"
+        keep_alive: 1m
+  - match:  { is_partial:                       false }
+  - length: { response.hits.hits:                   3 }
 
+  - do:
+      async_search.get:
+        id: "$id"
   - match:  { is_partial:                       false }
   - length: { response.hits.hits:                   3 }
 
@@ -98,18 +79,11 @@ setup:
   - match:  { _shards.successful:                   6 }
 
   - do:
-      async_search.delete:
+      async_search.status:
         id: "$id"
 
-  - match: { acknowledged:   true }
-
-  - do:
-      catch: missing
-      async_search.get:
-        id: "$id"
-
-  - do:
-      catch: missing
-      async_search.delete:
-        id: "$id"
-
+  - match:  { is_running:                       false }
+  - match:  { is_partial:                       false }
+  - match:  { completion_status:                  200 }
+  - match:  { _shards.total:                        6 }
+  - match:  { _shards.successful:                   6 }

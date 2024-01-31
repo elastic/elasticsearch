@@ -76,10 +76,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
 
-    /**
-     * Estimated size of a keyword field in bytes.
-     */
-    private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataTypes.KEYWORD);
+    private static final double HALF_FLOAT_MAX = 65504;
 
     private EsqlParser parser;
     private Analyzer analyzer;
@@ -429,13 +426,20 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         String largerThanLong = String.valueOf(randomDoubleBetween(longUpperBoundExclusive, Double.MAX_VALUE, true));
         String smallerThanLong = String.valueOf(randomDoubleBetween(-Double.MAX_VALUE, longLowerBoundExclusive, true));
 
+        String largerThanHalfFloat = String.valueOf(randomDoubleBetween(HALF_FLOAT_MAX, Double.MAX_VALUE, false));
+        String smallerThanHalfFloat = String.valueOf(randomDoubleBetween(-Double.MAX_VALUE, -HALF_FLOAT_MAX, true));
+
+        String largerThanFloat = String.valueOf(randomDoubleBetween(Float.MAX_VALUE, Double.MAX_VALUE, false));
+        String smallerThanFloat = String.valueOf(randomDoubleBetween(-Double.MAX_VALUE, -Float.MAX_VALUE, true));
+
         List<OutOfRangeTestCase> cases = List.of(
             new OutOfRangeTestCase("byte", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("short", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("integer", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("long", smallerThanLong, largerThanLong),
             // TODO: add unsigned_long https://github.com/elastic/elasticsearch/issues/102935
-            // TODO: add half_float, float https://github.com/elastic/elasticsearch/issues/100130
+            new OutOfRangeTestCase("half_float", smallerThanHalfFloat, largerThanHalfFloat),
+            new OutOfRangeTestCase("float", smallerThanFloat, largerThanFloat),
             new OutOfRangeTestCase("double", "-1.0/0.0", "1.0/0.0"),
             new OutOfRangeTestCase("scaled_float", "-1.0/0.0", "1.0/0.0")
         );

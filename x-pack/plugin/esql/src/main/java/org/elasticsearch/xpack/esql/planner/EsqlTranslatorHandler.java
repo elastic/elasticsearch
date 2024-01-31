@@ -164,12 +164,13 @@ public final class EsqlTranslatorHandler extends QlTranslatorHandler {
             }
 
             DataType valueType = bc.right().dataType();
-            DataType attributeDataType = bc.left().dataType();
+            // The EsField contains the original field data type, the containing FieldAttribute's type might be widened.
+            DataType fieldDataType = ((FieldAttribute) bc.left()).field().getDataType();
             if (valueType == UNSIGNED_LONG && value instanceof Long ul) {
                 value = unsignedLongAsNumber(ul);
             }
             Number num = (Number) value;
-            if (isInRange(attributeDataType, valueType, num)) {
+            if (isInRange(fieldDataType, valueType, num)) {
                 return null;
             }
 

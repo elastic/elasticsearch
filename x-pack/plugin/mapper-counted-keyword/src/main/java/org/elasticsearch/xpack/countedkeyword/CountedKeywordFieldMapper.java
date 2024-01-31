@@ -117,7 +117,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+            return SourceValueFetcher.identity(concreteFieldName(), context, format);
         }
 
         @Override
@@ -125,7 +125,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
             failIfNoDocValues();
 
             return (cache, breakerService) -> new AbstractIndexOrdinalsFieldData(
-                name(),
+                concreteFieldName(),
                 CoreValuesSourceType.KEYWORD,
                 cache,
                 breakerService,
@@ -138,7 +138,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                     final BinaryDocValues dvCounts;
                     try {
                         dvValues = DocValues.getSortedSet(context.reader(), getFieldName());
-                        dvCounts = DocValues.getBinary(context.reader(), countFieldType.name());
+                        dvCounts = DocValues.getBinary(context.reader(), countFieldType.concreteFieldName());
                     } catch (IOException e) {
                         throw new UncheckedIOException("Unable to load " + CONTENT_TYPE + " doc values", e);
                     }
@@ -351,12 +351,13 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         int i = 0;
         int[] counts = new int[values.size()];
         for (Map.Entry<String, Integer> value : values.entrySet()) {
-            context.doc().add(new KeywordFieldMapper.KeywordField(name(), new BytesRef(value.getKey()), fieldType));
+            context.doc()
+                .add(new KeywordFieldMapper.KeywordField(fieldType().concreteFieldName(), new BytesRef(value.getKey()), fieldType));
             counts[i++] = value.getValue();
         }
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         streamOutput.writeVIntArray(counts);
-        context.doc().add(new BinaryDocValuesField(countFieldMapper.name(), streamOutput.bytes().toBytesRef()));
+        context.doc().add(new BinaryDocValuesField(countFieldMapper.fieldType().concreteFieldName(), streamOutput.bytes().toBytesRef()));
     }
 
     private void parseArray(DocumentParserContext context, SortedMap<String, Integer> values) throws IOException {

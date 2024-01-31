@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
@@ -18,6 +19,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
+// Tests disabled in CI due to the models being too large to download
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-team/issues/1119")
 public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
 
     public void testPutE5Small_withNoModelVariant() throws IOException {

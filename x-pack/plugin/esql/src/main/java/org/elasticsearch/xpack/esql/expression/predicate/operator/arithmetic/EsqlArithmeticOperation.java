@@ -131,8 +131,8 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
         // This checks that unsigned longs should only be compatible with other unsigned longs
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
-        if ((rightType == DataTypes.UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataTypes.NULL)))
-            || (leftType == DataTypes.UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataTypes.NULL)))) {
+        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataTypes.NULL)))
+            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataTypes.NULL)))) {
             return new TypeResolution(formatIncombatibleTypesMessage(symbol(), leftType.typeName(), rightType.typeName()));
         }
         // If the LHS is numeric, the RHS should be numeric or null

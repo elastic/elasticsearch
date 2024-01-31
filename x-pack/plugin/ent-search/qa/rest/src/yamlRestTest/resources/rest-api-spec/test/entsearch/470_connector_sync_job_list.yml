@@ -221,6 +221,13 @@ setup:
   - match: { results.1.id: $sync-job-two-id }
 
 ---
+"List Connector Sync Jobs - with invalid job type":
+  - do:
+      catch: bad_request
+      connector_sync_job.list:
+        job_type: invalid_job_type,incremental
+
+---
 "List Connector Sync Jobs - empty list":
   - do:
       connector_sync_job.list: { }

@@ -38,8 +38,9 @@ public class ToGeoShapeTests extends AbstractFunctionTestCase {
         final Function<String, String> evaluatorName = s -> "ToGeoShape" + s + "Evaluator[field=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, EsqlDataTypes.GEO_SHAPE, v -> v, List.of());
         TestCaseSupplier.forUnaryGeoShape(suppliers, attribute, EsqlDataTypes.GEO_SHAPE, v -> v, List.of());
-        // random strings that don't look like a geo point
+        // random strings that don't look like a geo shape
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             evaluatorName.apply("FromString"),

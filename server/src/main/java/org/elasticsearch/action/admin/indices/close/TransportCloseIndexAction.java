@@ -41,7 +41,7 @@ import java.util.Collections;
 public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
 
     public static final String NAME = "indices:admin/close";
-    public static final ActionType<CloseIndexResponse> TYPE = new ActionType<>(NAME, CloseIndexResponse::new);
+    public static final ActionType<CloseIndexResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportCloseIndexAction.class);
 
     private final MetadataIndexStateService indexStateService;

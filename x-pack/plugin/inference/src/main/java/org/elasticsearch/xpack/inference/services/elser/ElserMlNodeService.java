@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
@@ -73,7 +74,7 @@ public class ElserMlNodeService implements InferenceService {
 
     @Override
     public ElserMlNodeModel parseRequestConfig(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Set<String> modelArchitectures
@@ -99,7 +100,7 @@ public class ElserMlNodeService implements InferenceService {
         throwIfNotEmptyMap(serviceSettingsMap, NAME);
         throwIfNotEmptyMap(taskSettingsMap, NAME);
 
-        return new ElserMlNodeModel(modelId, taskType, NAME, serviceSettingsBuilder.build(), taskSettings);
+        return new ElserMlNodeModel(inferenceEntityId, taskType, NAME, serviceSettingsBuilder.build(), taskSettings);
     }
 
     private static String selectDefaultModelVersionBasedOnClusterArchitecture(Set<String> modelArchitectures) {
@@ -116,16 +117,16 @@ public class ElserMlNodeService implements InferenceService {
 
     @Override
     public ElserMlNodeModel parsePersistedConfigWithSecrets(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
-        return parsePersistedConfig(modelId, taskType, config);
+        return parsePersistedConfig(inferenceEntityId, taskType, config);
     }
 
     @Override
-    public ElserMlNodeModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+    public ElserMlNodeModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
 
@@ -139,14 +140,16 @@ public class ElserMlNodeService implements InferenceService {
 
         var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
 
-        return new ElserMlNodeModel(modelId, taskType, NAME, serviceSettingsBuilder.build(), taskSettings);
+        return new ElserMlNodeModel(inferenceEntityId, taskType, NAME, serviceSettingsBuilder.build(), taskSettings);
     }
 
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
         if (model instanceof ElserMlNodeModel == false) {
             listener.onFailure(
-                new IllegalStateException("Error starting model, [" + model.getConfigurations().getModelId() + "] is not an elser model")
+                new IllegalStateException(
+                    "Error starting model, [" + model.getConfigurations().getInferenceEntityId() + "] is not an elser model"
+                )
             );
             return;
         }
@@ -163,7 +166,7 @@ public class ElserMlNodeService implements InferenceService {
 
         var startRequest = new StartTrainedModelDeploymentAction.Request(
             serviceSettings.getModelVariant(),
-            model.getConfigurations().getModelId()
+            model.getConfigurations().getInferenceEntityId()
         );
         startRequest.setNumberOfAllocations(serviceSettings.getNumAllocations());
         startRequest.setThreadsPerAllocation(serviceSettings.getNumThreads());
@@ -199,16 +202,22 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public void stop(String modelId, ActionListener<Boolean> listener) {
+    public void stop(String inferenceEntityId, ActionListener<Boolean> listener) {
         client.execute(
             StopTrainedModelDeploymentAction.INSTANCE,
-            new StopTrainedModelDeploymentAction.Request(modelId),
+            new StopTrainedModelDeploymentAction.Request(inferenceEntityId),
             listener.delegateFailureAndWrap((delegatedResponseListener, response) -> delegatedResponseListener.onResponse(Boolean.TRUE))
         );
     }
 
     @Override
-    public void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener) {
+    public void infer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ActionListener<InferenceServiceResults> listener
+    ) {
         // No task settings to override with requestTaskSettings
 
         if (TaskType.SPARSE_EMBEDDING.isAnyOrSame(model.getConfigurations().getTaskType()) == false) {
@@ -222,7 +231,7 @@ public class ElserMlNodeService implements InferenceService {
         }
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
-            model.getConfigurations().getModelId(),
+            model.getConfigurations().getInferenceEntityId(),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             input,
             TimeValue.timeValueSeconds(10)  // TODO get timeout from request
@@ -238,7 +247,9 @@ public class ElserMlNodeService implements InferenceService {
     public void putModel(Model model, ActionListener<Boolean> listener) {
         if (model instanceof ElserMlNodeModel == false) {
             listener.onFailure(
-                new IllegalStateException("Error starting model, [" + model.getConfigurations().getModelId() + "] is not an elser model")
+                new IllegalStateException(
+                    "Error starting model, [" + model.getConfigurations().getInferenceEntityId() + "] is not an elser model"
+                )
             );
             return;
         } else {

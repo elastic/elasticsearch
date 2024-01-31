@@ -102,16 +102,16 @@ public class BulkShardRequestInferenceProvider {
     public void processBulkShardRequest(
         BulkShardRequest bulkShardRequest,
         ClusterState clusterState,
-        BiConsumer<BulkItemRequest, Exception> onBulkItemFailure,
-        Consumer<BulkShardRequest> nextAction
+        ActionListener<BulkShardRequest> listener,
+        BiConsumer<BulkItemRequest, Exception> onBulkItemFailure
     ) {
 
         Map<String, Set<String>> fieldsForModels = clusterState.metadata()
             .index(bulkShardRequest.shardId().getIndex())
             .getFieldsForModels();
-        // No inference fields? Just execute the request
+        // No inference fields? Terminate early
         if (fieldsForModels.isEmpty()) {
-            nextAction.accept(bulkShardRequest);
+            listener.onResponse(bulkShardRequest);
             return;
         }
 
@@ -123,13 +123,12 @@ public class BulkShardRequestInferenceProvider {
                 bulkShardRequest.getRefreshPolicy(),
                 Arrays.stream(bulkShardRequest.items()).filter(Objects::nonNull).toArray(BulkItemRequest[]::new)
             );
-            nextAction.accept(errorsFilteredShardRequest);
+            listener.onResponse(errorsFilteredShardRequest);
         };
 
         try (var bulkItemReqRef = new RefCountingRunnable(onInferenceComplete)) {
             for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
                 performInferenceOnBulkItemRequest(
-                    bulkShardRequest,
                     bulkItemRequest,
                     fieldsForModels,
                     onBulkItemFailure,
@@ -140,7 +139,6 @@ public class BulkShardRequestInferenceProvider {
     }
 
     private void performInferenceOnBulkItemRequest(
-        BulkShardRequest bulkShardRequest,
         BulkItemRequest bulkItemRequest,
         Map<String, Set<String>> fieldsForModels,
         BiConsumer<BulkItemRequest, Exception> onBulkItemFailure,

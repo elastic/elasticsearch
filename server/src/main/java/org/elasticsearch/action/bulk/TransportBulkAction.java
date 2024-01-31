@@ -792,16 +792,26 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     bulkShardRequestInferenceProvider.processBulkShardRequest(
                         bulkShardRequest,
                         clusterState,
-                        (itemReq, e) -> {
+                        new ActionListener<BulkShardRequest>() {
+                            @Override
+                            public void onResponse(BulkShardRequest bulkShardRequest) {
+                                executeBulkShardRequest(bulkShardRequest, ActionListener.releaseAfter(ActionListener.noop(), ref),
+                                    (itemReq, e) -> {
+                                        markBulkItemRequestFailed(bulkShardRequest, itemReq, e);
+                                        ref.close();
+                                    });
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                ref.close();
+                            }
+                        },
+                    (itemReq, e) -> {
                             markBulkItemRequestFailed(bulkShardRequest, itemReq, e);
                             // make sure the request gets never processed again
                             bulkShardRequest.items()[itemReq.id()] = null;
-                        },
-                        shardReq -> executeBulkShardRequest(shardReq, ActionListener.releaseAfter(ActionListener.noop(), ref),
-                        (itemReq, e) -> {
-                            markBulkItemRequestFailed(bulkShardRequest, itemReq, e);
-                            ref.close();
-                        })
+                        }
                     );
                 }
             }

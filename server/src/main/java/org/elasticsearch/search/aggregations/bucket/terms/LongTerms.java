@@ -245,7 +245,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
                 new DoubleTerms.Bucket(
                     bucket.getKeyAsNumber().doubleValue(),
                     bucket.getDocCount(),
-                    (InternalAggregations) bucket.getAggregations(),
+                    bucket.getAggregations(),
                     longTerms.showTermDocCountError,
                     longTerms.showTermDocCountError ? bucket.getDocCountError() : 0,
                     decimalFormat

@@ -88,7 +88,7 @@ public class DiskCheck implements HealthCheck<DiskHealthInfo> {
 
     @Override
     public void addHealthToBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, DiskHealthInfo healthInfo) {
-        builder.setDiskHealthInfo(healthInfo);
+        builder.diskHealthInfo(healthInfo);
     }
 
     private static boolean isDedicatedSearchNode(DiscoveryNode node) {

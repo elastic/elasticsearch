@@ -42,6 +42,6 @@ public class RepositoriesCheck implements HealthCheck<RepositoriesHealthInfo> {
 
     @Override
     public void addHealthToBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, RepositoriesHealthInfo healthInfo) {
-        builder.setRepositoriesHealthInfo(healthInfo);
+        builder.repositoriesHealthInfo(healthInfo);
     }
 }

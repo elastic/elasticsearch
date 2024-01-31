@@ -258,7 +258,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         @Override
         public void addHealthToBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, DiskHealthInfo healthInfo) {
-            builder.setDiskHealthInfo(healthInfo);
+            builder.diskHealthInfo(healthInfo);
         }
 
         public void setHealthInfo(DiskHealthInfo healthInfo) {

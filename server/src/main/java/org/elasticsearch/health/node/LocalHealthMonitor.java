@@ -332,7 +332,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 var changedHealthInfos = getChangedHealthInfos();
                 if (changedHealthInfos.isEmpty() == false) {
                     // Create builder and add the current value of each (changed) health check to the request.
-                    var builder = new UpdateHealthInfoCacheAction.Request.Builder().setNodeId(clusterService.localNode().getId());
+                    var builder = new UpdateHealthInfoCacheAction.Request.Builder().nodeId(clusterService.localNode().getId());
                     changedHealthInfos.forEach(changedHealthInfo -> changedHealthInfo.addHealthToBuilder(builder));
 
                     var healthNodeId = lastSeenHealthNode.get();

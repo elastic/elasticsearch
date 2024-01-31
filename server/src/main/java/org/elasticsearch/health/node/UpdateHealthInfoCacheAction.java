@@ -47,23 +47,29 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         private final RepositoriesHealthInfo repositoriesHealthInfo;
 
         public Request(String nodeId, DiskHealthInfo diskHealthInfo, RepositoriesHealthInfo repositoriesHealthInfo) {
-            this.dslHealthInfo = null;
             this.nodeId = nodeId;
             this.diskHealthInfo = diskHealthInfo;
             this.repositoriesHealthInfo = repositoriesHealthInfo;
+            this.dslHealthInfo = null;
         }
 
         public Request(String nodeId, DataStreamLifecycleHealthInfo dslHealthInfo) {
             this.nodeId = nodeId;
-            this.dslHealthInfo = dslHealthInfo;
             this.diskHealthInfo = null;
             this.repositoriesHealthInfo = null;
+            this.dslHealthInfo = dslHealthInfo;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
-            if (in.getTransportVersion().before(TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS)) {
+                this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
+                this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
+                this.repositoriesHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)
+                    ? in.readOptionalWriteable(RepositoriesHealthInfo::new)
+                    : null;
+            } else {
                 // BWC for pre-8.12 the disk health info was mandatory. Evolving this request has proven tricky however we've made use of
                 // waiting for all nodes to be on the {@link TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS} transport version
                 // before sending any requests to update the health info that'd break the pre HEALTH_INFO_ENRICHED_WITH_DSL_STATUS
@@ -71,13 +77,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 this.diskHealthInfo = new DiskHealthInfo(in);
                 this.dslHealthInfo = null;
                 this.repositoriesHealthInfo = null;
-                return;
             }
-            this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
-            this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
-            this.repositoriesHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)
-                ? in.readOptionalWriteable(RepositoriesHealthInfo::new)
-                : null;
         }
 
         public String getNodeId() {
@@ -105,18 +105,18 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
-            if (out.getTransportVersion().before(TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS)) {
+                out.writeOptionalWriteable(diskHealthInfo);
+                out.writeOptionalWriteable(dslHealthInfo);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)) {
+                    out.writeOptionalWriteable(repositoriesHealthInfo);
+                }
+            } else {
                 // BWC for pre-8.12 the disk health info was mandatory. Evolving this request has proven tricky however we've made use of
                 // waiting for all nodes to be on the {@link TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS} transport version
                 // before sending any requests to update the health info that'd break the pre HEALTH_INFO_ENRICHED_WITH_DSL_STATUS
                 // transport invariant of always having a disk health information in the request
                 diskHealthInfo.writeTo(out);
-                return;
-            }
-            out.writeOptionalWriteable(diskHealthInfo);
-            out.writeOptionalWriteable(dslHealthInfo);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)) {
-                out.writeOptionalWriteable(repositoriesHealthInfo);
             }
         }
 
@@ -149,26 +149,32 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
 
         @Override
         public int hashCode() {
-            return Objects.hash(nodeId, diskHealthInfo, dslHealthInfo);
+            return Objects.hash(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo);
         }
 
         public static class Builder {
             private String nodeId;
             private DiskHealthInfo diskHealthInfo;
             private RepositoriesHealthInfo repositoriesHealthInfo;
+            private DataStreamLifecycleHealthInfo dslHealthInfo;
 
-            public Builder setNodeId(String nodeId) {
+            public Builder nodeId(String nodeId) {
                 this.nodeId = nodeId;
                 return this;
             }
 
-            public Builder setDiskHealthInfo(DiskHealthInfo diskHealthInfo) {
+            public Builder diskHealthInfo(DiskHealthInfo diskHealthInfo) {
                 this.diskHealthInfo = diskHealthInfo;
                 return this;
             }
 
-            public Builder setRepositoriesHealthInfo(RepositoriesHealthInfo repositoriesHealthInfo) {
+            public Builder repositoriesHealthInfo(RepositoriesHealthInfo repositoriesHealthInfo) {
                 this.repositoriesHealthInfo = repositoriesHealthInfo;
+                return this;
+            }
+
+            public Builder dslHealthInfo(DataStreamLifecycleHealthInfo dslHealthInfo) {
+                this.dslHealthInfo = dslHealthInfo;
                 return this;
             }
 

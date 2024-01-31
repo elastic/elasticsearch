@@ -93,7 +93,7 @@ public class RepositoriesCheckTests extends ESTestCase {
 
         repositoriesCheck.addHealthToBuilder(builder, health);
 
-        verify(builder).setRepositoriesHealthInfo(health);
+        verify(builder).repositoriesHealthInfo(health);
     }
 
     private static RepositoryMetadata createRepositoryMetadata() {

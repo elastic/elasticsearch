@@ -41,7 +41,7 @@ public record HealthInfo(
                 : null,
             input.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)
                 ? input.readMap(RepositoriesHealthInfo::new)
-                : null
+                : Map.of()
         );
     }
 

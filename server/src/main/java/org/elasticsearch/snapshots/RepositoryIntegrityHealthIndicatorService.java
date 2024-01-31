@@ -105,7 +105,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
 
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-        if (healthInfo.repositoriesInfoByNode() == null || healthInfo.repositoriesInfoByNode().isEmpty()) {
+        if (healthInfo.repositoriesInfoByNode().isEmpty()) {
             return createIndicator(UNKNOWN, "No repository health info.", HealthIndicatorDetails.EMPTY, List.of(), List.of());
         }
         var clusterState = clusterService.state();

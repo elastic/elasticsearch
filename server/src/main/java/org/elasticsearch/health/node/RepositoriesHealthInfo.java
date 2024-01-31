@@ -16,7 +16,8 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * The repository health info for a node.
+ * Health info regarding repository health for a node. It refers to issues that are local to a node such as the unknown and
+ * invalid repositories.
  */
 public record RepositoriesHealthInfo(List<String> unknownRepositories, List<String> invalidRepositories) implements Writeable {
     public RepositoriesHealthInfo(StreamInput in) throws IOException {

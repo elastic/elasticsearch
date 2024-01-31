@@ -88,7 +88,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
 
     public void testAction() throws ExecutionException, InterruptedException {
         DiskHealthInfo diskHealthInfo = new DiskHealthInfo(HealthStatus.GREEN, null);
-        Request request = new Request.Builder().setNodeId(localNode.getId()).setDiskHealthInfo(diskHealthInfo).build();
+        Request request = new Request.Builder().nodeId(localNode.getId()).diskHealthInfo(diskHealthInfo).build();
         PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes));
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
@@ -114,7 +114,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         DiskHealthInfo diskHealthInfo = randomBoolean()
             ? new DiskHealthInfo(randomFrom(HealthStatus.values()))
             : new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()));
-        Request request = new Request.Builder().setNodeId(randomAlphaOfLength(10)).setDiskHealthInfo(diskHealthInfo).build();
+        Request request = new Request.Builder().nodeId(randomAlphaOfLength(10)).diskHealthInfo(diskHealthInfo).build();
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             request,
             serializedRequest -> copyWriteable(serializedRequest, writableRegistry(), Request::new),
@@ -133,6 +133,6 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
             );
             default -> throw new IllegalStateException();
         }
-        return new Request.Builder().setNodeId(nodeId).setDiskHealthInfo(diskHealthInfo).build();
+        return new Request.Builder().nodeId(nodeId).diskHealthInfo(diskHealthInfo).build();
     }
 }

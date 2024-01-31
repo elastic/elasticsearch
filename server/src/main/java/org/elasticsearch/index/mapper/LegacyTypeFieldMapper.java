@@ -64,13 +64,13 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+            return SortedSetDocValuesField.newSlowExactQuery(concreteFieldName(), indexedValueForSearch(value));
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
-            return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
+            return SortedSetDocValuesField.newSlowSetQuery(concreteFieldName(), bytesRefs);
         }
 
         @Override
@@ -82,7 +82,7 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
             SearchExecutionContext context
         ) {
             return SortedSetDocValuesField.newSlowRangeQuery(
-                name(),
+                concreteFieldName(),
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                 upperTerm == null ? null : indexedValueForSearch(upperTerm),
                 includeLower,

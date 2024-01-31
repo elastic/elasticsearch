@@ -1,4 +1,4 @@
-FROM gcc
+FROM gcc:9
 ARG ZSTD_VERSION
 
 RUN git clone --depth 1 --branch v${ZSTD_VERSION} https://github.com/facebook/zstd.git

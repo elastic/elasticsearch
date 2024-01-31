@@ -280,7 +280,7 @@ public class CompletionFieldMapper extends FieldMapper {
         public CompletionQuery prefixQuery(Object value) {
             return new PrefixCompletionQuery(
                 getTextSearchInfo().searchAnalyzer().analyzer(),
-                new Term(name(), indexedValueForSearch(value))
+                new Term(concreteFieldName(), indexedValueForSearch(value))
             );
         }
 
@@ -288,7 +288,7 @@ public class CompletionFieldMapper extends FieldMapper {
          * Completion prefix regular expression query
          */
         public CompletionQuery regexpQuery(Object value, int flags, int maxDeterminizedStates) {
-            return new RegexCompletionQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
+            return new RegexCompletionQuery(new Term(concreteFieldName(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
         }
 
         /**
@@ -305,7 +305,7 @@ public class CompletionFieldMapper extends FieldMapper {
         ) {
             return new FuzzyCompletionQuery(
                 getTextSearchInfo().searchAnalyzer().analyzer(),
-                new Term(name(), indexedValueForSearch(value)),
+                new Term(concreteFieldName(), indexedValueForSearch(value)),
                 null,
                 fuzziness.asDistance(),
                 transpositions,
@@ -327,7 +327,7 @@ public class CompletionFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new ArraySourceValueFetcher(name(), context) {
+            return new ArraySourceValueFetcher(concreteFieldName(), context) {
                 @Override
                 protected List<?> parseSourceValue(Object value) {
                     if (value instanceof List) {
@@ -361,7 +361,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), indexAnalyzer);
+        return Map.of(mappedFieldType.concreteFieldName(), indexAnalyzer);
     }
 
     @Override
@@ -421,7 +421,7 @@ public class CompletionFieldMapper extends FieldMapper {
         for (Map.Entry<String, CompletionInputMetadata> completionInput : inputMap.entrySet()) {
             String input = completionInput.getKey();
             if (input.trim().isEmpty()) {
-                context.addIgnoredField(mappedFieldType.name());
+                context.addIgnoredField(mappedFieldType.concreteFieldName());
                 continue;
             }
             // truncate input
@@ -435,18 +435,21 @@ public class CompletionFieldMapper extends FieldMapper {
             }
             CompletionInputMetadata metadata = completionInput.getValue();
             if (fieldType().hasContextMappings()) {
-                fieldType().getContextMappings().addField(context.doc(), fieldType().name(), input, metadata.weight, metadata.contexts);
+                fieldType().getContextMappings()
+                    .addField(context.doc(), fieldType().concreteFieldName(), input, metadata.weight, metadata.contexts);
             } else {
-                context.doc().add(new SuggestField(fieldType().name(), input, metadata.weight));
+                context.doc().add(new SuggestField(fieldType().concreteFieldName(), input, metadata.weight));
             }
         }
 
-        context.addToFieldNames(fieldType().name());
+        context.addToFieldNames(fieldType().concreteFieldName());
         for (CompletionInputMetadata metadata : inputMap.values()) {
             multiFields.parse(
                 this,
                 context,
-                () -> context.switchParser(new MultiFieldParser(metadata, fieldType().name(), context.parser().getTokenLocation()))
+                () -> context.switchParser(
+                    new MultiFieldParser(metadata, fieldType().concreteFieldName(), context.parser().getTokenLocation())
+                )
             );
         }
     }

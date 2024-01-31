@@ -356,34 +356,38 @@ public class Connector implements NamedWriteable, ToXContentObject {
         return PARSER.parse(parser, docId);
     }
 
+    public void toInnerXContent(XContentBuilder builder, Params params) throws IOException {
+        // The "id": connectorId is included in GET and LIST responses to provide the connector's docID.
+        // Note: This ID is not written to the Elasticsearch index; it's only for API response purposes.
+        if (connectorId != null) {
+            builder.field(ID_FIELD.getPreferredName(), connectorId);
+        }
+        builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
+        builder.xContentValuesMap(CONFIGURATION_FIELD.getPreferredName(), configuration);
+        builder.xContentValuesMap(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
+        builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
+        builder.field(ERROR_FIELD.getPreferredName(), error);
+        builder.field(FEATURES_FIELD.getPreferredName(), features);
+        builder.xContentList(FILTERING_FIELD.getPreferredName(), filtering);
+        builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
+        builder.field(IS_NATIVE_FIELD.getPreferredName(), isNative);
+        builder.field(LANGUAGE_FIELD.getPreferredName(), language);
+        builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
+        syncInfo.toXContent(builder, params);
+        builder.field(NAME_FIELD.getPreferredName(), name);
+        builder.field(PIPELINE_FIELD.getPreferredName(), pipeline);
+        builder.field(SCHEDULING_FIELD.getPreferredName(), scheduling);
+        builder.field(SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
+        builder.field(SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
+        builder.field(STATUS_FIELD.getPreferredName(), status.toString());
+        builder.field(SYNC_NOW_FIELD.getPreferredName(), syncNow);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            // The "id": connectorId is included in GET and LIST responses to provide the connector's docID.
-            // Note: This ID is not written to the Elasticsearch index; it's only for API response purposes.
-            if (connectorId != null) {
-                builder.field(ID_FIELD.getPreferredName(), connectorId);
-            }
-            builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
-            builder.xContentValuesMap(CONFIGURATION_FIELD.getPreferredName(), configuration);
-            builder.xContentValuesMap(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
-            builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
-            builder.field(ERROR_FIELD.getPreferredName(), error);
-            builder.field(FEATURES_FIELD.getPreferredName(), features);
-            builder.xContentList(FILTERING_FIELD.getPreferredName(), filtering);
-            builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
-            builder.field(IS_NATIVE_FIELD.getPreferredName(), isNative);
-            builder.field(LANGUAGE_FIELD.getPreferredName(), language);
-            builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
-            syncInfo.toXContent(builder, params);
-            builder.field(NAME_FIELD.getPreferredName(), name);
-            builder.field(PIPELINE_FIELD.getPreferredName(), pipeline);
-            builder.field(SCHEDULING_FIELD.getPreferredName(), scheduling);
-            builder.field(SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
-            builder.field(SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
-            builder.field(STATUS_FIELD.getPreferredName(), status.toString());
-            builder.field(SYNC_NOW_FIELD.getPreferredName(), syncNow);
+            toInnerXContent(builder, params);
         }
         builder.endObject();
         return builder;

@@ -1,0 +1,5 @@
+pr: 104753
+summary: Upgrade to Lucene 9.9.2
+area: Search
+type: upgrade
+issues: []

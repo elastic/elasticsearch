@@ -99,8 +99,8 @@ teardown:
 ---
 "Test Drop Processor with Upsert (_bulk)":
   - skip:
-      version: ' - 8.12.99'
-      reason: 'https://github.com/elastic/elasticsearch/issues/36746 fixed in 8.13.0'
+      version: ' - 8.12.0'
+      reason: 'https://github.com/elastic/elasticsearch/issues/36746 fixed in 8.12.1'
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -140,8 +140,8 @@ teardown:
 ---
 "Test Drop Processor with Upsert (_update)":
   - skip:
-      version: ' - 8.12.99'
-      reason: 'https://github.com/elastic/elasticsearch/issues/36746 fixed in 8.13.0'
+      version: ' - 8.12.0'
+      reason: 'https://github.com/elastic/elasticsearch/issues/36746 fixed in 8.12.1'
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"

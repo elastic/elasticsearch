@@ -185,7 +185,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+            return SourceValueFetcher.toString(concreteFieldName(), context, format);
         }
 
         private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
@@ -259,12 +259,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
-            return toIntervalsSource(Intervals.term(term), new TermQuery(new Term(name(), term)), context);
+            return toIntervalsSource(Intervals.term(term), new TermQuery(new Term(concreteFieldName(), term)), context);
         }
 
         @Override
         public IntervalsSource prefixIntervals(BytesRef term, SearchExecutionContext context) {
-            return toIntervalsSource(Intervals.prefix(term), new PrefixQuery(new Term(name(), term)), context);
+            return toIntervalsSource(Intervals.prefix(term), new PrefixQuery(new Term(concreteFieldName(), term)), context);
         }
 
         @Override
@@ -276,7 +276,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             FuzzyQuery fuzzyQuery = new FuzzyQuery(
-                new Term(name(), term),
+                new Term(concreteFieldName(), term),
                 maxDistance,
                 prefixLength,
                 128,
@@ -326,9 +326,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (textFieldType.isSyntheticSource()) {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(storedFieldNameForSyntheticSource());
             }
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(concreteFieldName()));
             // MatchOnlyText never has norms, so we have to use the field names field
-            BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
+            BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromFieldNames(
+                blContext.fieldNames(),
+                concreteFieldName()
+            );
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, lookup);
         }
 
@@ -350,16 +353,16 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 };
             }
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
-                name(),
+                concreteFieldName(),
                 CoreValuesSourceType.KEYWORD,
-                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(concreteFieldName())),
                 fieldDataContext.lookupSupplier().get(),
                 TextDocValuesField::new
             );
         }
 
         private String storedFieldNameForSyntheticSource() {
-            return name() + "._original";
+            return concreteFieldName() + "._original";
         }
     }
 
@@ -392,7 +395,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), indexAnalyzer);
+        return Map.of(mappedFieldType.concreteFieldName(), indexAnalyzer);
     }
 
     @Override
@@ -408,9 +411,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return;
         }
 
-        Field field = new Field(fieldType().name(), value, fieldType);
+        Field field = new Field(fieldType().concreteFieldName(), value, fieldType);
         context.doc().add(field);
-        context.addToFieldNames(fieldType().name());
+        context.addToFieldNames(fieldType().concreteFieldName());
 
         if (storeSource) {
             context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), value));

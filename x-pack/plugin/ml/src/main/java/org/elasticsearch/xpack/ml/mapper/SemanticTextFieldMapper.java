@@ -39,7 +39,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
         return (SemanticTextFieldMapper) in;
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n), notInMultiFields(CONTENT_TYPE));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, CopyTo copyTo) {
         super(simpleName, mappedFieldType, MultiFields.empty(), copyTo);

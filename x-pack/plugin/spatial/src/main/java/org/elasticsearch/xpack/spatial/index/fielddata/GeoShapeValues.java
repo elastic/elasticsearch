@@ -15,6 +15,8 @@ import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.index.fielddata.CoordinateEncoder;
+import org.elasticsearch.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;

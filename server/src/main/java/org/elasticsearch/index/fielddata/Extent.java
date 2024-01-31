@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.spatial.index.fielddata;
+package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,7 +17,7 @@ import java.util.Objects;
 /**
  * Object representing the extent of a geometry object within a {@link TriangleTreeWriter}.
  */
-class Extent {
+public class Extent {
 
     public int top;
     public int bottom;
@@ -206,7 +207,7 @@ class Extent {
      * @param topRightY   the top-right y-coordinate
      * @return the extent of the two points
      */
-    static Extent fromPoints(int bottomLeftX, int bottomLeftY, int topRightX, int topRightY) {
+    public static Extent fromPoints(int bottomLeftX, int bottomLeftY, int topRightX, int topRightY) {
         int negLeft = Integer.MAX_VALUE;
         int negRight = Integer.MIN_VALUE;
         int posLeft = Integer.MAX_VALUE;

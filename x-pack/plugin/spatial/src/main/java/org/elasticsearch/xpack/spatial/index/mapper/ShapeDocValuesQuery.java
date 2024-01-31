@@ -22,9 +22,9 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.xpack.spatial.index.fielddata.Component2DVisitor;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
+import org.elasticsearch.index.fielddata.Component2DVisitor;
+import org.elasticsearch.index.fielddata.CoordinateEncoder;
+import org.elasticsearch.index.fielddata.GeometryDocValueReader;
 
 import java.io.IOException;
 import java.util.ArrayList;

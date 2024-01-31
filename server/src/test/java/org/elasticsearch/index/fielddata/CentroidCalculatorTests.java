@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.spatial.index.fielddata;
+package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -24,15 +25,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
-import org.locationtech.jts.io.ParseException;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType.LINE;
-import static org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType.POINT;
-import static org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType.POLYGON;
+import static org.elasticsearch.index.fielddata.DimensionalShapeType.LINE;
+import static org.elasticsearch.index.fielddata.DimensionalShapeType.POINT;
+import static org.elasticsearch.index.fielddata.DimensionalShapeType.POLYGON;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -194,7 +194,7 @@ public abstract class CentroidCalculatorTests extends ESTestCase {
         assertThat(calculator, matchesCentroid(new Point(x, y), 1.0));
     }
 
-    public void testPolygonAsLine() throws ParseException {
+    public void testPolygonAsLine() {
         // create a line that traces itself as a polygon, and should therefor have zero area
         Line sourceLine = randomLine();
         double[] x = new double[2 * sourceLine.length() - 1];

@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.index.PointValues;
+import org.elasticsearch.index.fielddata.CoordinateEncoder;
+import org.elasticsearch.index.fielddata.TriangleTreeWriter;
 
-import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.TriangleTreeDecodedVisitor;
-import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.abFromTriangle;
-import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.bcFromTriangle;
-import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor.caFromTriangle;
+import static org.elasticsearch.index.fielddata.TriangleTreeVisitor.TriangleTreeDecodedVisitor;
+import static org.elasticsearch.index.fielddata.TriangleTreeVisitor.abFromTriangle;
+import static org.elasticsearch.index.fielddata.TriangleTreeVisitor.bcFromTriangle;
+import static org.elasticsearch.index.fielddata.TriangleTreeVisitor.caFromTriangle;
 
 /**
  * A reusable tree reader visitor for a previous serialized {@link org.elasticsearch.geometry.Geometry} using

@@ -20,6 +20,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.fielddata.CentroidCalculator;
+import org.elasticsearch.index.fielddata.CoordinateEncoder;
+import org.elasticsearch.index.fielddata.GeometryDocValueReader;
+import org.elasticsearch.index.fielddata.GeometryDocValueWriter;
+import org.elasticsearch.index.mapper.CartesianShapeIndexer;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -29,13 +34,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueWriter;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
-import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeIndexer;
 
 import java.io.IOException;
 

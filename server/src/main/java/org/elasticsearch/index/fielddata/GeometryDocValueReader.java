@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.spatial.index.fielddata;
+package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
@@ -60,7 +61,7 @@ public class GeometryDocValueReader {
     /**
      * returns the {@link Extent} of this geometry.
      */
-    protected Extent getExtent() throws IOException {
+    public Extent getExtent() throws IOException {
         if (treeOffset == 0) {
             getSumCentroidWeight(); // skip CENTROID_HEADER + var-long sum-weight
             Extent.readFromCompressed(input, extent);
@@ -74,7 +75,7 @@ public class GeometryDocValueReader {
     /**
      * returns the encoded X coordinate of the centroid.
      */
-    protected int getCentroidX() throws IOException {
+    public int getCentroidX() throws IOException {
         input.setPosition(docValueOffset + 0);
         return input.readInt();
     }
@@ -82,17 +83,17 @@ public class GeometryDocValueReader {
     /**
      * returns the encoded Y coordinate of the centroid.
      */
-    protected int getCentroidY() throws IOException {
+    public int getCentroidY() throws IOException {
         input.setPosition(docValueOffset + 4);
         return input.readInt();
     }
 
-    protected DimensionalShapeType getDimensionalShapeType() {
+    public DimensionalShapeType getDimensionalShapeType() {
         input.setPosition(docValueOffset + 8);
         return DimensionalShapeType.readFrom(input);
     }
 
-    protected double getSumCentroidWeight() throws IOException {
+    public double getSumCentroidWeight() throws IOException {
         input.setPosition(docValueOffset + 9);
         return Double.longBitsToDouble(input.readVLong());
     }

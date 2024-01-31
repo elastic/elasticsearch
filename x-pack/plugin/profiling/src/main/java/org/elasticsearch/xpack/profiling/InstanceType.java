@@ -53,16 +53,17 @@ final class InstanceType implements ToXContentObject {
                 region = tokens[0] + "-" + tokens[1];
             }
 
-            // Support for instance type is planned for 8.13.
+            // Support for the instanceType name requires GCP data containing it.
+            // These are not publically available, so we don't support it for now.
             return new InstanceType("gcp", region, null);
         }
 
         // Check and handle Azure.
+        // example: "azure.compute.location": "eastus2"
         region = (String) source.get("azure.compute.location");
         if (region != null) {
-            // example: "azure.compute.location": "eastus2"
-            String instanceType = (String) source.get("azure.compute.vmsize");
             // example: "azure.compute.vmsize": "Standard_D2s_v3"
+            String instanceType = (String) source.get("azure.compute.vmsize");
             return new InstanceType("azure", region, instanceType);
         }
 

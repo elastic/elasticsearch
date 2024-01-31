@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.profiling;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -20,13 +22,13 @@ import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
 public final class InstanceTypeService {
-
     private InstanceTypeService() {}
 
     private static final class Holder {
         private static final Map<InstanceType, CostEntry> costsPerDatacenter;
-
         static {
+            final Logger log = LogManager.getLogger(TransportGetStackTracesAction.class);
+            final StopWatch watch = new StopWatch("loadProfilingCostsData");
             // As of 8.13, we have 50846 entries in the data files. Pre-allocate padded to 1024.
             final Map<InstanceType, CostEntry> tmp = new HashMap<>(50 * 1024);
             // As of 8.13, we have 1934 entries in the data files. Pre-allocate padded to 1024
@@ -60,6 +62,8 @@ public final class InstanceTypeService {
             }
 
             costsPerDatacenter = Map.copyOf(tmp);
+
+            log.debug(watch::report);
         }
     }
 

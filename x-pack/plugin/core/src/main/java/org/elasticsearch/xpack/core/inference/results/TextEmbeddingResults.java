@@ -71,7 +71,7 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
                     throw statusException;
                 } else {
                     throw new ElasticsearchStatusException(
-                        "Received error inference result: " + errorResult.getResultsField(),
+                        "Received error inference result",
                         RestStatus.INTERNAL_SERVER_ERROR,
                         errorResult.getException()
                     );

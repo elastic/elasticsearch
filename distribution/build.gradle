@@ -300,10 +300,18 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles = { platform ->
+    libFiles = { platform, isTestDistro ->
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
-        from(configurations.libs)
+        from(configurations.libs) {
+          if (isTestDistro == false) {
+            // Remove native binary jars not-applicable to this distribution
+            def excludePlatforms = ['linux-x86-64', 'linux-aarch64', 'windows-x86-64', 'darwin-x86-64', 'darwin-aarch64'] - platform
+            excludePlatforms.each {
+              exclude "**/*-${it}.jar"
+            }
+          }
+        }
         into('java-version-checker') {
           from(configurations.libsVersionChecker)
         }

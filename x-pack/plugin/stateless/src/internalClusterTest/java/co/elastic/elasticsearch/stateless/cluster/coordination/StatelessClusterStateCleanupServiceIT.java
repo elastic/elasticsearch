@@ -18,14 +18,18 @@
 package co.elastic.elasticsearch.stateless.cluster.coordination;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
+import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +44,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
@@ -51,6 +58,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
     private static final Logger logger = LogManager.getLogger(StatelessClusterStateCleanupServiceIT.class);
     private final long NUM_NODES = 3;
     private MockLogAppender mockLogAppender;
+    private ClusterStateBlockingStrategy strategy = new ClusterStateBlockingStrategy();
 
     @Before
     @Override
@@ -79,7 +87,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), ClusterStateBlockingRepository.Plugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), StatelessMockRepositoryPlugin.class);
     }
 
     @Override
@@ -88,13 +96,14 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
             // Minimize time to master failover.
             .put(HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
             .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
-            // Need to set the ObjectStoreType to MOCK for the ClusterStateBlockingRepository plugin.
-            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
+            // Need to set the ObjectStoreType to MOCK for the StatelessMockRepository plugin.
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK.toString().toLowerCase(Locale.ROOT));
     }
 
-    public void restartMasterNode() throws Exception {
+    public void restartMasterNode(StatelessMockRepositoryStrategy repositoryStrategy) throws Exception {
         String nodeName = internalCluster().getMasterName();
         internalCluster().restartNode(nodeName);
+        setNodeRepositoryStrategy(nodeName, repositoryStrategy);
         ensureGreen();
     }
 
@@ -133,7 +142,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
         // Start some master nodes. The nodes will have a default delay of 1-minute for cluster state cleanup.
         logger.info("---> Starting up " + NUM_NODES + " master-only nodes.");
         for (int i = 0; i < NUM_NODES; i++) {
-            startMasterOnlyNode();
+            startMasterOnlyNode(strategy);
         }
         // Wait for an election.
         ensureGreen();
@@ -141,7 +150,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
         logger.info("---> Failing over the master node multiple times to generate new cluster state term directories in the blob store.");
         for (int i = 0; i < NUM_NODES; ++i) {
             logger.info("---> Iteration: " + (i + 1));
-            restartMasterNode();
+            restartMasterNode(strategy);
         }
 
         long numTerms = getTermDirectories().size();
@@ -160,7 +169,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
         );
 
         logger.info("---> Restarting the master node, to trigger a new election with a short delay for the cleanup task.");
-        restartMasterNode();
+        restartMasterNode(strategy);
 
         logger.info("---> A new master should have been elected, waiting for cluster state cleanup to run.");
         assertBusy(() -> {
@@ -190,7 +199,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
     public void testClusterStateCleanupRetryability() throws Exception {
         logger.info("---> Starting up " + NUM_NODES + " master-only nodes.");
         for (int i = 0; i < NUM_NODES; i++) {
-            startMasterOnlyNode();
+            startMasterOnlyNode(strategy);
         }
         // Wait for an election.
         ensureGreen();
@@ -198,7 +207,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
         logger.info("---> Failing over the master node multiple times to generate new cluster state term directories in the blob store.");
         for (int i = 0; i < NUM_NODES; ++i) {
             logger.info("---> Iteration: " + (i + 1));
-            restartMasterNode();
+            restartMasterNode(strategy);
         }
 
         long numTerms = getTermDirectories().size();
@@ -219,9 +228,8 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
         logger.info("---> Setting the mock repository to throw a retryable error on cleanup operation.");
         var nodeNames = internalCluster().getNodeNames();
         for (var nodeName : nodeNames) {
-            ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, nodeName);
-            ClusterStateBlockingRepository repository = ObjectStoreTestUtils.getObjectStoreClusterStateMockRepository(objectStoreService);
-            repository.throwOneIOExceptionOnClusterStateTermCleanup();
+            var strategy = (ClusterStateBlockingStrategy) getNodeRepositoryStrategy(nodeName);
+            strategy.throwOneIOExceptionOnClusterStateTermCleanup();
         }
 
         mockLogAppender.addExpectation(
@@ -251,5 +259,78 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
                 is(equalTo(currentTerm))
             );
         });
+    }
+
+    /**
+     * A mock repository strategy implementation that manipulates cluster state {@link BlobContainer#delete(OperationPurpose)} operations
+     * run against the blob store.
+     */
+    public static class ClusterStateBlockingStrategy extends StatelessMockRepositoryStrategy {
+        private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(
+            ClusterStateBlockingStrategy.class
+        );
+
+        // This flag indicates whether an operation should block.
+        private final AtomicBoolean clusterStateTermCleanupShouldBlock = new AtomicBoolean(false);
+
+        // This latch is set to 1 when operations should be blocked, and decremented to 0 when they should resume.
+        // Operations will wait on the latch until countDown reaches zero and then resume.
+        private volatile CountDownLatch clusterStateTermCleanupShouldBlockedLatch = new CountDownLatch(0);
+
+        // Injects throwing an error contacting the blob store.
+        private final AtomicBoolean clusterStateTermCleanupThrowsIOException = new AtomicBoolean(false);
+
+        /**
+         * Optionally block cluster state deletion by term.
+         */
+        @Override
+        public DeleteResult blobContainerDelete(CheckedSupplier<DeleteResult, IOException> originalSupplier, OperationPurpose purpose)
+            throws IOException {
+            assert purpose.equals(OperationPurpose.CLUSTER_STATE);
+            maybeBlockClusterStateTermCleanup();
+            maybeThrowClusterStateTermCleanup();
+            return originalSupplier.get();
+        }
+
+        /**
+         * Blocks if {@link #blockClusterStateTermCleanup} has been called.
+         * Any blocked callers will not be released until {@link #unblockClusterStateTermCleanup} is called.
+         */
+        private void maybeBlockClusterStateTermCleanup() {
+            if (clusterStateTermCleanupShouldBlock.get() == false) {
+                return;
+            }
+
+            safeAwait(clusterStateTermCleanupShouldBlockedLatch);
+        }
+
+        /**
+         * Throws one Exception if {@link #throwOneIOExceptionOnClusterStateTermCleanup} has been called.
+         */
+        private void maybeThrowClusterStateTermCleanup() throws IOException {
+            if (clusterStateTermCleanupThrowsIOException.compareAndExchange(true, false)) {
+                logger.info("Artificial IOException for cluster state cleanup.");
+                throw new IOException("Artificial IOException");
+            }
+        }
+
+        public void blockClusterStateTermCleanup() {
+            if (clusterStateTermCleanupShouldBlock.compareAndExchange(false, true)) {
+                clusterStateTermCleanupShouldBlockedLatch = new CountDownLatch(1);
+            }
+        }
+
+        public void unblockClusterStateTermCleanup() {
+            if (clusterStateTermCleanupShouldBlock.compareAndExchange(true, false)) {
+                clusterStateTermCleanupShouldBlockedLatch.countDown();
+            }
+        }
+
+        /**
+         * Sets a flag to throw one IOException on the next operation.
+         */
+        public void throwOneIOExceptionOnClusterStateTermCleanup() {
+            clusterStateTermCleanupThrowsIOException.set(true);
+        }
     }
 }

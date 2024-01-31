@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.SegmentInfos;
@@ -270,6 +271,44 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             nodes.add(startSearchNode());
         }
         return List.copyOf(nodes);
+    }
+
+    protected String startSearchNode(StatelessMockRepositoryStrategy strategy) {
+        return startSearchNode(Settings.EMPTY, strategy);
+    }
+
+    protected String startSearchNode(Settings extraSettings, StatelessMockRepositoryStrategy strategy) {
+        var nodeName = internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.SEARCH_ROLE).put(extraSettings));
+        setNodeRepositoryStrategy(nodeName, strategy);
+        return nodeName;
+    }
+
+    protected String startIndexNode(Settings extraSettings, StatelessMockRepositoryStrategy strategy) {
+        var nodeName = internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.INDEX_ROLE).put(extraSettings));
+        setNodeRepositoryStrategy(nodeName, strategy);
+        return nodeName;
+    }
+
+    protected String startMasterAndIndexNode(StatelessMockRepositoryStrategy strategy) {
+        var nodeName = startMasterAndIndexNode(Settings.EMPTY);
+        setNodeRepositoryStrategy(nodeName, strategy);
+        return nodeName;
+    }
+
+    protected String startMasterOnlyNode(StatelessMockRepositoryStrategy strategy) {
+        var nodeName = startMasterOnlyNode(Settings.EMPTY);
+        setNodeRepositoryStrategy(nodeName, strategy);
+        return nodeName;
+    }
+
+    protected void setNodeRepositoryStrategy(String nodeName, StatelessMockRepositoryStrategy strategy) {
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, nodeName);
+        ObjectStoreTestUtils.getObjectStoreStatelessMockRepository(objectStoreService).setStrategy(strategy);
+    }
+
+    protected StatelessMockRepositoryStrategy getNodeRepositoryStrategy(String nodeName) {
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, nodeName);
+        return ObjectStoreTestUtils.getObjectStoreStatelessMockRepository(objectStoreService).getStrategy();
     }
 
     protected static void indexDocs(String indexName, int numDocs) {

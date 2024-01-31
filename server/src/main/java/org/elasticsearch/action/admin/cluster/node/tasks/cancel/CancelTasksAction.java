@@ -9,16 +9,17 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 
 /**
  * ActionType for cancelling running tasks
  */
-public class CancelTasksAction extends ActionType<CancelTasksResponse> {
+public class CancelTasksAction extends ActionType<ListTasksResponse> {
 
     public static final CancelTasksAction INSTANCE = new CancelTasksAction();
     public static final String NAME = "cluster:admin/tasks/cancel";
 
     private CancelTasksAction() {
-        super(NAME, CancelTasksResponse::new);
+        super(NAME);
     }
 }

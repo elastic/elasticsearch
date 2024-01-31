@@ -18,6 +18,6 @@ public class PutWatchAction extends ActionType<PutWatchResponse> {
     public static final String NAME = "cluster:admin/xpack/watcher/watch/put";
 
     private PutWatchAction() {
-        super(NAME, PutWatchResponse::new);
+        super(NAME);
     }
 }

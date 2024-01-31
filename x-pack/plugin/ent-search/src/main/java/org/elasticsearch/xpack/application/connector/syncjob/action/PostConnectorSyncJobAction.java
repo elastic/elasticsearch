@@ -35,15 +35,12 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class PostConnectorSyncJobAction extends ActionType<PostConnectorSyncJobAction.Response> {
-
-    public static final PostConnectorSyncJobAction INSTANCE = new PostConnectorSyncJobAction();
+public class PostConnectorSyncJobAction {
 
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/post";
+    public static final ActionType<PostConnectorSyncJobAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    private PostConnectorSyncJobAction() {
-        super(NAME, PostConnectorSyncJobAction.Response::new);
-    }
+    private PostConnectorSyncJobAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
         public static final String EMPTY_CONNECTOR_ID_ERROR_MESSAGE = "[id] of the connector cannot be null or empty";

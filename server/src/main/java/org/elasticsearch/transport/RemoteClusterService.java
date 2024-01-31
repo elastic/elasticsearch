@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingRunnable;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
@@ -32,7 +32,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult;
 
 import java.io.Closeable;
@@ -544,13 +543,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     /**
      * Returns a client to the remote cluster if the given cluster alias exists.
      *
-     * @param threadPool       the {@link ThreadPool} for the client
      * @param clusterAlias     the cluster alias the remote cluster is registered under
      * @param responseExecutor the executor to use to process the response
      * @param ensureConnected  whether requests should wait for a connection attempt when there isn't a connection available
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
-    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias, Executor responseExecutor, boolean ensureConnected) {
+    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor, boolean ensureConnected) {
         if (transportService.getRemoteClusterService().isEnabled() == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
@@ -559,20 +557,18 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
-        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias, responseExecutor, ensureConnected);
+        return new RemoteClusterAwareClient(transportService, clusterAlias, responseExecutor, ensureConnected);
     }
 
     /**
      * Returns a client to the remote cluster if the given cluster alias exists.
      *
-     * @param threadPool       the {@link ThreadPool} for the client
      * @param clusterAlias     the cluster alias the remote cluster is registered under
      * @param responseExecutor the executor to use to process the response
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
-    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias, Executor responseExecutor) {
+    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
         return getRemoteClusterClient(
-            threadPool,
             clusterAlias,
             responseExecutor,
             transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false

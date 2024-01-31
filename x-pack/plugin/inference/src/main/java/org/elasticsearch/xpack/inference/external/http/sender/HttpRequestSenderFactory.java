@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -135,7 +135,7 @@ public class HttpRequestSenderFactory {
          *                connection from the connection pool
          * @param listener a listener to handle the response
          */
-        public void send(HttpRequestBase request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
+        public void send(HttpRequest request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
             service.send(request, timeout, listener);
@@ -156,7 +156,7 @@ public class HttpRequestSenderFactory {
          * @param request the http request to send
          * @param listener a listener to handle the response
          */
-        public void send(HttpRequestBase request, ActionListener<HttpResult> listener) {
+        public void send(HttpRequest request, ActionListener<HttpResult> listener) {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
             service.send(request, maxRequestTimeout, listener);

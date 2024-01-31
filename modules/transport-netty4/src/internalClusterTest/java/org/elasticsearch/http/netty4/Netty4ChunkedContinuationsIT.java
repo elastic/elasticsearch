@@ -9,7 +9,6 @@
 package org.elasticsearch.http.netty4;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ESNetty4IntegTestCase;
@@ -22,7 +21,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CountDownActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Request;
@@ -38,7 +36,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ChunkedLoggingStreamTestUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -84,7 +81,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -137,51 +133,41 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         reason = "testing TRACE logging",
         value = "org.elasticsearch.http.HttpTracer:TRACE,org.elasticsearch.http.HttpBodyTracer:TRACE"
     )
-    public void testTraceLogging() throws Exception {
+    public void testTraceLogging() {
 
         // slightly awkward test, we can't use ChunkedLoggingStreamTestUtils.getDecodedLoggedBody directly because it asserts that we _only_
         // log one thing and we can't easily separate the request body from the response body logging, so instead we capture the body log
-        // message and then log it again in isolation.
+        // message and then log it again with a different logger.
 
-        var loggedResponseMessageFuture = new PlainActionFuture<String>();
-        var requestIdFuture = new PlainActionFuture<Integer>();
         var mockLogAppender = new MockLogAppender();
         mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
-            final Pattern messagePattern = Pattern.compile("^\\[([1-9][0-9]*)] response body.*");
+            final Pattern messagePattern = Pattern.compile("^\\[[1-9][0-9]*] (response body.*)");
 
             @Override
             public void match(LogEvent event) {
                 final var formattedMessage = event.getMessage().getFormattedMessage();
                 final var matcher = messagePattern.matcher(formattedMessage);
                 if (matcher.matches()) {
-                    assertFalse(loggedResponseMessageFuture.isDone());
-                    loggedResponseMessageFuture.onResponse(formattedMessage);
-                    requestIdFuture.onResponse(Integer.valueOf(matcher.group(1)));
+                    logger.info("{}", matcher.group(1));
                 }
             }
 
             @Override
             public void assertMatched() {}
         });
-        mockLogAppender.start();
-        final var bodyTracerLogger = LogManager.getLogger("org.elasticsearch.http.HttpBodyTracer");
-        Loggers.addAppender(bodyTracerLogger, mockLogAppender);
 
-        try (var ignored = withRequestTracker()) {
-            getRestClient().performRequest(new Request("GET", YieldsContinuationsPlugin.ROUTE));
-            final var loggedResponseMessage = loggedResponseMessageFuture.get(10, TimeUnit.SECONDS);
-            final var loggedBody = ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
-                logger,
-                Level.INFO,
-                "[" + requestIdFuture.get(10, TimeUnit.SECONDS) + "] response body",
-                ReferenceDocs.HTTP_TRACER,
-                () -> logger.info(loggedResponseMessage)
+        try (var ignored = withRequestTracker(); var ignored2 = mockLogAppender.capturing("org.elasticsearch.http.HttpBodyTracer")) {
+            assertEquals(
+                expectedBody,
+                ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
+                    logger,
+                    Level.INFO,
+                    "response body",
+                    ReferenceDocs.HTTP_TRACER,
+                    () -> getRestClient().performRequest(new Request("GET", YieldsContinuationsPlugin.ROUTE))
+                ).utf8ToString()
             );
             mockLogAppender.assertAllExpectationsMatched();
-            assertEquals(expectedBody, loggedBody.utf8ToString());
-        } finally {
-            Loggers.removeAppender(bodyTracerLogger, mockLogAppender);
-            mockLogAppender.stop();
         }
     }
 

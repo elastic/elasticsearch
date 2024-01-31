@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -142,6 +144,15 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
      */
     public Tokenization updateWindowSettings(SpanSettings update) {
         int maxLength = update.maxSequenceLength() == null ? this.maxSequenceLength : update.maxSequenceLength();
+        if (update.maxSequenceLength() != null && update.maxSequenceLength() > this.maxSequenceLength) {
+            throw new ElasticsearchStatusException(
+                "Updated max sequence length [{}] cannot be greater " + "than the model's max sequence length [{}]",
+                RestStatus.BAD_REQUEST,
+                update.maxSequenceLength(),
+                this.maxSequenceLength
+            );
+        }
+
         int updatedSpan = update.span() == null ? this.span : update.span();
         validateSpanAndMaxSequenceLength(maxLength, updatedSpan);
         return buildWindowingTokenization(maxLength, updatedSpan);

@@ -97,7 +97,16 @@ public class BertTokenizationTests extends AbstractBWCSerializationTestCase<Bert
         }
     }
 
-    public void testUpdateWindowSettings_InvalidValues() {
+    public void testUpdateWindowSettings_InvalidSpan() {
+        var tokenization = new BertTokenization(true, true, 100, Tokenization.Truncate.FIRST, -1);
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> tokenization.updateWindowSettings(new Tokenization.SpanSettings(32, 64))
+        );
+        assertThat(e.getMessage(), containsString("[span] provided [64] must not be greater than [max_sequence_length] provided [32]"));
+    }
+
+    public void testUpdateWindowSettings_InvalidWindowSize() {
         var tokenization = new BertTokenization(true, true, 100, Tokenization.Truncate.FIRST, -1);
         var e = expectThrows(
             IllegalArgumentException.class,

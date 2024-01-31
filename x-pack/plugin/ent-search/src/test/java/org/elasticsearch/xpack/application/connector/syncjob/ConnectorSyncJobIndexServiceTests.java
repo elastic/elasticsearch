@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -279,9 +280,9 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             syncJobs.add(syncJob);
         }
 
-        ConnectorSyncJobIndexService.ConnectorSyncJobsResult firstTwoSyncJobs = awaitListConnectorSyncJobs(0, 2, null, null);
-        ConnectorSyncJobIndexService.ConnectorSyncJobsResult nextTwoSyncJobs = awaitListConnectorSyncJobs(2, 2, null, null);
-        ConnectorSyncJobIndexService.ConnectorSyncJobsResult lastSyncJobs = awaitListConnectorSyncJobs(4, 100, null, null);
+        ConnectorSyncJobIndexService.ConnectorSyncJobsResult firstTwoSyncJobs = awaitListConnectorSyncJobs(0, 2, null, null, null);
+        ConnectorSyncJobIndexService.ConnectorSyncJobsResult nextTwoSyncJobs = awaitListConnectorSyncJobs(2, 2, null, null, null);
+        ConnectorSyncJobIndexService.ConnectorSyncJobsResult lastSyncJobs = awaitListConnectorSyncJobs(4, 100, null, null, null);
 
         ConnectorSyncJob firstSyncJob = ConnectorSyncJob.fromXContentBytes(
             firstTwoSyncJobs.connectorSyncJobs().get(0).getSourceRef(),
@@ -332,11 +333,15 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testListConnectorSyncJobs_WithStatusPending_GivenOnePendingTwoCancelled_ExpectOnePending() throws Exception {
-        String connectorId = connectorOneId;
-
-        PostConnectorSyncJobAction.Request requestOne = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(connectorId);
-        PostConnectorSyncJobAction.Request requestTwo = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(connectorId);
-        PostConnectorSyncJobAction.Request requestThree = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(connectorId);
+        PostConnectorSyncJobAction.Request requestOne = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId
+        );
+        PostConnectorSyncJobAction.Request requestTwo = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId
+        );
+        PostConnectorSyncJobAction.Request requestThree = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId
+        );
 
         PostConnectorSyncJobAction.Response responseOne = awaitPutConnectorSyncJob(requestOne);
         PostConnectorSyncJobAction.Response responseTwo = awaitPutConnectorSyncJob(requestTwo);
@@ -354,7 +359,8 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             0,
             100,
             null,
-            ConnectorSyncStatus.PENDING
+            ConnectorSyncStatus.PENDING,
+            null
         );
         long numberOfResults = connectorSyncJobsResult.totalResults();
         String idOfReturnedSyncJob = connectorSyncJobsResult.connectorSyncJobs().get(0).getDocId();
@@ -379,6 +385,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             0,
             100,
             connectorOneId,
+            null,
             null
         );
 
@@ -393,8 +400,147 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(connectorIdOfReturnedSyncJob, equalTo(connectorOneId));
     }
 
+    public void testListConnectorSyncJobs_WithJobTypeFull_GivenOnePerType_ExpectOneFull() throws Exception {
+        PostConnectorSyncJobAction.Request requestOne = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId,
+            ConnectorSyncJobType.FULL
+        );
+        PostConnectorSyncJobAction.Request requestTwo = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId,
+            ConnectorSyncJobType.INCREMENTAL
+        );
+        PostConnectorSyncJobAction.Request requestThree = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId,
+            ConnectorSyncJobType.ACCESS_CONTROL
+        );
+
+        PostConnectorSyncJobAction.Response responseOne = awaitPutConnectorSyncJob(requestOne);
+        awaitPutConnectorSyncJob(requestTwo);
+        awaitPutConnectorSyncJob(requestThree);
+
+        String syncJobOneId = responseOne.getId();
+
+        ConnectorSyncJobIndexService.ConnectorSyncJobsResult connectorSyncJobsResult = awaitListConnectorSyncJobs(
+            0,
+            100,
+            null,
+            null,
+            Collections.singletonList(ConnectorSyncJobType.FULL)
+        );
+        long numberOfResults = connectorSyncJobsResult.totalResults();
+        String idOfReturnedSyncJob = connectorSyncJobsResult.connectorSyncJobs().get(0).getDocId();
+
+        assertThat(numberOfResults, equalTo(1L));
+        assertThat(idOfReturnedSyncJob, equalTo(syncJobOneId));
+    }
+
+    public void testListConnectorSyncJobs_WithJobTypeIncremental_GivenOnePerType_ExpectOneIncremental() throws Exception {
+        PostConnectorSyncJobAction.Request requestOne = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId,
+            ConnectorSyncJobType.FULL
+        );
+        PostConnectorSyncJobAction.Request requestTwo = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId,
+            ConnectorSyncJobType.INCREMENTAL
+        );
+        PostConnectorSyncJobAction.Request requestThree = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId,
+            ConnectorSyncJobType.ACCESS_CONTROL
+        );
+
+        awaitPutConnectorSyncJob(requestOne);
+        PostConnectorSyncJobAction.Response responseTwo = awaitPutConnectorSyncJob(requestTwo);
+        awaitPutConnectorSyncJob(requestThree);
+
+        String syncJobTwoId = responseTwo.getId();
+
+        ConnectorSyncJobIndexService.ConnectorSyncJobsResult connectorSyncJobsResult = awaitListConnectorSyncJobs(
+            0,
+            100,
+            null,
+            null,
+            Collections.singletonList(ConnectorSyncJobType.INCREMENTAL)
+        );
+        long numberOfResults = connectorSyncJobsResult.totalResults();
+        String idOfReturnedSyncJob = connectorSyncJobsResult.connectorSyncJobs().get(0).getDocId();
+
+        assertThat(numberOfResults, equalTo(1L));
+        assertThat(idOfReturnedSyncJob, equalTo(syncJobTwoId));
+    }
+
+    public void testListConnectorSyncJobs_WithJobTypeAccessControl_GivenOnePerType_ExpectOneAccessControl() throws Exception {
+        PostConnectorSyncJobAction.Request requestOne = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId,
+            ConnectorSyncJobType.FULL
+        );
+        PostConnectorSyncJobAction.Request requestTwo = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId,
+            ConnectorSyncJobType.INCREMENTAL
+        );
+        PostConnectorSyncJobAction.Request requestThree = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId,
+            ConnectorSyncJobType.ACCESS_CONTROL
+        );
+
+        awaitPutConnectorSyncJob(requestOne);
+        awaitPutConnectorSyncJob(requestTwo);
+        PostConnectorSyncJobAction.Response responseThree = awaitPutConnectorSyncJob(requestThree);
+
+        String syncJobThreeId = responseThree.getId();
+
+        ConnectorSyncJobIndexService.ConnectorSyncJobsResult connectorSyncJobsResult = awaitListConnectorSyncJobs(
+            0,
+            100,
+            null,
+            null,
+            Collections.singletonList(ConnectorSyncJobType.ACCESS_CONTROL)
+        );
+        long numberOfResults = connectorSyncJobsResult.totalResults();
+        String idOfReturnedSyncJob = connectorSyncJobsResult.connectorSyncJobs().get(0).getDocId();
+
+        assertThat(numberOfResults, equalTo(1L));
+        assertThat(idOfReturnedSyncJob, equalTo(syncJobThreeId));
+    }
+
+    public void testListConnectorSyncJobs_WithJobTypeFullAndIncremental_GivenOnePerType_ExpectOneFullOneIncremental() throws Exception {
+        PostConnectorSyncJobAction.Request requestOne = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId,
+            ConnectorSyncJobType.FULL
+        );
+        PostConnectorSyncJobAction.Request requestTwo = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId,
+            ConnectorSyncJobType.INCREMENTAL
+        );
+        PostConnectorSyncJobAction.Request requestThree = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connectorOneId,
+            ConnectorSyncJobType.ACCESS_CONTROL
+        );
+
+        PostConnectorSyncJobAction.Response responseOne = awaitPutConnectorSyncJob(requestOne);
+        PostConnectorSyncJobAction.Response responseTwo = awaitPutConnectorSyncJob(requestTwo);
+        awaitPutConnectorSyncJob(requestThree);
+
+        String syncJobOneId = responseOne.getId();
+        String syncJobTwoId = responseTwo.getId();
+
+        ConnectorSyncJobIndexService.ConnectorSyncJobsResult connectorSyncJobsResult = awaitListConnectorSyncJobs(
+            0,
+            100,
+            null,
+            null,
+            Arrays.asList(ConnectorSyncJobType.FULL, ConnectorSyncJobType.INCREMENTAL)
+        );
+        long numberOfResults = connectorSyncJobsResult.totalResults();
+        String idOfReturnedSyncJobOne = connectorSyncJobsResult.connectorSyncJobs().get(0).getDocId();
+        String idOfReturnedSyncJobTwo = connectorSyncJobsResult.connectorSyncJobs().get(1).getDocId();
+
+        assertThat(numberOfResults, equalTo(2L));
+        assertThat(idOfReturnedSyncJobOne, equalTo(syncJobOneId));
+        assertThat(idOfReturnedSyncJobTwo, equalTo(syncJobTwoId));
+    }
+
     public void testListConnectorSyncJobs_WithNoSyncJobs_ReturnEmptyResult() throws Exception {
-        ConnectorSyncJobIndexService.ConnectorSyncJobsResult firstOneHundredSyncJobs = awaitListConnectorSyncJobs(0, 100, null, null);
+        ConnectorSyncJobIndexService.ConnectorSyncJobsResult firstOneHundredSyncJobs = awaitListConnectorSyncJobs(0, 100, null, null, null);
 
         assertThat(firstOneHundredSyncJobs.connectorSyncJobs().size(), equalTo(0));
         assertThat(firstOneHundredSyncJobs.totalResults(), equalTo(0L));
@@ -632,13 +778,14 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         int from,
         int size,
         String connectorId,
-        ConnectorSyncStatus syncStatus
+        ConnectorSyncStatus syncStatus,
+        List<ConnectorSyncJobType> jobTypeList
     ) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<ConnectorSyncJobIndexService.ConnectorSyncJobsResult> result = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
 
-        connectorSyncJobIndexService.listConnectorSyncJobs(from, size, connectorId, syncStatus, new ActionListener<>() {
+        connectorSyncJobIndexService.listConnectorSyncJobs(from, size, connectorId, syncStatus, jobTypeList, new ActionListener<>() {
             @Override
             public void onResponse(ConnectorSyncJobIndexService.ConnectorSyncJobsResult connectorSyncJobsResult) {
                 result.set(connectorSyncJobsResult);

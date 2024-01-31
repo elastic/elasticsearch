@@ -610,7 +610,7 @@ class NodeConstruction {
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
-        DocumentParsingSupplier documentParsingSupplier = getDocumentParsingObserverSupplier();
+        DocumentParsingSupplier documentParsingSupplier = getDocumentParsingSupplier();
         modules.bindToInstance(DocumentParsingSupplier.class, documentParsingSupplier);
 
         final IngestService ingestService = new IngestService(
@@ -1271,7 +1271,7 @@ class NodeConstruction {
         logger.info("initialized");
     }
 
-    private DocumentParsingSupplier getDocumentParsingObserverSupplier() {
+    private DocumentParsingSupplier getDocumentParsingSupplier() {
         return getSinglePlugin(DocumentParsingSupplierPlugin.class).map(DocumentParsingSupplierPlugin::getDocumentParsingSupplier)
             .orElse(DocumentParsingSupplier.EMPTY_INSTANCE);
     }

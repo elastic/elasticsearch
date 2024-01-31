@@ -221,12 +221,12 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
+            return new BinaryIndexFieldData.Builder(concreteFieldName(), CoreValuesSourceType.RANGE);
         }
 
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(this.name());
+            return context.fieldExistsInIndex(this.concreteFieldName());
         }
 
         @Override
@@ -236,7 +236,7 @@ public class RangeFieldMapper extends FieldMapper {
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
                 : defaultFormatter;
 
-            return new SourceValueFetcher(name(), context) {
+            return new SourceValueFetcher(concreteFieldName(), context) {
 
                 @Override
                 @SuppressWarnings("unchecked")
@@ -311,7 +311,7 @@ public class RangeFieldMapper extends FieldMapper {
                 parser = dateMathParser();
             }
             return rangeType.rangeQuery(
-                name(),
+                concreteFieldName(),
                 hasDocValues(),
                 lowerTerm,
                 upperTerm,
@@ -435,10 +435,11 @@ public class RangeFieldMapper extends FieldMapper {
                 "error parsing field [" + name() + "], expected an object but got " + parser.currentName()
             );
         }
-        context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
+        context.doc()
+            .addAll(fieldType().rangeType.createFields(context, fieldType().concreteFieldName(), range, index, hasDocValues, store));
 
         if (hasDocValues == false && (index || store)) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(fieldType().concreteFieldName());
         }
     }
 

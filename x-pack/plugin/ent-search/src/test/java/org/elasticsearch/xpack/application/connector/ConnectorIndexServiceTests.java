@@ -253,6 +253,22 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(newIndexName, equalTo(indexedConnector.getIndexName()));
     }
 
+    public void testUpdateConnectorIndexName_WithTheSameIndexName() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        UpdateConnectorIndexNameAction.Request updateIndexNameRequest = new UpdateConnectorIndexNameAction.Request(
+            connectorId,
+            connector.getIndexName()
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorIndexName(updateIndexNameRequest);
+        assertThat(updateResponse.getResult(), equalTo(DocWriteResponse.Result.NOOP));
+    }
+
     public void testUpdateConnectorServiceType() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();

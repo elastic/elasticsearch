@@ -69,3 +69,42 @@ setup:
         connector_id: test-connector
         body:
           index_name: _invalid-index-name
+
+---
+"Update Connector Index Name - Index name used by another connector":
+  - do:
+      connector.put:
+        connector_id: test-connector-2
+        body:
+          index_name: search-2-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+  - match: { result: created }
+
+  - do:
+      catch: "bad_request"
+      connector.update_index_name:
+        connector_id: test-connector
+        body:
+          index_name: search-2-test
+
+---
+"Update Connector Index Name - Index name is the same":
+
+  - do:
+      connector.update_index_name:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+
+
+  - match: { result: noop }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { index_name: search-1-test }

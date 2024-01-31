@@ -89,7 +89,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
 
     @Override
     public long getEndTime() {
-        return context.end;
+        return context.queryContext.end;
     }
 
     @Override
@@ -98,7 +98,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
             throw new NoSuchElementException();
         }
 
-        SearchInterval searchInterval = new SearchInterval(context.start, context.end);
+        SearchInterval searchInterval = new SearchInterval(context.queryContext.start, context.queryContext.end);
         if (aggregationToJsonProcessor == null) {
             Aggregations aggs = search();
             if (aggs == null) {
@@ -139,30 +139,30 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
 
     private void initAggregationProcessor(Aggregations aggs) throws IOException {
         aggregationToJsonProcessor = new AggregationToJsonProcessor(
-            context.timeField,
+            context.queryContext.timeField,
             context.fields,
             context.includeDocCount,
-            context.start,
+            context.queryContext.start,
             null
         );
         aggregationToJsonProcessor.process(aggs);
     }
 
     protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
-        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
+        return ClientHelper.executeWithHeaders(context.queryContext.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
     }
 
     private SearchSourceBuilder buildBaseSearchSource() {
         // For derivative aggregations the first bucket will always be null
         // so query one extra histogram bucket back and hope there is data
         // in that bucket
-        long histogramSearchStartTime = Math.max(0, context.start - DatafeedConfigUtils.getHistogramIntervalMillis(context.aggs));
+        long histogramSearchStartTime = Math.max(0, context.queryContext.start - DatafeedConfigUtils.getHistogramIntervalMillis(context.aggs));
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
-            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.queryContext.query, context.queryContext.timeField, histogramSearchStartTime, context.queryContext.end));
 
-        if (context.runtimeMappings.isEmpty() == false) {
-            searchSourceBuilder.runtimeMappings(context.runtimeMappings);
+        if (context.queryContext.runtimeMappings.isEmpty() == false) {
+            searchSourceBuilder.runtimeMappings(context.queryContext.runtimeMappings);
         }
         context.aggs.getAggregatorFactories().forEach(searchSourceBuilder::aggregation);
         context.aggs.getPipelineAggregatorFactories().forEach(searchSourceBuilder::aggregation);
@@ -219,9 +219,9 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
 
     private SearchSourceBuilder rangeSearchBuilder() {
         return new SearchSourceBuilder().size(0)
-            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end))
-            .runtimeMappings(context.runtimeMappings)
-            .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))
-            .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.timeField));
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.queryContext.query, context.queryContext.timeField, context.queryContext.start, context.queryContext.end))
+            .runtimeMappings(context.queryContext.runtimeMappings)
+            .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.queryContext.timeField))
+            .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.queryContext.timeField));
     }
 }

@@ -30,8 +30,8 @@ class AggregationDataExtractor extends AbstractAggregationDataExtractor {
     @Override
     protected SearchRequestBuilder buildSearchRequest(SearchSourceBuilder searchSourceBuilder) {
         return new SearchRequestBuilder(client).setSource(searchSourceBuilder)
-            .setIndicesOptions(context.indicesOptions)
+            .setIndicesOptions(context.queryContext.indicesOptions)
             .setAllowPartialSearchResults(false)
-            .setIndices(context.indices);
+            .setIndices(context.queryContext.indices);
     }
 }

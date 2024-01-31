@@ -105,7 +105,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
 
     @Override
     public long getEndTime() {
-        return context.end;
+        return context.queryContext.end;
     }
 
     @Override
@@ -114,7 +114,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             throw new NoSuchElementException();
         }
 
-        SearchInterval searchInterval = new SearchInterval(context.start, context.end);
+        SearchInterval searchInterval = new SearchInterval(context.queryContext.start, context.queryContext.end);
         Aggregations aggs = search();
         if (aggs == null) {
             LOGGER.trace(() -> "[" + context.jobId + "] extraction finished");
@@ -132,13 +132,13 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         // Also, it doesn't make sense to have a derivative when grouping by time AND by some other criteria.
 
         LOGGER.trace(
-            () -> format("[%s] Executing composite aggregated search from [%s] to [%s]", context.jobId, context.start, context.end)
+            () -> format("[%s] Executing composite aggregated search from [%s] to [%s]", context.jobId, context.queryContext.start, context.queryContext.end)
         );
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
-            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end));
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.queryContext.query, context.queryContext.timeField, context.queryContext.start, context.queryContext.end));
 
-        if (context.runtimeMappings.isEmpty() == false) {
-            searchSourceBuilder.runtimeMappings(context.runtimeMappings);
+        if (context.queryContext.runtimeMappings.isEmpty() == false) {
+            searchSourceBuilder.runtimeMappings(context.queryContext.runtimeMappings);
         }
         if (afterKey != null) {
             compositeAggregationBuilder.aggregateAfter(afterKey);
@@ -165,7 +165,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
 
     protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
         SearchResponse searchResponse = ClientHelper.executeWithHeaders(
-            context.headers,
+            context.queryContext.headers,
             ClientHelper.ML_ORIGIN,
             client,
             searchRequestBuilder::get
@@ -184,10 +184,10 @@ class CompositeAggregationDataExtractor implements DataExtractor {
 
     private InputStream processAggs(Aggregations aggs) throws IOException {
         AggregationToJsonProcessor aggregationToJsonProcessor = new AggregationToJsonProcessor(
-            context.timeField,
+            context.queryContext.timeField,
             context.fields,
             context.includeDocCount,
-            context.start,
+            context.queryContext.start,
             context.compositeAggDateHistogramGroupSourceName
         );
         LOGGER.trace(
@@ -275,16 +275,16 @@ class CompositeAggregationDataExtractor implements DataExtractor {
 
     private SearchSourceBuilder rangeSearchBuilder() {
         return new SearchSourceBuilder().size(0)
-            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end))
-            .runtimeMappings(context.runtimeMappings)
-            .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))
-            .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.timeField));
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.queryContext.query, context.queryContext.timeField, context.queryContext.start, context.queryContext.end))
+            .runtimeMappings(context.queryContext.runtimeMappings)
+            .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.queryContext.timeField))
+            .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.queryContext.timeField));
     }
 
     private SearchRequestBuilder buildSearchRequest(SearchSourceBuilder searchSourceBuilder) {
         return new SearchRequestBuilder(client).setSource(searchSourceBuilder)
-            .setIndicesOptions(context.indicesOptions)
+            .setIndicesOptions(context.queryContext.indicesOptions)
             .setAllowPartialSearchResults(false)
-            .setIndices(context.indices);
+            .setIndices(context.queryContext.indices);
     }
 }

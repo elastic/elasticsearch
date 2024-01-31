@@ -97,7 +97,7 @@ class ScrollDataExtractor implements DataExtractor {
 
     @Override
     public long getEndTime() {
-        return context.end;
+        return context.queryContext.end;
     }
 
     @Override
@@ -109,12 +109,12 @@ class ScrollDataExtractor implements DataExtractor {
         if (stream.isPresent() == false) {
             hasNext = false;
         }
-        return new Result(new SearchInterval(context.start, context.end), stream);
+        return new Result(new SearchInterval(context.queryContext.start, context.queryContext.end), stream);
     }
 
     private Optional<InputStream> tryNextStream() throws IOException {
         try {
-            return scrollId == null ? Optional.ofNullable(initScroll(context.start)) : Optional.ofNullable(continueScroll());
+            return scrollId == null ? Optional.ofNullable(initScroll(context.queryContext.start)) : Optional.ofNullable(continueScroll());
         } catch (Exception e) {
             scrollId = null;
             if (searchHasShardFailure) {
@@ -122,7 +122,7 @@ class ScrollDataExtractor implements DataExtractor {
             }
             logger.debug("[{}] Resetting scroll search after shard failure", context.jobId);
             markScrollAsErrored();
-            return Optional.ofNullable(initScroll(lastTimestamp == null ? context.start : lastTimestamp));
+            return Optional.ofNullable(initScroll(lastTimestamp == null ? context.queryContext.start : lastTimestamp));
         }
     }
 
@@ -141,7 +141,7 @@ class ScrollDataExtractor implements DataExtractor {
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
         SearchResponse searchResponse = ClientHelper.executeWithHeaders(
-            context.headers,
+            context.queryContext.headers,
             ClientHelper.ML_ORIGIN,
             client,
             searchRequestBuilder::get
@@ -164,12 +164,12 @@ class ScrollDataExtractor implements DataExtractor {
     private SearchRequestBuilder buildSearchRequest(long start) {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(context.scrollSize)
             .sort(context.extractedFields.timeField(), SortOrder.ASC)
-            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.extractedFields.timeField(), start, context.end))
-            .runtimeMappings(context.runtimeMappings);
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.queryContext.query, context.extractedFields.timeField(), start, context.queryContext.end))
+            .runtimeMappings(context.queryContext.runtimeMappings);
 
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client).setScroll(SCROLL_TIMEOUT)
-            .setIndices(context.indices)
-            .setIndicesOptions(context.indicesOptions)
+            .setIndices(context.queryContext.indices)
+            .setIndicesOptions(context.queryContext.indicesOptions)
             .setAllowPartialSearchResults(false)
             .setSource(searchSourceBuilder);
 
@@ -234,7 +234,7 @@ class ScrollDataExtractor implements DataExtractor {
                 }
                 logger.debug("[{}] search failed due to SearchPhaseExecutionException. Will attempt again with new scroll", context.jobId);
                 markScrollAsErrored();
-                searchResponse = executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
+                searchResponse = executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.queryContext.start : lastTimestamp));
             }
             logger.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
@@ -260,7 +260,7 @@ class ScrollDataExtractor implements DataExtractor {
     @SuppressWarnings("HiddenField")
     protected SearchResponse executeSearchScrollRequest(String scrollId) {
         SearchResponse searchResponse = ClientHelper.executeWithHeaders(
-            context.headers,
+            context.queryContext.headers,
             ClientHelper.ML_ORIGIN,
             client,
             () -> new SearchScrollRequestBuilder(client).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId).get()
@@ -300,7 +300,7 @@ class ScrollDataExtractor implements DataExtractor {
             ClearScrollRequest request = new ClearScrollRequest();
             request.addScrollId(scrollId);
             ClientHelper.executeWithHeaders(
-                context.headers,
+                context.queryContext.headers,
                 ClientHelper.ML_ORIGIN,
                 client,
                 () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
@@ -333,15 +333,15 @@ class ScrollDataExtractor implements DataExtractor {
 
     private SearchSourceBuilder rangeSearchBuilderForSummary() {
         return new SearchSourceBuilder().size(0)
-            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.query, context.extractedFields.timeField(), context.start, context.end))
-            .runtimeMappings(context.runtimeMappings)
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(context.queryContext.query, context.extractedFields.timeField(), context.queryContext.start, context.queryContext.end))
+            .runtimeMappings(context.queryContext.runtimeMappings)
             .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.extractedFields.timeField()))
             .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.extractedFields.timeField()));
     }
 
     private SearchRequestBuilder rangeSearchRequestForSummary() {
-        return new SearchRequestBuilder(client).setIndices(context.indices)
-            .setIndicesOptions(context.indicesOptions)
+        return new SearchRequestBuilder(client).setIndices(context.queryContext.indices)
+            .setIndicesOptions(context.queryContext.indicesOptions)
             .setSource(rangeSearchBuilderForSummary())
             .setAllowPartialSearchResults(false)
             .setTrackTotalHits(true);

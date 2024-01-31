@@ -30,8 +30,8 @@ class RollupDataExtractor extends AbstractAggregationDataExtractor {
 
     @Override
     protected RollupSearchAction.RequestBuilder buildSearchRequest(SearchSourceBuilder searchSourceBuilder) {
-        SearchRequest searchRequest = new SearchRequest().indices(context.indices)
-            .indicesOptions(context.indicesOptions)
+        SearchRequest searchRequest = new SearchRequest().indices(context.queryContext.indices)
+            .indicesOptions(context.queryContext.indicesOptions)
             .allowPartialSearchResults(false)
             .source(searchSourceBuilder);
 

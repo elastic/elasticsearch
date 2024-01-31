@@ -13,13 +13,16 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -33,6 +36,13 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
     private final String ALIAS1 = "alias-1";
     private final String INDEX2 = "index-2";
     private final String INDEX3 = "index-3";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MapperExtrasPlugin.class);
+        return plugins;
+    }
 
     @Before
     public void setUpIndices() {
@@ -49,7 +59,16 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate(INDEX3).setWaitForActiveShards(ActiveShardCount.ALL)
                 .setSettings(indexSettings())
-                .setMapping("nested_type", "type=nested", "object.sub_field", "type=keyword,store=true")
+                .setMapping(
+                    "nested_type",
+                    "type=nested",
+                    "object.sub_field",
+                    "type=keyword,store=true",
+                    "fooRank",
+                    "type=rank_feature",
+                    "barRank",
+                    "type=rank_feature"
+                )
         );
         assertAcked(indicesAdmin().prepareAliases().addAlias(INDEX1, ALIAS1));
     }
@@ -474,6 +493,71 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
             .setIncludeFieldsWithNoValue(false)
             .get();
         assertNull(response.getField("day_of_week"));
+    }
+
+    public void testRankFeatureInIndex() {
+        prepareIndex(INDEX3).setSource("fooRank", 8).setSource("barRank", 8).get();
+        refresh(INDEX3);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setIncludeFieldsWithNoValue(false).get();
+
+        assertIndices(response, INDEX3);
+        assertThat(response.get(), Matchers.hasKey("fooRank"));
+        // Check the capabilities for the 'fooRank' field.
+        Map<String, FieldCapabilities> fooRankField = response.getField("fooRank");
+        assertEquals(1, fooRankField.size());
+        assertThat(fooRankField, Matchers.hasKey("rank_feature"));
+        assertEquals(
+            new FieldCapabilities("fooRank", "rank_feature", false, true, false, null, null, null, Collections.emptyMap()),
+            fooRankField.get("rank_feature")
+        );
+    }
+
+    public void testRankFeatureInIndexAfterRestart() throws Exception {
+        prepareIndex(INDEX3).setSource("fooRank", 8).get();
+        internalCluster().fullRestart();
+        ensureGreen(INDEX3);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setIncludeFieldsWithNoValue(false).get();
+
+        assertIndices(response, INDEX3);
+        assertThat(response.get(), Matchers.hasKey("fooRank"));
+        // Check the capabilities for the 'fooRank' field.
+        Map<String, FieldCapabilities> fooRankField = response.getField("fooRank");
+        assertEquals(1, fooRankField.size());
+        assertThat(fooRankField, Matchers.hasKey("rank_feature"));
+        assertEquals(
+            new FieldCapabilities("fooRank", "rank_feature", false, true, false, null, null, null, Collections.emptyMap()),
+            fooRankField.get("rank_feature")
+        );
+    }
+
+    public void testAllRankFeatureReturnedIfOneIsPresent() throws Exception {
+        prepareIndex(INDEX3).setSource("fooRank", 8).get();
+        internalCluster().fullRestart();
+        ensureGreen(INDEX3);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setIncludeFieldsWithNoValue(false).get();
+
+        assertIndices(response, INDEX3);
+        assertThat(response.get(), Matchers.hasKey("fooRank"));
+        // Check the capabilities for the 'fooRank' field.
+        Map<String, FieldCapabilities> fooRankField = response.getField("fooRank");
+        assertEquals(1, fooRankField.size());
+        assertThat(fooRankField, Matchers.hasKey("rank_feature"));
+        assertEquals(
+            new FieldCapabilities("fooRank", "rank_feature", false, true, false, null, null, null, Collections.emptyMap()),
+            fooRankField.get("rank_feature")
+        );
+        assertThat(response.get(), Matchers.hasKey("barRank"));
+        // Check the capabilities for the 'barRank' field.
+        Map<String, FieldCapabilities> barRankField = response.getField("barRank");
+        assertEquals(1, barRankField.size());
+        assertThat(barRankField, Matchers.hasKey("rank_feature"));
+        assertEquals(
+            new FieldCapabilities("barRank", "rank_feature", false, true, false, null, null, null, Collections.emptyMap()),
+            barRankField.get("rank_feature")
+        );
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {

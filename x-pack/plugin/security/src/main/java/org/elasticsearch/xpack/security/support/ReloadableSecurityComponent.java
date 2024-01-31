@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ReloadablePlugin;
 
 /**
- * This interface allows adding support for reload operations (on secure settings change) in a generic way fore security components.
+ * This interface allows adding support for reload operations (on secure settings change) in a generic way for security components.
  * The implementors of this interface will be called when the values of {@code SecureSetting}s should be reloaded by security plugin.
  * For more information about reloading plugin secure settings, see {@link ReloadablePlugin}.
  */
@@ -33,7 +33,10 @@ public interface ReloadableSecurityComponent {
      * For additional info, see also: {@link ReloadablePlugin#reload(Settings)}.
      *
      * @param settings
-     *            Settings used at the time of reloading the component.
+     *            Settings include the initial node's settings and all decrypted
+     *            secure settings from the keystore. Absence of a particular secure
+     *            setting may mean that the setting was either never configured or
+     *            that it was simply removed.
      */
     void reload(Settings settings);
 

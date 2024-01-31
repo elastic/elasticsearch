@@ -865,7 +865,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public Index(StreamInput in) throws IOException {
             super(in);
-            fileDetails = new RecoveryFilesDetails(in);
+            synchronized (this) {
+                fileDetails = new RecoveryFilesDetails(in);
+            }
             sourceThrottlingInNanos = in.readLong();
             targetThrottleTimeInNanos = in.readLong();
         }

@@ -121,7 +121,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             failIfNoDocValues();
             // TODO don't leak the TSID's binary format into the script
             return new SortedOrdinalsIndexFieldData.Builder(
-                name(),
+                concreteFieldName(),
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new DelegateDocValuesField(
                     new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
@@ -146,7 +146,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
         BytesRef timeSeriesId = timeSeriesIdBuilder.build().toBytesRef();
-        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
+        context.doc().add(new SortedDocValuesField(fieldType().concreteFieldName(), timeSeriesId));
         TsidExtractingIdFieldMapper.createField(context, timeSeriesIdBuilder.routingBuilder, timeSeriesId);
     }
 

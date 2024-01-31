@@ -1,6 +1,5 @@
 setup:
   - skip:
-      features: close_to
       version: ' - 8.12.99'
       reason: 'rrf retriever added in 8.13'
 

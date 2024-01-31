@@ -61,7 +61,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
             t -> t.isNumeric() || EsqlDataTypes.isDateTimeOrTemporal(t) || DataTypes.isNull(t),
             sourceText(),
             paramOrdinal,
-            "datetime or numeric"
+            "datetime", "numeric"
         );
     }
 
@@ -86,7 +86,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
             }
 
             return new TypeResolution(
-                format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), leftType, rightType)
+                formatIncompatibleTypesMessage(symbol(), leftType, rightType)
             );
         }
         return super.checkCompatibility();

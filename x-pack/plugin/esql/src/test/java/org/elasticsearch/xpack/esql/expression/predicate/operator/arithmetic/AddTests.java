@@ -260,9 +260,9 @@ public class AddTests extends AbstractFunctionTestCase {
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
             return "[+] has arguments with incompatible types ["
-                + types.get(0).typeName().toUpperCase(Locale.ROOT)
+                + types.get(0).typeName()
                 + "] and ["
-                + types.get(1).typeName().toUpperCase(Locale.ROOT)
+                + types.get(1).typeName()
                 + "]";
 
         }

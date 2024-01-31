@@ -225,9 +225,9 @@ public class VerifierTests extends ESTestCase {
                         "["
                             + operation
                             + "] has arguments with incompatible types ["
-                            + leftType.toUpperCase(Locale.ROOT)
+                            + leftType
                             + "] and ["
-                            + rightType.toUpperCase(Locale.ROOT)
+                            + rightType
                             + "]"
                     )
                 );

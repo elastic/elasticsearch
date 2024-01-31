@@ -51,7 +51,7 @@ class JnaStaticKernel32Library {
     /**
      * @see Kernel32Library.MemoryBasicInformation
      */
-    static class JnaMemoryBasicInformation extends Structure implements Kernel32Library.MemoryBasicInformation {
+    public static class JnaMemoryBasicInformation extends Structure implements Kernel32Library.MemoryBasicInformation {
         // note: these members must be public for jna to set them
         public Pointer BaseAddress = new Pointer(0);
         public byte[] _ignore = new byte[16];
@@ -178,7 +178,7 @@ class JnaStaticKernel32Library {
      *
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147%28v=vs.85%29.aspx
      */
-    static class JnaJobObjectBasicLimitInformation extends Structure
+    public static class JnaJobObjectBasicLimitInformation extends Structure
         implements
             Structure.ByReference,
             Kernel32Library.JobObjectBasicLimitInformation {
@@ -188,7 +188,7 @@ class JnaStaticKernel32Library {
         public int ActiveProcessLimit;
         public byte[] _ignore3 = new byte[20];
 
-        JnaJobObjectBasicLimitInformation() {
+        public JnaJobObjectBasicLimitInformation() {
             super(8);
         }
 

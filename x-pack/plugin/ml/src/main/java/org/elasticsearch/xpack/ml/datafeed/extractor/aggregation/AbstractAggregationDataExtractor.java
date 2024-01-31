@@ -125,7 +125,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         assert searchRequest.request().allowPartialSearchResults() == false;
         SearchResponse searchResponse = executeSearchRequest(searchRequest);
         try {
-            checkForSkippedClusters(searchResponse);
+            DataExtractorUtils.checkForSkippedClusters(searchResponse);
             LOGGER.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
             return validateAggs(searchResponse.getAggregations());

@@ -180,7 +180,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         );
         boolean success = false;
         try {
-            checkForSkippedClusters(searchResponse);
+            DataExtractorUtils.checkForSkippedClusters(searchResponse);
             success = true;
         } finally {
             if (success == false) {

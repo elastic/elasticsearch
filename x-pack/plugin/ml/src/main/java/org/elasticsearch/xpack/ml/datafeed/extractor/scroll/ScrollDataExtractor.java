@@ -142,7 +142,7 @@ class ScrollDataExtractor implements DataExtractor {
         );
         boolean success = false;
         try {
-            checkForSkippedClusters(searchResponse);
+            DataExtractorUtils.checkForSkippedClusters(searchResponse);
             success = true;
         } catch (ResourceNotFoundException e) {
             clearScrollLoggingExceptions(searchResponse.getScrollId());
@@ -270,7 +270,7 @@ class ScrollDataExtractor implements DataExtractor {
         );
         boolean success = false;
         try {
-            checkForSkippedClusters(searchResponse);
+            DataExtractorUtils.checkForSkippedClusters(searchResponse);
             success = true;
         } catch (ResourceNotFoundException e) {
             clearScrollLoggingExceptions(searchResponse.getScrollId());

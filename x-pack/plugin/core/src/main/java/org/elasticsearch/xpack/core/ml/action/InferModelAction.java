@@ -90,7 +90,6 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         private final List<String> textInput;
         private boolean highPriority;
         private TrainedModelPrefixStrings.PrefixType prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
-        private boolean chunkResults = false;
 
         /**
          * Build a request from a list of documents as maps.
@@ -198,11 +197,6 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             } else {
                 prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.NLP_DOCUMENT_CHUNKING_ADDED)) {
-                chunkResults = in.readBoolean();
-            } else {
-                chunkResults = false;
-            }
         }
 
         public int numberOfDocuments() {
@@ -249,14 +243,6 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.prefixType = prefixType;
         }
 
-        public boolean isChunkResults() {
-            return chunkResults;
-        }
-
-        public void setChunkResults(boolean chunkResults) {
-            this.chunkResults = chunkResults;
-        }
-
         public TrainedModelPrefixStrings.PrefixType getPrefixType() {
             return prefixType;
         }
@@ -285,9 +271,6 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
                 out.writeEnum(prefixType);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.NLP_DOCUMENT_CHUNKING_ADDED)) {
-                out.writeBoolean(chunkResults);
-            }
         }
 
         @Override
@@ -302,8 +285,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
                 && Objects.equals(objectsToInfer, that.objectsToInfer)
                 && Objects.equals(textInput, that.textInput)
                 && (highPriority == that.highPriority)
-                && (prefixType == that.prefixType)
-                && (chunkResults == that.chunkResults);
+                && (prefixType == that.prefixType);
         }
 
         @Override

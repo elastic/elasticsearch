@@ -27,7 +27,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
@@ -81,12 +80,30 @@ public abstract class DocumentParserContext {
         }
     }
 
+    /**
+     * Tracks the number of dynamically added mappers.
+     * All {@link DocumentParserContext}s that are created via {@link DocumentParserContext#createChildContext(ObjectMapper)}
+     * share the same mutable instance so that we can track the total size of dynamic mappers
+     * that are added on any level of the object graph.
+     */
+    private static final class DynamicMapperSize {
+        private int dynamicMapperSize = 0;
+
+        public void add(int mapperSize) {
+            dynamicMapperSize += mapperSize;
+        }
+
+        public int get() {
+            return dynamicMapperSize;
+        }
+    }
+
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
     private final Map<String, List<Mapper>> dynamicMappers;
-    private final AtomicInteger dynamicMappersSize;
+    private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
     private final DocumentDimensions dimensions;
@@ -114,7 +131,7 @@ public abstract class DocumentParserContext {
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
         Set<String> copyToFields,
-        AtomicInteger dynamicMapperSize
+        DynamicMapperSize dynamicMapperSize
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
@@ -178,7 +195,7 @@ public abstract class DocumentParserContext {
             dynamic,
             new HashSet<>(),
             new HashSet<>(),
-            new AtomicInteger(0)
+            new DynamicMapperSize()
         );
     }
 
@@ -332,7 +349,7 @@ public abstract class DocumentParserContext {
             } else {
                 mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd);
             }
-            dynamicMappersSize.addAndGet(mapperSize);
+            dynamicMappersSize.add(mapperSize);
         }
         if (mapper instanceof ObjectMapper objectMapper) {
             dynamicObjectMappers.put(objectMapper.name(), objectMapper);

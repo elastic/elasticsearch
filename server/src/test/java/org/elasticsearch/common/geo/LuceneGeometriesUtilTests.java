@@ -16,6 +16,7 @@ import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
@@ -25,6 +26,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -34,24 +36,47 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
 
     public void testLatLonPoint() {
         Point point = GeometryTestUtils.randomPoint();
-        LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(point, false, t -> assertEquals(ShapeType.POINT, t));
-        assertEquals(1, geometries.length);
-        assertLatLonPoint(point, geometries[0]);
+        {
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(point, false, t -> assertEquals(ShapeType.POINT, t));
+            assertEquals(1, geometries.length);
+            assertLatLonPoint(point, geometries[0]);
+        }
+        {
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(point, true, t -> assertEquals(ShapeType.POINT, t));
+            assertEquals(1, geometries.length);
+            assertLatLonPoint(quantize(point), geometries[0]);
+        }
     }
 
     public void testLatLonMultiPoint() {
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(randomBoolean());
-        int[] counter = new int[] { 0 };
-        LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiPoint, false, t -> {
-            if (counter[0]++ == 0) {
-                assertEquals(ShapeType.MULTIPOINT, t);
-            } else {
-                assertEquals(ShapeType.POINT, t);
+        {
+            int[] counter = new int[] { 0 };
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiPoint, false, t -> {
+                if (counter[0]++ == 0) {
+                    assertEquals(ShapeType.MULTIPOINT, t);
+                } else {
+                    assertEquals(ShapeType.POINT, t);
+                }
+            });
+            assertEquals(multiPoint.size(), geometries.length);
+            for (int i = 0; i < multiPoint.size(); i++) {
+                assertLatLonPoint(multiPoint.get(i), geometries[i]);
             }
-        });
-        assertEquals(multiPoint.size(), geometries.length);
-        for (int i = 0; i < multiPoint.size(); i++) {
-            assertLatLonPoint(multiPoint.get(i), geometries[i]);
+        }
+        {
+            int[] counter = new int[] { 0 };
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiPoint, true, t -> {
+                if (counter[0]++ == 0) {
+                    assertEquals(ShapeType.MULTIPOINT, t);
+                } else {
+                    assertEquals(ShapeType.POINT, t);
+                }
+            });
+            assertEquals(multiPoint.size(), geometries.length);
+            for (int i = 0; i < multiPoint.size(); i++) {
+                assertLatLonPoint(quantize(multiPoint.get(i)), geometries[i]);
+            }
         }
     }
 
@@ -97,24 +122,47 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
 
     public void testLatLonLine() {
         Line line = GeometryTestUtils.randomLine(randomBoolean());
-        LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(line, false, t -> assertEquals(ShapeType.LINESTRING, t));
-        assertEquals(1, geometries.length);
-        assertLatLonLine(line, geometries[0]);
+        {
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(line, false, t -> assertEquals(ShapeType.LINESTRING, t));
+            assertEquals(1, geometries.length);
+            assertLatLonLine(line, geometries[0]);
+        }
+        {
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(line, true, t -> assertEquals(ShapeType.LINESTRING, t));
+            assertEquals(1, geometries.length);
+            assertLatLonLine(quantize(line), geometries[0]);
+        }
     }
 
     public void testLatLonMultiLine() {
         MultiLine multiLine = GeometryTestUtils.randomMultiLine(randomBoolean());
-        int[] counter = new int[] { 0 };
-        LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiLine, false, t -> {
-            if (counter[0]++ == 0) {
-                assertEquals(ShapeType.MULTILINESTRING, t);
-            } else {
-                assertEquals(ShapeType.LINESTRING, t);
+        {
+            int[] counter = new int[] { 0 };
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiLine, false, t -> {
+                if (counter[0]++ == 0) {
+                    assertEquals(ShapeType.MULTILINESTRING, t);
+                } else {
+                    assertEquals(ShapeType.LINESTRING, t);
+                }
+            });
+            assertEquals(multiLine.size(), geometries.length);
+            for (int i = 0; i < multiLine.size(); i++) {
+                assertLatLonLine(multiLine.get(i), geometries[i]);
             }
-        });
-        assertEquals(multiLine.size(), geometries.length);
-        for (int i = 0; i < multiLine.size(); i++) {
-            assertLatLonLine(multiLine.get(i), geometries[i]);
+        }
+        {
+            int[] counter = new int[] { 0 };
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiLine, true, t -> {
+                if (counter[0]++ == 0) {
+                    assertEquals(ShapeType.MULTILINESTRING, t);
+                } else {
+                    assertEquals(ShapeType.LINESTRING, t);
+                }
+            });
+            assertEquals(multiLine.size(), geometries.length);
+            for (int i = 0; i < multiLine.size(); i++) {
+                assertLatLonLine(quantize(multiLine.get(i)), geometries[i]);
+            }
         }
     }
 
@@ -159,34 +207,47 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
 
     public void testLatLonPolygon() {
         Polygon polygon = validRandomPolygon(randomBoolean());
-        LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(polygon, false, t -> assertEquals(ShapeType.POLYGON, t));
-        if (geometries.length == 2) {
-            // this might happen if the polygon has been split on the dateline.
-            // we cannot check forward but I think is ok.
-            return;
+        {
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(polygon, false, t -> assertEquals(ShapeType.POLYGON, t));
+            assertEquals(1, geometries.length);
+            assertLatLonPolygon(polygon, geometries[0]);
         }
-        assertEquals(1, geometries.length);
-        assertLatLonPolygon(polygon, geometries[0]);
+        {
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(polygon, true, t -> assertEquals(ShapeType.POLYGON, t));
+            assertEquals(1, geometries.length);
+            assertLatLonPolygon(quantize(polygon), geometries[0]);
+        }
     }
 
     public void testLatLonMultiPolygon() {
         MultiPolygon multiPolygon = validRandomMultiPolygon(randomBoolean());
-        int[] counter = new int[] { 0 };
-        LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiPolygon, false, t -> {
-            if (counter[0]++ == 0) {
-                assertEquals(ShapeType.MULTIPOLYGON, t);
-            } else {
-                assertEquals(ShapeType.POLYGON, t);
+        {
+            int[] counter = new int[] { 0 };
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiPolygon, false, t -> {
+                if (counter[0]++ == 0) {
+                    assertEquals(ShapeType.MULTIPOLYGON, t);
+                } else {
+                    assertEquals(ShapeType.POLYGON, t);
+                }
+            });
+            assertEquals(multiPolygon.size(), geometries.length);
+            for (int i = 0; i < multiPolygon.size(); i++) {
+                assertLatLonPolygon(multiPolygon.get(i), geometries[i]);
             }
-        });
-        if (geometries.length > multiPolygon.size()) {
-            // this might happen if the polygon has been split on the dateline.
-            // we cannot check forward but I think is ok.
-            return;
         }
-        assertEquals(multiPolygon.size(), geometries.length);
-        for (int i = 0; i < multiPolygon.size(); i++) {
-            assertLatLonPolygon(multiPolygon.get(i), geometries[i]);
+        {
+            int[] counter = new int[] { 0 };
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(multiPolygon, true, t -> {
+                if (counter[0]++ == 0) {
+                    assertEquals(ShapeType.MULTIPOLYGON, t);
+                } else {
+                    assertEquals(ShapeType.POLYGON, t);
+                }
+            });
+            assertEquals(multiPolygon.size(), geometries.length);
+            for (int i = 0; i < multiPolygon.size(); i++) {
+                assertLatLonPolygon(quantize(multiPolygon.get(i)), geometries[i]);
+            }
         }
     }
 
@@ -235,30 +296,48 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
         Line line = GeometryTestUtils.randomLine(hasZ);
         Polygon polygon = validRandomPolygon(hasZ);
         GeometryCollection<Geometry> geometryCollection = new GeometryCollection<>(List.of(point, line, polygon));
-        int[] counter = new int[] { 0 };
-        LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(geometryCollection, false, t -> {
-            if (counter[0] == 0) {
-                assertEquals(ShapeType.GEOMETRYCOLLECTION, t);
-            } else if (counter[0] == 1) {
-                assertEquals(ShapeType.POINT, t);
-            } else if (counter[0] == 2) {
-                assertEquals(ShapeType.LINESTRING, t);
-            } else if (counter[0] == 3) {
-                assertEquals(ShapeType.POLYGON, t);
-            } else {
-                fail("Unexpected counter value");
-            }
-            counter[0]++;
-        });
-        if (geometries.length > geometryCollection.size()) {
-            // this might happen if the polygon has been split on the dateline.
-            // we cannot check forward but I think is ok.
-            return;
+        {
+            int[] counter = new int[] { 0 };
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(geometryCollection, false, t -> {
+                if (counter[0] == 0) {
+                    assertEquals(ShapeType.GEOMETRYCOLLECTION, t);
+                } else if (counter[0] == 1) {
+                    assertEquals(ShapeType.POINT, t);
+                } else if (counter[0] == 2) {
+                    assertEquals(ShapeType.LINESTRING, t);
+                } else if (counter[0] == 3) {
+                    assertEquals(ShapeType.POLYGON, t);
+                } else {
+                    fail("Unexpected counter value");
+                }
+                counter[0]++;
+            });
+            assertEquals(geometryCollection.size(), geometries.length);
+            assertLatLonPoint(point, geometries[0]);
+            assertLatLonLine(line, geometries[1]);
+            assertLatLonPolygon(polygon, geometries[2]);
         }
-        assertEquals(geometryCollection.size(), geometries.length);
-        assertLatLonPoint(point, geometries[0]);
-        assertLatLonLine(line, geometries[1]);
-        assertLatLonPolygon(polygon, geometries[2]);
+        {
+            int[] counter = new int[] { 0 };
+            LatLonGeometry[] geometries = LuceneGeometriesUtil.toLatLonGeometry(geometryCollection, true, t -> {
+                if (counter[0] == 0) {
+                    assertEquals(ShapeType.GEOMETRYCOLLECTION, t);
+                } else if (counter[0] == 1) {
+                    assertEquals(ShapeType.POINT, t);
+                } else if (counter[0] == 2) {
+                    assertEquals(ShapeType.LINESTRING, t);
+                } else if (counter[0] == 3) {
+                    assertEquals(ShapeType.POLYGON, t);
+                } else {
+                    fail("Unexpected counter value");
+                }
+                counter[0]++;
+            });
+            assertEquals(geometryCollection.size(), geometries.length);
+            assertLatLonPoint(quantize(point), geometries[0]);
+            assertLatLonLine(quantize(line), geometries[1]);
+            assertLatLonPolygon(quantize(polygon), geometries[2]);
+        }
     }
 
     public void testXYGeometryCollection() {
@@ -362,9 +441,36 @@ public class LuceneGeometriesUtilTests extends ESTestCase {
     }
 
     private MultiPolygon validRandomMultiPolygon(boolean hasLat) {
+        // make sure we don't generate a polygon that gets splitted across the dateline
         return randomValueOtherThanMany(
             multiPolygon -> GeometryNormalizer.needsNormalize(Orientation.CCW, multiPolygon),
             () -> GeometryTestUtils.randomMultiPolygon(hasLat)
+        );
+    }
+
+    private Point quantize(Point point) {
+        return new Point(LuceneGeometriesUtil.quantizeLon(point.getLon()), LuceneGeometriesUtil.quantizeLat(point.getLat()));
+    }
+
+    private Line quantize(Line line) {
+        return new Line(
+            LuceneGeometriesUtil.quantizeLons(line.getLons(), LuceneGeometriesUtil::quantizeLon),
+            LuceneGeometriesUtil.quantizeLats(line.getLats(), LuceneGeometriesUtil::quantizeLat)
+        );
+    }
+
+    private Polygon quantize(Polygon polygon) {
+        List<LinearRing> holes = new ArrayList<>(polygon.getNumberOfHoles());
+        for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
+            holes.add(quantize(polygon.getHole(i)));
+        }
+        return new Polygon(quantize(polygon.getPolygon()), holes);
+    }
+
+    private LinearRing quantize(LinearRing linearRing) {
+        return new LinearRing(
+            LuceneGeometriesUtil.quantizeLons(linearRing.getLons(), LuceneGeometriesUtil::quantizeLon),
+            LuceneGeometriesUtil.quantizeLats(linearRing.getLats(), LuceneGeometriesUtil::quantizeLat)
         );
     }
 }

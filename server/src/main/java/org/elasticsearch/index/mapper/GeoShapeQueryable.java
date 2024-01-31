@@ -39,6 +39,7 @@ public interface GeoShapeQueryable {
         } : t -> {};
         final LatLonGeometry[] luceneGeometries;
         try {
+            // quantize the geometries to match the values on the index
             luceneGeometries = LuceneGeometriesUtil.toLatLonGeometry(geometry, true, checker);
         } catch (IllegalArgumentException e) {
             throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);

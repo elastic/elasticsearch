@@ -33,7 +33,7 @@ import java.util.function.Consumer;
 public class LuceneGeometriesUtil {
 
     @FunctionalInterface
-    private interface DoubleFunction {
+    interface DoubleFunction {
         double apply(double d);
     }
 
@@ -51,15 +51,12 @@ public class LuceneGeometriesUtil {
      * @return an array of {@link LatLonGeometry}
      */
     public static LatLonGeometry[] toLatLonGeometry(Geometry geometry, boolean quantize, Consumer<ShapeType> checker) {
-        if (geometry == null) {
+        if (geometry == null || geometry.isEmpty()) {
             return new LatLonGeometry[0];
         }
         if (GeometryNormalizer.needsNormalize(Orientation.CCW, geometry)) {
             // make geometry lucene friendly
             geometry = GeometryNormalizer.apply(Orientation.CCW, geometry);
-        }
-        if (geometry.isEmpty()) {
-            return new LatLonGeometry[0];
         }
         final List<LatLonGeometry> geometries = new ArrayList<>();
         final DoubleFunction lonFunction = quantize ? LuceneGeometriesUtil::quantizeLon : IDENTITY;
@@ -245,19 +242,19 @@ public class LuceneGeometriesUtil {
         );
     }
 
-    private static double quantizeLat(double lat) {
+    static double quantizeLat(double lat) {
         return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
     }
 
-    private static double[] quantizeLats(double[] lats, DoubleFunction function) {
+    static double[] quantizeLats(double[] lats, DoubleFunction function) {
         return Arrays.stream(lats).map(function::apply).toArray();
     }
 
-    private static double quantizeLon(double lon) {
+    static double quantizeLon(double lon) {
         return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
     }
 
-    private static double[] quantizeLons(double[] lons, DoubleFunction function) {
+    static double[] quantizeLons(double[] lons, DoubleFunction function) {
         return Arrays.stream(lons).map(function::apply).toArray();
     }
 

@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.ConnectorSearchResult;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 
@@ -28,14 +28,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class ListConnectorAction extends ActionType<ListConnectorAction.Response> {
+public class ListConnectorAction {
 
-    public static final ListConnectorAction INSTANCE = new ListConnectorAction();
     public static final String NAME = "cluster:admin/xpack/connector/list";
+    public static final ActionType<ListConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public ListConnectorAction() {
-        super(NAME);
-    }
+    private ListConnectorAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
 
@@ -107,14 +105,14 @@ public class ListConnectorAction extends ActionType<ListConnectorAction.Response
 
         public static final ParseField RESULT_FIELD = new ParseField("results");
 
-        final QueryPage<Connector> queryPage;
+        final QueryPage<ConnectorSearchResult> queryPage;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.queryPage = new QueryPage<>(in, Connector::new);
+            this.queryPage = new QueryPage<>(in, ConnectorSearchResult::new);
         }
 
-        public Response(List<Connector> items, Long totalResults) {
+        public Response(List<ConnectorSearchResult> items, Long totalResults) {
             this.queryPage = new QueryPage<>(items, totalResults, RESULT_FIELD);
         }
 
@@ -128,7 +126,7 @@ public class ListConnectorAction extends ActionType<ListConnectorAction.Response
             return queryPage.toXContent(builder, params);
         }
 
-        public QueryPage<Connector> queryPage() {
+        public QueryPage<ConnectorSearchResult> queryPage() {
             return queryPage;
         }
 

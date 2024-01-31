@@ -315,7 +315,7 @@ from employees | where birth_date > now() | sort emp_no asc | keep emp_no, birth
 emp_no:integer  | birth_date:date
 ;
 
-autoBucketYearInAgg
+autoBucketYearInAgg#[skip:-8.12.99, reason:date type is supported in 8.13]
 FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
 | EVAL bucket = AUTO_BUCKET(hire_date, 5, "1999-01-01T00:00:00Z", NOW())
@@ -419,6 +419,19 @@ warning: Line 2:14: org.elasticsearch.xpack.ql.InvalidArgumentException: [181440
 
 dd_oo:integer
 null
+;
+
+docsDateDiff#[skip:-8.12.99, reason:date_diff added in 8.13]
+// tag::docsDateDiff[]
+ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z"), date2 = TO_DATETIME("2023-12-02T11:00:00.001Z")
+| EVAL dd_ms = DATE_DIFF("microseconds", date1, date2)
+// end::docsDateDiff[]
+;
+
+// tag::docsDateDiff-result[]
+date1:date          |         date2:date          |    dd_ms:integer
+2023-12-02T11:00:00.000Z | 2023-12-02T11:00:00.001Z | 1000  
+// end::docsDateDiff-result[]
 ;
 
 evalDateParseWithSimpleDate
@@ -929,7 +942,7 @@ FROM employees
 //end::docsAutoBucketWeeklyHistogram-result[]
 ;
 
-docsAutoBucketLast24hr
+docsAutoBucketLast24hr#[skip:-8.12.99, reason:date type is supported in 8.13]
 //tag::docsAutoBucketLast24hr[]
 FROM sample_data 
 | WHERE @timestamp >= NOW() - 1 day and @timestamp < NOW()
@@ -941,7 +954,7 @@ FROM sample_data
    COUNT(*):long    |    bucket:date
 ;
 
-docsGettingStartedAutoBucket
+docsGettingStartedAutoBucket#[skip:-8.12.99, reason:date type is supported in 8.13]
 // tag::gs-auto_bucket[]
 FROM sample_data
 | KEEP @timestamp

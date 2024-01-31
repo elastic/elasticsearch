@@ -35,7 +35,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-@SuppressWarnings("removal")
 public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
     private static final String TEST_USER_NAME = "transform_user";
@@ -159,7 +158,6 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         stopTransform("pivot_continuous", false);
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetAndGetStatsForTransformWithoutConfig() throws Exception {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
         createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);
@@ -219,7 +217,6 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         stopTransform("pivot_continuous", true);
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetAndGetStatsWhenTransformInternalIndexDisappears() throws Exception {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
         createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);
@@ -327,7 +324,6 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         return transformsStats;
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetPersistedStatsWithoutTask() throws Exception {
         createPivotReviewsTransform("pivot_stats_1", "pivot_reviews_stats_1", null);
         startAndWaitForTransform("pivot_stats_1", "pivot_reviews_stats_1");

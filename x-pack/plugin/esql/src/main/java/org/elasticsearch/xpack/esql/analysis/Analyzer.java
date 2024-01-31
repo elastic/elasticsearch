@@ -209,16 +209,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
             final String policyName = (String) plan.policyName().fold();
-            final EnrichResolution.ResolvedPolicy resolvedPolicy = context.enrichResolution().getResolvedPolicy(policyName);
-            if (resolvedPolicy != null) {
-                EnrichPolicy policy = resolvedPolicy.policy();
+            final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
+            if (resolved != null) {
+                var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
                 var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
                     ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
                     : plan.matchField();
                 List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
                     policyName,
-                    mappingAsAttributes(plan.source(), resolvedPolicy.mapping()),
+                    mappingAsAttributes(plan.source(), resolved.mapping()),
                     plan.enrichFields(),
                     policy
                 );
@@ -229,11 +229,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.policyName(),
                     matchField,
                     policy,
-                    resolvedPolicy.concreteIndices(),
+                    resolved.concreteIndices(),
                     enrichFields
                 );
             } else {
-                String error = context.enrichResolution().getError(policyName);
+                String error = context.enrichResolution().getError(policyName, plan.mode());
                 var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, null, error);
                 return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }

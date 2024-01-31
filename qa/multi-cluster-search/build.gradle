@@ -23,7 +23,8 @@ apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation project(":client:rest-high-level")
+  testImplementation project(':modules:aggregations')
+  testImplementation project(':modules:parent-join')
 }
 
 def ccsSupportedVersion = bwcVersion -> {

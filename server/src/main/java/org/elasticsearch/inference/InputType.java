@@ -15,9 +15,8 @@ import java.util.Locale;
  */
 public enum InputType {
     INGEST,
-    SEARCH;
-
-    public static String NAME = "input_type";
+    SEARCH,
+    UNSPECIFIED;
 
     @Override
     public String toString() {

@@ -45,11 +45,7 @@ public class TestIngestDocument {
                 metadata.put(key, source.remove(key));
             }
         }
-        return new IngestDocument(
-            TestIngestCtxMetadata.withNullableVersion(metadata),
-            new IngestCtxMap(source, TestIngestCtxMetadata.withNullableVersion(metadata)),
-            ingestMetadata
-        );
+        return new IngestDocument(new IngestCtxMap(source, TestIngestCtxMetadata.withNullableVersion(metadata)), ingestMetadata);
     }
 
     /**
@@ -68,11 +64,7 @@ public class TestIngestDocument {
      * can observe changes to the map directly.
      */
     public static IngestDocument ofMetadataWithValidator(Map<String, Object> metadata, Map<String, Metadata.FieldProperty<?>> properties) {
-        return new IngestDocument(
-            new TestIngestCtxMetadata(metadata, properties),
-            new IngestCtxMap(new HashMap<>(), new TestIngestCtxMetadata(metadata, properties)),
-            new HashMap<>()
-        );
+        return new IngestDocument(new IngestCtxMap(new HashMap<>(), new TestIngestCtxMetadata(metadata, properties)), new HashMap<>());
     }
 
     /**

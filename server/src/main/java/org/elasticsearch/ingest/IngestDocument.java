@@ -52,7 +52,6 @@ public final class IngestDocument {
     public static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
     static final String TIMESTAMP = "timestamp";
 
-    private final IngestDocMetadata originalMetadata;
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
 
@@ -82,11 +81,9 @@ public final class IngestDocument {
     private boolean reroute = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
-        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        this.originalMetadata = new IngestDocMetadata(index, id, version, routing, versionType, now);
-        this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, now, source);
+        this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
         this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, now);
+        this.ingestMetadata.put(TIMESTAMP, ctxMap.getMetadata().getNow());
         this.templateModel = initializeTemplateModel();
 
         // initialize the index history by putting the current index into it
@@ -104,7 +101,6 @@ public final class IngestDocument {
      */
     public IngestDocument(IngestDocument other) {
         this(
-            other.originalMetadata.clone(),
             new IngestCtxMap(deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource())), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
@@ -138,9 +134,7 @@ public final class IngestDocument {
                 }
             }
         }
-        ZonedDateTime timestamp = IngestCtxMap.getTimestamp(ingestMetadata);
-        this.originalMetadata = new IngestDocMetadata(metadata, timestamp);
-        this.ctxMap = new IngestCtxMap(source, new IngestDocMetadata(metadata, timestamp));
+        this.ctxMap = new IngestCtxMap(source, new IngestDocMetadata(metadata, IngestCtxMap.getTimestamp(ingestMetadata)));
         this.ingestMetadata = new HashMap<>(ingestMetadata);
         this.templateModel = initializeTemplateModel();
     }
@@ -148,8 +142,7 @@ public final class IngestDocument {
     /**
      * Constructor to create an IngestDocument from its constituent maps.
      */
-    IngestDocument(IngestDocMetadata originalMetadata, IngestCtxMap ctxMap, Map<String, Object> ingestMetadata) {
-        this.originalMetadata = Objects.requireNonNull(originalMetadata);
+    IngestDocument(IngestCtxMap ctxMap, Map<String, Object> ingestMetadata) {
         this.ctxMap = Objects.requireNonNull(ctxMap);
         this.ingestMetadata = Objects.requireNonNull(ingestMetadata);
         this.templateModel = initializeTemplateModel();
@@ -735,13 +728,6 @@ public final class IngestDocument {
      */
     public org.elasticsearch.script.Metadata getMetadata() {
         return ctxMap.getMetadata();
-    }
-
-    /**
-     * Get the strongly typed metadata, unmodified, as it existed when the ingest document was first created
-     */
-    public org.elasticsearch.script.Metadata getOriginalMetadata() {
-        return originalMetadata;
     }
 
     /**

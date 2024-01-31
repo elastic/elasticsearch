@@ -1554,6 +1554,48 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [bar]"));
     }
 
+    public void testUnsupportedTypesInStats() {
+        verifyUnsupported(
+            """
+                  row x = to_unsigned_long(\"10\")
+                  | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+                """,
+            "Found 8 problems\n"
+                + "line 2:12: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
+                + "line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:39: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [max(x)] type [unsigned_long]\n"
+                + "line 2:47: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
+                + "line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:88: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [min(x)] type [unsigned_long]\n"
+                + "line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:115: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]"
+        );
+
+        verifyUnsupported(
+            """
+                row x = to_version("1.2")
+                | stats  avg(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+                """,
+            "Found 7 problems\n"
+                + "line 2:10: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
+                + "line 2:18: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [max(x)] type [version]\n"
+                + "line 2:26: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
+                + "line 2:37: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
+                + "found value [x] type [version]\n"
+                + "line 2:67: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [min(x)] type [version]\n"
+                + "line 2:75: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
+                + "found value [x] type [version]\n"
+                + "line 2:94: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [version]"
+        );
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

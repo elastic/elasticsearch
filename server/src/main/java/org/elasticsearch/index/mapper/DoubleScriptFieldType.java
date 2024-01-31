@@ -112,13 +112,17 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     @Override
     public DoubleScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-        return new DoubleScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), DoubleDocValuesField::new);
+        return new DoubleScriptFieldData.Builder(
+            concreteFieldName(),
+            leafFactory(fieldDataContext.lookupSupplier().get()),
+            DoubleDocValuesField::new
+        );
     }
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
         applyScriptContext(context);
-        return new DoubleScriptFieldExistsQuery(script, leafFactory(context), name());
+        return new DoubleScriptFieldExistsQuery(script, leafFactory(context), concreteFieldName());
     }
 
     @Override
@@ -137,14 +141,14 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
             upperTerm,
             includeLower,
             includeUpper,
-            (l, u) -> new DoubleScriptFieldRangeQuery(script, leafFactory(context), name(), l, u)
+            (l, u) -> new DoubleScriptFieldRangeQuery(script, leafFactory(context), concreteFieldName(), l, u)
         );
     }
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new DoubleScriptFieldTermQuery(script, leafFactory(context), name(), NumberType.objectToDouble(value));
+        return new DoubleScriptFieldTermQuery(script, leafFactory(context), concreteFieldName(), NumberType.objectToDouble(value));
     }
 
     @Override
@@ -157,6 +161,6 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
             terms.add(Double.doubleToLongBits(NumberType.objectToDouble(value)));
         }
         applyScriptContext(context);
-        return new DoubleScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
+        return new DoubleScriptFieldTermsQuery(script, leafFactory(context), concreteFieldName(), terms);
     }
 }

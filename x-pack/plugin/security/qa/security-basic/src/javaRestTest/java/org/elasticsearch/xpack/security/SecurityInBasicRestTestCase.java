@@ -21,6 +21,7 @@ public abstract class SecurityInBasicRestTestCase extends ESRestTestCase {
 
     protected static final String REST_USER = "security_test_user";
     private static final SecureString REST_PASSWORD = new SecureString("security-test-password".toCharArray());
+    protected static final String TEST_USER_AUTH_HEADER = "Basic c2VjdXJpdHlfdGVzdF91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
 
     protected static final String READ_USERS_USER = "read_users_user";
     private static final SecureString READ_USERS_PASSWORD = new SecureString("read-users-password".toCharArray());
@@ -30,9 +31,11 @@ public abstract class SecurityInBasicRestTestCase extends ESRestTestCase {
 
     protected static final String API_KEY_USER = "api_key_user";
     private static final SecureString API_KEY_USER_PASSWORD = new SecureString("security-test-password".toCharArray());
+    protected static final String API_KEY_USER_AUTH_HEADER = "Basic YXBpX2tleV91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
 
     protected static final String API_KEY_ADMIN_USER = "api_key_admin";
     private static final SecureString API_KEY_ADMIN_USER_PASSWORD = new SecureString("security-test-password".toCharArray());
+    protected static final String API_KEY_ADMIN_AUTH_HEADER = "Basic YXBpX2tleV9hZG1pbjpzZWN1cml0eS10ZXN0LXBhc3N3b3Jk";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

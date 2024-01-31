@@ -140,13 +140,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
     }
 
     static String formatIncompatibleTypesMessage(String symbol, DataType leftType, DataType rightType) {
-        return format(
-            null,
-            "[{}] has arguments with incompatible types [{}] and [{}]",
-            symbol,
-            leftType.typeName(),
-            rightType.typeName()
-        );
+        return format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol, leftType.typeName(), rightType.typeName());
     }
 
     @Override

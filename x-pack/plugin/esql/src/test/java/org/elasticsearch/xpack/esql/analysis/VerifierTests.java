@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
@@ -221,15 +220,7 @@ public class VerifierTests extends ESTestCase {
                 var op = left + " " + operation + " " + right;
                 assertThat(
                     error("row n = to_" + type + "(1), ul = to_ul(1) | eval " + op),
-                    containsString(
-                        "["
-                            + operation
-                            + "] has arguments with incompatible types ["
-                            + leftType
-                            + "] and ["
-                            + rightType
-                            + "]"
-                    )
+                    containsString("[" + operation + "] has arguments with incompatible types [" + leftType + "] and [" + rightType + "]")
                 );
             }
         }

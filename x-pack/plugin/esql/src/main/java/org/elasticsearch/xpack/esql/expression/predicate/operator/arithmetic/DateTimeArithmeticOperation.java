@@ -22,7 +22,6 @@ import java.time.temporal.TemporalAmount;
 import java.util.Collection;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
@@ -61,7 +60,8 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
             t -> t.isNumeric() || EsqlDataTypes.isDateTimeOrTemporal(t) || DataTypes.isNull(t),
             sourceText(),
             paramOrdinal,
-            "datetime", "numeric"
+            "datetime",
+            "numeric"
         );
     }
 
@@ -85,9 +85,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
                 return TypeResolution.TYPE_RESOLVED;
             }
 
-            return new TypeResolution(
-                formatIncompatibleTypesMessage(symbol(), leftType, rightType)
-            );
+            return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
         }
         return super.checkCompatibility();
     }

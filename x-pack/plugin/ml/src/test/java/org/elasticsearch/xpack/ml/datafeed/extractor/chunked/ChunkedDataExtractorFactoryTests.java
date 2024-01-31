@@ -111,13 +111,11 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         datafeedConfigBuilder.setParsedAggregations(aggs);
         datafeedConfigBuilder.setIndices(Arrays.asList("my_index"));
         return new ChunkedDataExtractorFactory(
-            client,
             datafeedConfigBuilder.build(),
             null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
-            dataExtractorFactory,
-            timingStatsReporter
+            dataExtractorFactory
         );
     }
 }

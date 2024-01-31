@@ -8,25 +8,10 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.metrics.Max;
-import org.elasticsearch.search.aggregations.metrics.Min;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
-import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 
 import java.io.IOException;
 import java.util.NoSuchElementException;
@@ -52,32 +37,20 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(ChunkedDataExtractor.class);
 
-    private static final String EARLIEST_TIME = "earliest_time";
-    private static final String LATEST_TIME = "latest_time";
-
     /** Let us set a minimum chunk span of 1 minute */
     private static final long MIN_CHUNK_SPAN = 60000L;
 
-    private final Client client;
     private final DataExtractorFactory dataExtractorFactory;
     private final ChunkedDataExtractorContext context;
-    private final DatafeedTimingStatsReporter timingStatsReporter;
     private long currentStart;
     private long currentEnd;
     private long chunkSpan;
     private boolean isCancelled;
     private DataExtractor currentExtractor;
 
-    public ChunkedDataExtractor(
-        Client client,
-        DataExtractorFactory dataExtractorFactory,
-        ChunkedDataExtractorContext context,
-        DatafeedTimingStatsReporter timingStatsReporter
-    ) {
-        this.client = Objects.requireNonNull(client);
+    public ChunkedDataExtractor(DataExtractorFactory dataExtractorFactory, ChunkedDataExtractorContext context) {
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
         this.context = Objects.requireNonNull(context);
-        this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
         this.currentStart = context.start;
         this.currentEnd = context.start;
         this.isCancelled = false;
@@ -144,25 +117,6 @@ public class ChunkedDataExtractor implements DataExtractor {
             currentEnd = context.end;
             LOGGER.debug("[{}] Chunked search configured: no data found", context.jobId);
         }
-    }
-
-    protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
-        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
-            context.headers,
-            ClientHelper.ML_ORIGIN,
-            client,
-            searchRequestBuilder::get
-        );
-        boolean success = false;
-        try {
-            checkForSkippedClusters(searchResponse);
-            success = true;
-        } finally {
-            if (success == false) {
-                searchResponse.decRef();
-            }
-        }
-        return searchResponse;
     }
 
     private Result getNextStream() throws IOException {

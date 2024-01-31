@@ -84,8 +84,7 @@ public final class AutoRolloverAction extends ActionType<RolloverResponse> {
         ) throws Exception {
             assert task instanceof CancellableTask;
             Metadata metadata = clusterState.metadata();
-            // We evaluate the names of the index for which we should evaluate conditions, as well as what our newly created index *would*
-            // be.
+            // We evaluate the names of the source index as well as what our newly created index would be.
             final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
                 clusterState,
                 rolloverRequest.getRolloverTarget(),

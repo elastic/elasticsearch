@@ -1,0 +1,6 @@
+For CO2 calculations, we include and use data from
+https://github.com/PaoloFrigo/cloud-carbon-footprint .
+
+License: Apache 2.0
+
+Copyright: Cloud Carbon Footprint, (C) 2021 Thoughtworks, Inc.

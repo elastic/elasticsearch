@@ -30,7 +30,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
@@ -38,8 +37,10 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorError
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNameAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNativeAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -173,7 +174,7 @@ public class ConnectorIndexService {
      * @param connectorId The id of the connector object.
      * @param listener    The action listener to invoke on response/failure.
      */
-    public void getConnector(String connectorId, ActionListener<Connector> listener) {
+    public void getConnector(String connectorId, ActionListener<ConnectorSearchResult> listener) {
         try {
             final GetRequest getRequest = new GetRequest(CONNECTOR_INDEX_NAME).id(connectorId).realtime(true);
 
@@ -183,11 +184,11 @@ public class ConnectorIndexService {
                     return;
                 }
                 try {
-                    final Connector connector = Connector.fromXContentBytes(
-                        getResponse.getSourceAsBytesRef(),
-                        connectorId,
-                        XContentType.JSON
-                    );
+                    final ConnectorSearchResult connector = new ConnectorSearchResult.Builder().setId(connectorId)
+                        .setResultBytes(getResponse.getSourceAsBytesRef())
+                        .setResultMap(getResponse.getSourceAsMap())
+                        .build();
+
                     l.onResponse(connector);
                 } catch (Exception e) {
                     listener.onFailure(e);
@@ -453,6 +454,47 @@ public class ConnectorIndexService {
     }
 
     /**
+     * Updates the is_native property of a {@link Connector}. It always sets the {@link ConnectorStatus} to
+     * CONFIGURED.
+     *
+     * @param request  The request for updating the connector's is_native property.
+     * @param listener The listener for handling responses, including successful updates or errors.
+     */
+    public void updateConnectorNative(UpdateConnectorNativeAction.Request request, ActionListener<UpdateResponse> listener) {
+        try {
+            String connectorId = request.getConnectorId();
+
+            final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                    .id(connectorId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .source(
+                        Map.of(
+                            Connector.IS_NATIVE_FIELD.getPreferredName(),
+                            request.isNative(),
+                            Connector.STATUS_FIELD.getPreferredName(),
+                            ConnectorStatus.CONFIGURED
+                        )
+                    )
+
+            );
+            clientWithOrigin.update(
+                updateRequest,
+                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        return;
+                    }
+                    l.onResponse(updateResponse);
+                })
+            );
+
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
      * Updates the {@link ConnectorIngestPipeline} property of a {@link Connector}.
      *
      * @param request   Request for updating connector ingest pipeline property.
@@ -513,21 +555,72 @@ public class ConnectorIndexService {
         }
     }
 
+    /**
+     * Updates the service type property of a {@link Connector} and its {@link ConnectorStatus}.
+     *
+     * @param request  The request for updating the connector's service type.
+     * @param listener The listener for handling responses, including successful updates or errors.
+     */
+    public void updateConnectorServiceType(UpdateConnectorServiceTypeAction.Request request, ActionListener<UpdateResponse> listener) {
+        try {
+            String connectorId = request.getConnectorId();
+            getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+
+                ConnectorStatus prevStatus = ConnectorStatus.connectorStatus(
+                    (String) connector.getResultMap().get(Connector.STATUS_FIELD.getPreferredName())
+                );
+                ConnectorStatus newStatus = prevStatus == ConnectorStatus.CREATED
+                    ? ConnectorStatus.CREATED
+                    : ConnectorStatus.NEEDS_CONFIGURATION;
+
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                    new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                        .id(connectorId)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                        .source(
+                            Map.of(
+                                Connector.SERVICE_TYPE_FIELD.getPreferredName(),
+                                request.getServiceType(),
+                                Connector.STATUS_FIELD.getPreferredName(),
+                                newStatus
+                            )
+                        )
+
+                );
+                clientWithOrigin.update(
+                    updateRequest,
+                    new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (updateListener, updateResponse) -> {
+                        if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                            updateListener.onFailure(new ResourceNotFoundException(connectorId));
+                            return;
+                        }
+                        updateListener.onResponse(updateResponse);
+                    })
+                );
+            }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
     private static ConnectorIndexService.ConnectorResult mapSearchResponseToConnectorList(SearchResponse response) {
-        final List<Connector> connectorResults = Arrays.stream(response.getHits().getHits())
+        final List<ConnectorSearchResult> connectorResults = Arrays.stream(response.getHits().getHits())
             .map(ConnectorIndexService::hitToConnector)
             .toList();
         return new ConnectorIndexService.ConnectorResult(connectorResults, (int) response.getHits().getTotalHits().value);
     }
 
-    private static Connector hitToConnector(SearchHit searchHit) {
+    private static ConnectorSearchResult hitToConnector(SearchHit searchHit) {
 
         // todo: don't return sensitive data from configuration in list endpoint
 
-        return Connector.fromXContentBytes(searchHit.getSourceRef(), searchHit.getId(), XContentType.JSON);
+        return new ConnectorSearchResult.Builder().setId(searchHit.getId())
+            .setResultBytes(searchHit.getSourceRef())
+            .setResultMap(searchHit.getSourceAsMap())
+            .build();
     }
 
-    public record ConnectorResult(List<Connector> connectors, long totalResults) {}
+    public record ConnectorResult(List<ConnectorSearchResult> connectors, long totalResults) {}
 
     /**
      * Listeners that checks failures for IndexNotFoundException, and transforms them in ResourceNotFoundException,

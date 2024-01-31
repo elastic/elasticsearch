@@ -169,7 +169,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void messageReceived(OpenExchangeRequest request, TransportChannel channel, Task task) throws Exception {
             createSinkHandler(request.sessionId, request.exchangeBuffer);
-            channel.sendResponse(new TransportResponse.Empty());
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 

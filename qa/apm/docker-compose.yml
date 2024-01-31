@@ -56,13 +56,13 @@ services:
       - xpack.security.authc.token.enabled=true
       - xpack.security.enabled=true
       # APM specific settings. We don't configure `secret_key` because Kibana is configured with a blank key
-      - tracing.apm.enabled=true
-      - tracing.apm.agent.server_url=http://apmserver:8200
+      - telemetry.tracing.enabled=true
+      - telemetry.agent.server_url=http://apmserver:8200
       # Send traces to APM server aggressively
-      - tracing.apm.agent.metrics_interval=1s
+      - telemetry.agent.metrics_interval=1s
       # Record everything
-      - tracing.apm.agent.transaction_sample_rate=1
-      - tracing.apm.agent.log_level=debug
+      - telemetry.agent.transaction_sample_rate=1
+      - telemetry.agent.log_level=debug
     healthcheck:
       interval: 20s
       retries: 10

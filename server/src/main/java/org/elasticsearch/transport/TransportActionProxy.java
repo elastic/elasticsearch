@@ -16,7 +16,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -58,14 +57,13 @@ public final class TransportActionProxy {
             wrappedRequest.setParentTask(taskId);
             service.sendRequest(targetNode, action, wrappedRequest, new TransportResponseHandler<>() {
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
                 @Override
                 public void handleResponse(TransportResponse response) {
                     try {
-                        response.mustIncRef();
                         channel.sendResponse(response);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);

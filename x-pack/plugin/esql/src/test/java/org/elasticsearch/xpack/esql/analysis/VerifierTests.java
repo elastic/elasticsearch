@@ -70,16 +70,12 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats length(first_name), count(1) by first_name")
         );
         assertEquals(
-            "1:19: aggregate function's field must be an attribute or literal; found [emp_no / 2] of type [Div]",
-            error("from test | stats x = avg(emp_no / 2) by emp_no")
+            "1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]",
+            error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [numeric], found value [first_name] type [keyword]",
+            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long], found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
-        );
-        assertEquals(
-            "1:19: aggregate function's field must be an attribute or literal; found [length(first_name)] of type [Length]",
-            error("from test | stats count(length(first_name)) by first_name")
         );
         assertEquals(
             "1:23: expected an aggregate function or group but got [emp_no + avg(emp_no)] of type [Add]",
@@ -93,6 +89,17 @@ public class VerifierTests extends ESTestCase {
             "1:23: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
             error("from test | stats x = count_distinct(languages, languages) by emp_no")
         );
+    }
+
+    public void testAggsInsideGrouping() {
+        assertEquals(
+            "1:36: cannot use an aggregate [max(languages)] for grouping",
+            error("from test| stats max(languages) by max(languages)")
+        );
+    }
+
+    public void testAggsInsideEval() throws Exception {
+        assertEquals("1:29: aggregate function [max(b)] not allowed outside STATS command", error("row a = 1, b = 2 | eval x = max(b)"));
     }
 
     public void testDoubleRenamingField() {
@@ -237,7 +244,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testSumOnDate() {
         assertEquals(
-            "1:19: argument of [sum(hire_date)] must be [numeric], found value [hire_date] type [datetime]",
+            "1:19: argument of [sum(hire_date)] must be [numeric except unsigned_long], found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
     }

@@ -12,7 +12,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -57,9 +56,9 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
 
     public void testCancelDownloadTaskCallsListenerWithNullWhenNoTasksExist() {
         var client = mockClientWithTasksResponse(Collections.emptyList(), threadPool);
-        var listener = new PlainActionFuture<CancelTasksResponse>();
+        var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         assertThat(listener.actionGet(TIMEOUT), nullValue());
     }
@@ -70,19 +69,19 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<CancelTasksResponse> listener = (ActionListener<CancelTasksResponse>) invocationOnMock.getArguments()[2];
+            ActionListener<ListTasksResponse> listener = (ActionListener<ListTasksResponse>) invocationOnMock.getArguments()[2];
             listener.onFailure(new Exception("cancel error"));
 
             return Void.TYPE;
         }).when(client).execute(same(CancelTasksAction.INSTANCE), any(), any());
 
-        var listener = new PlainActionFuture<CancelTasksResponse>();
+        var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(exception.getMessage(), is("Unable to cancel task for model id [modelId]"));
+        assertThat(exception.getMessage(), is("Unable to cancel task for model id [inferenceEntityId]"));
     }
 
     public void testCancelDownloadTaskCallsOnResponseNullWhenTheTaskNoLongerExistsWhenCancelling() {
@@ -91,15 +90,15 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<CancelTasksResponse> listener = (ActionListener<CancelTasksResponse>) invocationOnMock.getArguments()[2];
+            ActionListener<ListTasksResponse> listener = (ActionListener<ListTasksResponse>) invocationOnMock.getArguments()[2];
             listener.onFailure(new ResourceNotFoundException("task no longer there"));
 
             return Void.TYPE;
         }).when(client).execute(same(CancelTasksAction.INSTANCE), any(), any());
 
-        var listener = new PlainActionFuture<CancelTasksResponse>();
+        var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         assertThat(listener.actionGet(TIMEOUT), nullValue());
     }
@@ -115,24 +114,24 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(client).execute(same(TransportListTasksAction.TYPE), any(), any());
 
-        var listener = new PlainActionFuture<CancelTasksResponse>();
+        var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(exception.getMessage(), is("Unable to retrieve existing task information for model id [modelId]"));
+        assertThat(exception.getMessage(), is("Unable to retrieve existing task information for model id [inferenceEntityId]"));
     }
 
     public void testCancelDownloadTaskCallsOnResponseWithTheCancelResponseWhenATaskExists() {
         var client = mockClientWithTasksResponse(getTaskInfoListOfOne(), threadPool);
 
-        var cancelResponse = mock(CancelTasksResponse.class);
+        var cancelResponse = mock(ListTasksResponse.class);
         mockCancelTasksResponse(client, cancelResponse);
 
-        var listener = new PlainActionFuture<CancelTasksResponse>();
+        var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         assertThat(listener.actionGet(TIMEOUT), is(cancelResponse));
     }
@@ -142,12 +141,12 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
         when(cluster.prepareCancelTasks()).thenReturn(new CancelTasksRequestBuilder(client));
     }
 
-    private static void mockCancelTasksResponse(Client client, CancelTasksResponse response) {
+    private static void mockCancelTasksResponse(Client client, ListTasksResponse response) {
         mockCancelTask(client);
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<CancelTasksResponse> listener = (ActionListener<CancelTasksResponse>) invocationOnMock.getArguments()[2];
+            ActionListener<ListTasksResponse> listener = (ActionListener<ListTasksResponse>) invocationOnMock.getArguments()[2];
             listener.onResponse(response);
 
             return Void.TYPE;

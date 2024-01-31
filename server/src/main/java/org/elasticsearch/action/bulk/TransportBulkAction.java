@@ -16,6 +16,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
@@ -85,7 +86,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerArray;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -793,7 +794,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         bulkShardRequest,
                         clusterState,
                         (bulkShardRequest1, request, e) -> onBulkItemInferenceFailure(bulkShardRequest1, request, e, ref),
-                        bsr -> executeBulkShardRequest(bsr, b -> ref.close())
+                        bsr -> executeBulkShardRequest(bsr, ActionListener.releaseAfter(ActionListener.noop(), ref),
+                        (request, e) -> {
+                            markBulkItemRequestFailed(request, e);
+                            ref.close();
+                        })
                     );
                 }
             }
@@ -819,7 +824,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
         }
 
-        private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Consumer<BulkShardRequest> onComplete) {
+        private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, ActionListener<BulkShardRequest> listener,
+                                             BiConsumer<BulkItemRequest, Exception> bulkItemErrorListener) {
             if (bulkShardRequest.items().length == 0) {
                 // No requests to execute due to previous errors, terminate early
                 return;
@@ -835,16 +841,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         }
                         responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                     }
-                    onComplete.accept(bulkShardRequest);
+                    listener.onResponse(bulkShardRequest);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     // create failures for all relevant requests
                     for (BulkItemRequest request : bulkShardRequest.items()) {
-                        markBulkItemRequestFailed(request, e);
+                        bulkItemErrorListener.accept(request, e);
                     }
-                    onComplete.accept(bulkShardRequest);
+                    listener.onResponse(bulkShardRequest);
                 }
             });
         }

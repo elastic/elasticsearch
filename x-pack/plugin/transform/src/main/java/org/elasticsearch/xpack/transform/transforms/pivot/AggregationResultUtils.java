@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -42,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -106,7 +108,7 @@ public final class AggregationResultUtils {
             progress.incrementDocsProcessed(bucket.getDocCount());
             progress.incrementDocsIndexed(1L);
 
-            Map<String, Object> document = new HashMap<>();
+            Map<String, Object> document = new LinkedHashMap<>();
             // generator to create unique but deterministic document ids, so we
             // - do not create duplicates if we re-run after failure
             // - update documents
@@ -223,7 +225,7 @@ public final class AggregationResultUtils {
                         throw new AggregationExtractionException("mixed object types of nested and non-nested fields [{}]", fieldName);
                     }
                 } else {
-                    Map<String, Object> newMap = new HashMap<>();
+                    Map<String, Object> newMap = new LinkedHashMap<>();
                     internalMap.put(token, newMap);
                     internalMap = newMap;
                 }
@@ -284,7 +286,7 @@ public final class AggregationResultUtils {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiValueAggregation aggregation = (MultiValueAggregation) agg;
-            Map<String, Object> extracted = new HashMap<>();
+            Map<String, Object> extracted = new LinkedHashMap<>();
             for (String valueName : aggregation.valueNames()) {
                 List<String> valueAsStrings = aggregation.getValuesAsStrings(valueName);
 
@@ -302,7 +304,7 @@ public final class AggregationResultUtils {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiValue aggregation = (MultiValue) agg;
-            Map<String, Object> extracted = new HashMap<>();
+            Map<String, Object> extracted = new LinkedHashMap<>();
 
             String fieldLookupPrefix = (lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName()) + ".";
             for (String valueName : aggregation.valueNames()) {
@@ -322,7 +324,7 @@ public final class AggregationResultUtils {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             Percentiles aggregation = (Percentiles) agg;
-            HashMap<String, Double> percentiles = new HashMap<>();
+            Map<String, Double> percentiles = new LinkedHashMap<>();
 
             for (Percentile p : aggregation) {
                 // in case of sparse data percentiles might not have data, in this case it returns NaN,
@@ -360,16 +362,10 @@ public final class AggregationResultUtils {
                 return aggregation.getDocCount();
             }
 
-            HashMap<String, Object> nested = new HashMap<>();
+            var subAggLookupFieldPrefix = lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName();
+            Map<String, Object> nested = new LinkedHashMap<>();
             for (Aggregation subAgg : aggregation.getAggregations()) {
-                nested.put(
-                    subAgg.getName(),
-                    getExtractor(subAgg).value(
-                        subAgg,
-                        fieldTypeMap,
-                        lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName()
-                    )
-                );
+                nested.put(subAgg.getName(), getExtractor(subAgg).value(subAgg, fieldTypeMap, subAggLookupFieldPrefix));
             }
 
             return nested;
@@ -392,23 +388,17 @@ public final class AggregationResultUtils {
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiBucketsAggregation aggregation = (MultiBucketsAggregation) agg;
 
-            HashMap<String, Object> nested = new HashMap<>();
+            var subAggLookupFieldPrefix = lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName();
+            Map<String, Object> nested = Maps.newLinkedHashMapWithExpectedSize(aggregation.getBuckets().size());
 
             for (MultiBucketsAggregation.Bucket bucket : aggregation.getBuckets()) {
                 String bucketKey = bucketKeyTransfomer.apply(bucket.getKeyAsString());
                 if (bucket.getAggregations().iterator().hasNext() == false) {
                     nested.put(bucketKey, bucket.getDocCount());
                 } else {
-                    HashMap<String, Object> nestedBucketObject = new HashMap<>();
+                    Map<String, Object> nestedBucketObject = new LinkedHashMap<>();
                     for (Aggregation subAgg : bucket.getAggregations()) {
-                        nestedBucketObject.put(
-                            subAgg.getName(),
-                            getExtractor(subAgg).value(
-                                subAgg,
-                                fieldTypeMap,
-                                lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName()
-                            )
-                        );
+                        nestedBucketObject.put(subAgg.getName(), getExtractor(subAgg).value(subAgg, fieldTypeMap, subAggLookupFieldPrefix));
                     }
                     nested.put(bucketKey, nestedBucketObject);
                 }
@@ -441,7 +431,7 @@ public final class AggregationResultUtils {
             if (aggregation.bottomRight() == null || aggregation.topLeft() == null) {
                 return null;
             }
-            final Map<String, Object> geoShape = new HashMap<>();
+            final Map<String, Object> geoShape = new LinkedHashMap<>();
             // If the two geo_points are equal, it is a point
             if (aggregation.topLeft().equals(aggregation.bottomRight())) {
                 geoShape.put(FIELD_TYPE, POINT);
@@ -495,12 +485,12 @@ public final class AggregationResultUtils {
         public Object value(Object key, String type) {
             assert key instanceof String;
             Rectangle rectangle = GeoTileUtils.toBoundingBox(key.toString());
-            final Map<String, Object> geoShape = new HashMap<>();
+            final Map<String, Object> geoShape = Maps.newLinkedHashMapWithExpectedSize(2);
             geoShape.put(FIELD_TYPE, POLYGON);
             geoShape.put(
                 FIELD_COORDINATES,
                 Collections.singletonList(
-                    Arrays.asList(
+                    List.of(
                         new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() },
                         new Double[] { rectangle.getMinLon(), rectangle.getMinLat() },
                         new Double[] { rectangle.getMinLon(), rectangle.getMaxLat() },

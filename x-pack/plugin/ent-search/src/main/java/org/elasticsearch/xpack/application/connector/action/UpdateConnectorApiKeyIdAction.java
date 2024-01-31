@@ -17,7 +17,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.*;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 
 import java.io.IOException;
@@ -79,7 +84,7 @@ public class UpdateConnectorApiKeyIdAction {
             return validationException;
         }
 
-        private static final ConstructingObjectParser<UpdateConnectorApiKeyIdAction.Request, String> PARSER =
+        private static final ConstructingObjectParser<Request, String> PARSER =
             new ConstructingObjectParser<>(
                 "connector_update_api_key_id_request",
                 false,

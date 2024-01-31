@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
@@ -100,7 +101,6 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
 
         ConnectorSyncJob connectorSyncJob = awaitGetConnectorSyncJob(response.getId());
 
-        assertThat(connectorSyncJob.getId(), notNullValue());
         assertThat(connectorSyncJob.getJobType(), equalTo(requestJobType));
         assertThat(connectorSyncJob.getTriggerMethod(), equalTo(requestTriggerMethod));
         assertThat(connectorSyncJob.getStatus(), equalTo(ConnectorSyncJob.DEFAULT_INITIAL_STATUS));
@@ -283,11 +283,31 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         ConnectorSyncJobIndexService.ConnectorSyncJobsResult nextTwoSyncJobs = awaitListConnectorSyncJobs(2, 2, null, null);
         ConnectorSyncJobIndexService.ConnectorSyncJobsResult lastSyncJobs = awaitListConnectorSyncJobs(4, 100, null, null);
 
-        ConnectorSyncJob firstSyncJob = firstTwoSyncJobs.connectorSyncJobs().get(0);
-        ConnectorSyncJob secondSyncJob = firstTwoSyncJobs.connectorSyncJobs().get(1);
-        ConnectorSyncJob thirdSyncJob = nextTwoSyncJobs.connectorSyncJobs().get(0);
-        ConnectorSyncJob fourthSyncJob = nextTwoSyncJobs.connectorSyncJobs().get(1);
-        ConnectorSyncJob fifthSyncJob = lastSyncJobs.connectorSyncJobs().get(0);
+        ConnectorSyncJob firstSyncJob = ConnectorSyncJob.fromXContentBytes(
+            firstTwoSyncJobs.connectorSyncJobs().get(0).getSourceRef(),
+            firstTwoSyncJobs.connectorSyncJobs().get(0).getDocId(),
+            XContentType.JSON
+        );
+        ConnectorSyncJob secondSyncJob = ConnectorSyncJob.fromXContentBytes(
+            firstTwoSyncJobs.connectorSyncJobs().get(1).getSourceRef(),
+            firstTwoSyncJobs.connectorSyncJobs().get(1).getDocId(),
+            XContentType.JSON
+        );
+        ConnectorSyncJob thirdSyncJob = ConnectorSyncJob.fromXContentBytes(
+            nextTwoSyncJobs.connectorSyncJobs().get(0).getSourceRef(),
+            nextTwoSyncJobs.connectorSyncJobs().get(0).getDocId(),
+            XContentType.JSON
+        );
+        ConnectorSyncJob fourthSyncJob = ConnectorSyncJob.fromXContentBytes(
+            nextTwoSyncJobs.connectorSyncJobs().get(1).getSourceRef(),
+            nextTwoSyncJobs.connectorSyncJobs().get(1).getDocId(),
+            XContentType.JSON
+        );
+        ConnectorSyncJob fifthSyncJob = ConnectorSyncJob.fromXContentBytes(
+            lastSyncJobs.connectorSyncJobs().get(0).getSourceRef(),
+            lastSyncJobs.connectorSyncJobs().get(0).getDocId(),
+            XContentType.JSON
+        );
 
         assertThat(firstTwoSyncJobs.connectorSyncJobs().size(), equalTo(2));
         assertThat(firstTwoSyncJobs.totalResults(), equalTo(5L));
@@ -337,7 +357,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             ConnectorSyncStatus.PENDING
         );
         long numberOfResults = connectorSyncJobsResult.totalResults();
-        String idOfReturnedSyncJob = connectorSyncJobsResult.connectorSyncJobs().get(0).getId();
+        String idOfReturnedSyncJob = connectorSyncJobsResult.connectorSyncJobs().get(0).getDocId();
 
         assertThat(numberOfResults, equalTo(1L));
         assertThat(idOfReturnedSyncJob, equalTo(syncJobOneId));
@@ -363,7 +383,11 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         );
 
         long numberOfResults = connectorSyncJobsResult.totalResults();
-        String connectorIdOfReturnedSyncJob = connectorSyncJobsResult.connectorSyncJobs().get(0).getConnector().getConnectorId();
+        String connectorIdOfReturnedSyncJob = ConnectorSyncJob.fromXContentBytes(
+            connectorSyncJobsResult.connectorSyncJobs().get(0).getSourceRef(),
+            connectorSyncJobsResult.connectorSyncJobs().get(0).getDocId(),
+            XContentType.JSON
+        ).getConnector().getConnectorId();
 
         assertThat(numberOfResults, equalTo(1L));
         assertThat(connectorIdOfReturnedSyncJob, equalTo(connectorOneId));
@@ -699,9 +723,15 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         final AtomicReference<ConnectorSyncJob> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
 
-        connectorSyncJobIndexService.getConnectorSyncJob(connectorSyncJobId, new ActionListener<ConnectorSyncJob>() {
+        connectorSyncJobIndexService.getConnectorSyncJob(connectorSyncJobId, new ActionListener<ConnectorSyncJobSearchResult>() {
             @Override
-            public void onResponse(ConnectorSyncJob connectorSyncJob) {
+            public void onResponse(ConnectorSyncJobSearchResult searchResult) {
+                // Serialize the sourceRef to ConnectorSyncJob class for unit tests
+                ConnectorSyncJob connectorSyncJob = ConnectorSyncJob.fromXContentBytes(
+                    searchResult.getSourceRef(),
+                    searchResult.getDocId(),
+                    XContentType.JSON
+                );
                 resp.set(connectorSyncJob);
                 latch.countDown();
             }

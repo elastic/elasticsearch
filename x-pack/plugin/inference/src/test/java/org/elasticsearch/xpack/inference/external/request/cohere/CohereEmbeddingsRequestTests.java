@@ -44,6 +44,10 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        MatcherAssert.assertThat(
+            httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
+            is(CohereUtils.ELASTIC_REQUEST_SOURCE)
+        );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         MatcherAssert.assertThat(requestMap, is(Map.of("texts", List.of("abc"))));
@@ -71,6 +75,10 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        MatcherAssert.assertThat(
+            httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
+            is(CohereUtils.ELASTIC_REQUEST_SOURCE)
+        );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         MatcherAssert.assertThat(
@@ -114,6 +122,10 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        MatcherAssert.assertThat(
+            httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
+            is(CohereUtils.ELASTIC_REQUEST_SOURCE)
+        );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         MatcherAssert.assertThat(
@@ -157,6 +169,10 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        MatcherAssert.assertThat(
+            httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
+            is(CohereUtils.ELASTIC_REQUEST_SOURCE)
+        );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         MatcherAssert.assertThat(requestMap, is(Map.of("texts", List.of("abc"), "truncate", "none")));

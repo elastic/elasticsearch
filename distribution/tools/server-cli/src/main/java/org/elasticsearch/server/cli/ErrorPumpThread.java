@@ -51,7 +51,7 @@ class ErrorPumpThread extends Thread {
     /**
      * Waits until the server ready marker has been received.
      *
-     * @return a bootstrap exeption message if a bootstrap error occurred, or null otherwise
+     * {@code true} if successful, {@code false} if a startup error occurred
      * @throws IOException if there was a problem reading from stderr of the process
      */
     boolean waitUntilReady() throws IOException {

@@ -70,7 +70,7 @@ public class CartesianShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Line line) {
-            addFields(XYShape.createIndexableFields(name, LuceneGeometriesUtils.toLuceneXYLine(line)));
+            addFields(XYShape.createIndexableFields(name, LuceneGeometriesUtils.toXYLine(line)));
             return null;
         }
 
@@ -111,7 +111,7 @@ public class CartesianShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Polygon polygon) {
-            addFields(XYShape.createIndexableFields(name, LuceneGeometriesUtils.toLuceneXYPolygon(polygon), true));
+            addFields(XYShape.createIndexableFields(name, LuceneGeometriesUtils.toXYPolygon(polygon), true));
             return null;
         }
 

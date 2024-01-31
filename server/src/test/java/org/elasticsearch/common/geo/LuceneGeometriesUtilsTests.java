@@ -85,7 +85,7 @@ public class LuceneGeometriesUtilsTests extends ESTestCase {
         org.apache.lucene.geo.Point lalonPoint = (org.apache.lucene.geo.Point) geometry;
         assertThat(lalonPoint.getLon(), equalTo(point.getLon()));
         assertThat(lalonPoint.getLat(), equalTo(point.getLat()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLucenePoint(point)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLatLonPoint(point)));
     }
 
     public void testXYPoint() {
@@ -117,7 +117,7 @@ public class LuceneGeometriesUtilsTests extends ESTestCase {
         org.apache.lucene.geo.XYPoint xyPoint = (org.apache.lucene.geo.XYPoint) geometry;
         assertThat(xyPoint.getX(), equalTo((float) point.getX()));
         assertThat(xyPoint.getY(), equalTo((float) point.getY()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneXYPoint(point)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toXYPoint(point)));
     }
 
     public void testLatLonLine() {
@@ -171,7 +171,7 @@ public class LuceneGeometriesUtilsTests extends ESTestCase {
         org.apache.lucene.geo.Line lalonLine = (org.apache.lucene.geo.Line) geometry;
         assertThat(lalonLine.getLons(), equalTo(line.getLons()));
         assertThat(lalonLine.getLats(), equalTo(line.getLats()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneLine(line)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLatLonLine(line)));
     }
 
     public void testXYLine() {
@@ -202,7 +202,7 @@ public class LuceneGeometriesUtilsTests extends ESTestCase {
         org.apache.lucene.geo.XYLine xyLine = (org.apache.lucene.geo.XYLine) geometry;
         assertThat(xyLine.getX(), equalTo(LuceneGeometriesUtils.doubleArrayToFloatArray(line.getLons())));
         assertThat(xyLine.getY(), equalTo(LuceneGeometriesUtils.doubleArrayToFloatArray(line.getLats())));
-        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneXYLine(line)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toXYLine(line)));
     }
 
     public void testLatLonPolygon() {
@@ -256,7 +256,7 @@ public class LuceneGeometriesUtilsTests extends ESTestCase {
         org.apache.lucene.geo.Polygon lalonPolygon = (org.apache.lucene.geo.Polygon) geometry;
         assertThat(lalonPolygon.getPolyLons(), equalTo(polygon.getPolygon().getLons()));
         assertThat(lalonPolygon.getPolyLats(), equalTo(polygon.getPolygon().getLats()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLucenePolygon(polygon)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLatLonPolygon(polygon)));
     }
 
     public void testXYPolygon() {
@@ -287,7 +287,7 @@ public class LuceneGeometriesUtilsTests extends ESTestCase {
         org.apache.lucene.geo.XYPolygon xyPolygon = (org.apache.lucene.geo.XYPolygon) geometry;
         assertThat(xyPolygon.getPolyX(), equalTo(LuceneGeometriesUtils.doubleArrayToFloatArray(polygon.getPolygon().getX())));
         assertThat(xyPolygon.getPolyY(), equalTo(LuceneGeometriesUtils.doubleArrayToFloatArray(polygon.getPolygon().getY())));
-        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneXYPolygon(polygon)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toXYPolygon(polygon)));
     }
 
     public void testLatLonGeometryCollection() {
@@ -388,7 +388,7 @@ public class LuceneGeometriesUtilsTests extends ESTestCase {
         assertThat(lalonRectangle.minLon, equalTo(rectangle.getMinLon()));
         assertThat(lalonRectangle.maxLat, equalTo(rectangle.getMaxLat()));
         assertThat(lalonRectangle.minLat, equalTo(rectangle.getMinLat()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneRectangle(rectangle)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLatLonRectangle(rectangle)));
     }
 
     public void testXYRectangle() {
@@ -405,7 +405,7 @@ public class LuceneGeometriesUtilsTests extends ESTestCase {
         assertThat(xyRectangle.minX, equalTo((float) rectangle.getMinX()));
         assertThat(xyRectangle.maxY, equalTo((float) rectangle.getMaxY()));
         assertThat(xyRectangle.minY, equalTo((float) rectangle.getMinY()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneXYRectangle(rectangle)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toXYRectangle(rectangle)));
     }
 
     public void testLatLonCircle() {
@@ -421,7 +421,7 @@ public class LuceneGeometriesUtilsTests extends ESTestCase {
         assertThat(lalonCircle.getLon(), equalTo(circle.getLon()));
         assertThat(lalonCircle.getLat(), equalTo(circle.getLat()));
         assertThat(lalonCircle.getRadius(), equalTo(circle.getRadiusMeters()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneCircle(circle)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLatLonCircle(circle)));
     }
 
     public void testXYCircle() {
@@ -437,7 +437,7 @@ public class LuceneGeometriesUtilsTests extends ESTestCase {
         assertThat(xyCircle.getX(), equalTo((float) circle.getX()));
         assertThat(xyCircle.getY(), equalTo((float) circle.getY()));
         assertThat(xyCircle.getRadius(), equalTo((float) circle.getRadiusMeters()));
-        assertThat(geometry, equalTo(LuceneGeometriesUtils.toLuceneXYCircle(circle)));
+        assertThat(geometry, equalTo(LuceneGeometriesUtils.toXYCircle(circle)));
     }
 
     private MultiPolygon validRandomMultiPolygon(boolean hasLat) {

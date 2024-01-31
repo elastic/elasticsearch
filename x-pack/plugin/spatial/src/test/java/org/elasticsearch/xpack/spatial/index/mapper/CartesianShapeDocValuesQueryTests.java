@@ -41,7 +41,7 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
     private static final String FIELD_NAME = "field";
 
     public void testEqualsAndHashcode() {
-        XYPolygon polygon = LuceneGeometriesUtils.toLuceneXYPolygon(ShapeTestUtils.randomPolygon(false));
+        XYPolygon polygon = LuceneGeometriesUtils.toXYPolygon(ShapeTestUtils.randomPolygon(false));
         Query q1 = new CartesianShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, polygon);
         Query q2 = new CartesianShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, polygon);
         QueryUtils.checkEqual(q1, q2);
@@ -160,9 +160,9 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
 
     private XYGeometry randomLuceneQueryGeometry() {
         return switch (randomInt(3)) {
-            case 0 -> LuceneGeometriesUtils.toLuceneXYPolygon(ShapeTestUtils.randomPolygon(false));
-            case 1 -> LuceneGeometriesUtils.toLuceneXYCircle(ShapeTestUtils.randomCircle(false));
-            case 2 -> LuceneGeometriesUtils.toLuceneXYPoint(ShapeTestUtils.randomPoint(false));
+            case 0 -> LuceneGeometriesUtils.toXYPolygon(ShapeTestUtils.randomPolygon(false));
+            case 1 -> LuceneGeometriesUtils.toXYCircle(ShapeTestUtils.randomCircle(false));
+            case 2 -> LuceneGeometriesUtils.toXYPoint(ShapeTestUtils.randomPoint(false));
             default -> XShapeTestUtil.nextBox();
         };
     }

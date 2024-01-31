@@ -95,7 +95,7 @@ public class GeoShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Line line) {
-            addFields(LatLonShape.createIndexableFields(name, LuceneGeometriesUtils.toLuceneLine(line)));
+            addFields(LatLonShape.createIndexableFields(name, LuceneGeometriesUtils.toLatLonLine(line)));
             return null;
         }
 
@@ -136,7 +136,7 @@ public class GeoShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Polygon polygon) {
-            addFields(LatLonShape.createIndexableFields(name, LuceneGeometriesUtils.toLucenePolygon(polygon), true));
+            addFields(LatLonShape.createIndexableFields(name, LuceneGeometriesUtils.toLatLonPolygon(polygon), true));
             return null;
         }
 

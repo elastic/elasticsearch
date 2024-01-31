@@ -61,7 +61,6 @@ final class InstanceType implements ToXContentObject {
         region = (String) source.get("azure.compute.location");
         if (region != null) {
             // example: "azure.compute.location": "eastus2"
-            // Support for instance type is planned for 8.13.
             String instanceType = (String) source.get("azure.compute.vmsize");
             // example: "azure.compute.vmsize": "Standard_D2s_v3"
             return new InstanceType("azure", region, instanceType);

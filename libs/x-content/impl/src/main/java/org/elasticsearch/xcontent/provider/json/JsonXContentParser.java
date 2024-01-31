@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
+import java.util.ArrayList;
 
 public class JsonXContentParser extends AbstractXContentParser {
 
@@ -278,27 +279,40 @@ public class JsonXContentParser extends AbstractXContentParser {
         };
     }
 
+    private static final Token[] TOKEN_CONVERTER;
+
+    static {
+        var lookup = new ArrayList<Token>();
+        for (JsonToken token : JsonToken.values()) {
+            var converted = switch (token) {
+                case START_OBJECT -> Token.START_OBJECT;
+                case END_OBJECT -> Token.END_OBJECT;
+                case START_ARRAY -> Token.START_ARRAY;
+                case END_ARRAY -> Token.END_ARRAY;
+                case FIELD_NAME -> Token.FIELD_NAME;
+                case VALUE_EMBEDDED_OBJECT -> Token.VALUE_EMBEDDED_OBJECT;
+                case VALUE_STRING -> Token.VALUE_STRING;
+                case VALUE_NUMBER_INT, VALUE_NUMBER_FLOAT -> Token.VALUE_NUMBER;
+                case VALUE_FALSE, VALUE_TRUE -> Token.VALUE_BOOLEAN;
+                case VALUE_NULL -> Token.VALUE_NULL;
+                default -> null;
+            };
+            if (converted != null) {
+                int missing = token.ordinal() + 1 - lookup.size();
+                for (int i = 0; i < missing; i++) {
+                    lookup.add(null);
+                }
+                lookup.set(token.ordinal(), converted);
+            }
+        }
+        TOKEN_CONVERTER = lookup.toArray(new Token[0]);
+    }
+
     private static Token convertToken(JsonToken token) {
         if (token == null) {
             return null;
         }
-        return switch (token) {
-            case START_OBJECT -> Token.START_OBJECT;
-            case END_OBJECT -> Token.END_OBJECT;
-            case START_ARRAY -> Token.START_ARRAY;
-            case END_ARRAY -> Token.END_ARRAY;
-            case FIELD_NAME -> Token.FIELD_NAME;
-            case VALUE_EMBEDDED_OBJECT -> Token.VALUE_EMBEDDED_OBJECT;
-            case VALUE_STRING -> Token.VALUE_STRING;
-            case VALUE_NUMBER_INT, VALUE_NUMBER_FLOAT -> Token.VALUE_NUMBER;
-            case VALUE_FALSE, VALUE_TRUE -> Token.VALUE_BOOLEAN;
-            case VALUE_NULL -> Token.VALUE_NULL;
-            default -> throw unknownTokenException(token);
-        };
-    }
-
-    private static IllegalStateException unknownTokenException(JsonToken token) {
-        return new IllegalStateException("No matching token for json_token [" + token + "]");
+        return TOKEN_CONVERTER[token.ordinal()];
     }
 
     @Override

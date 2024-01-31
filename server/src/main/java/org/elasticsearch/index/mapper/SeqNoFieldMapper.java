@@ -197,13 +197,13 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             long v = parse(value);
-            return LongPoint.newExactQuery(name(), v);
+            return LongPoint.newExactQuery(concreteFieldName(), v);
         }
 
         @Override
         public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
             long[] v = values.stream().mapToLong(SeqNoFieldType::parse).toArray();
-            return LongPoint.newSetQuery(name(), v);
+            return LongPoint.newSetQuery(concreteFieldName(), v);
         }
 
         @Override
@@ -234,13 +234,13 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                     --u;
                 }
             }
-            return LongPoint.newRangeQuery(name(), l, u);
+            return LongPoint.newRangeQuery(concreteFieldName(), l, u);
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, SeqNoDocValuesField::new);
+            return new SortedNumericIndexFieldData.Builder(concreteFieldName(), NumericType.LONG, SeqNoDocValuesField::new);
         }
     }
 

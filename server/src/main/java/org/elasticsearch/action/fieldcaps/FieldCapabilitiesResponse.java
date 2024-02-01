@@ -117,7 +117,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     /**
      * Returns the actual per-index field caps responses
      */
-    List<FieldCapabilitiesIndexResponse> getIndexResponses() {
+    public List<FieldCapabilitiesIndexResponse> getIndexResponses() {
         return indexResponses;
     }
 

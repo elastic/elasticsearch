@@ -1,0 +1,5 @@
+pr: 104796
+summary: "ESQL: Pre-allocate rows in TopNOperator"
+area: ES|QL
+type: enhancement
+issues: []

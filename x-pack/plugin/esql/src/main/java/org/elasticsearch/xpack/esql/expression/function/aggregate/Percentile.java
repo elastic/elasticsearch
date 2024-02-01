@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
@@ -23,18 +24,19 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 public class Percentile extends NumericAggregate {
     private final Expression percentile;
 
     @FunctionInfo(
-        returnType = { "double", "integer", "long", "unsigned_long" },
+        returnType = { "double", "integer", "long" },
         description = "The value at which a certain percentage of observed values occur.",
         isAggregation = true
     )
     public Percentile(
         Source source,
-        @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field,
+        @Param(name = "field", type = { "double", "integer", "long" }) Expression field,
         @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
     ) {
         super(source, field, List.of(percentile));
@@ -61,7 +63,13 @@ public class Percentile extends NumericAggregate {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isNumeric(field(), sourceText(), FIRST);
+        TypeResolution resolution = isType(
+            field(),
+            dt -> dt.isNumeric() && dt != DataTypes.UNSIGNED_LONG,
+            sourceText(),
+            FIRST,
+            "numeric except unsigned_long"
+        );
         if (resolution.unresolved()) {
             return resolution;
         }

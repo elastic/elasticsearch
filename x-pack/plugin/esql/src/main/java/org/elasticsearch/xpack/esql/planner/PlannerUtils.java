@@ -74,14 +74,14 @@ public class PlannerUtils {
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
 
-    public static boolean hasEnrich(PhysicalPlan plan) {
+    public static boolean hasUnsupportedEnrich(PhysicalPlan plan) {
         boolean[] found = { false };
         plan.forEachDown(p -> {
-            if (p instanceof EnrichExec) {
+            if (p instanceof EnrichExec enrich && enrich.mode() == Enrich.Mode.REMOTE) {
                 found[0] = true;
             }
             if (p instanceof FragmentExec f) {
-                f.fragment().forEachDown(Enrich.class, e -> found[0] = true);
+                f.fragment().forEachDown(Enrich.class, e -> found[0] |= e.mode() == Enrich.Mode.REMOTE);
             }
         });
         return found[0];

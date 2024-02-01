@@ -166,6 +166,9 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public IpFieldMapper build(MapperBuilderContext context) {
+            if (context.parentObjectContainsDimensions()) {
+                dimension.setValue(true);
+            }
             return new IpFieldMapper(
                 name,
                 new IpFieldType(
@@ -554,8 +557,8 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
-        if (dimension) {
-            context.getDimensions().addIp(fieldType().concreteFieldName(), address);
+        if (dimension) 
+            context.getDimensions().addIp(fieldType().concreteFieldName(), address).validate(context.indexSettings());
         }
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().concreteFieldName(), address);

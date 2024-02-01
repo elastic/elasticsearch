@@ -1090,16 +1090,24 @@ class NodeConstruction {
         }
 
         // Register noop versions of inference services if Inference plugin is not available
-        if (pluginComponents.stream().noneMatch(p -> p instanceof InferenceServiceRegistry)) {
+        if (isPluginComponentDefined(pluginComponents, InferenceServiceRegistry.class) == false) {
+            logger.warn("Inference service is not available");
             modules.bindToInstance(InferenceServiceRegistry.class, new InferenceServiceRegistry.NoopInferenceServiceRegistry());
         }
-        if (pluginComponents.stream().noneMatch(p -> p instanceof ModelRegistry)) {
+        if (isPluginComponentDefined(pluginComponents, ModelRegistry.class) == false) {
+            logger.warn("Model registry is not available");
             modules.bindToInstance(ModelRegistry.class, new ModelRegistry.NoopModelRegistry());
         }
 
         injector = modules.createInjector();
 
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
+    }
+
+    private static boolean isPluginComponentDefined(Collection<?> pluginComponents, Class<?> clazz) {
+        return pluginComponents.stream()
+            .map(p -> p instanceof PluginComponentBinding ? ((PluginComponentBinding) p).impl() : p)
+            .anyMatch(p -> clazz.isAssignableFrom(clazz));
     }
 
     private ClusterService createClusterService(SettingsModule settingsModule, ThreadPool threadPool, TaskManager taskManager) {

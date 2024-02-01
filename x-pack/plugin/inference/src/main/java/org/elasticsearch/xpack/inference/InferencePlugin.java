@@ -143,13 +143,15 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         registry.init(services.client());
         inferenceServiceRegistry.set(registry);
 
-        return List.of(new PluginComponentBinding<>(ModelRegistry.class, modelRegistry), registry);
+        return List.of(
+            new PluginComponentBinding<>(ModelRegistry.class, modelRegistry),
+            new PluginComponentBinding<>(InferenceServiceRegistry.class, registry)
+        );
     }
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         inferenceServiceExtensions = loader.loadExtensions(InferenceServiceExtension.class);
-        loader.loadExtensions(ModelRegistry.class);
     }
 
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {

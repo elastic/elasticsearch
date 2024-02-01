@@ -198,7 +198,7 @@ public final class ApplicationPermission {
             if (Operations.isTotal(privilege.getAutomaton())) {
                 return true;
             }
-            // If the privilege we are checking is not registered (i.e., maps to no action patterns) check by name instead
+            // If the privilege we are checking is not stored (i.e., maps to no action patterns) check by name instead
             if (Operations.isEmpty(other.getAutomaton())) {
                 return privilege.name().containsAll(other.name());
             }

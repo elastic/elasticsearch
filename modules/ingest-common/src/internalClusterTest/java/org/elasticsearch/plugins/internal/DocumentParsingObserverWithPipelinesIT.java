@@ -82,13 +82,13 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
             // returns a static instance, because we want to assert that the wrapping is called only once
             return new DocumentParsingSupplier() {
                 @Override
-                public DocumentParsingObserver getNewObserver() {
-                    return new TestDocumentParsingObserver(0L);
+                public DocumentParsingObserver getDocumentParsingObserver(long normalisedBytesParsed) {
+                    return new TestDocumentParsingObserver(normalisedBytesParsed);
                 }
 
                 @Override
-                public DocumentParsingObserver forAlreadyParsedInIngest(long normalisedBytesParsed) {
-                    return new TestDocumentParsingObserver(normalisedBytesParsed);
+                public DocumentParsingObserver getDocumentParsingObserver() {
+                    return new TestDocumentParsingObserver(0L);
                 }
 
                 @Override

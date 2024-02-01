@@ -1175,7 +1175,7 @@ public class IngestServiceTests extends ESTestCase {
         AtomicInteger parsedValueWasUsed = new AtomicInteger(0);
         DocumentParsingSupplier documentParsingSupplier = new DocumentParsingSupplier() {
             @Override
-            public DocumentParsingObserver getNewObserver() {
+            public DocumentParsingObserver getDocumentParsingObserver() {
                 return new DocumentParsingObserver() {
                     @Override
                     public XContentParser wrapParser(XContentParser xContentParser) {
@@ -1188,17 +1188,16 @@ public class IngestServiceTests extends ESTestCase {
                         parsedValueWasUsed.incrementAndGet();
                         return 0;
                     }
-
                 };
             }
 
             @Override
-            public DocumentParsingObserver forAlreadyParsedInIngest(long normalisedBytesParsed) {
+            public DocumentParsingReporter getDocumentParsingReporter() {
                 return null;
             }
 
             @Override
-            public DocumentParsingReporter getDocumentParsingReporter() {
+            public DocumentParsingObserver getDocumentParsingObserver(long normalisedBytesParsed) {
                 return null;
             }
         };

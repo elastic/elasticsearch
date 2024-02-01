@@ -365,9 +365,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
         } else {
             final IndexRequest request = context.getRequestToExecute();
-            DocumentParsingObserver documentParsingObserver = request.getNormalisedBytesParsed() != -1L
-                ? documentParsingSupplier.forAlreadyParsedInIngest(request.getNormalisedBytesParsed())
-                : documentParsingSupplier.getNewObserver();
+            DocumentParsingObserver documentParsingObserver = documentParsingSupplier.getDocumentParsingObserver(
+                request.getNormalisedBytesParsed()
+            );
 
             context.setDocumentParsingObserver(documentParsingObserver);
             final SourceToParse sourceToParse = new SourceToParse(

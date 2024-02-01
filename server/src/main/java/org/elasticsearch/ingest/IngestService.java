@@ -731,7 +731,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             totalMetrics.postIngest(ingestTimeInNanos);
                             ref.close();
                         });
-                        DocumentParsingObserver documentParsingObserver = documentParsingSupplier.getNewObserver();
+                        DocumentParsingObserver documentParsingObserver = documentParsingSupplier.getDocumentParsingObserver();
 
                         IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
 

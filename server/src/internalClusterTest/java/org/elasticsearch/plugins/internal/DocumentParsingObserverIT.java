@@ -74,14 +74,15 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
         @Override
         public DocumentParsingSupplier getDocumentParsingSupplier() {
             return new DocumentParsingSupplier() {
+
                 @Override
-                public DocumentParsingObserver getNewObserver() {
+                public DocumentParsingObserver getDocumentParsingObserver(long normalisedBytesParsed) {
                     return new TestDocumentParsingObserver();
                 }
 
                 @Override
-                public DocumentParsingObserver forAlreadyParsedInIngest(long normalisedBytesParsed) {
-                    return null;
+                public DocumentParsingObserver getDocumentParsingObserver() {
+                    return new TestDocumentParsingObserver();
                 }
 
                 @Override

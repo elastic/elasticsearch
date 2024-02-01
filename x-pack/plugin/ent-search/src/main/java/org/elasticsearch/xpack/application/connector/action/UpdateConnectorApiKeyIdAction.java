@@ -84,12 +84,11 @@ public class UpdateConnectorApiKeyIdAction {
             return validationException;
         }
 
-        private static final ConstructingObjectParser<Request, String> PARSER =
-            new ConstructingObjectParser<>(
-                "connector_update_api_key_id_request",
-                false,
-                ((args, connectorId) -> new UpdateConnectorApiKeyIdAction.Request(connectorId, (String) args[0], (String) args[1]))
-            );
+        private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
+            "connector_update_api_key_id_request",
+            false,
+            ((args, connectorId) -> new UpdateConnectorApiKeyIdAction.Request(connectorId, (String) args[0], (String) args[1]))
+        );
 
         static {
             PARSER.declareStringOrNull(optionalConstructorArg(), Connector.API_KEY_ID_FIELD);

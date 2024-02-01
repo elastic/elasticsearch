@@ -428,8 +428,10 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     }
 
     @Override
-    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
-        // Currently ESQL support for cartesian_point is limited to source values
-        return false;
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        // TODO: Support testing both reading from source as well as reading from doc-values
+        MappedFieldType ft = mapper.fieldType(loaderFieldName);
+        PointFieldMapper.PointFieldType point = (PointFieldMapper.PointFieldType) ft;
+        return new BlockReaderSupport(point.isIndexed() == false && ft.hasDocValues(), false, mapper, loaderFieldName);
     }
 }

@@ -32,7 +32,7 @@ import java.util.function.Supplier;
 
 public class RankEvalPlugin extends Plugin implements ActionPlugin {
 
-    public static final ActionType<RankEvalResponse> ACTION = new ActionType<>("indices:data/read/rank_eval", RankEvalResponse::new);
+    public static final ActionType<RankEvalResponse> ACTION = new ActionType<>("indices:data/read/rank_eval");
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

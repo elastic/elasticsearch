@@ -28,12 +28,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
-import org.elasticsearch.inference.ModelRegistry;
-import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceModelAction.Request> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutInferenceModelAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportDeleteInferenceModelAction.class);
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
@@ -69,21 +68,26 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        SubscribableListener.<ModelRegistryImpl.UnparsedModel>newForked(modelConfigListener -> {
-            modelRegistry.getModel(request.getModelId(), modelConfigListener);
+        SubscribableListener.<ModelRegistry.UnparsedModel>newForked(modelConfigListener -> {
+            modelRegistry.getModel(request.getInferenceEntityId(), modelConfigListener);
         }).<Boolean>andThen((l1, unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
-                service.get().stop(request.getModelId(), l1);
+                service.get().stop(request.getInferenceEntityId(), l1);
             } else {
-                l1.onFailure(new ElasticsearchStatusException("No service found for model " + request.getModelId(), RestStatus.NOT_FOUND));
+                l1.onFailure(
+                    new ElasticsearchStatusException("No service found for model " + request.getInferenceEntityId(), RestStatus.NOT_FOUND)
+                );
             }
         }).<Boolean>andThen((l2, didStop) -> {
             if (didStop) {
-                modelRegistry.deleteModel(request.getModelId(), l2);
+                modelRegistry.deleteModel(request.getInferenceEntityId(), l2);
             } else {
                 l2.onFailure(
-                    new ElasticsearchStatusException("Failed to stop model " + request.getModelId(), RestStatus.INTERNAL_SERVER_ERROR)
+                    new ElasticsearchStatusException(
+                        "Failed to stop model " + request.getInferenceEntityId(),
+                        RestStatus.INTERNAL_SERVER_ERROR
+                    )
                 );
             }
         }).addListener(listener.delegateFailure((l3, didDeleteModel) -> listener.onResponse(AcknowledgedResponse.of(didDeleteModel))));

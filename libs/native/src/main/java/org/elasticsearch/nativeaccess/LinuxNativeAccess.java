@@ -96,7 +96,15 @@ class LinuxNativeAccess extends PosixNativeAccess {
     LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
         super(libraryProvider, 8, -1L, 9, 144, 48);
         this.linuxLibc = libraryProvider.getLibrary(LinuxCLibrary.class);
-        this.systemd = libraryProvider.getLibrary(SystemdLibrary.class);
+
+        if ("docker".equals(System.getProperty("es.distribution.type"))) {
+            // we don't even have systemd in our docker image, so this would fail to load
+            systemd = (unset_environment, state) -> {
+                throw new UnsupportedOperationException();
+            };
+        } else {
+            systemd = libraryProvider.getLibrary(SystemdLibrary.class);
+        }
     }
 
     @Override

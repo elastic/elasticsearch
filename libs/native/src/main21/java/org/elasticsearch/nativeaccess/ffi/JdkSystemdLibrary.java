@@ -10,12 +10,13 @@ package org.elasticsearch.nativeaccess.ffi;
 
 import org.elasticsearch.nativeaccess.lib.SystemdLibrary;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
@@ -34,10 +35,15 @@ class JdkSystemdLibrary implements SystemdLibrary {
         final String libsystemd = "libsystemd.so.0";
         String libpath = System.getProperty("java.library.path");
         for (String basepath : libpath.split(":")) {
-            var fullpath = Paths.get(basepath, libsystemd);
-            if (Files.exists(fullpath)) {
-                return fullpath.toAbsolutePath().toString();
+            try (var stream = Files.walk(Paths.get(basepath))) {
+                var foundpath = stream.filter(Files::isDirectory).map(p -> p.resolve(libsystemd)).filter(Files::exists).findAny();
+                if (foundpath.isEmpty() == false) {
+                    return foundpath.get().toAbsolutePath().toString();
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
+
         }
         throw new UnsatisfiedLinkError("Could not find " + libsystemd + " in java.library.path: " + libpath);
     }

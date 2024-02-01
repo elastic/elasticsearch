@@ -21,6 +21,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -31,6 +32,9 @@ public class Loggers {
 
     public static final String SPACE = " ";
 
+    /** Restricted loggers can't be set to a level less specific than INFO. */
+    private static final List<String> RESTRICTED_LOGGERS = List.of("org.apache.http");
+
     public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING = new Setting<>(
         "logger.level",
         Level.INFO.name(),
@@ -39,7 +43,16 @@ public class Loggers {
     );
     public static final Setting.AffixSetting<Level> LOG_LEVEL_SETTING = Setting.prefixKeySetting(
         "logger.",
-        (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic, Setting.Property.NodeScope)
+        (key) -> new Setting<>(key, Level.INFO.name(), value -> {
+            Level level = Level.valueOf(value);
+            if (level.isMoreSpecificThan(Level.INFO) == false) {
+                String logger = key.substring("logger.".length());
+                if (RESTRICTED_LOGGERS.stream().anyMatch(r -> isSameOrDescendantOf(logger, r))) {
+                    throw new IllegalArgumentException("Level [" + value + "] not permitted for logger [" + logger + "].");
+                }
+            }
+            return level;
+        }, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
     public static Logger getLogger(Class<?> clazz, ShardId shardId, String... prefixes) {
@@ -100,17 +113,39 @@ public class Loggers {
      * level.
      */
     public static void setLevel(Logger logger, String level) {
-        final Level l;
-        if (level == null) {
-            l = null;
-        } else {
-            l = Level.valueOf(level);
-        }
-        setLevel(logger, l);
+        setLevel(logger, level == null ? null : Level.valueOf(level), List.of());
     }
 
     public static void setLevel(Logger logger, Level level) {
-        if (LogManager.ROOT_LOGGER_NAME.equals(logger.getName()) == false) {
+        setLevel(logger, level, List.of());
+    }
+
+    public static void setRestrictionAwareLevel(Logger logger, String level) {
+        setLevel(logger, level == null ? null : Level.valueOf(level), RESTRICTED_LOGGERS);
+    }
+
+    public static void setRestrictionAwareLevel(Logger logger, Level level) {
+        setLevel(logger, level, RESTRICTED_LOGGERS);
+    }
+
+    // visible for testing
+    protected static void setLevel(Logger logger, Level level, List<String> restrictedLoggers) {
+        // If configuring an ancestor / root, the restriction has to be explicitly set afterward.
+        boolean setRestriction = false;
+
+        if (isRootLogger(logger) == false) {
+            Level actual = level != null ? level : parentLoggerLevel(logger);
+            if (actual.isMoreSpecificThan(Level.INFO) == false) {
+                for (String restricted : restrictedLoggers) {
+                    if (isSameOrDescendantOf(logger.getName(), restricted)) {
+                        LogManager.getLogger(Loggers.class).warn("Log level of [{}] can't be less specific than INFO", logger.getName());
+                        return;
+                    }
+                    if (isDescendantOf(restricted, logger.getName())) {
+                        setRestriction = true;
+                    }
+                }
+            }
             Configurator.setLevel(logger.getName(), level);
         } else {
             final LoggerContext ctx = LoggerContext.getContext(false);
@@ -118,15 +153,49 @@ public class Loggers {
             final LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
             loggerConfig.setLevel(level);
             ctx.updateLoggers();
+
+            Level actual = level != null ? level : LogManager.getRootLogger().getLevel();
+            if (actual.isMoreSpecificThan(Level.INFO) == false) {
+                setRestriction = true;
+            }
+        }
+
+        if (setRestriction) {
+            restrictedLoggers.stream()
+                .filter(restricted -> isRootLogger(logger) || isDescendantOf(restricted, logger.getName()))
+                .forEach(restricted -> setLevel(LogManager.getLogger(restricted), Level.INFO, List.of()));
         }
 
         // we have to descend the hierarchy
         final LoggerContext ctx = LoggerContext.getContext(false);
         for (final LoggerConfig loggerConfig : ctx.getConfiguration().getLoggers().values()) {
-            if (LogManager.ROOT_LOGGER_NAME.equals(logger.getName()) || loggerConfig.getName().startsWith(logger.getName() + ".")) {
+            // make sure to not overwrite the log level of restricted loggers
+            boolean isRestricted = setRestriction
+                && restrictedLoggers.stream().anyMatch(restricted -> isSameOrDescendantOf(loggerConfig.getName(), restricted));
+            if (isRestricted == false && isDescendantOf(loggerConfig.getName(), logger.getName())) {
                 Configurator.setLevel(loggerConfig.getName(), level);
             }
         }
+    }
+
+    private static Level parentLoggerLevel(Logger logger) {
+        int idx = logger.getName().lastIndexOf('.');
+        if (idx != -1) {
+            return LogManager.getLogger(logger.getName().substring(0, idx)).getLevel();
+        }
+        return LogManager.getRootLogger().getLevel();
+    }
+
+    private static boolean isRootLogger(Logger logger) {
+        return LogManager.ROOT_LOGGER_NAME.equals(logger.getName());
+    }
+
+    private static boolean isDescendantOf(String candidate, String ancestor) {
+        return candidate.startsWith(ancestor + ".");
+    }
+
+    private static boolean isSameOrDescendantOf(String candidate, String ancestor) {
+        return candidate.equals(ancestor) || isDescendantOf(candidate, ancestor);
     }
 
     public static void addAppender(final Logger logger, final Appender appender) {

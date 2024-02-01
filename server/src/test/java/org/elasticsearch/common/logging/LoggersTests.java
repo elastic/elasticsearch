@@ -11,17 +11,61 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.List;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.common.logging.Loggers.LOG_LEVEL_SETTING;
 import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LoggersTests extends ESTestCase {
+
+    public void testLogLevelSettingRestrictions() {
+        Settings settings = Settings.builder().put("logger.org.apache.http", "DEBUG").build();
+        var ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> LOG_LEVEL_SETTING.getConcreteSetting("logger.org.apache.http").get(settings)
+        );
+        assertThat(ex.getMessage(), containsString("Level [DEBUG] not permitted for logger [org.apache.http]"));
+    }
+
+    public void testSetLevelWithRestrictions() throws Exception {
+        Logger apacheHttpClientLogger = LogManager.getLogger("org.apache.http.client.HttpClient");
+        Logger apacheHttpLogger = LogManager.getLogger("org.apache.http");
+        Logger apacheLogger = LogManager.getLogger("org.apache");
+
+        List<String> restrictions = List.of(apacheHttpLogger.getName());
+
+        Loggers.setLevel(apacheHttpLogger, Level.INFO, restrictions);
+        assertHasINFO(apacheHttpLogger, apacheHttpClientLogger);
+
+        for (Logger log : List.of(apacheHttpClientLogger, apacheHttpLogger)) {
+            // DEBUG is rejected due to restriction
+            Loggers.setLevel(log, Level.DEBUG, restrictions);
+            assertHasINFO(apacheHttpClientLogger, apacheHttpLogger);
+        }
+
+        // OK for parent `org.apache`, but restriction is enforced for restricted descendants
+        Loggers.setLevel(apacheLogger, Level.DEBUG, restrictions);
+        assertEquals(Level.DEBUG, apacheLogger.getLevel());
+        assertHasINFO(apacheHttpClientLogger, apacheHttpLogger);
+
+        // Inheriting DEBUG of parent `org.apache` is rejected
+        Loggers.setLevel(apacheHttpLogger, null, restrictions);
+        assertHasINFO(apacheHttpClientLogger, apacheHttpLogger);
+
+        // DEBUG of root logger isn't propagated to restricted loggers
+        Loggers.setLevel(LogManager.getRootLogger(), Level.DEBUG, restrictions);
+        assertEquals(Level.DEBUG, LogManager.getRootLogger().getLevel());
+        assertHasINFO(apacheHttpClientLogger, apacheHttpLogger);
+    }
 
     public void testStringSupplierAndFormatting() throws Exception {
         // adding a random id to allow test to run multiple times. See AbstractConfiguration#addAppender
@@ -68,5 +112,11 @@ public class LoggersTests extends ESTestCase {
             new OutOfMemoryError("out of space"),
             new IllegalArgumentException("index must be between 10 and 100")
         );
+    }
+
+    private static void assertHasINFO(Logger... loggers) {
+        for (Logger log : loggers) {
+            assertEquals("Log level of [" + log.getName() + "]", Level.INFO, log.getLevel());
+        }
     }
 }

@@ -262,7 +262,7 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: { "attributes.another.dim": "C", "attributes.dim": "A" } }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "KPLatIF-tbSjI8l9LcbTur4gYpiKF9nXxRUMHnJBiqqP58deEIun8H8" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -281,7 +281,7 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: { "attributes.another.dim": "C", "attributes.dim": "A" } }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "KPLatIF-tbSjI8l9LcbTur4gYpiKF9nXxRUMHnJBiqqP58deEIun8H8" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
@@ -358,7 +358,7 @@ dynamic templates - conflicting aliases:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: { "resource_attributes.dim": "C", "attributes.dim": "A" } }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "KGejYryCnrIkXYZdIF_Q8F8X2dfFIGKYisFh7t1RGGWOWgWU7C0RiFE" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -377,7 +377,7 @@ dynamic templates - conflicting aliases:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: { "resource_attributes.dim": "C", "attributes.dim": "A" } }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "KGejYryCnrIkXYZdIF_Q8F8X2dfFIGKYisFh7t1RGGWOWgWU7C0RiFE" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---

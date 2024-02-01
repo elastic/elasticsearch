@@ -284,6 +284,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         wipe.accept(client());
     }
 
+    @AwaitsFix(bugUrl = "cross-clusters query doesn't work with RCS 2.0")
     public void testCrossClusterQuery() throws Exception {
         configureRemoteCluster();
         populateData();

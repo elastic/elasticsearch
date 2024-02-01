@@ -10,8 +10,8 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -55,7 +55,7 @@ public class ReferenceDocsTests extends ESTestCase {
         }
 
         try (var stream = new ByteArrayInputStream("{\"invalid\":".getBytes(StandardCharsets.UTF_8))) {
-            expectThrows(XContentParseException.class, () -> ReferenceDocs.readLinksBySymbol(stream));
+            expectThrows(XContentEOFException.class, () -> ReferenceDocs.readLinksBySymbol(stream));
         }
 
         try (var builder = XContentFactory.jsonBuilder()) {

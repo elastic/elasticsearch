@@ -40,7 +40,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.inference.InferenceProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -89,7 +88,8 @@ public class TransportBulkActionTests extends ESTestCase {
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
-                new InferenceProvider.NoopInferenceProvider()
+                null,
+                null
             );
         }
 

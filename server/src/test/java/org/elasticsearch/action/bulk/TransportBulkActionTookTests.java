@@ -32,7 +32,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.inference.InferenceProvider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -254,7 +253,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
                 relativeTimeProvider,
-                new InferenceProvider.NoopInferenceProvider()
+                null,
+                null
             );
         }
     }

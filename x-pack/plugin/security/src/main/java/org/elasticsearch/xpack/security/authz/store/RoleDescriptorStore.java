@@ -177,10 +177,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             || roleDescriptor.hasWorkflowsRestriction()) {
             return false;
         }
-        final Set<String> supportedClusterPrivileges = Set.of(
-            "cluster:monitor/xpack/enrich/esql/resolve_policy",
-            "cluster:admin/xpack/security/user/has_privileges"
-        );
+        final Set<String> supportedClusterPrivileges = Set.of("monitor_enrich", "cluster:monitor/xpack/enrich/esql/resolve_policy");
         return false == roleDescriptor.hasClusterPrivileges()
             || Arrays.stream(roleDescriptor.getClusterPrivileges()).allMatch(supportedClusterPrivileges::contains);
     }

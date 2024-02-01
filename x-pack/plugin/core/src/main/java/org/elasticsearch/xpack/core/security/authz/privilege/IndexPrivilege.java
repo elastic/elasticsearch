@@ -83,7 +83,7 @@ public final class IndexPrivilege extends Privilege {
         "internal:data/read/esql/open_exchange",
         "internal:data/read/esql/exchange",
         "indices:data/read/esql/cluster",
-        // ???
+        // TODO introduce a separate "index:"/"internal:" marker action
         "cluster:monitor/xpack/enrich/esql/resolve_policy"
     );
     private static final Automaton CREATE_AUTOMATON = patterns(

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -64,6 +66,8 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
@@ -91,6 +95,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.core.security.authc.Authentication.getAuthenticationFromCrossClusterAccessMetadata;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
 
@@ -108,6 +113,9 @@ import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter
  * The positionCount of the output page must be equal to the positionCount of the input page.
  */
 public class EnrichLookupService {
+
+    private static final Logger logger = LogManager.getLogger(EnrichLookupService.class);
+
     public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup";
 
     private final ClusterService clusterService;
@@ -194,7 +202,17 @@ public class EnrichLookupService {
         }
         final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        final User user = securityContext.getUser();
+        // TODO not clear yet why
+        final Authentication authentication = securityContext.getAuthentication();
+        logger.info("has enrich privilege check authentication: [{}]", authentication);
+        final Subject subjectToCheck;
+        if (authentication.isCrossClusterAccess()) {
+            subjectToCheck = getAuthenticationFromCrossClusterAccessMetadata(authentication).getEffectiveSubject();
+        } else {
+            subjectToCheck = authentication.getEffectiveSubject();
+        }
+        final User user = subjectToCheck.getUser();
+
         if (user == null) {
             outListener.onFailure(new IllegalStateException("missing or unable to read authentication info on request"));
             return;

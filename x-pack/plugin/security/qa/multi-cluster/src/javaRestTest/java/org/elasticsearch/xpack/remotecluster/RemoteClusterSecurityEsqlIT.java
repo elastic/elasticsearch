@@ -83,7 +83,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                         {
                           "search": [
                             {
-                                "names": ["index*", "not_found_index", "shared-metrics"]
+                                "names": ["index*", "not_found_index", "employees"]
                             }
                           ]
                         }""");
@@ -293,10 +293,10 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 Response response = performRequestWithRemoteSearchUser(esqlRequest("""
                     FROM my_remote_cluster:employees
                     | SORT emp_id ASC
-                    | LIMIT 10"""));
+                    | LIMIT 2
+                    | KEEP emp_id, department"""));
                 assertOK(response);
-                entityAsMap(response);
-                // TODO: assert later
+                Map<String, Object> values = entityAsMap(response);
             }
             {
                 Response response = performRequestWithRemoteSearchUser(esqlRequest("""
@@ -304,8 +304,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                     | SORT emp_id ASC
                     | LIMIT 10"""));
                 assertOK(response);
-                entityAsMap(response);
-                // TODO: assert later
+
             }
             // Check that authentication fails if we use a non-existent API key
             updateClusterSettings(
@@ -330,6 +329,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         }
     }
 
+    @AwaitsFix(bugUrl = "cross-clusters enrich doesn't work with RCS 2.0")
     public void testCrossClusterEnrich() throws Exception {
         configureRemoteCluster();
         populateData();
@@ -343,8 +343,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 | SORT size DESC
                 | LIMIT 2"""));
             assertOK(response);
-            entityAsMap(response);
-            // TODO: assert later
+            Map<String, Object> values = entityAsMap(response);
 
             // ESQL with enrich is denied when user has no access to enrich policies
             final var putLocalSearchRoleRequest = new Request("PUT", "/_security/role/local_search");

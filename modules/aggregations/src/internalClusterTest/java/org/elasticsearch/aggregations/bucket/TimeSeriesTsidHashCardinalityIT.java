@@ -173,62 +173,20 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
         }
     }
 
-    static class Dimension implements Comparable<Dimension> {
-        private final String name, value;
-
-        Dimension(final String name, final String value) {
-            this.name = name;
-            this.value = value;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public String getValue() {
-            return value;
-        }
+    record Dimension(String name, String value) implements Comparable<Dimension> {
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Dimension dimension = (Dimension) o;
-            return Objects.equals(name, dimension.name) && Objects.equals(value, dimension.value);
+            public String toString() {
+                return "Dimension{" + "name='" + name + '\'' + ", value='" + value + '\'' + '}';
+            }
+
+            @Override
+            public int compareTo(final Dimension that) {
+                return Comparator.comparing(Dimension::name).thenComparing(Dimension::value).compare(this, that);
+            }
         }
 
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, value);
-        }
-
-        @Override
-        public String toString() {
-            return "Dimension{" + "name='" + name + '\'' + ", value='" + value + '\'' + '}';
-        }
-
-        @Override
-        public int compareTo(final Dimension that) {
-            return Comparator.comparing(Dimension::getName).thenComparing(Dimension::getValue).compare(this, that);
-        }
-    }
-
-    static class TimeSeriesValue {
-        private final long timestamp;
-        private final double gauge;
-
-        TimeSeriesValue(long timestamp, double gauge) {
-            this.timestamp = timestamp;
-            this.gauge = gauge;
-        }
-
-        public long getTimestamp() {
-            return timestamp;
-        }
-
-        public double getGauge() {
-            return gauge;
-        }
+    record TimeSeriesValue(long timestamp, double gauge) {
 
         @Override
         public boolean equals(Object o) {
@@ -244,10 +202,10 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
         }
 
         @Override
-        public String toString() {
-            return "TimeSeriesValue{" + "timestamp=" + timestamp + ", gauge=" + gauge + '}';
+            public String toString() {
+                return "TimeSeriesValue{" + "timestamp=" + timestamp + ", gauge=" + gauge + '}';
+            }
         }
-    }
 
     static class TimeSeries {
         private final HashMap<String, Dimension> dimensions;
@@ -258,7 +216,7 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
             for (final Dimension dimension : dimensions) {
                 this.dimensions.put(dimension.name, dimension);
             }
-            values = new TreeSet<>(Comparator.comparing(TimeSeriesValue::getTimestamp));
+            values = new TreeSet<>(Comparator.comparing(TimeSeriesValue::timestamp));
         }
 
         public void addValue(long timestamp, double gauge) {
@@ -267,8 +225,8 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
 
         public String id() {
             final StringBuilder sb = new StringBuilder();
-            for (final Dimension dimension : dimensions.values().stream().sorted(Comparator.comparing(Dimension::getName)).toList()) {
-                sb.append(dimension.getName()).append("=").append(dimension.getValue());
+            for (final Dimension dimension : dimensions.values().stream().sorted(Comparator.comparing(Dimension::name)).toList()) {
+                sb.append(dimension.name()).append("=").append(dimension.value());
             }
 
             return sb.toString();

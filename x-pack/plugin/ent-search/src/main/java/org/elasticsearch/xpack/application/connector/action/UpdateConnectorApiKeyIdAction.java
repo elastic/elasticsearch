@@ -80,6 +80,12 @@ public class UpdateConnectorApiKeyIdAction {
             if (Strings.isNullOrEmpty(connectorId)) {
                 validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
+            if (apiKeyId == null && apiKeySecretId == null) {
+                validationException = addValidationError(
+                    "[api_key_id] and [api_key_secret_id] cannot both be [null]. Please provide a value for at least one of them.",
+                    validationException
+                );
+            }
 
             return validationException;
         }

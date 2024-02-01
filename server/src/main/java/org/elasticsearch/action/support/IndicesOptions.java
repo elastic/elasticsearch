@@ -96,7 +96,13 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         boolean allowEmptyExpressions
     ) implements ToXContentFragment {
 
-        public static final WildcardOptions DEFAULT = WildcardOptions.builder().build();
+        public static final WildcardOptions DEFAULT = WildcardOptions.builder()
+            .matchOpen(true)
+            .matchClosed(false)
+            .includeHidden(false)
+            .allowEmptyExpressions(true)
+            .resolveAliases(true)
+            .build();
 
         public static WildcardOptions parseParameters(Object expandWildcards, Object allowNoIndices, WildcardOptions defaultOptions) {
             if (expandWildcards == null && allowNoIndices == null) {
@@ -160,13 +166,15 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         }
 
         public static class Builder {
-            private boolean matchOpen = true;
-            private boolean matchClosed = false;
-            private boolean includeHidden = false;
-            private boolean resolveAliases = true;
-            private boolean allowEmptyExpressions = true;
+            private boolean matchOpen;
+            private boolean matchClosed;
+            private boolean includeHidden;
+            private boolean resolveAliases;
+            private boolean allowEmptyExpressions;
 
-            Builder() {}
+            Builder() {
+                this(DEFAULT);
+            }
 
             Builder(WildcardOptions options) {
                 matchOpen = options.matchOpen;
@@ -289,7 +297,11 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         implements
             ToXContentFragment {
 
-        public static final GeneralOptions DEFAULT = GeneralOptions.builder().build();
+        public static final GeneralOptions DEFAULT = GeneralOptions.builder()
+            .allowAliasToMultipleIndices(true)
+            .allowClosedIndices(true)
+            .ignoreThrottled(false)
+            .build();
 
         public static GeneralOptions parseParameter(Object ignoreThrottled, GeneralOptions defaultOptions) {
             if (ignoreThrottled == null && defaultOptions != null) {
@@ -306,11 +318,13 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         }
 
         public static class Builder {
-            private boolean allowAliasToMultipleIndices = true;
-            private boolean allowClosedIndices = true;
-            private boolean ignoreThrottled = false;
+            private boolean allowAliasToMultipleIndices;
+            private boolean allowClosedIndices;
+            private boolean ignoreThrottled;
 
-            public Builder() {}
+            public Builder() {
+                this(DEFAULT);
+            }
 
             Builder(GeneralOptions options) {
                 allowAliasToMultipleIndices = options.allowAliasToMultipleIndices;
@@ -402,7 +416,11 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     private static final String WILDCARD_NONE_DEPRECATION_MESSAGE = "Combining the value 'none' with other options is deprecated "
         + "because it is order sensitive. Please revise the expression to work without the 'none' option or only use 'none'.";
 
-    public static final IndicesOptions DEFAULT = IndicesOptions.builder().build();
+    public static final IndicesOptions DEFAULT = IndicesOptions.builder()
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(WildcardOptions.DEFAULT)
+        .generalOptions(GeneralOptions.DEFAULT)
+        .build();
 
     public static final IndicesOptions STRICT_EXPAND_OPEN = DEFAULT;
     public static final IndicesOptions LENIENT_EXPAND_OPEN = IndicesOptions.builder()
@@ -577,11 +595,13 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     }
 
     public static class Builder {
-        private ConcreteTargetOptions concreteTargetOptions = ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS;
-        private WildcardOptions wildcardOptions = WildcardOptions.DEFAULT;
-        private GeneralOptions generalOptions = GeneralOptions.DEFAULT;
+        private ConcreteTargetOptions concreteTargetOptions;
+        private WildcardOptions wildcardOptions;
+        private GeneralOptions generalOptions;
 
-        Builder() {}
+        Builder() {
+            this(DEFAULT);
+        }
 
         Builder(IndicesOptions indicesOptions) {
             concreteTargetOptions = indicesOptions.concreteTargetOptions;

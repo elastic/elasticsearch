@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -754,15 +755,23 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return;
             }
 
-            BulkShardRequestInferenceProvider.executeWithInferenceProvider(inferenceServiceRegistry, modelRegistry, clusterState.metadata(),
+            BulkShardRequestInferenceProvider.getInferenceProvider(inferenceServiceRegistry, modelRegistry, clusterState,
                 requestsByShard.keySet(),
-                bulkShardRequestInferenceProvider -> {
-                    processBulkItemRequests(requestsByShard, clusterState, bulkShardRequestInferenceProvider);
-                });
+                new ActionListener<BulkShardRequestInferenceProvider>() {
+                    @Override
+                    public void onResponse(BulkShardRequestInferenceProvider bulkShardRequestInferenceProvider) {
+                        processRequestsByShards(requestsByShard, clusterState, bulkShardRequestInferenceProvider);
+                    }
 
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new ElasticsearchException("Error loading inference models", e);
+                    }
+                }
+            );
         }
 
-        private void processBulkItemRequests(Map<ShardId, List<BulkItemRequest>> requestsByShard, ClusterState clusterState,
+        private void processRequestsByShards(Map<ShardId, List<BulkItemRequest>> requestsByShard, ClusterState clusterState,
                                              BulkShardRequestInferenceProvider bulkShardRequestInferenceProvider) {
             Runnable onBulkItemsComplete = () -> {
                 listener.onResponse(
@@ -789,29 +798,26 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
 
                     Releasable ref = bulkItemRequestCompleteRefCount.acquire();
+                    final BiConsumer<BulkItemRequest, Exception> bulkItemFailedListener = (itemReq, e) -> markBulkItemRequestFailed(
+                        bulkShardRequest,
+                        itemReq,
+                        e
+                    );
                     bulkShardRequestInferenceProvider.processBulkShardRequest(
                         bulkShardRequest,
-                        clusterState,
-                        new ActionListener<BulkShardRequest>() {
+                        new ActionListener<>() {
                             @Override
                             public void onResponse(BulkShardRequest bulkShardRequest) {
                                 executeBulkShardRequest(bulkShardRequest, ActionListener.releaseAfter(ActionListener.noop(), ref),
-                                    (itemReq, e) -> {
-                                        markBulkItemRequestFailed(bulkShardRequest, itemReq, e);
-                                        ref.close();
-                                    });
+                                    bulkItemFailedListener);
                             }
 
                             @Override
                             public void onFailure(Exception e) {
-                                ref.close();
+                                throw new ElasticsearchException("Error performing inference", e);
                             }
                         },
-                    (itemReq, e) -> {
-                            markBulkItemRequestFailed(bulkShardRequest, itemReq, e);
-                            // make sure the request gets never processed again
-                            bulkShardRequest.items()[itemReq.id()] = null;
-                        }
+                        bulkItemFailedListener
                     );
                 }
             }

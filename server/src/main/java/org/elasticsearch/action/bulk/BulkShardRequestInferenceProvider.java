@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.InferenceResults;
@@ -34,7 +33,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class BulkShardRequestInferenceProvider {
@@ -43,6 +41,7 @@ public class BulkShardRequestInferenceProvider {
     public static final String TEXT_SUBFIELD_NAME = "text";
     public static final String SPARSE_VECTOR_SUBFIELD_NAME = "sparse_embedding";
 
+    private final ClusterState clusterState;
     private final Map<String, InferenceProvider> inferenceProvidersMap;
 
     private record InferenceProvider (Model model, InferenceService service) {
@@ -52,24 +51,27 @@ public class BulkShardRequestInferenceProvider {
         }
     }
 
-    private BulkShardRequestInferenceProvider(Map<String, InferenceProvider> inferenceProvidersMap) {
+    private BulkShardRequestInferenceProvider(ClusterState clusterState, Map<String, InferenceProvider> inferenceProvidersMap) {
+        this.clusterState = clusterState;
         this.inferenceProvidersMap = inferenceProvidersMap;
     }
 
-    public static void executeWithInferenceProvider(
+    public static void getInferenceProvider(
         InferenceServiceRegistry inferenceServiceRegistry,
         ModelRegistry modelRegistry,
-        Metadata clusterMetadata,
+        ClusterState clusterState,
         Set<ShardId> shardIds,
-        Consumer<BulkShardRequestInferenceProvider> action
+        ActionListener<BulkShardRequestInferenceProvider> listener
     ) {
         Set<String> inferenceIds = new HashSet<>();
         shardIds.stream().map(ShardId::getIndex).collect(Collectors.toSet()).stream().forEach(index -> {
-            var fieldsForModels = clusterMetadata.index(index).getFieldsForModels();
+            var fieldsForModels = clusterState.metadata().index(index).getFieldsForModels();
             inferenceIds.addAll(fieldsForModels.keySet());
         });
         final Map<String, InferenceProvider> inferenceProviderMap = new ConcurrentHashMap<>();
-        Runnable onModelLoadingComplete = () -> action.accept(new BulkShardRequestInferenceProvider(inferenceProviderMap));
+        Runnable onModelLoadingComplete = () -> listener.onResponse(
+            new BulkShardRequestInferenceProvider(clusterState, inferenceProviderMap)
+        );
         try (var refs = new RefCountingRunnable(onModelLoadingComplete)) {
             for (var inferenceId : inferenceIds) {
                 ActionListener<ModelRegistry.UnparsedModel> modelLoadingListener = new ActionListener<>() {
@@ -90,7 +92,7 @@ public class BulkShardRequestInferenceProvider {
 
                     @Override
                     public void onFailure(Exception e) {
-                        // Do nothing - let it fail afterwards
+                        // Do nothing - let it fail afterwards when model is retrieved
                     }
                 };
 
@@ -101,7 +103,6 @@ public class BulkShardRequestInferenceProvider {
 
     public void processBulkShardRequest(
         BulkShardRequest bulkShardRequest,
-        ClusterState clusterState,
         ActionListener<BulkShardRequest> listener,
         BiConsumer<BulkItemRequest, Exception> onBulkItemFailure
     ) {

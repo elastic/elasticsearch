@@ -22,6 +22,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -30,6 +31,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.master.IsAcknowledgedSupplier;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -50,6 +52,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -387,6 +390,7 @@ public class ElasticsearchAssertions {
      *                              respNum starts at 1, which contains the resp from the initial request.
      */
     public static void assertScrollResponsesAndHitCount(
+        Client client,
         TimeValue keepAlive,
         SearchRequestBuilder searchRequestBuilder,
         int expectedTotalHitCount,
@@ -402,21 +406,34 @@ public class ElasticsearchAssertions {
             retrievedDocsCount += scrollResponse.getHits().getHits().length;
             responseConsumer.accept(responses.size(), scrollResponse);
             while (scrollResponse.getHits().getHits().length > 0) {
-                scrollResponse = prepareScrollSearch(scrollResponse.getScrollId(), keepAlive).get();
+                scrollResponse = client.prepareSearchScroll(scrollResponse.getScrollId()).setScroll(keepAlive).get();
                 responses.add(scrollResponse);
                 assertThat(scrollResponse.getHits().getTotalHits().value, equalTo((long) expectedTotalHitCount));
                 retrievedDocsCount += scrollResponse.getHits().getHits().length;
                 responseConsumer.accept(responses.size(), scrollResponse);
             }
         } finally {
-            clearScroll(scrollResponse.getScrollId());
+            ClearScrollResponse clearResponse = client.prepareClearScroll()
+                .setScrollIds(Arrays.asList(scrollResponse.getScrollId())).get();
             responses.forEach(SearchResponse::decRef);
+            assertThat(clearResponse.isSucceeded(), Matchers.equalTo(true));
         }
         assertThat(retrievedDocsCount, equalTo(expectedTotalHitCount));
     }
 
-    public static SearchScrollRequestBuilder prepareScrollSearch(String scrollId, TimeValue timeout) {
-        return client().prepareSearchScroll(scrollId).setScroll(timeout);
+    public static void assertScrollResponsesAndHitCount(
+        TimeValue keepAlive,
+        SearchRequestBuilder searchRequestBuilder,
+        int expectedTotalHitCount,
+        BiConsumer<Integer, SearchResponse> responseConsumer
+    ) {
+        assertScrollResponsesAndHitCount(
+            client(),
+            keepAlive,
+            searchRequestBuilder,
+            expectedTotalHitCount,
+            responseConsumer
+        );
     }
 
     public static <R extends ActionResponse> void assertResponse(ActionFuture<R> responseFuture, Consumer<R> consumer)

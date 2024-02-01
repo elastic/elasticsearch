@@ -24,10 +24,11 @@ import java.util.zip.GZIPInputStream;
 public final class InstanceTypeService {
     private InstanceTypeService() {}
 
+    private static final Logger log = LogManager.getLogger(InstanceTypeService.class);
+
     private static final class Holder {
         private static final Map<InstanceType, CostEntry> COSTS_PER_DATACENTER;
         static {
-            final Logger log = LogManager.getLogger(InstanceTypeService.class);
             final StopWatch watch = new StopWatch("loadProfilingCostsData");
             final Map<InstanceType, CostEntry> tmp = new HashMap<>();
             final Map<Object, Object> objects = new HashMap<>();

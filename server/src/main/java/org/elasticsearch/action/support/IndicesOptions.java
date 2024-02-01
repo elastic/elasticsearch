@@ -60,6 +60,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
      * @param allowUnavailableTargets, if false when any of the concrete targets requested does not exist, throw an error
      */
     public record ConcreteTargetOptions(boolean allowUnavailableTargets) implements ToXContentFragment {
+        public static final String IGNORE_UNAVAILABLE = "ignore_unavailable";
         public static final ConcreteTargetOptions ALLOW_UNAVAILABLE_TARGETS = new ConcreteTargetOptions(true);
         public static final ConcreteTargetOptions ERROR_WHEN_UNAVAILABLE_TARGETS = new ConcreteTargetOptions(false);
 
@@ -67,14 +68,14 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             if (ignoreUnavailableString == null && defaultOption != null) {
                 return defaultOption;
             }
-            return nodeBooleanValue(ignoreUnavailableString, "ignore_unavailable")
+            return nodeBooleanValue(ignoreUnavailableString, IGNORE_UNAVAILABLE)
                 ? ALLOW_UNAVAILABLE_TARGETS
                 : ERROR_WHEN_UNAVAILABLE_TARGETS;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field("ignore_unavailable", allowUnavailableTargets);
+            return builder.field(IGNORE_UNAVAILABLE, allowUnavailableTargets);
         }
     }
 
@@ -96,6 +97,9 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         boolean allowEmptyExpressions
     ) implements ToXContentFragment {
 
+        public static final String EXPAND_WILDCARDS = "expand_wildcards";
+        public static final String ALLOW_NO_INDICES = "allow_no_indices";
+
         public static final WildcardOptions DEFAULT = WildcardOptions.builder()
             .matchOpen(true)
             .matchClosed(false)
@@ -115,7 +119,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             }
 
             if (allowNoIndices != null) {
-                builder.allowEmptyExpressions(nodeBooleanValue(allowNoIndices, "allow_no_indices"));
+                builder.allowEmptyExpressions(nodeBooleanValue(allowNoIndices, ALLOW_NO_INDICES));
             }
             return builder.build();
         }
@@ -145,23 +149,23 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             }
             if (wildcardStatesAsUserInput) {
                 if (legacyStates.isEmpty()) {
-                    builder.field("expand_wildcards", "none");
+                    builder.field(EXPAND_WILDCARDS, "none");
                 } else if (legacyStates.equals(EnumSet.allOf(WildcardStates.class))) {
-                    builder.field("expand_wildcards", "all");
+                    builder.field(EXPAND_WILDCARDS, "all");
                 } else {
                     builder.field(
-                        "expand_wildcards",
+                        EXPAND_WILDCARDS,
                         legacyStates.stream().map(WildcardStates::displayName).collect(Collectors.joining(","))
                     );
                 }
             } else {
-                builder.startArray("expand_wildcards");
+                builder.startArray(EXPAND_WILDCARDS);
                 for (WildcardStates state : legacyStates) {
                     builder.value(state.displayName());
                 }
                 builder.endArray();
             }
-            builder.field("allow_no_indices", allowEmptyExpressions());
+            builder.field(ALLOW_NO_INDICES, allowEmptyExpressions());
             return builder;
         }
 
@@ -264,7 +268,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                         case "none" -> {
                             matchNone();
                             if (expandStates.length > 1) {
-                                DEPRECATION_LOGGER.warn(DeprecationCategory.API, "expand_wildcards", WILDCARD_NONE_DEPRECATION_MESSAGE);
+                                DEPRECATION_LOGGER.warn(DeprecationCategory.API, EXPAND_WILDCARDS, WILDCARD_NONE_DEPRECATION_MESSAGE);
                             }
                         }
                         default -> throw new IllegalArgumentException("No valid expand wildcard value [" + expandState + "]");
@@ -298,6 +302,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         implements
             ToXContentFragment {
 
+        public static final String IGNORE_THROTTLED = "ignore_throttled";
         public static final GeneralOptions DEFAULT = GeneralOptions.builder()
             .allowAliasToMultipleIndices(true)
             .allowClosedIndices(true)
@@ -309,13 +314,13 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 return defaultOptions;
             }
             return (defaultOptions == null ? new Builder() : new Builder(defaultOptions)).ignoreThrottled(
-                nodeBooleanValue(ignoreThrottled, "ignore_throttled")
+                nodeBooleanValue(ignoreThrottled, IGNORE_THROTTLED)
             ).build();
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field("ignore_throttled", ignoreThrottled());
+            return builder.field(IGNORE_THROTTLED, ignoreThrottled());
         }
 
         public static class Builder {
@@ -407,7 +412,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES,
 
         ERROR_WHEN_CLOSED_INDICES,
-        EXCLUDE_THROTTLED
+        IGNORE_THROTTLED
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);
@@ -554,7 +559,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             backwardsCompatibleOptions.add(Option.ERROR_WHEN_CLOSED_INDICES);
         }
         if (ignoreThrottled()) {
-            backwardsCompatibleOptions.add(Option.EXCLUDE_THROTTLED);
+            backwardsCompatibleOptions.add(Option.IGNORE_THROTTLED);
         }
         if (ignoreUnavailable()) {
             backwardsCompatibleOptions.add(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS);
@@ -584,7 +589,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         GeneralOptions generalOptions = GeneralOptions.builder()
             .allowClosedIndices(options.contains(Option.ERROR_WHEN_CLOSED_INDICES) == false)
             .allowAliasToMultipleIndices(options.contains(Option.ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES) == false)
-            .ignoreThrottled(options.contains(Option.EXCLUDE_THROTTLED))
+            .ignoreThrottled(options.contains(Option.IGNORE_THROTTLED))
             .build();
         return new IndicesOptions(
             options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)
@@ -743,25 +748,27 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     }
 
     public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
-        if (request.hasParam("ignore_throttled")) {
+        if (request.hasParam(GeneralOptions.IGNORE_THROTTLED)) {
             DEPRECATION_LOGGER.warn(DeprecationCategory.API, "ignore_throttled_param", IGNORE_THROTTLED_DEPRECATION_MESSAGE);
         }
 
         return fromParameters(
-            request.param("expand_wildcards"),
-            request.param("ignore_unavailable"),
-            request.param("allow_no_indices"),
-            request.param("ignore_throttled"),
+            request.param(WildcardOptions.EXPAND_WILDCARDS),
+            request.param(ConcreteTargetOptions.IGNORE_UNAVAILABLE),
+            request.param(WildcardOptions.ALLOW_NO_INDICES),
+            request.param(GeneralOptions.IGNORE_THROTTLED),
             defaultSettings
         );
     }
 
     public static IndicesOptions fromMap(Map<String, Object> map, IndicesOptions defaultSettings) {
         return fromParameters(
-            map.containsKey("expand_wildcards") ? map.get("expand_wildcards") : map.get("expandWildcards"),
-            map.containsKey("ignore_unavailable") ? map.get("ignore_unavailable") : map.get("ignoreUnavailable"),
-            map.containsKey("allow_no_indices") ? map.get("allow_no_indices") : map.get("allowNoIndices"),
-            map.containsKey("ignore_throttled") ? map.get("ignore_throttled") : map.get("ignoreThrottled"),
+            map.containsKey(WildcardOptions.EXPAND_WILDCARDS) ? map.get(WildcardOptions.EXPAND_WILDCARDS) : map.get("expandWildcards"),
+            map.containsKey(ConcreteTargetOptions.IGNORE_UNAVAILABLE)
+                ? map.get(ConcreteTargetOptions.IGNORE_UNAVAILABLE)
+                : map.get("ignoreUnavailable"),
+            map.containsKey(WildcardOptions.ALLOW_NO_INDICES) ? map.get(WildcardOptions.ALLOW_NO_INDICES) : map.get("allowNoIndices"),
+            map.containsKey(GeneralOptions.IGNORE_THROTTLED) ? map.get(GeneralOptions.IGNORE_THROTTLED) : map.get("ignoreThrottled"),
             defaultSettings
         );
     }
@@ -771,13 +778,13 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
      * false otherwise
      */
     public static boolean isIndicesOptions(String name) {
-        return "expand_wildcards".equals(name)
+        return WildcardOptions.EXPAND_WILDCARDS.equals(name)
             || "expandWildcards".equals(name)
-            || "ignore_unavailable".equals(name)
+            || ConcreteTargetOptions.IGNORE_UNAVAILABLE.equals(name)
             || "ignoreUnavailable".equals(name)
-            || "ignore_throttled".equals(name)
+            || GeneralOptions.IGNORE_THROTTLED.equals(name)
             || "ignoreThrottled".equals(name)
-            || "allow_no_indices".equals(name)
+            || WildcardOptions.ALLOW_NO_INDICES.equals(name)
             || "allowNoIndices".equals(name);
     }
 
@@ -811,10 +818,10 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         return builder;
     }
 
-    private static final ParseField EXPAND_WILDCARDS_FIELD = new ParseField("expand_wildcards");
-    private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField("ignore_unavailable");
-    private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField("ignore_throttled").withAllDeprecated();
-    private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField("allow_no_indices");
+    private static final ParseField EXPAND_WILDCARDS_FIELD = new ParseField(WildcardOptions.EXPAND_WILDCARDS);
+    private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField(ConcreteTargetOptions.IGNORE_UNAVAILABLE);
+    private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField(GeneralOptions.IGNORE_THROTTLED).withAllDeprecated();
+    private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField(WildcardOptions.ALLOW_NO_INDICES);
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, null);
@@ -852,7 +859,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                         }
                         wildcards.expandStates(values.toArray(new String[] {}));
                     } else {
-                        throw new ElasticsearchParseException("already parsed expand_wildcards");
+                        throw new ElasticsearchParseException("already parsed " + WildcardOptions.EXPAND_WILDCARDS);
                     }
                 } else {
                     throw new ElasticsearchParseException(
@@ -866,7 +873,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                         wildcards = WildcardOptions.builder();
                         wildcards.expandStates(new String[] { parser.text() });
                     } else {
-                        throw new ElasticsearchParseException("already parsed expand_wildcards");
+                        throw new ElasticsearchParseException("already parsed " + WildcardOptions.EXPAND_WILDCARDS);
                     }
                 } else if (IGNORE_UNAVAILABLE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     ignoreUnavailable = parser.booleanValue();

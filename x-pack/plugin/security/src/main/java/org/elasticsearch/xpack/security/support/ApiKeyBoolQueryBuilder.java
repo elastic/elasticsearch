@@ -129,7 +129,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             return QueryBuilders.matchAllQuery().boost(query.boost()).queryName(query.queryName());
         } else if (qb instanceof final IdsQueryBuilder query) {
             // just be safe and consistent to always return a new copy instance of the translated query builders
-            return QueryBuilders.idsQuery().boost(query.boost()).queryName(query.queryName());
+            return QueryBuilders.idsQuery().addIds(query.ids().toArray(new String[0])).boost(query.boost()).queryName(query.queryName());
         } else if (qb instanceof final TermQueryBuilder query) {
             final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
             fieldNameVisitor.accept(translatedFieldName);

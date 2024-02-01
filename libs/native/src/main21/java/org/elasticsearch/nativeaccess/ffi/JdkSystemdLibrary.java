@@ -14,6 +14,9 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
@@ -22,7 +25,21 @@ import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
 class JdkSystemdLibrary implements SystemdLibrary {
 
     static {
-        System.loadLibrary("systemd");
+        System.load(findLibSystemd());
+    }
+
+    // On some systems libsystemd does not have a non-versioned symlink. System.loadLibrary only knows how to find
+    // non-versioned library files. So we must manually check the library path to find what we need.
+    static String findLibSystemd() {
+        final String libsystemd = "libsystemd.so.0";
+        String libpath = System.getProperty("java.library.path");
+        for (String basepath : libpath.split(":")) {
+            var fullpath = Paths.get(basepath, libsystemd);
+            if (Files.exists(fullpath)) {
+                return fullpath.toAbsolutePath().toString();
+            }
+        }
+        throw new UnsatisfiedLinkError("Could not find " + libsystemd + " in java.library.path: " + libpath);
     }
 
     private static final MethodHandle sd_notify$mh = downcallHandle("sd_notify", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));

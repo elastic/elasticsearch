@@ -1,0 +1,6 @@
+pr: 105023
+summary: "ES|QL: Fix nullability checks on binary operators"
+area: ES|QL
+type: bug
+issues:
+ - 104995

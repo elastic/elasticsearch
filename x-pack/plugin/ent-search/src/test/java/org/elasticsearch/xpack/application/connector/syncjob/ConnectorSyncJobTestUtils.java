@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -124,6 +125,13 @@ public class ConnectorSyncJobTestUtils {
         );
     }
 
+    public static PostConnectorSyncJobAction.Request getRandomPostConnectorSyncJobActionRequest(
+        String connectorId,
+        ConnectorSyncJobType jobType
+    ) {
+        return new PostConnectorSyncJobAction.Request(connectorId, jobType, randomFrom(ConnectorSyncJobTriggerMethod.values()));
+    }
+
     public static PostConnectorSyncJobAction.Response getRandomPostConnectorSyncJobActionResponse() {
         return new PostConnectorSyncJobAction.Response(randomAlphaOfLength(10));
     }
@@ -182,7 +190,8 @@ public class ConnectorSyncJobTestUtils {
         return new ListConnectorSyncJobsAction.Request(
             SearchApplicationTestUtils.randomPageParams(),
             randomAlphaOfLength(10),
-            ConnectorTestUtils.getRandomSyncStatus()
+            ConnectorTestUtils.getRandomSyncStatus(),
+            Collections.singletonList(ConnectorTestUtils.getRandomSyncJobType())
         );
     }
 }

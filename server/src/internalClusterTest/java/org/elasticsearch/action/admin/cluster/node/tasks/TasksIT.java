@@ -534,13 +534,13 @@ public class TasksIT extends ESIntegTestCase {
 
     public void testListTasksWaitForCompletion() throws Exception {
         waitForCompletionTestCase(randomBoolean(), id -> {
-            var waitForWaitingToStart = new CountDownLatch(internalCluster().size());
+            var startedOnAllNodes = new CountDownLatch(internalCluster().size());
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
                 ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
                     @Override
                     public void onTaskRegistered(Task task) {
                         if (Objects.equals(task.getAction(), "cluster:monitor/tasks/lists[n]")) {
-                            waitForWaitingToStart.countDown();
+                            startedOnAllNodes.countDown();
                         }
                     }
                 });
@@ -549,7 +549,7 @@ public class TasksIT extends ESIntegTestCase {
             var future = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).setWaitForCompletion(true).execute();
 
             // This ensures the list task has started on every node and has a chance to see the TEST_TASK_ACTION
-            safeAwait(waitForWaitingToStart);
+            safeAwait(startedOnAllNodes);
 
             // This ensures that a task has progressed to the point of listing all running tasks and subscribing to their updates
             for (var threadPool : internalCluster().getInstances(ThreadPool.class)) {

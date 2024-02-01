@@ -317,7 +317,6 @@ public class Connector implements NamedWriteable, ToXContentObject {
             ConnectorSyncInfo.LAST_SYNC_SCHEDULED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
-        PARSER.declareStringArray();
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : ConnectorSyncStatus.connectorSyncStatus(p.text()),

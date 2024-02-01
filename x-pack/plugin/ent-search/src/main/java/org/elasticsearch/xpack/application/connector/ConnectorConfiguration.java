@@ -222,7 +222,7 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
                 return null;
             }
             throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
-        }, VALUE_FIELD, ObjectParser.ValueType.VALUE);
+        }, VALUE_FIELD, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
     }
 
     @Override

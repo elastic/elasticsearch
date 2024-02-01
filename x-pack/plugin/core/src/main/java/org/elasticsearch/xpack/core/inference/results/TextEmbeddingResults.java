@@ -65,13 +65,13 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
         List<Embedding> embeddings = new ArrayList<>(results.size());
         for (InferenceResults result : results) {
             if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults embeddingResult) {
-                embeddings.add(new Embedding(convertEmbeddingResultToEmbedding(embeddingResult)));
+                embeddings.add(Embedding.of(embeddingResult));
             } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
                 if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
                     throw statusException;
                 } else {
                     throw new ElasticsearchStatusException(
-                        "Received error inference result",
+                        "Received error inference result.",
                         RestStatus.INTERNAL_SERVER_ERROR,
                         errorResult.getException()
                     );
@@ -83,16 +83,6 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
             }
         }
         return new TextEmbeddingResults(embeddings);
-    }
-
-    private static List<Float> convertEmbeddingResultToEmbedding(
-        org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults embeddingResult
-    ) {
-        List<Float> embedding = new ArrayList<>();
-        for (float dim : embeddingResult.getInferenceAsFloat()) {
-            embedding.add(dim);
-        }
-        return embedding;
     }
 
     @Override
@@ -150,6 +140,15 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
 
         public Embedding(StreamInput in) throws IOException {
             this(in.readCollectionAsImmutableList(StreamInput::readFloat));
+        }
+
+        public static Embedding of(org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults embeddingResult) {
+            List<Float> embeddingAsList = new ArrayList<>();
+            float[] embeddingAsArray = embeddingResult.getInferenceAsFloat();
+            for (float dim : embeddingAsArray) {
+                embeddingAsList.add(dim);
+            }
+            return new Embedding(embeddingAsList);
         }
 
         @Override

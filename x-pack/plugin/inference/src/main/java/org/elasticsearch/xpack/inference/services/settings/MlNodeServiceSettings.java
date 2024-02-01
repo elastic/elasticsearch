@@ -8,16 +8,18 @@
 package org.elasticsearch.xpack.inference.services.settings;
 
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public abstract class MlNodeDeployedServiceSettings implements ServiceSettings {
+public abstract class MlNodeServiceSettings implements ServiceSettings {
 
     public static final String NUM_ALLOCATIONS = "num_allocations";
     public static final String NUM_THREADS = "num_threads";
@@ -27,7 +29,7 @@ public abstract class MlNodeDeployedServiceSettings implements ServiceSettings {
     private final int numThreads;
     private final String modelVariant;
 
-    public MlNodeDeployedServiceSettings(int numAllocations, int numThreads, String modelVariant) {
+    public MlNodeServiceSettings(int numAllocations, int numThreads, String modelVariant) {
         this.numAllocations = numAllocations;
         this.numThreads = numThreads;
         this.modelVariant = modelVariant;
@@ -39,13 +41,13 @@ public abstract class MlNodeDeployedServiceSettings implements ServiceSettings {
                 ServiceUtils.missingSettingErrorMsg(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS)
             );
         } else if (numAllocations < 1) {
-            validationException.addValidationError(mustBeAPositiveNumberError(NUM_ALLOCATIONS, numAllocations));
+            validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(NUM_ALLOCATIONS, numAllocations));
         }
 
         if (numThreads == null) {
             validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS));
         } else if (numThreads < 1) {
-            validationException.addValidationError(mustBeAPositiveNumberError(NUM_THREADS, numThreads));
+            validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(NUM_THREADS, numThreads));
         }
     }
 
@@ -64,17 +66,13 @@ public abstract class MlNodeDeployedServiceSettings implements ServiceSettings {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        MlNodeDeployedServiceSettings that = (MlNodeDeployedServiceSettings) o;
+        MlNodeServiceSettings that = (MlNodeServiceSettings) o;
         return numAllocations == that.numAllocations && numThreads == that.numThreads && Objects.equals(modelVariant, that.modelVariant);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(numAllocations, numThreads, modelVariant);
-    }
-
-    public static String mustBeAPositiveNumberError(String settingName, int value) {
-        return "Invalid value [" + value + "]. [" + settingName + "] must be a positive integer";
     }
 
     @Override
@@ -104,7 +102,7 @@ public abstract class MlNodeDeployedServiceSettings implements ServiceSettings {
         private int numThreads;
         private String modelVariant;
 
-        public abstract MlNodeDeployedServiceSettings build();
+        public abstract MlNodeServiceSettings build();
 
         public void setNumAllocations(int numAllocations) {
             this.numAllocations = numAllocations;

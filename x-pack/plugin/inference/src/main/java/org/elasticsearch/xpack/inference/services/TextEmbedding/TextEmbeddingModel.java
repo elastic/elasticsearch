@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.TextEmbedding;
+package org.elasticsearch.xpack.inference.services.textembedding;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.Model;
@@ -16,13 +16,18 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 
 public abstract class TextEmbeddingModel extends Model {
 
-    public TextEmbeddingModel(String inferenceEntityId, TaskType taskType, String service, TextEmbeddingServiceSettings serviceSettings) {
+    public TextEmbeddingModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        TextEmbeddingMlNodeServiceSettings serviceSettings
+    ) {
         super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings));
     }
 
     @Override
-    public TextEmbeddingServiceSettings getServiceSettings() {
-        return (TextEmbeddingServiceSettings) super.getServiceSettings();
+    public TextEmbeddingMlNodeServiceSettings getServiceSettings() {
+        return (TextEmbeddingMlNodeServiceSettings) super.getServiceSettings();
     }
 
     abstract StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest();

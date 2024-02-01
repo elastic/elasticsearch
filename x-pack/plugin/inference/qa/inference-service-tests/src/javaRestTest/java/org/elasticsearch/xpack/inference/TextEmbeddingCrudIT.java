@@ -36,9 +36,9 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
                 TaskType.TEXT_EMBEDDING,
                 List.of("hello world", "this is the second document")
             );
-            assert (((List) ((Map) ((List) results.get("text_embedding")).get(0)).get("embedding")).size() > 1);
+            assertTrue(((List) ((Map) ((List) results.get("text_embedding")).get(0)).get("embedding")).size() > 1);
             // there exists embeddings
-            assert (((List) results.get("text_embedding")).size() == 2);
+            assertTrue(((List) results.get("text_embedding")).size() == 2);
             // there are two sets of embeddings
             deleteTextEmbeddingModel(inferenceEntityId);
         }
@@ -55,9 +55,9 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
             TaskType.TEXT_EMBEDDING,
             List.of("hello world", "this is the second document")
         );
-        assert (((List) ((Map) ((List) results.get("text_embedding")).get(0)).get("embedding")).size() > 1);
+        assertTrue(((List) ((Map) ((List) results.get("text_embedding")).get(0)).get("embedding")).size() > 1);
         // there exists embeddings
-        assert (((List) results.get("text_embedding")).size() == 2);
+        assertTrue(((List) results.get("text_embedding")).size() == 2);
         // there are two sets of embeddings
         deleteTextEmbeddingModel(inferenceEntityId);
     }
@@ -74,9 +74,9 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
                 TaskType.TEXT_EMBEDDING,
                 List.of("hello world", "this is the second document")
             );
-            assert (((List) ((Map) ((List) results.get("text_embedding")).get(0)).get("embedding")).size() > 1);
+            assertTrue(((List) ((Map) ((List) results.get("text_embedding")).get(0)).get("embedding")).size() > 1);
             // there exists embeddings
-            assert (((List) results.get("text_embedding")).size() == 2);
+            assertTrue(((List) results.get("text_embedding")).size() == 2);
             // there are two sets of embeddings
             deleteTextEmbeddingModel(inferenceEntityId);
         } else {
@@ -85,7 +85,6 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
                 () -> putTextEmbeddingModel(inferenceEntityId, TaskType.TEXT_EMBEDDING, platformSpecificModelVariantJsonEntity())
             );
         }
-
     }
 
     public void testPutE5Small_withFakeModelVariant() {

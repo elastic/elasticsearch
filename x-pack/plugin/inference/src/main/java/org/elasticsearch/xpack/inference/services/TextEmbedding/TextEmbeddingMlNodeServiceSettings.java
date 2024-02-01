@@ -7,24 +7,31 @@
  * This file was contributed to by a generative AI
  */
 
-package org.elasticsearch.xpack.inference.services.TextEmbedding;
+package org.elasticsearch.xpack.inference.services.textembedding;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.xpack.inference.services.settings.MlNodeDeployedServiceSettings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.inference.services.settings.MlNodeServiceSettings;
+
+import java.io.IOException;
 
 import static org.elasticsearch.TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
 
-public class TextEmbeddingServiceSettings extends MlNodeDeployedServiceSettings {
+public class TextEmbeddingMlNodeServiceSettings extends MlNodeServiceSettings {
 
     public static final String NAME = "text_embedding_service_settings";
 
-    public TextEmbeddingServiceSettings(int numAllocations, int numThreads, String modelVariant) {
+    public TextEmbeddingMlNodeServiceSettings(int numAllocations, int numThreads, String modelVariant) {
         super(numAllocations, numThreads, modelVariant);
+    }
+
+    public TextEmbeddingMlNodeServiceSettings(StreamInput in) throws IOException {
+        super(in.readVInt(), in.readVInt(), in.readString());
     }
 
     @Override
     public String getWriteableName() {
-        return TextEmbeddingServiceSettings.NAME;
+        return TextEmbeddingMlNodeServiceSettings.NAME;
     }
 
     @Override

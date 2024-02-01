@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.TextEmbedding;
+package org.elasticsearch.xpack.inference.services.textembedding;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
-import org.elasticsearch.xpack.inference.services.settings.MlNodeDeployedServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.MlNodeServiceSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,9 +41,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
-import static org.elasticsearch.xpack.inference.services.TextEmbedding.MultilingualE5SmallServiceSettings.MODEL_VARIANTS;
+import static org.elasticsearch.xpack.inference.services.textembedding.MultilingualE5SmallMlNodeServiceSettings.MODEL_VARIANTS;
 
-public class TextEmbeddingService implements InferenceService {
+public class TextEmbeddingMlNodeService implements InferenceService {
 
     public static final String NAME = "text_embedding";
 
@@ -52,7 +52,7 @@ public class TextEmbeddingService implements InferenceService {
 
     private final OriginSettingClient client;
 
-    public TextEmbeddingService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public TextEmbeddingMlNodeService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
     }
 
@@ -65,7 +65,7 @@ public class TextEmbeddingService implements InferenceService {
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
-        var e5ServiceSettings = MultilingualE5SmallServiceSettings.fromMap(serviceSettingsMap);
+        var e5ServiceSettings = MultilingualE5SmallMlNodeServiceSettings.fromMap(serviceSettingsMap);
 
         if (e5ServiceSettings.getModelVariant() == null) {
             e5ServiceSettings.setModelVariant(selectDefaultModelVersionBasedOnClusterArchitecture(platformArchitectures));
@@ -80,18 +80,19 @@ public class TextEmbeddingService implements InferenceService {
         }
 
         throwIfNotEmptyMap(config, name());
+        throwIfNotEmptyMap(serviceSettingsMap, name());
 
         return new MultilingualE5SmallModel(
             inferenceEntityId,
             taskType,
             NAME,
-            (MultilingualE5SmallServiceSettings) e5ServiceSettings.build()
+            (MultilingualE5SmallMlNodeServiceSettings) e5ServiceSettings.build()
         );
     }
 
     private static boolean modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(
         Set<String> platformArchitectures,
-        MlNodeDeployedServiceSettings.Builder e5ServiceSettings
+        MlNodeServiceSettings.Builder e5ServiceSettings
     ) {
         return e5ServiceSettings.getModelVariant()
             .equals(selectDefaultModelVersionBasedOnClusterArchitecture(platformArchitectures)) == false
@@ -112,7 +113,7 @@ public class TextEmbeddingService implements InferenceService {
     public TextEmbeddingModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
-        var e5ServiceSettings = MultilingualE5SmallServiceSettings.fromMap(serviceSettingsMap);
+        var e5ServiceSettings = MultilingualE5SmallMlNodeServiceSettings.fromMap(serviceSettingsMap);
 
         if (e5ServiceSettings.getModelVariant() == null || MODEL_VARIANTS.contains(e5ServiceSettings.getModelVariant()) == false) {
             throw new IllegalArgumentException(
@@ -126,7 +127,7 @@ public class TextEmbeddingService implements InferenceService {
             inferenceEntityId,
             taskType,
             NAME,
-            (MultilingualE5SmallServiceSettings) e5ServiceSettings.build()
+            (MultilingualE5SmallMlNodeServiceSettings) e5ServiceSettings.build()
         );
     }
 

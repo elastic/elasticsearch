@@ -7,7 +7,7 @@
  * this file was contributed to by a generative AI
  */
 
-package org.elasticsearch.xpack.inference.services.TextEmbedding;
+package org.elasticsearch.xpack.inference.services.textembedding;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -25,14 +25,14 @@ public class MultilingualE5SmallModel extends TextEmbeddingModel {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        MultilingualE5SmallServiceSettings serviceSettings
+        MultilingualE5SmallMlNodeServiceSettings serviceSettings
     ) {
         super(inferenceEntityId, taskType, service, serviceSettings);
     }
 
     @Override
-    public MultilingualE5SmallServiceSettings getServiceSettings() {
-        return (MultilingualE5SmallServiceSettings) super.getServiceSettings();
+    public MultilingualE5SmallMlNodeServiceSettings getServiceSettings() {
+        return (MultilingualE5SmallMlNodeServiceSettings) super.getServiceSettings();
     }
 
     @Override

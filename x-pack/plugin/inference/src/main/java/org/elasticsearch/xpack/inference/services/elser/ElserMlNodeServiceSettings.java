@@ -13,13 +13,13 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.settings.MlNodeDeployedServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.MlNodeServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class ElserMlNodeServiceSettings extends MlNodeDeployedServiceSettings {
+public class ElserMlNodeServiceSettings extends MlNodeServiceSettings {
 
     public static final String NAME = "elser_mlnode_service_settings";
 
@@ -48,7 +48,7 @@ public class ElserMlNodeServiceSettings extends MlNodeDeployedServiceSettings {
             throw validationException;
         }
 
-        var builder = new MlNodeDeployedServiceSettings.Builder() {
+        var builder = new MlNodeServiceSettings.Builder() {
             @Override
             public ElserMlNodeServiceSettings build() {
                 return new ElserMlNodeServiceSettings(getNumAllocations(), getNumThreads(), getModelVariant());

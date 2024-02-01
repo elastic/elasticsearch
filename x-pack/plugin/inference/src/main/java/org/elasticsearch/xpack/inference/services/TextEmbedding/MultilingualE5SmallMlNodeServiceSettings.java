@@ -7,7 +7,7 @@
  * this file was contributed to by a generative AI
  */
 
-package org.elasticsearch.xpack.inference.services.TextEmbedding;
+package org.elasticsearch.xpack.inference.services.textembedding;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
@@ -15,23 +15,28 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.settings.MlNodeDeployedServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.MlNodeServiceSettings;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
-import static org.elasticsearch.xpack.inference.services.TextEmbedding.TextEmbeddingService.MULTILINGUAL_E5_SMALL_MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.TextEmbedding.TextEmbeddingService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
+import static org.elasticsearch.xpack.inference.services.textembedding.TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.textembedding.TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 
-public class MultilingualE5SmallServiceSettings extends TextEmbeddingServiceSettings {
+public class MultilingualE5SmallMlNodeServiceSettings extends TextEmbeddingMlNodeServiceSettings {
 
     public static final String NAME = "multilingual_e5_small_service_settings";
-    public static final List<String> MODEL_VARIANTS = List.of(MULTILINGUAL_E5_SMALL_MODEL_ID, MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86);
+    public static final Set<String> MODEL_VARIANTS = Set.of(MULTILINGUAL_E5_SMALL_MODEL_ID, MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86);
 
-    public MultilingualE5SmallServiceSettings(int numAllocations, int numThreads, String modelVariant) {
+    public MultilingualE5SmallMlNodeServiceSettings(int numAllocations, int numThreads, String modelVariant) {
         super(numAllocations, numThreads, modelVariant);
+    }
+
+    public MultilingualE5SmallMlNodeServiceSettings(StreamInput in) throws IOException {
+        super(in.readVInt(), in.readVInt(), in.readString());
     }
 
     /**
@@ -43,7 +48,7 @@ public class MultilingualE5SmallServiceSettings extends TextEmbeddingServiceSett
      * @param map Source map containing the config
      * @return The {@code MultilingualE5SmallServiceSettings} builder
      */
-    public static MultilingualE5SmallServiceSettings.Builder fromMap(Map<String, Object> map) {
+    public static MultilingualE5SmallMlNodeServiceSettings.Builder fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
         Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
         Integer numThreads = ServiceUtils.removeAsType(map, NUM_THREADS, Integer.class);
@@ -53,7 +58,12 @@ public class MultilingualE5SmallServiceSettings extends TextEmbeddingServiceSett
         String version = ServiceUtils.removeAsType(map, MODEL_VERSION, String.class);
         if (version != null) {
             if (MODEL_VARIANTS.contains(version) == false) {
-                validationException.addValidationError("unknown Multilingual-E5-Small model version [" + version + "]");
+                validationException.addValidationError(
+                    "unknown Multilingual-E5-Small model version ["
+                        + version
+                        + "]. Valid variants are "
+                        + Arrays.toString(MODEL_VARIANTS.toArray())
+                );
             }
         }
 
@@ -61,10 +71,10 @@ public class MultilingualE5SmallServiceSettings extends TextEmbeddingServiceSett
             throw validationException;
         }
 
-        var builder = new MlNodeDeployedServiceSettings.Builder() {
+        var builder = new MlNodeServiceSettings.Builder() {
             @Override
-            public MultilingualE5SmallServiceSettings build() {
-                return new MultilingualE5SmallServiceSettings(getNumAllocations(), getNumThreads(), getModelVariant());
+            public MultilingualE5SmallMlNodeServiceSettings build() {
+                return new MultilingualE5SmallMlNodeServiceSettings(getNumAllocations(), getNumThreads(), getModelVariant());
             }
         };
         builder.setNumAllocations(numAllocations);
@@ -78,10 +88,6 @@ public class MultilingualE5SmallServiceSettings extends TextEmbeddingServiceSett
         return super.toXContent(builder, params);
     }
 
-    public MultilingualE5SmallServiceSettings(StreamInput in) throws IOException {
-        super(in.readVInt(), in.readVInt(), in.readString());
-    }
-
     @Override
     public boolean isFragment() {
         return super.isFragment();
@@ -89,7 +95,7 @@ public class MultilingualE5SmallServiceSettings extends TextEmbeddingServiceSett
 
     @Override
     public String getWriteableName() {
-        return MultilingualE5SmallServiceSettings.NAME;
+        return MultilingualE5SmallMlNodeServiceSettings.NAME;
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -667,7 +668,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
         try (var service = new OpenAiService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(mockModel, List.of(""), new HashMap<>(), listener);
+            service.infer(mockModel, List.of(""), new HashMap<>(), InputType.INGEST, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -713,7 +714,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, List.of("abc"), new HashMap<>(), listener);
+            service.infer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -787,7 +788,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, List.of("abc"), new HashMap<>(), listener);
+            service.infer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));

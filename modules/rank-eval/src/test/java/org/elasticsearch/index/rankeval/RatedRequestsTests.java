@@ -110,6 +110,8 @@ public class RatedRequestsTests extends ESTestCase {
     }
 
     public void testXContentRoundtrip() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/104570", Constants.WINDOWS);
+
         RatedRequest testItem = createTestItem(randomBoolean());
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
@@ -264,6 +266,8 @@ public class RatedRequestsTests extends ESTestCase {
     }
 
     public void testSuggestionsNotAllowed() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/104570", Constants.WINDOWS);
+
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         SearchSourceBuilder query = new SearchSourceBuilder();
         query.suggest(new SuggestBuilder().addSuggestion("id", SuggestBuilders.completionSuggestion("fieldname")));
@@ -302,6 +306,8 @@ public class RatedRequestsTests extends ESTestCase {
      * matter for parsing xContent
      */
     public void testParseFromXContent() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/104570", Constants.WINDOWS);
+
         String querySpecString = """
             {
               "id": "my_qa_query",

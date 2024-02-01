@@ -16,23 +16,19 @@ import java.io.IOException;
 
 /**
  * Specific instance of QueryPhaseExecutionException that indicates that a search timeout occurred.
- * Always returns http status 408 (request timeout)
+ * Always returns http status 405 (Gateway Timeout)
  */
 public class QueryPhaseTimeoutException extends QueryPhaseExecutionException {
-    public QueryPhaseTimeoutException(SearchShardTarget shardTarget, String msg, Throwable cause) {
-        super(shardTarget, "Query Failed [" + msg + "]", cause);
+    public QueryPhaseTimeoutException(SearchShardTarget shardTarget, String msg) {
+        super(shardTarget, msg);
     }
 
     public QueryPhaseTimeoutException(StreamInput in) throws IOException {
         super(in);
     }
 
-    public QueryPhaseTimeoutException(SearchShardTarget shardTarget, String msg) {
-        super(shardTarget, msg);
-    }
-
     @Override
     public RestStatus status() {
-        return RestStatus.REQUEST_TIMEOUT;
+        return RestStatus.GATEWAY_TIMEOUT;
     }
 }

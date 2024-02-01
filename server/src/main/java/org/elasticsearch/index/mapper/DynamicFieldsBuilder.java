@@ -307,8 +307,9 @@ final class DynamicFieldsBuilder {
             this.parseField = parseField;
         }
 
-        boolean createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
-            Mapper mapper = builder.build(context.createDynamicMapperBuilderContext());
+        boolean createDynamicField(Mapper.Builder builder, DocumentParserContext context, MapperBuilderContext mapperBuilderContext)
+            throws IOException {
+            Mapper mapper = builder.build(mapperBuilderContext);
             if (context.addDynamicMapper(mapper)) {
                 parseField.accept(context, mapper);
                 return true;
@@ -317,14 +318,27 @@ final class DynamicFieldsBuilder {
             }
         }
 
+        boolean createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
+            return createDynamicField(builder, context, context.createDynamicMapperBuilderContext());
+        }
+
         @Override
         public boolean newDynamicStringField(DocumentParserContext context, String name) throws IOException {
-            return createDynamicField(
-                new TextFieldMapper.Builder(name, context.indexAnalyzers()).addMultiField(
-                    new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
-                ),
-                context
-            );
+            MapperBuilderContext mapperBuilderContext = context.createDynamicMapperBuilderContext();
+            if (mapperBuilderContext.parentObjectContainsDimensions()) {
+                return createDynamicField(
+                    new KeywordFieldMapper.Builder(name, context.indexSettings().getIndexVersionCreated()),
+                    context,
+                    mapperBuilderContext
+                );
+            } else {
+                return createDynamicField(
+                    new TextFieldMapper.Builder(name, context.indexAnalyzers()).addMultiField(
+                        new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
+                    ),
+                    context
+                );
+            }
         }
 
         @Override

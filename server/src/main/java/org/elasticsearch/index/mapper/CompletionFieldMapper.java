@@ -327,7 +327,7 @@ public class CompletionFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new ArraySourceValueFetcher(concreteFieldName(), context) {
+            return new ArraySourceValueFetcher(name(), context) {
                 @Override
                 protected List<?> parseSourceValue(Object value) {
                     if (value instanceof List) {

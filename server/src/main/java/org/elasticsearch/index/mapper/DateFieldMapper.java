@@ -522,7 +522,7 @@ public final class DateFieldMapper extends FieldMapper {
             if (scriptValues != null) {
                 return FieldValues.valueFetcher(scriptValues, v -> format((long) v, formatter), context);
             }
-            return new SourceValueFetcher(concreteFieldName(), context, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 public String parseSourceValue(Object value) {
                     String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
@@ -804,7 +804,7 @@ public final class DateFieldMapper extends FieldMapper {
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(concreteFieldName());
 
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
-                    concreteFieldName(),
+                    name(),
                     resolution.numericType().getValuesSourceType(),
                     sourceValueFetcher(sourcePaths),
                     searchLookup,

@@ -74,7 +74,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(concreteFieldName(), context, DEFAULT_VALUE) {
+            return new SourceValueFetcher(name(), context, DEFAULT_VALUE) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if ("".equals(value)) {

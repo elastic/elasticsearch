@@ -370,7 +370,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(concreteFieldName());
 
                 return new SourceValueFetcherSortedUnsignedLongIndexFieldData.Builder(
-                    concreteFieldName(),
+                    name(),
                     valuesSourceType,
                     sourceValueFetcher(sourcePaths),
                     searchLookup,

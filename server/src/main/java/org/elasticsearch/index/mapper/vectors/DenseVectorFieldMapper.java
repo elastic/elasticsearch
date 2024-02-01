@@ -997,7 +997,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     "Field [" + concreteFieldName() + "] of type [" + typeName() + "] doesn't support formats."
                 );
             }
-            return new ArraySourceValueFetcher(concreteFieldName(), context) {
+            return new ArraySourceValueFetcher(name(), context) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return value;

@@ -1695,12 +1695,7 @@ public class NumberFieldMapper extends FieldMapper {
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(concreteFieldName());
-                return type.getValueFetcherFieldDataBuilder(
-                    concreteFieldName(),
-                    valuesSourceType,
-                    searchLookup,
-                    sourceValueFetcher(sourcePaths)
-                );
+                return type.getValueFetcherFieldDataBuilder(name(), valuesSourceType, searchLookup, sourceValueFetcher(sourcePaths));
             }
 
             throw new IllegalStateException("unknown field data type [" + operation.name() + "]");

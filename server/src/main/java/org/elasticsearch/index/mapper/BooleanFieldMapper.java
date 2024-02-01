@@ -283,7 +283,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(concreteFieldName());
 
                 return new SourceValueFetcherSortedBooleanIndexFieldData.Builder(
-                    concreteFieldName(),
+                    name(),
                     CoreValuesSourceType.BOOLEAN,
                     sourceValueFetcher(sourcePaths),
                     searchLookup,

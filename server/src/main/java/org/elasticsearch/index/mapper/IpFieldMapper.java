@@ -262,7 +262,7 @@ public class IpFieldMapper extends FieldMapper {
             if (scriptValues != null) {
                 return FieldValues.valueFetcher(scriptValues, v -> InetAddresses.toAddrString((InetAddress) v), context);
             }
-            return new SourceValueFetcher(concreteFieldName(), context, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     InetAddress address;

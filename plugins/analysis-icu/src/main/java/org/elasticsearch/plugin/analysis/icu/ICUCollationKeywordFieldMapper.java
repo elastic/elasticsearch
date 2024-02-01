@@ -96,7 +96,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 );
             }
 
-            return new SourceValueFetcher(concreteFieldName(), context, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();

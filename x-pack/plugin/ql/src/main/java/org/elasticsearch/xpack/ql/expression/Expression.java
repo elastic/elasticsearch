@@ -69,8 +69,6 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     private Expression lazyCanonical = null;
     private AttributeSet lazyReferences = null;
 
-    private boolean verifyOptimizedPlan = false;
-
     public Expression(Source source, List<Expression> children) {
         super(source, children);
     }
@@ -192,17 +190,5 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     @Override
     public String propertiesToString(boolean skipIfChild) {
         return super.propertiesToString(false);
-    }
-
-    public boolean getVerifyOptimizedPlan() {
-        return verifyOptimizedPlan;
-    }
-
-    public void setVerifyOptimizedPlan() {
-        verifyOptimizedPlan = true;
-    }
-
-    public TypeResolution verifyOptimizedPlan() {
-        return TypeResolution.TYPE_RESOLVED;
     }
 }

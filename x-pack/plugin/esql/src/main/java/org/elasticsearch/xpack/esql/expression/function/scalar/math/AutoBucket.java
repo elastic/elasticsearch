@@ -199,7 +199,6 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         if (resolution.unresolved()) {
             return resolution;
         }
-        setVerifyOptimizedPlan();
         resolution = checkThirdAndForth.apply(from, THIRD);
         if (resolution.unresolved()) {
             return resolution;
@@ -267,14 +266,5 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
     @Override
     public String toString() {
         return "AutoBucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + '}';
-    }
-
-    @Override
-    public TypeResolution verifyOptimizedPlan() {
-        TypeResolution resolution = isFoldable(from, sourceText(), THIRD);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        return isFoldable(to, sourceText(), FOURTH);
     }
 }

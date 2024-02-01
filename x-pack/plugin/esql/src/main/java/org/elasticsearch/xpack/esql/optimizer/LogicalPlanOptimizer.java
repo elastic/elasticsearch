@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.AutoBucket;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -71,7 +72,6 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -84,6 +84,9 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FOURTH;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
@@ -1393,23 +1396,25 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     /**
      * Verify that a {@link LogicalPlan} can be executed.
      *
-     * @param plan The logical plan to be verified
-     * @return a collection of verification failures; empty if and only if the plan is valid
+     * @param plan The logical plan to be verified.
+     * @return a collection of verification failures; empty if and only if the plan is valid.
      *
-     * The following verifications on an optimized logical plan are supported:
-     * 1. EVAL with AUTO_BUCKET expression, its from and to should be foldable
+     * The following verifications on an optimized logical plan are supported, it can be extended to other situations:
+     * 1. AUTO_BUCKET expression's from and to should be foldable.
      */
     LogicalPlan verify(LogicalPlan plan) throws VerificationException {
-        Collection<Failure> failures = new LinkedHashSet<>();
+        Set<Failure> failures = new LinkedHashSet<>();
         plan.forEachUp(p -> {
-            if (p instanceof Eval) {
-                p.forEachExpression(e -> {
-                    if (e.getVerifyOptimizedPlan()) {
-                        Expression.TypeResolution resolution = e.verifyOptimizedPlan();
-                        if (resolution.unresolved()) failures.add(fail(e, resolution.message()));
-                    }
-                });
-            }
+            p.forEachExpression(AutoBucket.class, e -> {
+                Expression.TypeResolution resolution = isFoldable(e.from(), e.sourceText(), THIRD);
+                if (resolution.unresolved()) {
+                    failures.add(fail(e, resolution.message()));
+                }
+                resolution = isFoldable(e.to(), e.sourceText(), FOURTH);
+                if (resolution.unresolved()) {
+                    failures.add(fail(e, resolution.message()));
+                }
+            });
         });
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);

@@ -35,10 +35,19 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+/**
+ * Performs inference on a {@link BulkShardRequest}, updating the source of each document with the inference results.
+ */
 public class BulkShardRequestInferenceProvider {
 
+
+     // Root field name for storing inference results
     public static final String ROOT_INFERENCE_FIELD = "_semantic_text_inference";
+
+     // Contains the original text for the field
     public static final String TEXT_SUBFIELD_NAME = "text";
+
+     // Contains the inference result when it's a sparse vector
     public static final String SPARSE_VECTOR_SUBFIELD_NAME = "sparse_embedding";
 
     private final ClusterState clusterState;
@@ -56,7 +65,7 @@ public class BulkShardRequestInferenceProvider {
         this.inferenceProvidersMap = inferenceProvidersMap;
     }
 
-    public static void getInferenceProvider(
+    public static void getInstance(
         InferenceServiceRegistry inferenceServiceRegistry,
         ModelRegistry modelRegistry,
         ClusterState clusterState,
@@ -117,16 +126,8 @@ public class BulkShardRequestInferenceProvider {
         }
 
         Runnable onInferenceComplete = () -> {
-            // We need to remove items that have had an inference error, as the response will have been updated already
-            // and we don't need to process them further
-            BulkShardRequest errorsFilteredShardRequest = new BulkShardRequest(
-                bulkShardRequest.shardId(),
-                bulkShardRequest.getRefreshPolicy(),
-                Arrays.stream(bulkShardRequest.items()).filter(Objects::nonNull).toArray(BulkItemRequest[]::new)
-            );
-            listener.onResponse(errorsFilteredShardRequest);
+            listener.onResponse(bulkShardRequest);
         };
-
         try (var bulkItemReqRef = new RefCountingRunnable(onInferenceComplete)) {
             for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
                 performInferenceOnBulkItemRequest(

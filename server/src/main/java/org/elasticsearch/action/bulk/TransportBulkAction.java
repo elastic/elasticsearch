@@ -77,6 +77,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -755,7 +756,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return;
             }
 
-            BulkShardRequestInferenceProvider.getInferenceProvider(inferenceServiceRegistry, modelRegistry, clusterState,
+            BulkShardRequestInferenceProvider.getInstance(inferenceServiceRegistry, modelRegistry, clusterState,
                 requestsByShard.keySet(),
                 new ActionListener<BulkShardRequestInferenceProvider>() {
                     @Override
@@ -808,7 +809,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         new ActionListener<>() {
                             @Override
                             public void onResponse(BulkShardRequest bulkShardRequest) {
-                                executeBulkShardRequest(bulkShardRequest, ActionListener.releaseAfter(ActionListener.noop(), ref),
+                                // We need to remove items that have had an inference error, as the response will have been updated already
+                                // and we don't need to process them further
+                                BulkShardRequest errorsFilteredShardRequest = new BulkShardRequest(
+                                    bulkShardRequest.shardId(),
+                                    bulkShardRequest.getRefreshPolicy(),
+                                    Arrays.stream(bulkShardRequest.items()).filter(Objects::nonNull).toArray(BulkItemRequest[]::new)
+                                );
+                                executeBulkShardRequest(errorsFilteredShardRequest, ActionListener.releaseAfter(ActionListener.noop(), ref),
                                     bulkItemFailedListener);
                             }
 
@@ -823,6 +831,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
+        // When an item fails, store the failure in the responses array
         private void markBulkItemRequestFailed(BulkShardRequest shardRequest, BulkItemRequest itemRequest, Exception e) {
             final String indexName = itemRequest.index();
 
@@ -830,7 +839,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
             responses.set(itemRequest.id(), BulkItemResponse.failure(itemRequest.id(), docWriteRequest.opType(), failure));
 
-            // make sure the request gets never processed again
+            // make sure the request gets never processed again, removing the item from the shard request
             shardRequest.items()[itemRequest.id()] = null;
         }
 

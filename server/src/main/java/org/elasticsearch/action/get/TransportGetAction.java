@@ -192,9 +192,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         throws IOException {
         ShardId shardId = indexShard.shardId();
         if (request.refresh()) {
-            var node = getCurrentNodeOfPrimary(clusterService.state(), shardId);
-            if (node == null) {
-                listener.onFailure(new NoShardAvailableActionException(shardId, "primary shard is not active"));
+            DiscoveryNode node;
+            try {
+                node = getCurrentNodeOfPrimary(clusterService.state(), shardId);
+            } catch (Exception e) {
+                listener.onFailure(e);
                 return;
             }
             logger.trace("send refresh action for shard {} to node {}", shardId, node.getId());
@@ -259,9 +261,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
     private void tryGetFromTranslog(GetRequest request, IndexShard indexShard, ClusterState state, ActionListener<GetResponse> listener) {
         ShardId shardId = indexShard.shardId();
-        var node = getCurrentNodeOfPrimary(state, shardId);
-        if (node == null) {
-            listener.onFailure(new NoShardAvailableActionException(shardId, "primary shard is not active"));
+        DiscoveryNode node;
+        try {
+            node = getCurrentNodeOfPrimary(state, shardId);
+        } catch (Exception e) {
+            listener.onFailure(e);
             return;
         }
         TransportGetFromTranslogAction.Request getFromTranslogRequest = new TransportGetFromTranslogAction.Request(request, shardId);
@@ -300,7 +304,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     static DiscoveryNode getCurrentNodeOfPrimary(ClusterState clusterState, ShardId shardId) {
         var shardRoutingTable = clusterState.routingTable().shardRoutingTable(shardId);
         if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
-            return null;
+            throw new NoShardAvailableActionException(shardId, "primary shard is not active");
         }
         DiscoveryNode node = clusterState.nodes().get(shardRoutingTable.primaryShard().currentNodeId());
         assert node != null;

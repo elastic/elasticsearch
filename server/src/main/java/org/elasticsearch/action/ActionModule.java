@@ -1019,7 +1019,8 @@ public class ActionModule extends AbstractModule {
                 indexScopedSettings,
                 settingsFilter,
                 indexNameExpressionResolver,
-                nodesInCluster
+                nodesInCluster,
+                clusterSupportsFeature
             )) {
                 registerHandler.accept(handler);
             }

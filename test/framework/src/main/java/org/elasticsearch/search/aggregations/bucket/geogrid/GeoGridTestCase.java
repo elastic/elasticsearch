@@ -119,11 +119,6 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
     }
 
     @Override
-    protected Class<ParsedGeoGrid> implementationClass() {
-        return ParsedGeoGrid.class;
-    }
-
-    @Override
     protected T mutateInstance(T instance) {
         String name = instance.getName();
         int size = instance.getRequiredSize();

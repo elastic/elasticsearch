@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 /**
@@ -25,6 +24,6 @@ public class HasPrivilegesAction extends ActionType<HasPrivilegesResponse> {
     );
 
     private HasPrivilegesAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 }

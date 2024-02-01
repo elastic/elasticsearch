@@ -22,7 +22,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
 
     public static final String NAME = "indices:data/read/scroll/clear";
 
-    public static final ActionType<ClearScrollResponse> TYPE = new ActionType<>(NAME, ClearScrollResponse::new);
+    public static final ActionType<ClearScrollResponse> TYPE = new ActionType<>(NAME);
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
 

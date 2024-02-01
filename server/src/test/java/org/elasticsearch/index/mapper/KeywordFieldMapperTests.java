@@ -658,7 +658,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
+    protected Function<Object, Object> loadBlockExpected() {
         return v -> ((BytesRef) v).utf8ToString();
     }
 

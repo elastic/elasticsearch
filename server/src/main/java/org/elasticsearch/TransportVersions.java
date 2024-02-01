@@ -168,6 +168,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED = def(8_581_00_0);
     public static final TransportVersion ASYNC_SEARCH_STATUS_SUPPORTS_KEEP_ALIVE = def(8_582_00_0);
     public static final TransportVersion KNN_QUERY_NUMCANDS_AS_OPTIONAL_PARAM = def(8_583_00_0);
+    public static final TransportVersion TRANSFORM_GET_BASIC_STATS = def(8_584_00_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

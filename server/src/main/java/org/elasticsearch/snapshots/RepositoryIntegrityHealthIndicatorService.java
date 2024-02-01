@@ -53,8 +53,6 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
 
     public static final String NAME = "repository_integrity";
 
-    public static final String HELP_URL = "https://ela.st/fix-repository-integrity";
-
     public static final String NO_REPOS_CONFIGURED = "No snapshot repositories configured.";
     public static final String ALL_REPOS_HEALTHY = "All repositories are healthy.";
 
@@ -73,14 +71,14 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         "Multiple clusters are writing to the same repository.",
         "Remove the repository from the other cluster(s), or mark it as read-only in the other cluster(s), and then re-add the repository"
             + " to this cluster.",
-        HELP_URL
+        "https://ela.st/fix-repository-integrity#diagnosing-corrupted-repositories"
     );
     public static final Diagnosis.Definition UNKNOWN_DEFINITION = new Diagnosis.Definition(
         NAME,
         "unknown_repository",
         "The repository uses an unknown type.",
         "Ensure that all required plugins are installed on the affected nodes.",
-        HELP_URL
+        "https://ela.st/fix-repository-integrity#diagnosing-unknown-repositories"
     );
     public static final Diagnosis.Definition INVALID_DEFINITION = new Diagnosis.Definition(
         NAME,
@@ -89,7 +87,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         """
             Make sure all nodes in the cluster are in sync with each other.\
             Refer to the nodes’ logs for detailed information on why the repository initialization failed.""",
-        HELP_URL
+        "https://ela.st/fix-repository-integrity#diagnosing-invalid-repositories"
     );
 
     private final ClusterService clusterService;

@@ -1,8 +1,11 @@
 [[add-repository]]
-== Multiple deployments writing to the same snapshot repository
+== Troubleshooting broken repositories
 
-Multiple {es} deployments are writing to the same snapshot repository. {es} doesn't 
-support this configuration and only one cluster is allowed to write to the same 
+[[diagnosing-corrupted-repositories]]
+=== Diagnosing corrupted repositories
+
+Multiple {es} deployments are writing to the same snapshot repository. {es} doesn't
+support this configuration and only one cluster is allowed to write to the same
 repository. See <<snapshot-repository-contents>> for potential side-effects of
 corruption of the repository contents, which may not be resolved by the following
 guide.
@@ -11,3 +14,20 @@ other deployments, and re-add (recreate) the repository in the current deploymen
 
 include::{es-repo-dir}/tab-widgets/troubleshooting/snapshot/corrupt-repository-widget.asciidoc[]
 
+
+[[diagnosing-unknown-repositories]]
+=== Diagnosing unknown repositories
+
+When a snapshot repository is marked as "unknown", it means that an {es} node is
+unable to instantiate the repository due to an unknown repository type. This is
+usually caused by a missing plugin on the node. Make sure each node in the cluster
+has the required plugins.
+
+
+[[diagnosing-invalid-repositories]]
+=== Diagnosing invalid repositories
+
+When an {es} node faces an unexpected exception when trying to instantiate a snapshot
+repository, it will mark the repository as "invalid" and write a warning to the log file.
+Please refer to the logs of the affected node(s) for more information on the exact
+reason that caused the unexpected exception.

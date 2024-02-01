@@ -136,6 +136,12 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String concreteFieldName() {
+            // constant_keyword are not indexed in lucene
+            return null;
+        }
+
+        @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (value == null) {
                 return BlockLoader.CONSTANT_NULLS;

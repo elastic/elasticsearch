@@ -326,12 +326,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (textFieldType.isSyntheticSource()) {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(storedFieldNameForSyntheticSource());
             }
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(concreteFieldName()));
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             // MatchOnlyText never has norms, so we have to use the field names field
-            BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromFieldNames(
-                blContext.fieldNames(),
-                concreteFieldName()
-            );
+            BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, lookup);
         }
 
@@ -353,7 +350,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 };
             }
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
-                concreteFieldName(),
+                name(),
                 CoreValuesSourceType.KEYWORD,
                 SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(concreteFieldName())),
                 fieldDataContext.lookupSupplier().get(),

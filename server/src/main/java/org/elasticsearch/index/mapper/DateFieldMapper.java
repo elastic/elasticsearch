@@ -778,9 +778,9 @@ public final class DateFieldMapper extends FieldMapper {
                 return new BlockDocValuesReader.LongsBlockLoader(concreteFieldName());
             }
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
-                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), concreteFieldName())
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher(blContext.sourcePaths(concreteFieldName())), lookup);
+            return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
         }
 
         @Override

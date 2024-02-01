@@ -592,7 +592,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(concreteFieldName());
             }
-            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(concreteFieldName()));
+            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
         }
 
@@ -601,7 +601,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return BlockSourceReader.lookupFromNorms(concreteFieldName());
             }
             if (isIndexed() || isStored()) {
-                return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), concreteFieldName());
+                return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
             }
             return BlockSourceReader.lookupMatchingAll();
         }
@@ -643,7 +643,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(concreteFieldName());
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
-                concreteFieldName(),
+                name(),
                 CoreValuesSourceType.KEYWORD,
                 sourceValueFetcher(sourcePaths),
                 fieldDataContext.lookupSupplier().get(),

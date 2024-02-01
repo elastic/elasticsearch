@@ -1009,7 +1009,7 @@ public final class TextFieldMapper extends FieldMapper {
                  */
                 return null;
             }
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(concreteFieldName()));
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
         }
 
@@ -1025,7 +1025,7 @@ public final class TextFieldMapper extends FieldMapper {
             } else if (isStored() == false) {
                 return BlockSourceReader.lookupMatchingAll();
             }
-            return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), concreteFieldName());
+            return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
         }
 
         @Override
@@ -1091,7 +1091,7 @@ public final class TextFieldMapper extends FieldMapper {
                 );
             }
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
-                concreteFieldName(),
+                name(),
                 CoreValuesSourceType.KEYWORD,
                 SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(concreteFieldName())),
                 fieldDataContext.lookupSupplier().get(),

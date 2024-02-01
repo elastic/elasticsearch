@@ -324,7 +324,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return new BlockDocValuesReader.LongsBlockLoader(concreteFieldName());
             }
-            ValueFetcher valueFetcher = new SourceValueFetcher(blContext.sourcePaths(concreteFieldName()), nullValueFormatted) {
+            ValueFetcher valueFetcher = new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -334,7 +334,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             };
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
-                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), concreteFieldName())
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup);
         }

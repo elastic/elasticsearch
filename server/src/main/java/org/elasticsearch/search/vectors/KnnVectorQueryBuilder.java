@@ -182,7 +182,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 throw new IllegalArgumentException(
                     "["
                         + NUM_CANDS_FIELD.getPreferredName()
-                        + "] field was a mandatory field in previous releases and is required to be non-null by some nodes in this cluster. Please make sure to provide the parameter as part of the request."
+                        + "] field was mandatory in previous releases "
+                        + "and is required to be non-null by some nodes in this cluster. "
+                        + "Please make sure to provide the parameter as part of the request."
                 );
             } else {
                 out.writeVInt(numCands);

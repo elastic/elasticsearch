@@ -421,21 +421,6 @@ public class ElasticsearchAssertions {
         assertThat(retrievedDocsCount, equalTo(expectedTotalHitCount));
     }
 
-    public static void assertScrollResponsesAndHitCount(
-        TimeValue keepAlive,
-        SearchRequestBuilder searchRequestBuilder,
-        int expectedTotalHitCount,
-        BiConsumer<Integer, SearchResponse> responseConsumer
-    ) {
-        assertScrollResponsesAndHitCount(
-            client(),
-            keepAlive,
-            searchRequestBuilder,
-            expectedTotalHitCount,
-            responseConsumer
-        );
-    }
-
     public static <R extends ActionResponse> void assertResponse(ActionFuture<R> responseFuture, Consumer<R> consumer)
         throws ExecutionException, InterruptedException {
         var res = responseFuture.get();

@@ -315,11 +315,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().value == null) {
-            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(
-                fieldType().concreteFieldName(),
-                value,
-                fieldType().meta()
-            );
+            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
             Mapper update = new ConstantKeywordFieldMapper(simpleName(), newFieldType);
             context.addDynamicMapper(update);
         } else if (Objects.equals(fieldType().value, value) == false) {

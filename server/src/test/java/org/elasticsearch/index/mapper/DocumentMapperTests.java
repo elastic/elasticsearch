@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -348,9 +349,13 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     public void testTooManyDimensionFields() {
         int max;
         Settings settings;
+        String dimensionErrorSuffix = "";
         if (randomBoolean()) {
-            max = 21; // By default no more than 21 dimensions per document are supported
-            settings = getIndexSettings();
+            max = 1000; // By default no more than 1000 dimensions per document are supported
+            settings = Settings.builder()
+                .put(getIndexSettings())
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), max)
+                .build();
         } else {
             max = between(1, 10000);
             settings = Settings.builder()
@@ -358,6 +363,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), max)
                 .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), max + 1)
                 .build();
+            dimensionErrorSuffix = "dimension ";
         }
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createMapperService(settings, mapping(b -> {
             for (int i = 0; i <= max; i++) {
@@ -367,7 +373,10 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                     .endObject();
             }
         })));
-        assertThat(e.getMessage(), containsString("Limit of total dimension fields [" + max + "] has been exceeded"));
+        assertThat(
+            e.getMessage(),
+            containsString(String.format(Locale.ROOT, "Limit of total %sfields [" + max + "] has been exceeded", dimensionErrorSuffix))
+        );
     }
 
     public void testDeeplyNestedMapping() throws Exception {

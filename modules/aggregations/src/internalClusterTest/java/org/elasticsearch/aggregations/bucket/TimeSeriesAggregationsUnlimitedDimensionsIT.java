@@ -12,6 +12,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
@@ -33,41 +34,39 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-
-public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
+public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationIntegTestCase {
     private static int numberOfDimensions;
     private static int numberOfDocuments;
 
-    private static final String FOO_DIM_VALUE = "foo".repeat(10);
-    private static final String BAR_DIM_VALUE = "bar".repeat(11);
-    private static final String BAZ_DIM_VALUE = "baz".repeat(12);
-
     @Before
     public void setup() throws Exception {
-        numberOfDimensions = randomIntBetween(10, 20);
+        numberOfDimensions = randomIntBetween(25, 99);
         final XContentBuilder mapping = timeSeriesIndexMapping();
         long startMillis = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
-        long endMillis = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-31T00:00:00Z");
+        long endMillis = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-02T00:00:00Z");
         numberOfDocuments = randomIntBetween(100, 200);
         final Iterator<Long> timestamps = getTimestamps(startMillis, endMillis, numberOfDocuments);
         // NOTE: use also the last (changing) dimension so to make sure documents are not indexed all in the same shard.
-        final String[] routingDimensions = new String[] { "dim_000000", formatDim(numberOfDimensions - 1) };
+        final String[] routingDimensions = new String[] { "dim_0", "dim_" + (numberOfDimensions - 1) };
         assertTrue(prepareTimeSeriesIndex(mapping, startMillis, endMillis, routingDimensions).isAcknowledged());
+
         logger.info("Dimensions: " + numberOfDimensions + " docs: " + numberOfDocuments + " start: " + startMillis + " end: " + endMillis);
+
+        // NOTE: we need the tsid to be larger than 32 Kb
+        final String fooDimValue = "foo_" + randomAlphaOfLengthBetween(2048, 2048 + 128);
+        final String barDimValue = "bar_" + randomAlphaOfLengthBetween(2048, 2048 + 256);
+        final String bazDimValue = "baz_" + randomAlphaOfLengthBetween(2048, 2048 + 512);
 
         final BulkRequestBuilder bulkIndexRequest = client().prepareBulk();
         for (int docId = 0; docId < numberOfDocuments; docId++) {
-            final XContentBuilder document = timeSeriesDocument(FOO_DIM_VALUE, BAR_DIM_VALUE, BAZ_DIM_VALUE, docId, timestamps::next);
-            bulkIndexRequest.add(prepareIndex("index").setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
+            final XContentBuilder document = timeSeriesDocument(fooDimValue, barDimValue, bazDimValue, docId, timestamps::next);
+            bulkIndexRequest.add(client().prepareIndex("index").setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
         }
-
-        final BulkResponse bulkIndexResponse = bulkIndexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        BulkResponse bulkIndexResponse = bulkIndexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertFalse(bulkIndexResponse.hasFailures());
         assertEquals(RestStatus.OK.getStatus(), client().admin().indices().prepareFlush("index").get().getStatus().getStatus());
     }
@@ -85,9 +84,9 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
         // This way we are going to have just two time series (and two distinct tsid) and the last dimension identifies
         // which time series the document belongs to.
         for (int dimId = 0; dimId < numberOfDimensions - 1; dimId++) {
-            docSource.field(formatDim(dimId), fooDimValue);
+            docSource.field("dim_" + dimId, fooDimValue);
         }
-        docSource.field(formatDim(numberOfDimensions - 1), docId % 2 == 0 ? barDimValue : bazDimValue);
+        docSource.field("dim_" + (numberOfDimensions - 1), docId % 2 == 0 ? barDimValue : bazDimValue);
         docSource.field("counter_metric", docId + 1);
         docSource.field("gauge_metric", randomDoubleBetween(1000.0, 2000.0, true));
         docSource.field("@timestamp", timestampSupplier.get());
@@ -128,7 +127,7 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
         builder.startObject();
         builder.startObject("properties");
         for (int i = 0; i < numberOfDimensions; i++) {
-            builder.startObject(formatDim(i));
+            builder.startObject("dim_" + i);
             builder.field("type", "keyword");
             builder.field("time_series_dimension", true);
             builder.endObject();
@@ -146,62 +145,67 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
         return builder;
     }
 
-    private static String formatDim(int dimId) {
-        return String.format(Locale.ROOT, "dim_%06d", dimId);
-    }
-
     public void testTimeSeriesAggregation() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts");
-        assertResponse(prepareSearch("index").addAggregation(timeSeries).setSize(0), response -> {
-            final InternalTimeSeries ts = (InternalTimeSeries) response.getAggregations().asList().get(0);
-            assertTimeSeriesAggregation(ts);
-        });
+        final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
+        try {
+            assertTimeSeriesAggregation((InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0));
+        } finally {
+            aggregationResponse.decRef();
+        }
     }
 
     public void testSumByTsid() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts").subAggregation(
             new SumAggregationBuilder("sum").field("gauge_metric")
         );
-        assertResponse(
-            prepareSearch("index").setQuery(new MatchAllQueryBuilder()),
-            response -> assertNotEquals(numberOfDocuments, response.getHits().getHits().length)
-        );
-
-        assertResponse(prepareSearch("index").addAggregation(timeSeries).setSize(0), response -> {
-            final InternalTimeSeries ts = (InternalTimeSeries) response.getAggregations().asList().get(0);
-            assertTimeSeriesAggregation(ts);
-        });
+        final SearchResponse searchResponse = client().prepareSearch("index").setQuery(new MatchAllQueryBuilder()).get();
+        assertNotEquals(numberOfDocuments, searchResponse.getHits().getHits().length);
+        final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
+        try {
+            assertTimeSeriesAggregation((InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0));
+        } finally {
+            searchResponse.decRef();
+            aggregationResponse.decRef();
+        }
     }
 
     public void testTermsByTsid() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts").subAggregation(
             new TermsAggregationBuilder("terms").field("dim_0")
         );
-        assertResponse(prepareSearch("index").addAggregation(timeSeries).setSize(0), response -> {
-            final InternalTimeSeries ts = (InternalTimeSeries) response.getAggregations().asList().get(0);
-            assertTimeSeriesAggregation(ts);
-        });
+        final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
+        try {
+            assertTimeSeriesAggregation((InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0));
+        } finally {
+            aggregationResponse.decRef();
+        }
     }
 
     public void testDateHistogramByTsid() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts").subAggregation(
-            new DateHistogramAggregationBuilder("date_histogram").field("@timestamp").calendarInterval(DateHistogramInterval.HOUR)
+            new DateHistogramAggregationBuilder("date_histogram").field("@timestamp").calendarInterval(DateHistogramInterval.MINUTE)
         );
-        assertResponse(prepareSearch("index").addAggregation(timeSeries).setSize(0), response -> {
-            final InternalTimeSeries ts = (InternalTimeSeries) response.getAggregations().asList().get(0);
-            assertTimeSeriesAggregation(ts);
-        });
+        final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
+        try {
+            assertTimeSeriesAggregation((InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0));
+        } finally {
+            aggregationResponse.decRef();
+        }
     }
 
     public void testCardinalityByTsid() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts").subAggregation(
-            new CardinalityAggregationBuilder("dim_n_cardinality").field(formatDim(numberOfDimensions - 1))
+            new CardinalityAggregationBuilder("dim_n_cardinality").field("dim_" + (numberOfDimensions - 1))
         );
-        assertResponse(prepareSearch("index").addAggregation(timeSeries).setSize(0), response -> {
-            final InternalTimeSeries ts = (InternalTimeSeries) response.getAggregations().asList().get(0);
-            assertTimeSeriesAggregation(ts);
-            ts.getBuckets().forEach(bucket -> { assertCardinality(bucket.getAggregations().get("dim_n_cardinality"), 1); });
-        });
+        final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
+        try {
+            ((InternalTimeSeries) aggregationResponse.getAggregations().get("ts")).getBuckets().forEach(bucket -> {
+                assertCardinality(bucket.getAggregations().get("dim_n_cardinality"), 1);
+            });
+        } finally {
+            aggregationResponse.decRef();
+        }
     }
 
     private static void assertTimeSeriesAggregation(final InternalTimeSeries timeSeriesAggregation) {

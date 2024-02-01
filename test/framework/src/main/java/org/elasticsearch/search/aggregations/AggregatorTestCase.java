@@ -383,7 +383,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
             () -> true,
             valuesSourceRegistry,
             emptyMap()
-        );
+        ) {
+            @Override
+            public Iterable<MappedFieldType> dimensionFields() {
+                return Arrays.stream(fieldTypes).filter(MappedFieldType::isDimension).toList();
+            }
+        };
 
         AggregationContext context = new ProductionAggregationContext(
             Optional.ofNullable(analysisModule).map(AnalysisModule::getAnalysisRegistry).orElse(null),

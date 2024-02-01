@@ -133,8 +133,8 @@ created the data stream:
 ---
 fetch the tsid:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.12.99"
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:
@@ -147,13 +147,13 @@ fetch the tsid:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
+  - match: {hits.hits.0.fields._tsid: [ "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o" ]}
 
 ---
 "aggregate the tsid":
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.12.99"
+      reason: _tsid hahing introduced in 8.13
 
   - do:
       search:
@@ -168,9 +168,9 @@ fetch the tsid:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: {k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset: pod}}
+  - match: {aggregations.tsids.buckets.1.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---

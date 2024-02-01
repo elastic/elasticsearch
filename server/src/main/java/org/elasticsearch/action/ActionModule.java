@@ -677,7 +677,7 @@ public class ActionModule extends AbstractModule {
         actions.register(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
         actions.register(ResizeAction.INSTANCE, TransportResizeAction.class);
         actions.register(RolloverAction.INSTANCE, TransportRolloverAction.class);
-        actions.register(AutoRolloverAction.INSTANCE, AutoRolloverAction.TransportAction.class);
+        actions.register(AutoRolloverAction.INSTANCE, AutoRolloverAction.TransportAutoRolloverAction.class);
         actions.register(TransportDeleteIndexAction.TYPE, TransportDeleteIndexAction.class);
         actions.register(GetIndexAction.INSTANCE, TransportGetIndexAction.class);
         actions.register(OpenIndexAction.INSTANCE, TransportOpenIndexAction.class);

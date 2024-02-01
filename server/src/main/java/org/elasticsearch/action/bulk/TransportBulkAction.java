@@ -49,7 +49,6 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
@@ -430,7 +429,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }, refs.acquire()));
             }
             for (String dataStream : dataStreamsToBeRolledOver) {
-                rolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
+                autoRolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
 
                     @Override
                     public void onResponse(RolloverResponse result) {
@@ -439,8 +438,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // - A request had conditions that were not met
                         // Since none of the above apply, getting a response with rolled_over false is considered a bug
                         // that should be caught here and inform the developer.
-                        assert result.isRolledOver()
-                            : "An successful unconditional rollover should always result in a rolled over data stream";
+                        assert result.isRolledOver() : "An successful auto rollover should always result in a rolled over data stream";
                     }
 
                     @Override
@@ -568,9 +566,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
     }
 
-    void rolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {
+    void autoRolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
         rolloverRequest.masterNodeTimeout(timeout);
+        // We are executing an auto-rollover because it can be executed with the auto_configure privilege, while
+        // RolloverAction requires higher privileges that a user who is just writing a document might not have.
         client.execute(AutoRolloverAction.INSTANCE, rolloverRequest, listener);
     }
 

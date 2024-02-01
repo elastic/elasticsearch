@@ -47,10 +47,10 @@ public final class AutoRolloverAction extends ActionType<RolloverResponse> {
         return NAME;
     }
 
-    public static final class TransportAction extends TransportRolloverAction {
+    public static final class TransportAutoRolloverAction extends TransportRolloverAction {
 
         @Inject
-        public TransportAction(
+        public TransportAutoRolloverAction(
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
@@ -83,6 +83,12 @@ public final class AutoRolloverAction extends ActionType<RolloverResponse> {
             ActionListener<RolloverResponse> listener
         ) throws Exception {
             assert task instanceof CancellableTask;
+
+            assert rolloverRequest.getConditions().hasConditions() == false
+                && rolloverRequest.isDryRun() == false
+                && rolloverRequest.isLazy() == false
+                : "The auto rollover action does not expect any other parameters in the request apart from the data stream name";
+
             Metadata metadata = clusterState.metadata();
             // We evaluate the names of the source index as well as what our newly created index would be.
             final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
@@ -109,7 +115,14 @@ public final class AutoRolloverAction extends ActionType<RolloverResponse> {
             );
 
             String source = "auto_rollover source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
-            RolloverTask rolloverTask = new RolloverTask(rolloverRequest, null, trialRolloverResponse, listener);
+            // We create a new rollover request to ensure that it doesn't contain any other parameters apart from the data stream name
+            // This will provide a more resilient user experience
+            RolloverTask rolloverTask = new RolloverTask(
+                new RolloverRequest(rolloverRequest.getRolloverTarget(), null),
+                null,
+                trialRolloverResponse,
+                listener
+            );
             submitRolloverTask(rolloverRequest, source, rolloverTask);
         }
     }

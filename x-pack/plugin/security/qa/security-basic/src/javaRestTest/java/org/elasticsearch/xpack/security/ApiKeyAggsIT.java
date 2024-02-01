@@ -142,7 +142,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_user_keys")).get("buckets")).get(2).get("doc_count"),
                 is(2)
             );
-            // other
+            // the "other" bucket
             assertThat(
                 ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_user_keys")).get("buckets")).get(3).get("doc_count"),
                 is(0)

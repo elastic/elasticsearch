@@ -104,7 +104,7 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
             if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
                 accessesApiKeyTypeField.set(true);
             }
-        }, filteringAuthentication));
+        }));
 
         // only add the query-level runtime field to the search request if it's actually referring the "type" field
         if (accessesApiKeyTypeField.get()) {

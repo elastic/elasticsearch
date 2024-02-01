@@ -25,16 +25,16 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder.translateQueryFields;
 
 public class ApiKeyAggregationsBuilder {
 
     public static AggregatorFactories.Builder process(
         @Nullable AggregatorFactories.Builder aggsBuilder,
-        @Nullable Consumer<String> fieldNameVisitor,
-        @Nullable Authentication filteringAuthentication
+        @Nullable Consumer<String> fieldNameVisitor
     ) {
         if (aggsBuilder == null) {
             return null;
@@ -46,17 +46,13 @@ public class ApiKeyAggregationsBuilder {
         AggregatorFactories.Builder copiedAggsBuilder = AggregatorFactories.builder();
         for (AggregationBuilder aggregationBuilder : aggsBuilder.getAggregatorFactories()) {
             copiedAggsBuilder.addAggregator(
-                doProcess(aggregationBuilder, fieldNameVisitor != null ? fieldNameVisitor : ignored -> {}, filteringAuthentication)
+                translateAggsFields(aggregationBuilder, fieldNameVisitor != null ? fieldNameVisitor : ignored -> {})
             );
         }
         return copiedAggsBuilder;
     }
 
-    private static AggregationBuilder doProcess(
-        AggregationBuilder aggsBuilder,
-        Consumer<String> fieldNameVisitor,
-        @Nullable Authentication filteringAuthentication
-    ) {
+    private static AggregationBuilder translateAggsFields(AggregationBuilder aggsBuilder, Consumer<String> fieldNameVisitor) {
         return AggregationBuilder.copy(aggsBuilder, copiedAggsBuilder -> {
             // Most of these can be supported without much hassle, but they're not useful for the identified use cases so far
             for (PipelineAggregationBuilder pipelineAggregator : copiedAggsBuilder.getPipelineAggregations()) {
@@ -104,7 +100,7 @@ public class ApiKeyAggregationsBuilder {
                 // filters the aggregation query to user's allowed API Keys only
                 FilterAggregationBuilder newFilterAggregationBuilder = new FilterAggregationBuilder(
                     filterAggregationBuilder.getName(),
-                    ApiKeyBoolQueryBuilder.build(filterAggregationBuilder.getFilter(), fieldNameVisitor, filteringAuthentication)
+                    translateQueryFields(filterAggregationBuilder.getFilter(), fieldNameVisitor)
                 );
                 newFilterAggregationBuilder.setMetadata(filterAggregationBuilder.getMetadata());
                 for (AggregationBuilder subAgg : filterAggregationBuilder.getSubAggregations()) {
@@ -115,11 +111,7 @@ public class ApiKeyAggregationsBuilder {
                 // filters the aggregation's bucket queries to user's allowed API Keys only
                 QueryBuilder[] filterQueryBuilders = new QueryBuilder[filtersAggregationBuilder.filters().size()];
                 for (int i = 0; i < filtersAggregationBuilder.filters().size(); i++) {
-                    filterQueryBuilders[i] = ApiKeyBoolQueryBuilder.build(
-                        filtersAggregationBuilder.filters().get(i).filter(),
-                        fieldNameVisitor,
-                        filteringAuthentication
-                    );
+                    filterQueryBuilders[i] = translateQueryFields(filtersAggregationBuilder.filters().get(i).filter(), fieldNameVisitor);
                 }
                 final FiltersAggregationBuilder newFiltersAggregationBuilder;
                 if (filtersAggregationBuilder.isKeyed()) {

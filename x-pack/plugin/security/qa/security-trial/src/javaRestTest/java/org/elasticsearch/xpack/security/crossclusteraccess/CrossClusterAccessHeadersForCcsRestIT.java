@@ -1148,24 +1148,24 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     capturedHeaders.add(
                         new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                     );
-                    channel.sendResponse(
-                        new SearchResponse(
-                            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-                            InternalAggregations.EMPTY,
-                            null,
-                            false,
-                            null,
-                            null,
-                            1,
-                            null,
-                            1,
-                            1,
-                            0,
-                            100,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
-                        )
+                    var searchResponse = new SearchResponse(
+                        SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                        InternalAggregations.EMPTY,
+                        null,
+                        false,
+                        null,
+                        null,
+                        1,
+                        null,
+                        1,
+                        1,
+                        0,
+                        100,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY
                     );
+                    channel.sendResponse(searchResponse);
+                    searchResponse.decRef();
                 }
             );
             service.start();

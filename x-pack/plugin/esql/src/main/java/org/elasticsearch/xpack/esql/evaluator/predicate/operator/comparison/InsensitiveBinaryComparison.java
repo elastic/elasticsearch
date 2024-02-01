@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -21,6 +22,11 @@ public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction {
     @Override
     public DataType dataType() {
         return DataTypes.BOOLEAN;
+    }
+
+    @Override
+    public Nullability nullable() {
+        return Nullability.TRUE;
     }
 
 }

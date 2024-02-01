@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -37,5 +38,10 @@ public class RLike extends org.elasticsearch.xpack.ql.expression.predicate.regex
     @Override
     protected TypeResolution resolveType() {
         return isString(field(), sourceText(), DEFAULT);
+    }
+
+    @Override
+    public Nullability nullable() {
+        return Nullability.TRUE;
     }
 }

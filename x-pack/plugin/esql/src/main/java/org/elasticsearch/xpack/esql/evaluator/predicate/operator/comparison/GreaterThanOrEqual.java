@@ -10,6 +10,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -74,4 +75,10 @@ public class GreaterThanOrEqual extends org.elasticsearch.xpack.ql.expression.pr
     static boolean processKeywords(BytesRef lhs, BytesRef rhs) {
         return lhs.compareTo(rhs) >= 0;
     }
+
+    @Override
+    public Nullability nullable() {
+        return Nullability.TRUE;
+    }
+
 }

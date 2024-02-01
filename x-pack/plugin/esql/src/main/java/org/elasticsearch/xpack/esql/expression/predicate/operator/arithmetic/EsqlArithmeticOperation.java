@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -134,4 +135,10 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
         }
         throw new EsqlIllegalArgumentException("Unsupported type " + leftType);
     }
+
+    @Override
+    public Nullability nullable() {
+        return Nullability.TRUE;
+    }
+
 }

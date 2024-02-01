@@ -880,6 +880,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // reset the reroute flag, at the start of a new pipeline execution this document hasn't been rerouted yet
         ingestDocument.resetReroute();
         final String originalIndex = indexRequest.indices()[0];
+        final Consumer<Exception> exceptionHandler = (Exception e) -> {
+            if (shouldStoreFailure.test(originalIndex)) {
+                listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, e));
+            } else {
+                listener.onFailure(e);
+            }
+        };
 
         try {
             if (pipeline == null) {
@@ -899,11 +906,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         ),
                         e
                     );
-                    if (shouldStoreFailure.test(originalIndex)) {
-                        listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, e));
-                    } else {
-                        listener.onFailure(e);
-                    }
+                    exceptionHandler.accept(e);
                     return; // document failed!
                 }
 
@@ -923,20 +926,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 } catch (IllegalArgumentException ex) {
                     // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
                     // In that case, we catch and wrap the exception, so we can include more details
-                    Exception wrappedException = new IllegalArgumentException(
-                        format(
-                            "Failed to generate the source document for ingest pipeline [%s] for document [%s/%s]",
-                            pipelineId,
-                            indexRequest.index(),
-                            indexRequest.id()
-                        ),
-                        ex
+                    exceptionHandler.accept(
+                        new IllegalArgumentException(
+                            format(
+                                "Failed to generate the source document for ingest pipeline [%s] for document [%s/%s]",
+                                pipelineId,
+                                indexRequest.index(),
+                                indexRequest.id()
+                            ),
+                            ex
+                        )
                     );
-                    if (shouldStoreFailure.test(originalIndex)) {
-                        listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, wrappedException));
-                    } else {
-                        listener.onFailure(wrappedException);
-                    }
                     return; // document failed!
                 }
 
@@ -946,20 +946,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (Objects.equals(originalIndex, newIndex) == false) {
                     // final pipelines cannot change the target index (either directly or by way of a reroute)
                     if (isFinalPipeline) {
-                        Exception ex = new IllegalStateException(
-                            format(
-                                "final pipeline [%s] can't change the target index (from [%s] to [%s]) for document [%s]",
-                                pipelineId,
-                                originalIndex,
-                                newIndex,
-                                indexRequest.id()
+                        exceptionHandler.accept(
+                            new IllegalStateException(
+                                format(
+                                    "final pipeline [%s] can't change the target index (from [%s] to [%s]) for document [%s]",
+                                    pipelineId,
+                                    originalIndex,
+                                    newIndex,
+                                    indexRequest.id()
+                                )
                             )
                         );
-                        if (shouldStoreFailure.test(originalIndex)) {
-                            listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, ex));
-                        } else {
-                            listener.onFailure(ex);
-                        }
                         return; // document failed!
                     }
 
@@ -968,19 +965,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     if (cycle) {
                         List<String> indexCycle = new ArrayList<>(ingestDocument.getIndexHistory());
                         indexCycle.add(newIndex);
-                        Exception ex = new IllegalStateException(
-                            format(
-                                "index cycle detected while processing pipeline [%s] for document [%s]: %s",
-                                pipelineId,
-                                indexRequest.id(),
-                                indexCycle
+                        exceptionHandler.accept(
+                            new IllegalStateException(
+                                format(
+                                    "index cycle detected while processing pipeline [%s] for document [%s]: %s",
+                                    pipelineId,
+                                    indexRequest.id(),
+                                    indexCycle
+                                )
                             )
                         );
-                        if (shouldStoreFailure.test(originalIndex)) {
-                            listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, ex));
-                        } else {
-                            listener.onFailure(ex);
-                        }
                         return; // document failed!
                     }
 
@@ -1011,11 +1005,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 () -> format("failed to execute pipeline [%s] for document [%s/%s]", pipelineId, indexRequest.index(), indexRequest.id()),
                 e
             );
-            if (shouldStoreFailure.test(originalIndex)) {
-                listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, e));
-            } else {
-                listener.onFailure(e); // document failed!
-            }
+            exceptionHandler.accept(e); // document failed
         }
     }
 

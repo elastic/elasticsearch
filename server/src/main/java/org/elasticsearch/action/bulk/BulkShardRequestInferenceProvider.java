@@ -24,7 +24,6 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelRegistry;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -40,27 +39,26 @@ import java.util.stream.Collectors;
  */
 public class BulkShardRequestInferenceProvider {
 
-
-     // Root field name for storing inference results
+    // Root field name for storing inference results
     public static final String ROOT_INFERENCE_FIELD = "_semantic_text_inference";
 
-     // Contains the original text for the field
+    // Contains the original text for the field
     public static final String TEXT_SUBFIELD_NAME = "text";
 
-     // Contains the inference result when it's a sparse vector
+    // Contains the inference result when it's a sparse vector
     public static final String SPARSE_VECTOR_SUBFIELD_NAME = "sparse_embedding";
 
     private final ClusterState clusterState;
     private final Map<String, InferenceProvider> inferenceProvidersMap;
 
-    private record InferenceProvider (Model model, InferenceService service) {
+    private record InferenceProvider(Model model, InferenceService service) {
         private InferenceProvider {
             Objects.requireNonNull(model);
             Objects.requireNonNull(service);
         }
     }
 
-    private BulkShardRequestInferenceProvider(ClusterState clusterState, Map<String, InferenceProvider> inferenceProvidersMap) {
+    BulkShardRequestInferenceProvider(ClusterState clusterState, Map<String, InferenceProvider> inferenceProvidersMap) {
         this.clusterState = clusterState;
         this.inferenceProvidersMap = inferenceProvidersMap;
     }
@@ -89,10 +87,7 @@ public class BulkShardRequestInferenceProvider {
                         var service = inferenceServiceRegistry.getService(unparsedModel.service());
                         if (service.isEmpty() == false) {
                             InferenceProvider inferenceProvider = new InferenceProvider(
-                                service.get().parsePersistedConfig(
-                                    inferenceId,
-                                    unparsedModel.taskType(),
-                                    unparsedModel.settings()),
+                                service.get().parsePersistedConfig(inferenceId, unparsedModel.taskType(), unparsedModel.settings()),
                                 service.get()
                             );
                             inferenceProviderMap.put(inferenceId, inferenceProvider);
@@ -125,17 +120,10 @@ public class BulkShardRequestInferenceProvider {
             return;
         }
 
-        Runnable onInferenceComplete = () -> {
-            listener.onResponse(bulkShardRequest);
-        };
+        Runnable onInferenceComplete = () -> { listener.onResponse(bulkShardRequest); };
         try (var bulkItemReqRef = new RefCountingRunnable(onInferenceComplete)) {
             for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
-                performInferenceOnBulkItemRequest(
-                    bulkItemRequest,
-                    fieldsForModels,
-                    onBulkItemFailure,
-                    bulkItemReqRef.acquire()
-                );
+                performInferenceOnBulkItemRequest(bulkItemRequest, fieldsForModels, onBulkItemFailure, bulkItemReqRef.acquire());
             }
         }
     }
@@ -216,8 +204,10 @@ public class BulkShardRequestInferenceProvider {
 
                             // TODO Check inference result type to change subfield name
                             var inferenceFieldMap = Map.of(
-                                SPARSE_VECTOR_SUBFIELD_NAME, inferenceResults.asMap("output").get("output"),
-                                TEXT_SUBFIELD_NAME, docMap.get(fieldName)
+                                SPARSE_VECTOR_SUBFIELD_NAME,
+                                inferenceResults.asMap("output").get("output"),
+                                TEXT_SUBFIELD_NAME,
+                                docMap.get(fieldName)
                             );
                             inferenceFieldResultList.add(inferenceFieldMap);
                         }
@@ -228,12 +218,14 @@ public class BulkShardRequestInferenceProvider {
                         onBulkItemFailure.accept(bulkItemRequest, e);
                     }
                 };
-                inferenceProvider.service().infer(
-                    inferenceProvider.model,
-                    inferenceFieldNames.stream().map(docMap::get).map(String::valueOf).collect(Collectors.toList()),
-                    // TODO check for additional settings needed
-                    Map.of(),
-                    ActionListener.releaseAfter(inferenceResultsListener, docRef.acquire()));
+                inferenceProvider.service()
+                    .infer(
+                        inferenceProvider.model,
+                        inferenceFieldNames.stream().map(docMap::get).map(String::valueOf).collect(Collectors.toList()),
+                        // TODO check for additional settings needed
+                        Map.of(),
+                        ActionListener.releaseAfter(inferenceResultsListener, docRef.acquire())
+                    );
             }
         }
     }

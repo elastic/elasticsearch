@@ -129,10 +129,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        @Nullable
-        InferenceServiceRegistry inferenceServiceRegistry,
-        @Nullable
-        ModelRegistry modelRegistry
+        @Nullable InferenceServiceRegistry inferenceServiceRegistry,
+        @Nullable ModelRegistry modelRegistry
     ) {
         this(
             threadPool,
@@ -161,10 +159,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider,
-        @Nullable
-        InferenceServiceRegistry inferenceServiceRegistry,
-        @Nullable
-        ModelRegistry modelRegistry
+        @Nullable InferenceServiceRegistry inferenceServiceRegistry,
+        @Nullable ModelRegistry modelRegistry
     ) {
         this(
             BulkAction.INSTANCE,
@@ -197,10 +193,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider,
-        @Nullable
-        InferenceServiceRegistry inferenceServiceRegistry,
-        @Nullable
-        ModelRegistry modelRegistry
+        @Nullable InferenceServiceRegistry inferenceServiceRegistry,
+        @Nullable ModelRegistry modelRegistry
     ) {
         super(bulkAction.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         Objects.requireNonNull(relativeTimeProvider);
@@ -756,7 +750,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return;
             }
 
-            BulkShardRequestInferenceProvider.getInstance(inferenceServiceRegistry, modelRegistry, clusterState,
+            BulkShardRequestInferenceProvider.getInstance(
+                inferenceServiceRegistry,
+                modelRegistry,
+                clusterState,
                 requestsByShard.keySet(),
                 new ActionListener<BulkShardRequestInferenceProvider>() {
                     @Override
@@ -772,8 +769,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             );
         }
 
-        private void processRequestsByShards(Map<ShardId, List<BulkItemRequest>> requestsByShard, ClusterState clusterState,
-                                             BulkShardRequestInferenceProvider bulkShardRequestInferenceProvider) {
+        private void processRequestsByShards(
+            Map<ShardId, List<BulkItemRequest>> requestsByShard,
+            ClusterState clusterState,
+            BulkShardRequestInferenceProvider bulkShardRequestInferenceProvider
+        ) {
             Runnable onBulkItemsComplete = () -> {
                 listener.onResponse(
                     new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
@@ -785,18 +785,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                     final ShardId shardId = entry.getKey();
                     final List<BulkItemRequest> requests = entry.getValue();
-
-                    BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                        shardId,
-                        bulkRequest.getRefreshPolicy(),
-                        requests.toArray(new BulkItemRequest[0])
-                    );
-                    bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-                    bulkShardRequest.timeout(bulkRequest.timeout());
-                    bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
-                    if (task != null) {
-                        bulkShardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                    }
+                    BulkShardRequest bulkShardRequest = createBulkShardRequest(clusterState, shardId, requests);
 
                     Releasable ref = bulkItemRequestCompleteRefCount.acquire();
                     final BiConsumer<BulkItemRequest, Exception> bulkItemFailedListener = (itemReq, e) -> markBulkItemRequestFailed(
@@ -804,31 +793,45 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         itemReq,
                         e
                     );
-                    bulkShardRequestInferenceProvider.processBulkShardRequest(
-                        bulkShardRequest,
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(BulkShardRequest bulkShardRequest) {
-                                // We need to remove items that have had an inference error, as the response will have been updated already
-                                // and we don't need to process them further
-                                BulkShardRequest errorsFilteredShardRequest = new BulkShardRequest(
-                                    bulkShardRequest.shardId(),
-                                    bulkShardRequest.getRefreshPolicy(),
-                                    Arrays.stream(bulkShardRequest.items()).filter(Objects::nonNull).toArray(BulkItemRequest[]::new)
-                                );
-                                executeBulkShardRequest(errorsFilteredShardRequest, ActionListener.releaseAfter(ActionListener.noop(), ref),
-                                    bulkItemFailedListener);
-                            }
+                    bulkShardRequestInferenceProvider.processBulkShardRequest(bulkShardRequest, new ActionListener<>() {
+                        @Override
+                        public void onResponse(BulkShardRequest bulkShardRequest) {
+                            // We need to remove items that have had an inference error, as the response will have been updated already
+                            // and we don't need to process them further
+                            BulkShardRequest errorsFilteredShardRequest = new BulkShardRequest(
+                                bulkShardRequest.shardId(),
+                                bulkShardRequest.getRefreshPolicy(),
+                                Arrays.stream(bulkShardRequest.items()).filter(Objects::nonNull).toArray(BulkItemRequest[]::new)
+                            );
+                            executeBulkShardRequest(
+                                errorsFilteredShardRequest,
+                                ActionListener.releaseAfter(ActionListener.noop(), ref),
+                                bulkItemFailedListener
+                            );
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                throw new ElasticsearchException("Error performing inference", e);
-                            }
-                        },
-                        bulkItemFailedListener
-                    );
+                        @Override
+                        public void onFailure(Exception e) {
+                            throw new ElasticsearchException("Error performing inference", e);
+                        }
+                    }, bulkItemFailedListener);
                 }
             }
+        }
+
+        private BulkShardRequest createBulkShardRequest(ClusterState clusterState, ShardId shardId, List<BulkItemRequest> requests) {
+            BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                shardId,
+                bulkRequest.getRefreshPolicy(),
+                requests.toArray(new BulkItemRequest[0])
+            );
+            bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+            bulkShardRequest.timeout(bulkRequest.timeout());
+            bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
+            if (task != null) {
+                bulkShardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+            }
+            return bulkShardRequest;
         }
 
         // When an item fails, store the failure in the responses array
@@ -843,8 +846,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             shardRequest.items()[itemRequest.id()] = null;
         }
 
-        private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, ActionListener<BulkShardRequest> listener,
-                                             BiConsumer<BulkItemRequest, Exception> bulkItemErrorListener) {
+        private void executeBulkShardRequest(
+            BulkShardRequest bulkShardRequest,
+            ActionListener<BulkShardRequest> listener,
+            BiConsumer<BulkItemRequest, Exception> bulkItemErrorListener
+        ) {
             if (bulkShardRequest.items().length == 0) {
                 // No requests to execute due to previous errors, terminate early
                 listener.onResponse(bulkShardRequest);

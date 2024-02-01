@@ -153,7 +153,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new ConstantIndexFieldData.Builder(
                 value,
-                concreteFieldName(),
+                name(),
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new ConstantKeywordDocValuesField(FieldData.toString(dv), n)
             );

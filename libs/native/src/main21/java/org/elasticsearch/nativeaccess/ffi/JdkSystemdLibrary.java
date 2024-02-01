@@ -36,7 +36,12 @@ class JdkSystemdLibrary implements SystemdLibrary {
         String libpath = System.getProperty("java.library.path");
         for (String basepath : libpath.split(":")) {
             try (var stream = Files.walk(Paths.get(basepath))) {
-                var foundpath = stream.filter(Files::isDirectory).map(p -> p.resolve(libsystemd)).filter(Files::exists).findAny();
+                var foundpath = stream
+                    .filter(Files::exists)
+                    .filter(Files::isDirectory)
+                    .map(p -> p.resolve(libsystemd))
+                    .filter(Files::exists)
+                    .findAny();
                 if (foundpath.isEmpty() == false) {
                     return foundpath.get().toAbsolutePath().toString();
                 }

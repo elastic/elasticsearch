@@ -171,7 +171,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         }
     }
 
-    protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
+    private SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
         SearchResponse searchResponse = ClientHelper.executeWithHeaders(
             context.queryContext.headers,
             ClientHelper.ML_ORIGIN,

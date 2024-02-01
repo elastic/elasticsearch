@@ -30,11 +30,13 @@ import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
@@ -349,6 +351,14 @@ public final class ConnectorTestUtils {
 
     public static ConnectorStatus getRandomConnectorNextStatus(ConnectorStatus connectorStatus) {
         return randomFrom(ConnectorStateMachine.validNextStates(connectorStatus));
+    }
+
+    public static ConnectorStatus getRandomInvalidConnectorNextStatus(ConnectorStatus connectorStatus) {
+        Set<ConnectorStatus> validNextStatus = ConnectorStateMachine.validNextStates(connectorStatus);
+        List<ConnectorStatus> invalidStatuses = Arrays.stream(ConnectorStatus.values())
+            .filter(status -> validNextStatus.contains(status) == false)
+            .toList();
+        return randomFrom(invalidStatuses);
     }
 
     public static ConnectorStatus getRandomConnectorStatus() {

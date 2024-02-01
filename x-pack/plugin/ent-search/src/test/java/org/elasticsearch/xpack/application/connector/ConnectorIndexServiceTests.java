@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -327,6 +328,20 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         indexedConnector = awaitGetConnector(connectorId);
         assertThat(newStatus, equalTo(indexedConnector.getStatus()));
+    }
+
+    public void testUpdateConnectorStatus_WithInvalidStatus() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        ConnectorStatus newInvalidStatus = ConnectorTestUtils.getRandomInvalidConnectorNextStatus(indexedConnector.getStatus());
+
+        UpdateConnectorStatusAction.Request updateStatusRequest = new UpdateConnectorStatusAction.Request(connectorId, newInvalidStatus);
+
+        expectThrows(ElasticsearchStatusException.class, () -> awaitUpdateConnectorStatus(updateStatusRequest));
     }
 
     private DeleteResponse awaitDeleteConnector(String connectorId) throws Exception {

@@ -23,7 +23,7 @@ public class ConnectorStateMachine {
         ConnectorStatus.CREATED,
         EnumSet.of(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.ERROR),
         ConnectorStatus.NEEDS_CONFIGURATION,
-        EnumSet.of(ConnectorStatus.CONFIGURED),
+        EnumSet.of(ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR),
         ConnectorStatus.CONFIGURED,
         EnumSet.of(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.CONNECTED, ConnectorStatus.ERROR),
         ConnectorStatus.CONNECTED,

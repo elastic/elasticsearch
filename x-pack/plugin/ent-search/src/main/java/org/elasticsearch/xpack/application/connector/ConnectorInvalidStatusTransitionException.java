@@ -21,7 +21,7 @@ public class ConnectorInvalidStatusTransitionException extends Exception {
                 + current
                 + "] to ["
                 + next
-                + "]. Such a status transition is not supported by the Connectors Protocol."
+                + "]. Such a status transition is not supported by the Connector Protocol."
         );
     }
 }

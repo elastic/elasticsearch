@@ -90,3 +90,5 @@ setup:
         connector_id: test-connector
         body:
           status: connected # created -> connected transition is invalid
+
+  - match: { error.reason: "Invalid transition attempt from [created] to [connected]. Such a status transition is not supported by the Connector Protocol." }

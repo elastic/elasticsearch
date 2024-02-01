@@ -52,7 +52,8 @@ public final class RepositoriesMeteringPlugin extends Plugin implements ActionPl
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return List.of(new RestGetRepositoriesMeteringAction(), new RestClearRepositoriesMeteringArchiveAction());
     }
 }

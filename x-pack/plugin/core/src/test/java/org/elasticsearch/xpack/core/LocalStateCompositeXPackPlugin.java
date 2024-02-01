@@ -241,7 +241,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         List<RestHandler> handlers = new ArrayList<>(
             super.getRestHandlers(
                 settings,
@@ -252,7 +253,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 settingsFilter,
                 indexNameExpressionResolver,
                 nodesInCluster,
-                clusterSupportsFeature)
+                clusterSupportsFeature
+            )
         );
         filterPlugins(ActionPlugin.class).forEach(
             p -> handlers.addAll(

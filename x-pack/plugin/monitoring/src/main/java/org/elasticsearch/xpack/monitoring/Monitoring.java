@@ -193,7 +193,8 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return List.of(new RestMonitoringBulkAction(), new RestMonitoringMigrateAlertsAction());
     }
 

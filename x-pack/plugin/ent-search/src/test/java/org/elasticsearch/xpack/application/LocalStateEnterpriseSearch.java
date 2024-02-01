@@ -80,7 +80,8 @@ public class LocalStateEnterpriseSearch extends LocalStateCompositeXPackPlugin {
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return entSearchPlugin.getRestHandlers(
             settings,
             namedWriteableRegistry,

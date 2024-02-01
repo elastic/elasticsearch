@@ -48,7 +48,8 @@ public class RestHandlerNodesIT extends ESIntegTestCase {
             SettingsFilter settingsFilter,
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster,
-            Predicate<NodeFeature> clusterSupportsFeature) {
+            Predicate<NodeFeature> clusterSupportsFeature
+        ) {
             this.nodesInCluster = nodesInCluster;
             return List.of();
         }

@@ -44,7 +44,8 @@ public class TestDeprecationPlugin extends Plugin implements ActionPlugin, Searc
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return Collections.singletonList(new TestDeprecationHeaderRestAction(settings));
     }
 

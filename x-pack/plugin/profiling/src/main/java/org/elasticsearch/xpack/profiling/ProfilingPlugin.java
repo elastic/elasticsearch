@@ -127,7 +127,8 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         final SettingsFilter settingsFilter,
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestGetStatusAction());
         if (enabled) {

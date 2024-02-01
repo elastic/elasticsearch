@@ -183,7 +183,8 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         List<RestHandler> handlers = new ArrayList<>();
 
         handlers.addAll(

@@ -176,7 +176,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         final SettingsFilter settingsFilter,
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
 
         return Arrays.asList(
             new RestPutTransformAction(),

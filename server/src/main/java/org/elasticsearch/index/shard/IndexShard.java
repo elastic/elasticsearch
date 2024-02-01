@@ -3990,16 +3990,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private class RefreshFieldHasValueListener implements ReferenceManager.RefreshListener {
-
         @Override
-        public void beforeRefresh() throws IOException {
-
-        }
+        public void beforeRefresh() throws IOException {}
 
         @Override
         public void afterRefresh(boolean didRefresh) throws IOException {
             if (enableFieldHasValue && didRefresh) {
-                try (Engine.Searcher hasValueSearcher = acquireSearcher("field_has_value")) {
+                try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
                     IndexReader hasValueReader = hasValueSearcher.getIndexReader();
                     for (LeafReaderContext leaf : hasValueReader.leaves()) {
                         LeafReader leafReader = leaf.reader();

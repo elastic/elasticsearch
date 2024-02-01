@@ -484,7 +484,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         assertNull(response.getField("bar"));
     }
 
-    public void testRunntimeMappingsNotReturned() {
+    public void testRuntimeMappingsNotReturned() {
         Map<String, Object> runtimeFields = new HashMap<>();
         runtimeFields.put("day_of_week", Collections.singletonMap("type", "keyword"));
         FieldCapabilitiesResponse response = client().prepareFieldCaps()
@@ -534,8 +534,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
 
     public void testAllRankFeatureReturnedIfOneIsPresent() throws Exception {
         prepareIndex(INDEX3).setSource("fooRank", 8).get();
-        internalCluster().fullRestart();
-        ensureGreen(INDEX3);
+        refresh(INDEX3);
 
         FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setIncludeFieldsWithNoValue(false).get();
 

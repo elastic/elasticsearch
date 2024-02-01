@@ -149,8 +149,13 @@ public class ComputeService {
         var concreteIndices = PlannerUtils.planConcreteIndices(physicalPlan);
 
         QueryPragmas queryPragmas = configuration.pragmas();
-
-        if (concreteIndices.isEmpty()) {
+        if (dataNodePlan == null) {
+            if (concreteIndices.isEmpty() == false) {
+                String error = "expected no concrete indices without data node plan; got " + concreteIndices;
+                assert false : error;
+                listener.onFailure(new IllegalStateException(error));
+                return;
+            }
             var computeContext = new ComputeContext(sessionId, List.of(), configuration, null, null);
             runCompute(
                 rootTask,
@@ -158,6 +163,12 @@ public class ComputeService {
                 coordinatorPlan,
                 listener.map(driverProfiles -> new Result(collectedPages, driverProfiles))
             );
+            return;
+        }
+        if (concreteIndices.isEmpty()) {
+            var error = "expected concrete indices with data node plan but got empty; data node plan " + dataNodePlan;
+            assert false : error;
+            listener.onFailure(new IllegalStateException(error));
             return;
         }
         QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan);

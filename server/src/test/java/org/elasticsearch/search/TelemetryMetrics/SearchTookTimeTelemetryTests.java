@@ -33,7 +33,6 @@ import static org.hamcrest.Matchers.greaterThan;
 public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     private static final String indexName = "test_search_metrics2";
 
-
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
@@ -42,11 +41,12 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     @Before
     public void setUpIndex() throws Exception {
         var num_primaries = randomIntBetween(1, 4);
-        createIndex(indexName,
+        createIndex(
+            indexName,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, num_primaries)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).
-                build()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
         );
         ensureGreen(indexName);
 
@@ -59,22 +59,15 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         resetMeter();
     }
 
-
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(
-            TestTelemetryPlugin.class
-        );
+        return pluginList(TestTelemetryPlugin.class);
     }
 
     public void testSimpleQuery() {
-        assertSearchHitsWithoutFailures(
-            client().prepareSearch(indexName).setQuery(simpleQueryStringQuery("foo")),
-            "1", "2"
-        );
+        assertSearchHitsWithoutFailures(client().prepareSearch(indexName).setQuery(simpleQueryStringQuery("foo")), "1", "2");
         assertMetricsRecorded();
     }
-
 
     public void testScroll() {
         assertScrollResponsesAndHitCount(
@@ -91,7 +84,6 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         );
     }
 
-
     private void assertMetricsRecorded() {
         MatcherAssert.assertThat(getNumberOfLongHistogramMeasurements(TOOK_DURATION_TOTAL_HISTOGRAM_NAME), greaterThan(0));
     }
@@ -101,8 +93,7 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     }
 
     private int getNumberOfLongHistogramMeasurements(String instrumentName) {
-        final List<Measurement> measurements = getTestTelemetryPlugin()
-            .getLongHistogramMeasurement(instrumentName);
+        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(instrumentName);
         return measurements.size();
     }
 

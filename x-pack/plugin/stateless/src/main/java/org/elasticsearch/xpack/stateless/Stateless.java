@@ -125,6 +125,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -177,6 +178,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -305,7 +307,8 @@ public class Stateless extends Plugin
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(new ClearBlobCacheRestHandler(), new GetBlobStoreStatsRestHandler());
     }

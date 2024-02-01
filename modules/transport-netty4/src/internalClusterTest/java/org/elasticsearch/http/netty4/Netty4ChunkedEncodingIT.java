@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -44,6 +45,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -107,8 +109,8 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
             IndexScopedSettings indexScopedSettings,
             SettingsFilter settingsFilter,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<DiscoveryNodes> nodesInCluster
-        ) {
+            Supplier<DiscoveryNodes> nodesInCluster,
+            Predicate<NodeFeature> clusterSupportsFeature) {
             return List.of(new BaseRestHandler() {
                 @Override
                 public String getName() {

@@ -55,7 +55,7 @@ public class SqlPluginTests extends ESTestCase {
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 new SettingsFilter(Collections.emptyList()),
                 mock(IndexNameExpressionResolver.class),
-                () -> mock(DiscoveryNodes.class)
+                () -> mock(DiscoveryNodes.class),
             ),
             hasSize(7)
         );

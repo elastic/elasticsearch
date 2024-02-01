@@ -46,8 +46,6 @@ class JdkPosixCLibrary implements PosixCLibrary {
     private static final MethodHandle fstat$mh;
 
     static {
-        System.loadLibrary("c");
-
         Arena arena = Arena.ofAuto();
         errnoState = arena.allocate(CAPTURE_ERRNO_LAYOUT);
 
@@ -63,8 +61,8 @@ class JdkPosixCLibrary implements PosixCLibrary {
         try {
             fstat = downcallHandleWithErrno("fstat", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
         } catch (LinkageError e) {
-            logger.warn("could not find native function fstat", e);
-            downcallHandleWithErrno("stat", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+            logger.warn("could not find native function fstat, trying fstat64...", e);
+            fstat = downcallHandleWithErrno("fstat64", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
         }
         fstat$mh = fstat;
     }

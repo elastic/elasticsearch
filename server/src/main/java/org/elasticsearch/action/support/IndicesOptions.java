@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.action.support;
 
-import joptsimple.internal.Strings;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +25,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
@@ -127,28 +127,31 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
          *                                   all the states along with the values 'all' and 'none'.
          */
         public XContentBuilder toXContent(XContentBuilder builder, boolean wildcardStatesAsUserInput) throws IOException {
-            List<String> legacyStates = new ArrayList<>(3);
+            EnumSet<WildcardStates> legacyStates = EnumSet.noneOf(WildcardStates.class);
             if (matchOpen()) {
-                legacyStates.add("open");
+                legacyStates.add(WildcardStates.OPEN);
             }
             if (matchClosed()) {
-                legacyStates.add("closed");
+                legacyStates.add(WildcardStates.CLOSED);
             }
             if (includeHidden()) {
-                legacyStates.add("hidden");
+                legacyStates.add(WildcardStates.HIDDEN);
             }
             if (wildcardStatesAsUserInput) {
                 if (legacyStates.isEmpty()) {
                     builder.field("expand_wildcards", "none");
-                } else if (legacyStates.size() == 3) {
+                } else if (legacyStates.equals(EnumSet.allOf(WildcardStates.class))) {
                     builder.field("expand_wildcards", "all");
                 } else {
-                    builder.field("expand_wildcards", Strings.join(legacyStates, ","));
+                    builder.field(
+                        "expand_wildcards",
+                        legacyStates.stream().map(WildcardStates::displayName).collect(Collectors.joining(","))
+                    );
                 }
             } else {
                 builder.startArray("expand_wildcards");
-                for (String state : legacyStates) {
-                    builder.value(state);
+                for (WildcardStates state : legacyStates) {
+                    builder.value(state.displayName());
                 }
                 builder.endArray();
             }
@@ -371,6 +374,10 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .allowEmptyExpressions(allowNoIndices)
                 .resolveAliases(ignoreAlias == false)
                 .build();
+        }
+
+        String displayName() {
+            return toString().toLowerCase(Locale.ROOT);
         }
     }
 

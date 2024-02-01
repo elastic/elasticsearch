@@ -77,7 +77,7 @@ m:double   | p50:double
 0          | 0 
 ;
 
-medianOfInteger#[skip:-8.11.99,reason:ReplaceDuplicateAggWithEval breaks bwc gh-103765]
+medianOfInteger#[skip:-8.12.99,reason:ReplaceDuplicateAggWithEval breaks bwc gh-103765/Expression spaces are maintained since 8.13]
 // tag::median[]
 FROM employees
 | STATS MEDIAN(salary), PERCENTILE(salary, 50)
@@ -85,7 +85,7 @@ FROM employees
 ;
 
 // tag::median-result[]
-MEDIAN(salary):double | PERCENTILE(salary,50):double
+MEDIAN(salary):double | PERCENTILE(salary, 50):double
 47003                 | 47003    
 // end::median-result[]
 ;
@@ -155,4 +155,43 @@ from employees | stats p50 = percentile(salary_change, -(50-1)+99);
 
 p50:double
 0.75
+;
+
+docsStatsMedianNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsMedianNestedExpression[]
+FROM employees
+| STATS median_max_salary_change = MEDIAN(MV_MAX(salary_change))
+// end::docsStatsMedianNestedExpression[]
+;
+
+// tag::docsStatsMedianNestedExpression-result[]
+median_max_salary_change:double
+7.69
+// end::docsStatsMedianNestedExpression-result[]
+;
+
+docsStatsMADNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsMADNestedExpression[]
+FROM employees
+| STATS m_a_d_max_salary_change = MEDIAN_ABSOLUTE_DEVIATION(MV_MAX(salary_change))
+// end::docsStatsMADNestedExpression[]
+;
+
+// tag::docsStatsMADNestedExpression-result[]
+m_a_d_max_salary_change:double
+5.69
+// end::docsStatsMADNestedExpression-result[]
+;
+
+docsStatsPercentileNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsPercentileNestedExpression[]
+FROM employees
+| STATS p80_max_salary_change = PERCENTILE(MV_MAX(salary_change), 80)
+// end::docsStatsPercentileNestedExpression[]
+;
+
+// tag::docsStatsPercentileNestedExpression-result[]
+p80_max_salary_change:double
+12.132
+// end::docsStatsPercentileNestedExpression-result[]
 ;

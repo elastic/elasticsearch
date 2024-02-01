@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -97,14 +98,19 @@ public class Mapper {
 
         if (p instanceof UnaryPlan ua) {
             var child = map(ua.child());
-            PhysicalPlan plan = null;
-            // in case of a fragment, push to it any current streaming operator
-            if (child instanceof FragmentExec && isPipelineBreaker(p) == false) {
-                plan = new FragmentExec(p);
-            } else {
-                plan = map(ua, child);
+            if (child instanceof FragmentExec) {
+                // COORDINATOR enrich must not be included to the fragment as it has to be executed on the coordinating node
+                if (p instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
+                    assert localMode == false : "coordinator enrich must not be included to a fragment and re-planned locally";
+                    child = addExchangeForFragment(enrich.child(), child);
+                    return map(enrich, child);
+                }
+                // in case of a fragment, push to it any current streaming operator
+                if (isPipelineBreaker(p) == false) {
+                    return new FragmentExec(p);
+                }
             }
-            return plan;
+            return map(ua, child);
         }
 
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
@@ -142,10 +148,11 @@ public class Mapper {
             return new EnrichExec(
                 enrich.source(),
                 child,
+                enrich.mode(),
                 enrich.matchField(),
-                enrich.policy().policyName(),
-                enrich.policy().policy().getMatchField(),
-                enrich.policy().index().get(),
+                BytesRefs.toString(enrich.policyName().fold()),
+                enrich.policy().getMatchField(),
+                enrich.concreteIndices(),
                 enrich.enrichFields()
             );
         }

@@ -38,7 +38,7 @@ public class GetScriptLanguageResponseTests extends AbstractXContentSerializingT
 
     @Override
     protected GetScriptLanguageResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetScriptLanguageResponse.fromXContent(parser);
+        return new GetScriptLanguageResponse(ScriptLanguagesInfo.fromXContent(parser));
     }
 
     @Override

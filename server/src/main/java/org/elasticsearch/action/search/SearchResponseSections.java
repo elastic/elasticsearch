@@ -11,7 +11,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
@@ -45,7 +45,7 @@ public class SearchResponseSections implements RefCounted {
         1
     );
     protected final SearchHits hits;
-    protected final Aggregations aggregations;
+    protected final InternalAggregations aggregations;
     protected final Suggest suggest;
     protected final SearchProfileResults profileResults;
     protected final boolean timedOut;
@@ -56,7 +56,7 @@ public class SearchResponseSections implements RefCounted {
 
     public SearchResponseSections(
         SearchHits hits,
-        Aggregations aggregations,
+        InternalAggregations aggregations,
         Suggest suggest,
         boolean timedOut,
         Boolean terminatedEarly,
@@ -64,6 +64,7 @@ public class SearchResponseSections implements RefCounted {
         int numReducePhases
     ) {
         this.hits = hits;
+        hits.incRef();
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;
@@ -73,7 +74,7 @@ public class SearchResponseSections implements RefCounted {
         refCounted = hits.getHits().length > 0 ? LeakTracker.wrap(new AbstractRefCounted() {
             @Override
             protected void closeInternal() {
-                // TODO: noop until hits are ref counted
+                hits.decRef();
             }
         }) : ALWAYS_REFERENCED;
     }
@@ -90,7 +91,7 @@ public class SearchResponseSections implements RefCounted {
         return hits;
     }
 
-    public final Aggregations aggregations() {
+    public final InternalAggregations aggregations() {
         return aggregations;
     }
 

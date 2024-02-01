@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -31,7 +30,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/revert";
 
     private RevertModelSnapshotAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -101,11 +100,6 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
 
         public void setForce(boolean force) {
             this.force = force;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

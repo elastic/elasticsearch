@@ -33,15 +33,15 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
     @Override
     protected HuggingFaceModel createModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage
     ) {
         return switch (taskType) {
-            case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(modelId, taskType, NAME, serviceSettings, secretSettings);
-            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(modelId, taskType, NAME, serviceSettings, secretSettings);
+            case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(inferenceEntityId, taskType, NAME, serviceSettings, secretSettings);
+            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(inferenceEntityId, taskType, NAME, serviceSettings, secretSettings);
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }

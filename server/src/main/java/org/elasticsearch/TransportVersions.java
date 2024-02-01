@@ -20,6 +20,7 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.IntFunction;
 
 /**
  * <p>Transport version is used to coordinate compatible wire protocol communication between nodes, at a fine-grained level.  This replaces
@@ -92,36 +93,9 @@ public class TransportVersions {
      * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.
      */
-    public static final TransportVersion V_8_500_020 = def(8_500_020);
-    public static final TransportVersion V_8_500_061 = def(8_500_061);
-    public static final TransportVersion V_8_500_062 = def(8_500_062);
-    public static final TransportVersion V_8_500_063 = def(8_500_063);
-    public static final TransportVersion V_8_500_064 = def(8_500_064);
-    public static final TransportVersion V_8_500_065 = def(8_500_065);
-    public static final TransportVersion V_8_500_066 = def(8_500_066);
-    public static final TransportVersion SEARCH_RESP_SKIP_UNAVAILABLE_ADDED = def(8_500_067);
-    public static final TransportVersion ML_TRAINED_MODEL_FINISH_PENDING_WORK_ADDED = def(8_500_068);
-    public static final TransportVersion SEARCH_APP_INDICES_REMOVED = def(8_500_069);
-    public static final TransportVersion GENERIC_NAMED_WRITABLE_ADDED = def(8_500_070);
-    public static final TransportVersion PINNED_QUERY_OPTIONAL_INDEX = def(8_500_071);
-    public static final TransportVersion SHARD_SIZE_PRIMARY_TERM_GEN_ADDED = def(8_500_072);
-    public static final TransportVersion COMPAT_VERSIONS_MAPPING_VERSION_ADDED = def(8_500_073);
-    public static final TransportVersion V_8_500_074 = def(8_500_074);
-    public static final TransportVersion NODE_INFO_INDEX_VERSION_ADDED = def(8_500_075);
-    public static final TransportVersion FIRST_NEW_ID_LAYOUT = def(8_501_00_0);
-    public static final TransportVersion COMMIT_PRIMARY_TERM_GENERATION = def(8_501_00_1);
-    public static final TransportVersion WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED = def(8_502_00_0);
-    public static final TransportVersion RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED = def(8_503_00_0);
-    public static final TransportVersion NODE_INFO_COMPONENT_VERSIONS_ADDED = def(8_504_00_0);
-    public static final TransportVersion COMPACT_FIELD_CAPS_ADDED = def(8_505_00_0);
-    public static final TransportVersion DATA_STREAM_RESPONSE_INDEX_PROPERTIES = def(8_506_00_0);
-    public static final TransportVersion ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED = def(8_507_00_0);
-    public static final TransportVersion LONG_COUNT_IN_HISTOGRAM_ADDED = def(8_508_00_0);
-    public static final TransportVersion INFERENCE_MODEL_SECRETS_ADDED = def(8_509_00_0);
-    public static final TransportVersion NODE_INFO_REQUEST_SIMPLIFIED = def(8_510_00_0);
-    public static final TransportVersion NESTED_KNN_VECTOR_QUERY_V = def(8_511_00_0);
-    public static final TransportVersion ML_PACKAGE_LOADER_PLATFORM_ADDED = def(8_512_00_0);
-    public static final TransportVersion ELSER_SERVICE_MODEL_VERSION_ADDED_PATCH = def(8_512_00_1);
+    public static final TransportVersion V_8_9_X = def(8_500_020);
+    public static final TransportVersion V_8_10_X = def(8_500_061);
+    public static final TransportVersion V_8_11_X = def(8_512_00_1);
     public static final TransportVersion PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME = def(8_513_00_0);
     public static final TransportVersion UNIVERSAL_PROFILING_LICENSE_ADDED = def(8_514_00_0);
     public static final TransportVersion ELSER_SERVICE_MODEL_VERSION_ADDED = def(8_515_00_0);
@@ -170,6 +144,7 @@ public class TransportVersions {
     public static final TransportVersion MISSED_INDICES_UPDATE_EXCEPTION_ADDED = def(8_558_00_0);
     public static final TransportVersion INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED = def(8_559_00_0);
     public static final TransportVersion ENRICH_ELASTICSEARCH_VERSION_REMOVED = def(8_560_00_0);
+    public static final TransportVersion DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ_8_12_PATCH = def(8_560_00_1);
     public static final TransportVersion NODE_STATS_REQUEST_SIMPLIFIED = def(8_561_00_0);
     public static final TransportVersion TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED = def(8_562_00_0);
     public static final TransportVersion ESQL_ASYNC_QUERY = def(8_563_00_0);
@@ -183,6 +158,15 @@ public class TransportVersions {
     public static final TransportVersion HOT_THREADS_AS_BYTES = def(8_571_00_0);
     public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED = def(8_572_00_0);
     public static final TransportVersion ESQL_ENRICH_POLICY_CCQ_MODE = def(8_573_00_0);
+    public static final TransportVersion DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ = def(8_574_00_0);
+    public static final TransportVersion PEERFINDER_REPORTS_PEERS_MASTERS = def(8_575_00_0);
+    public static final TransportVersion ESQL_MULTI_CLUSTERS_ENRICH = def(8_576_00_0);
+    public static final TransportVersion NESTED_KNN_MORE_INNER_HITS = def(8_577_00_0);
+    public static final TransportVersion REQUIRE_DATA_STREAM_ADDED = def(8_578_00_0);
+    public static final TransportVersion ML_INFERENCE_COHERE_EMBEDDINGS_ADDED = def(8_579_00_0);
+    public static final TransportVersion DESIRED_NODE_VERSION_OPTIONAL_STRING = def(8_580_00_0);
+    public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED = def(8_581_00_0);
+    public static final TransportVersion ASYNC_SEARCH_STATUS_SUPPORTS_KEEP_ALIVE = def(8_582_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -247,7 +231,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = ML_PACKAGE_LOADER_PLATFORM_ADDED;
+    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_11_X;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 
@@ -303,6 +287,8 @@ public class TransportVersions {
     static Collection<TransportVersion> getAllVersions() {
         return VERSION_IDS.values();
     }
+
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class);
 
     // no instance
     private TransportVersions() {}

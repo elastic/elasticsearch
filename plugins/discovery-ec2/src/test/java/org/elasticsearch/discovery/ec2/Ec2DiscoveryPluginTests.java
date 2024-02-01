@@ -121,6 +121,19 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         }
     }
 
+    public void testTokenMetadataApiDoesNotRespond() throws Exception {
+        try (var metadataServer = new MetadataServer("/metadata", exchange -> {
+            assertNull(exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token"));
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write("us-east-1c".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        }, "/latest/api/token", ex -> {
+            // Intentionally don't close the connection, so the client has to time out
+        })) {
+            assertNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), metadataServer.tokenUri(), "us-east-1c");
+        }
+    }
+
     public void testTokenMetadataApiIsNotAvailable() throws Exception {
         try (var metadataServer = metadataServerWithoutToken()) {
             assertNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), metadataServer.tokenUri(), "us-east-1c");

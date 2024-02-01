@@ -12,9 +12,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -130,7 +130,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
     }
 
     private <Req extends ActionRequest, Res extends ActionResponse> ActionFuture<Res> executeAndCancelCommittedPublication(
-        ActionRequestBuilder<Req, Res> req
+        RequestBuilder<Req, Res> req
     ) throws Exception {
         // Wait for no publication in progress to not accidentally cancel a publication different from the one triggered by the given
         // request.

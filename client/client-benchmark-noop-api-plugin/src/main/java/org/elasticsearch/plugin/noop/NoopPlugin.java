@@ -34,8 +34,8 @@ import java.util.function.Supplier;
 
 public class NoopPlugin extends Plugin implements ActionPlugin {
 
-    public static final ActionType<SearchResponse> NOOP_SEARCH_ACTION = new ActionType<>("mock:data/read/search", SearchResponse::new);
-    public static final ActionType<BulkResponse> NOOP_BULK_ACTION = new ActionType<>("mock:data/write/bulk", BulkResponse::new);
+    public static final ActionType<SearchResponse> NOOP_SEARCH_ACTION = new ActionType<>("mock:data/read/search");
+    public static final ActionType<BulkResponse> NOOP_BULK_ACTION = new ActionType<>("mock:data/write/bulk");
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

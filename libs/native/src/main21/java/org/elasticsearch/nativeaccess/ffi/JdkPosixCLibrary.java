@@ -57,7 +57,16 @@ class JdkPosixCLibrary implements PosixCLibrary {
         setrlimit$mh = downcallHandleWithErrno("setrlimit", rlimitDesc);
         open$mh = downcallHandleWithErrno("open", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT));
         close$mh = downcallHandleWithErrno("close", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
-        fstat64$mh = downcallHandleWithErrno("fstat64", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+
+        MethodHandle fstat;
+        try {
+            fstat = downcallHandleWithErrno("fstat64", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        } catch (LinkageError e) {
+            // Due to different sizes of the stat structure for 32 vs 64 bit machines, on some systems fstat actually points to
+            // an internal symbol. So we fall back to looking for that symbol.
+            fstat = downcallHandleWithErrno("__fxstat64", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        }
+        fstat64$mh = fstat;
     }
 
     static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor) {

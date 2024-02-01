@@ -106,17 +106,13 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public IpScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-        return new IpScriptFieldData.Builder(
-            concreteFieldName(),
-            leafFactory(fieldDataContext.lookupSupplier().get()),
-            IpDocValuesField::new
-        );
+        return new IpScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), IpDocValuesField::new);
     }
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
         applyScriptContext(context);
-        return new IpScriptFieldExistsQuery(script, leafFactory(context), concreteFieldName());
+        return new IpScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
     @Override
@@ -138,7 +134,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
             (lower, upper) -> new IpScriptFieldRangeQuery(
                 script,
                 leafFactory(context),
-                concreteFieldName(),
+                name(),
                 new BytesRef(InetAddressPoint.encode(lower)),
                 new BytesRef(InetAddressPoint.encode(upper))
             )
@@ -160,12 +156,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     }
 
     private Query inetAddressQuery(InetAddress address, SearchExecutionContext context) {
-        return new IpScriptFieldTermQuery(
-            script,
-            leafFactory(context),
-            concreteFieldName(),
-            new BytesRef(InetAddressPoint.encode(address))
-        );
+        return new IpScriptFieldTermQuery(script, leafFactory(context), name(), new BytesRef(InetAddressPoint.encode(address)));
     }
 
     @Override
@@ -188,7 +179,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
             }
             cidrQueries.add(cidrQuery(term, context));
         }
-        Query termsQuery = new IpScriptFieldTermsQuery(script, leafFactory(context), concreteFieldName(), terms);
+        Query termsQuery = new IpScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
         if (cidrQueries == null) {
             return termsQuery;
         }
@@ -215,7 +206,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         // Force the terms into IPv6
         BytesRef lowerBytes = new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(lower)));
         BytesRef upperBytes = new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(upper)));
-        return new IpScriptFieldRangeQuery(script, leafFactory(context), concreteFieldName(), lowerBytes, upperBytes);
+        return new IpScriptFieldRangeQuery(script, leafFactory(context), name(), lowerBytes, upperBytes);
     }
 
     @Override

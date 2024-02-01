@@ -114,7 +114,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     @Override
     public GeoPointScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
         return new GeoPointScriptFieldData.Builder(
-            concreteFieldName(),
+            name(),
             leafFactory(fieldDataContext.lookupSupplier().get()),
             GeoPointDocValuesField::new
         );
@@ -123,7 +123,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     @Override
     public Query existsQuery(SearchExecutionContext context) {
         applyScriptContext(context);
-        return new GeoPointScriptFieldExistsQuery(script, leafFactory(context), concreteFieldName());
+        return new GeoPointScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
     @Override
@@ -149,8 +149,8 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
         return new GeoPointScriptFieldDistanceFeatureQuery(
             script,
-            valuesEncodedAsLong(context.lookup(), concreteFieldName(), leafFactory(context)::newInstance),
-            concreteFieldName(),
+            valuesEncodedAsLong(context.lookup(), name(), leafFactory(context)::newInstance),
+            name(),
             originGeoPoint.lat(),
             originGeoPoint.lon(),
             pivotDouble

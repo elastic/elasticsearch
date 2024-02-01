@@ -117,17 +117,13 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
 
     @Override
     public BooleanScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-        return new BooleanScriptFieldData.Builder(
-            concreteFieldName(),
-            leafFactory(fieldDataContext.lookupSupplier().get()),
-            BooleanDocValuesField::new
-        );
+        return new BooleanScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), BooleanDocValuesField::new);
     }
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
         applyScriptContext(context);
-        return new BooleanScriptFieldExistsQuery(script, leafFactory(context), concreteFieldName());
+        return new BooleanScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
     @Override
@@ -198,13 +194,13 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     @Override
     public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new BooleanScriptFieldTermQuery(script, leafFactory(context.lookup()), concreteFieldName(), toBoolean(value, true));
+        return new BooleanScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), toBoolean(value, true));
     }
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new BooleanScriptFieldTermQuery(script, leafFactory(context), concreteFieldName(), toBoolean(value, false));
+        return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), toBoolean(value, false));
     }
 
     @Override

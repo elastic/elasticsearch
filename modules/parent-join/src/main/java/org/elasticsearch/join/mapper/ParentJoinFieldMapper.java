@@ -169,7 +169,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return SourceValueFetcher.identity(concreteFieldName(), context, format);
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
         @Override

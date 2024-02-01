@@ -362,7 +362,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(concreteFieldName());
 
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
-                    concreteFieldName(),
+                    name(),
                     valuesSourceType,
                     sourceValueFetcher(sourcePaths),
                     searchLookup,
@@ -378,7 +378,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(concreteFieldName()) : Collections.emptySet());
+            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
         }
 
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {

@@ -102,7 +102,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(concreteFieldName(), context, format);
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
         @Override

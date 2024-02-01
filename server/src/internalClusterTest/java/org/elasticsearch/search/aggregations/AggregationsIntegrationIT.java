@@ -47,7 +47,7 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
                 assertNoFailures(response);
 
                 if (respNum == 1) { // initial response.
-                    Aggregations aggregations = response.getAggregations();
+                    InternalAggregations aggregations = response.getAggregations();
                     assertNotNull(aggregations);
                     Terms terms = aggregations.get("f");
                     assertEquals(Math.min(numDocs, 3L), terms.getBucketByKey("0").getDocCount());

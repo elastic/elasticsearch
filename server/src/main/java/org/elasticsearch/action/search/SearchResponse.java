@@ -27,7 +27,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
@@ -69,7 +68,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
 
     private final SearchHits hits;
-    private final Aggregations aggregations;
+    private final InternalAggregations aggregations;
     private final Suggest suggest;
     private final SearchProfileResults profileResults;
     private final boolean timedOut;
@@ -120,7 +119,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public SearchResponse(
         SearchHits hits,
-        Aggregations aggregations,
+        InternalAggregations aggregations,
         Suggest suggest,
         boolean timedOut,
         Boolean terminatedEarly,
@@ -185,7 +184,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public SearchResponse(
         SearchHits hits,
-        Aggregations aggregations,
+        InternalAggregations aggregations,
         Suggest suggest,
         boolean timedOut,
         Boolean terminatedEarly,
@@ -257,7 +256,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * Aggregations in this response. "empty" aggregations could be
      * either {@code null} or {@link InternalAggregations#EMPTY}.
      */
-    public @Nullable Aggregations getAggregations() {
+    public @Nullable InternalAggregations getAggregations() {
         return aggregations;
     }
 
@@ -449,7 +448,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser);
         String currentFieldName = parser.currentName();
         SearchHits hits = null;
-        Aggregations aggs = null;
+        InternalAggregations aggs = null;
         Suggest suggest = null;
         SearchProfileResults profile = null;
         boolean timedOut = false;
@@ -485,8 +484,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             } else if (token == Token.START_OBJECT) {
                 if (SearchHits.Fields.HITS.equals(currentFieldName)) {
                     hits = SearchHits.fromXContent(parser);
-                } else if (Aggregations.AGGREGATIONS_FIELD.equals(currentFieldName)) {
-                    aggs = Aggregations.fromXContent(parser);
+                } else if (InternalAggregations.AGGREGATIONS_FIELD.equals(currentFieldName)) {
+                    aggs = InternalAggregations.fromXContent(parser);
                 } else if (Suggest.NAME.equals(currentFieldName)) {
                     suggest = Suggest.fromXContent(parser);
                 } else if (SearchProfileResults.PROFILE_FIELD.equals(currentFieldName)) {
@@ -550,7 +549,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     public void writeTo(StreamOutput out) throws IOException {
         assert hasReferences();
         hits.writeTo(out);
-        out.writeOptionalWriteable((InternalAggregations) aggregations);
+        out.writeOptionalWriteable(aggregations);
         out.writeOptionalWriteable(suggest);
         out.writeBoolean(timedOut);
         out.writeOptionalBoolean(terminatedEarly);
@@ -1085,7 +1084,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             this.timedOut = in.readBoolean();
             this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_066)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 this.skipUnavailable = in.readBoolean();
             } else {
                 this.skipUnavailable = SKIP_UNAVAILABLE_DEFAULT;
@@ -1190,7 +1189,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeOptionalLong(took == null ? null : took.millis());
             out.writeBoolean(timedOut);
             out.writeCollection(failures);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESP_SKIP_UNAVAILABLE_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 out.writeBoolean(skipUnavailable);
             }
         }

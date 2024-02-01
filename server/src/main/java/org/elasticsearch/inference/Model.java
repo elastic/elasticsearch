@@ -23,12 +23,26 @@ public class Model {
         this.secrets = Objects.requireNonNull(secrets);
     }
 
+    public Model(Model model, TaskSettings taskSettings) {
+        Objects.requireNonNull(model);
+
+        configurations = ModelConfigurations.of(model, taskSettings);
+        secrets = model.getSecrets();
+    }
+
+    public Model(Model model, ServiceSettings serviceSettings) {
+        Objects.requireNonNull(model);
+
+        configurations = ModelConfigurations.of(model, serviceSettings);
+        secrets = model.getSecrets();
+    }
+
     public Model(ModelConfigurations configurations) {
         this(configurations, new ModelSecrets());
     }
 
-    public String getModelId() {
-        return configurations.getModelId();
+    public String getInferenceEntityId() {
+        return configurations.getInferenceEntityId();
     }
 
     public TaskType getTaskType() {

@@ -52,7 +52,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
     public static final String NAME = "cluster:admin/xpack/deprecation/info";
 
     private DeprecationInfoAction() {
-        super(NAME, DeprecationInfoAction.Response::new);
+        super(NAME);
     }
 
     /**

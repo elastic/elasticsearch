@@ -1872,12 +1872,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             170,
             TransportVersions.V_8_9_X
         ),
-        API_NOT_AVAILABLE_EXCEPTION(ApiNotAvailableException.class, ApiNotAvailableException::new, 171, TransportVersions.V_8_500_065),
+        API_NOT_AVAILABLE_EXCEPTION(ApiNotAvailableException.class, ApiNotAvailableException::new, 171, TransportVersions.V_8_11_X),
         RECOVERY_COMMIT_TOO_NEW_EXCEPTION(
             RecoveryCommitTooNewException.class,
             RecoveryCommitTooNewException::new,
             172,
-            TransportVersions.RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED
+            TransportVersions.V_8_11_X
         ),
         TOO_MANY_SCROLL_CONTEXTS_NEW_EXCEPTION(
             TooManyScrollContextsException.class,

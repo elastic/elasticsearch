@@ -27,8 +27,8 @@ import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
  * A thread which reads stdout or stderr of the jvm process and writes it to this process' respective stdout or stderr.
  */
 class PumpThread extends Thread {
-    private final BufferedReader reader;
-    private final PrintWriter writer;
+    final BufferedReader reader;
+    final PrintWriter writer;
 
     // an unexpected io failure that occurred while pumping stderr
     private volatile IOException ioFailure;
@@ -90,6 +90,9 @@ class PumpThread extends Thread {
         // a latch which changes state when the server is ready or has had a bootstrap error
         private final CountDownLatch readyOrDead = new CountDownLatch(1);
 
+        // a flag denoting whether the ready marker has been received by the server process
+        private volatile boolean ready;
+
         private ErrorPumpThread(String name, PrintWriter errOutput, InputStream errInput) {
             super(name, errOutput, errInput);
         }
@@ -97,11 +100,13 @@ class PumpThread extends Thread {
         /**
          * Waits until the server ready marker has been received.
          *
+         * {@code true} if successful, {@code false} if a startup error occurred
          * @throws IOException if there was a problem reading from stderr of the process
          */
-        void waitUntilReady() throws IOException {
+        boolean waitUntilReady() throws IOException {
             nonInterruptibleVoid(readyOrDead::await);
             checkForIoFailure();
+            return ready;
         }
 
         /** List of messages / lines to filter from the output. */
@@ -110,9 +115,10 @@ class PumpThread extends Thread {
         @Override
         void processLine(String line) {
             if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
+                ready = true;
                 readyOrDead.countDown();
             } else if (filter.contains(line) == false) {
-                super.processLine(line);
+                writer.println(line);
             }
         }
 

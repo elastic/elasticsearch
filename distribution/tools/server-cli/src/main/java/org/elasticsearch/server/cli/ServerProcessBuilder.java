@@ -162,7 +162,12 @@ public class ServerProcessBuilder {
             stdoutPump.start();
             sendArgs(serverArgs, jvmProcess.getOutputStream());
 
-            errorPump.waitUntilReady();
+            boolean serverOk = errorPump.waitUntilReady();
+            if (serverOk == false) {
+                // something bad happened, wait for the process to exit then rethrow
+                int exitCode = jvmProcess.waitFor();
+                throw new UserException(exitCode, "Elasticsearch died while starting up");
+            }
             success = true;
         } catch (InterruptedException e) {
             throw new RuntimeException(e);

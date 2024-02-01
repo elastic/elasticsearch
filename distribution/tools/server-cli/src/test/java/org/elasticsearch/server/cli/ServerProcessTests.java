@@ -13,6 +13,7 @@ import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -121,12 +122,14 @@ public class ServerProcessTests extends ESTestCase {
                 var in = new InputStreamStreamInput(stdin);
                 try {
                     var serverArgs = new ServerArgs(in);
-                    if (mainCallback != null) {
-                        try (
-                            var err = new PrintStream(stderr, true, StandardCharsets.UTF_8);
-                            var out = new PrintStream(stdout, true, StandardCharsets.UTF_8);
-                        ) {
+                    try (
+                        var err = new PrintStream(stderr, true, StandardCharsets.UTF_8);
+                        var out = new PrintStream(stdout, true, StandardCharsets.UTF_8);
+                    ) {
+                        if (mainCallback != null) {
                             mainCallback.main(serverArgs, stdin, out, err, exitCode);
+                        } else {
+                            err.println(SERVER_READY_MARKER);
                         }
                     }
                 } catch (IOException e) {
@@ -236,6 +239,7 @@ public class ServerProcessTests extends ESTestCase {
         mainCallback = (args, stdin, stdout, stderr, exitCode) -> {
             stdout.println("stdout message");
             stderr.println("stderr message");
+            stderr.println(SERVER_READY_MARKER);
         };
         runForeground();
         assertThat(terminal.getOutput(), containsString("stdout message"));
@@ -253,8 +257,8 @@ public class ServerProcessTests extends ESTestCase {
             stderr.println("a bootstrap exception");
             exitCode.set(ExitCodes.CONFIG);
         };
-        int exitCode = runForeground();
-        assertThat(exitCode, equalTo(ExitCodes.CONFIG));
+        var e = expectThrows(UserException.class, this::runForeground);
+        assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
         assertThat(terminal.getErrorOutput(), containsString("a bootstrap exception"));
     }
 

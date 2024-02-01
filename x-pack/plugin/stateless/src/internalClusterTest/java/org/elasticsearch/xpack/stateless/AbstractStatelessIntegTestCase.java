@@ -29,6 +29,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.blobcache.BlobCachePlugin;
@@ -311,16 +312,18 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return ObjectStoreTestUtils.getObjectStoreStatelessMockRepository(objectStoreService).getStrategy();
     }
 
-    protected static void indexDocs(String indexName, int numDocs) {
-        indexDocs(indexName, numDocs, UnaryOperator.identity());
+    protected static BulkResponse indexDocs(String indexName, int numDocs) {
+        return indexDocs(indexName, numDocs, UnaryOperator.identity());
     }
 
-    protected static void indexDocs(String indexName, int numDocs, UnaryOperator<BulkRequestBuilder> requestOperator) {
+    protected static BulkResponse indexDocs(String indexName, int numDocs, UnaryOperator<BulkRequestBuilder> requestOperator) {
         var bulkRequest = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         }
-        assertNoFailures(requestOperator.apply(bulkRequest).get());
+        var bulkResponse = requestOperator.apply(bulkRequest).get();
+        assertNoFailures(bulkResponse);
+        return bulkResponse;
     }
 
     protected void indexDocsAndRefresh(String indexName, int numDocs) throws Exception {

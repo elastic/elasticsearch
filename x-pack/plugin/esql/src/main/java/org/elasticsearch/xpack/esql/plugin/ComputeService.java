@@ -177,7 +177,7 @@ public class ComputeService {
         var localOriginalIndices = clusterToOriginalIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         var localConcreteIndices = clusterToConcreteIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         if (PlannerUtils.hasUnsupportedEnrich(physicalPlan)) {
-            listener.onFailure(new IllegalArgumentException("Enrich modes COORDINATOR and REMOTE are not supported yet"));
+            listener.onFailure(new IllegalArgumentException("Enrich REMOTE mode is not supported yet"));
             return;
         }
         final var responseHeadersCollector = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());

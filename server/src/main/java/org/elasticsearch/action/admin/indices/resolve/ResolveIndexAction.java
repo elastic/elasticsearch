@@ -68,7 +68,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
 
     private ResolveIndexAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {

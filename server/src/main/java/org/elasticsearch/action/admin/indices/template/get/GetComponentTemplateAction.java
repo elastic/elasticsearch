@@ -35,7 +35,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
     public static final String NAME = "cluster:admin/component_template/get";
 
     private GetComponentTemplateAction() {
-        super(NAME, GetComponentTemplateAction.Response::new);
+        super(NAME);
     }
 
     /**

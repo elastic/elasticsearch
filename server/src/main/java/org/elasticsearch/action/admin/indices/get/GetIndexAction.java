@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.get;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class GetIndexAction extends ActionType<GetIndexResponse> {
 
@@ -19,6 +18,6 @@ public class GetIndexAction extends ActionType<GetIndexResponse> {
     public static final RemoteClusterActionType<GetIndexResponse> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, GetIndexResponse::new);
 
     private GetIndexAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 }

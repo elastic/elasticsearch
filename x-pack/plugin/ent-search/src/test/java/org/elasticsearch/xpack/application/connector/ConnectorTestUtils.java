@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
 import org.elasticsearch.xpack.application.connector.configuration.ConfigurationDependency;
@@ -22,8 +25,10 @@ import org.elasticsearch.xpack.application.connector.filtering.FilteringRuleCond
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationInfo;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
@@ -187,8 +192,10 @@ public final class ConnectorTestUtils {
     }
 
     public static Connector getRandomSyncJobConnectorInfo() {
+        ConnectorFiltering randomFiltering = getRandomConnectorFiltering();
         return new Connector.Builder().setConnectorId(randomAlphaOfLength(10))
-            .setFiltering(List.of(getRandomConnectorFiltering()))
+            .setSyncJobFiltering(randomFiltering.getActive())
+            .setFiltering(List.of(randomFiltering))
             .setIndexName(randomAlphaOfLength(10))
             .setLanguage(randomAlphaOfLength(10))
             .setServiceType(randomAlphaOfLength(10))
@@ -260,6 +267,30 @@ public final class ConnectorTestUtils {
             .build();
     }
 
+    private static BytesReference convertConnectorToBytesReference(Connector connector) {
+        try {
+            return XContentHelper.toXContent((builder, params) -> {
+                connector.toInnerXContent(builder, params);
+                return builder;
+            }, XContentType.JSON, null, false);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Map<String, Object> convertConnectorToGenericMap(Connector connector) {
+        return XContentHelper.convertToMap(convertConnectorToBytesReference(connector), true, XContentType.JSON).v2();
+    }
+
+    public static ConnectorSearchResult getRandomConnectorSearchResult() {
+        Connector connector = getRandomConnector();
+
+        return new ConnectorSearchResult.Builder().setResultBytes(convertConnectorToBytesReference(connector))
+            .setResultMap(convertConnectorToGenericMap(connector))
+            .setId(randomAlphaOfLength(10))
+            .build();
+    }
+
     private static ConnectorFeatures.FeatureEnabled randomConnectorFeatureEnabled() {
         return new ConnectorFeatures.FeatureEnabled(randomBoolean());
     }
@@ -304,6 +335,11 @@ public final class ConnectorTestUtils {
 
     public static ConnectorSyncStatus getRandomSyncStatus() {
         ConnectorSyncStatus[] values = ConnectorSyncStatus.values();
+        return values[randomInt(values.length - 1)];
+    }
+
+    public static ConnectorSyncJobType getRandomSyncJobType() {
+        ConnectorSyncJobType[] values = ConnectorSyncJobType.values();
         return values[randomInt(values.length - 1)];
     }
 

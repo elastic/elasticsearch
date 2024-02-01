@@ -29,7 +29,7 @@ public class GetSnapshotLifecycleStatsAction extends ActionType<GetSnapshotLifec
     public static final String NAME = "cluster:admin/slm/stats";
 
     protected GetSnapshotLifecycleStatsAction() {
-        super(NAME, GetSnapshotLifecycleStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

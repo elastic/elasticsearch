@@ -21,7 +21,7 @@ public class DeleteSnapshotLifecycleAction extends ActionType<AcknowledgedRespon
     public static final String NAME = "cluster:admin/slm/delete";
 
     protected DeleteSnapshotLifecycleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

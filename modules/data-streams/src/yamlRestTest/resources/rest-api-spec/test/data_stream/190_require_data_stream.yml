@@ -60,8 +60,10 @@
 ---
 "Testing require_data_stream in bulk requests":
   - skip:
-      version: " - 8.12.99"
-      reason: "require_data_stream was introduced in 8.13.0"
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/104774"
+      #version: " - 8.12.99"
+      #reason: "require_data_stream was introduced in 8.13.0"
       features: allowed_warnings
 
   - do:

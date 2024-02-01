@@ -30,14 +30,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class UpdateConnectorNativeAction extends ActionType<ConnectorUpdateActionResponse> {
+public class UpdateConnectorNativeAction {
 
-    public static final UpdateConnectorNativeAction INSTANCE = new UpdateConnectorNativeAction();
     public static final String NAME = "cluster:admin/xpack/connector/update_native";
+    public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
-    public UpdateConnectorNativeAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
-    }
+    private UpdateConnectorNativeAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
 

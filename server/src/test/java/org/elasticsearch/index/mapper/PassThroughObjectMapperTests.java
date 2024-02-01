@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PassThroughObjectMapperTests extends MapperServiceTestCase {
@@ -112,5 +113,23 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             "Failed to parse mapping: Tried to add subobject [subobj] to object [labels] which does not support subobjects",
             exception.getMessage()
         );
+    }
+
+    public void testWithoutMappers() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("labels").field("type", "passthrough");
+            {
+                b.startObject("properties");
+                b.startObject("dim").field("type", "keyword").endObject();
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("shallow").field("type", "passthrough");
+            b.endObject();
+        }));
+
+        var labels = mapperService.mappingLookup().objectMappers().get("labels");
+        var shallow = mapperService.mappingLookup().objectMappers().get("shallow");
+        assertThat(labels.withoutMappers().toString(), equalTo(shallow.toString().replace("shallow", "labels")));
     }
 }

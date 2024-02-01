@@ -80,6 +80,11 @@ public class PassThroughObjectMapper extends ObjectMapper {
         this.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
     }
 
+    @Override
+    PassThroughObjectMapper withoutMappers() {
+        return new PassThroughObjectMapper(simpleName(), enabled, dynamic, Map.of(), timeSeriesDimensionSubFields);
+    }
+
     public boolean containsDimensions() {
         return timeSeriesDimensionSubFields.value();
     }

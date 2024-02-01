@@ -322,7 +322,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
     private static ObjectMapper.Builder createObjectSubobjectsFalseLeafWithDots() {
         KeywordFieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
-        KeywordFieldMapper fieldMapper = fieldBuilder.build(new MapperBuilderContext("foo.metrics", false, false));
+        KeywordFieldMapper fieldMapper = fieldBuilder.build(new MapperBuilderContext("foo.metrics"));
         assertEquals("host.name", fieldMapper.simpleName());
         assertEquals("foo.metrics.host.name", fieldMapper.name());
         return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS).add(
@@ -332,7 +332,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
     private ObjectMapper.Builder createObjectSubobjectsFalseLeafWithMultiField() {
         TextFieldMapper.Builder fieldBuilder = createTextKeywordMultiField("host.name");
-        TextFieldMapper textKeywordMultiField = fieldBuilder.build(new MapperBuilderContext("foo.metrics", false, false));
+        TextFieldMapper textKeywordMultiField = fieldBuilder.build(new MapperBuilderContext("foo.metrics"));
         assertEquals("host.name", textKeywordMultiField.simpleName());
         assertEquals("foo.metrics.host.name", textKeywordMultiField.name());
         FieldMapper fieldMapper = textKeywordMultiField.multiFields.iterator().next();

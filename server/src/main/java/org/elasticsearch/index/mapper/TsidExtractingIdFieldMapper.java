@@ -42,6 +42,8 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     public static final TsidExtractingIdFieldMapper INSTANCE = new TsidExtractingIdFieldMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
+    // NOTE: we use a prefix when hashing the tsid field so to be able later on (for instance for debugging purposes)
+    // to query documents whose tsid has been hashed. Using a prefix allows us to query using the prefix.
 
     static final class IdFieldType extends TermBasedFieldType {
         IdFieldType() {
@@ -126,9 +128,6 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
         assert context.getDynamicMappers().isEmpty() == false
             || context.getDynamicRuntimeFields().isEmpty() == false
-            || id.equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
-        assert context.getDynamicMappers().isEmpty() == false
-            || context.getDynamicRuntimeFields().isEmpty() == false
             || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
 
         if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
@@ -186,7 +185,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         StringBuilder description = new StringBuilder("a time series document");
         IndexableField tsidField = context.doc().getField(TimeSeriesIdFieldMapper.NAME);
         if (tsidField != null) {
-            description.append(" with dimensions ").append(tsidDescription(tsidField));
+            description.append(" with tsid ").append(tsidDescription(tsidField));
         }
         IndexableField timestampField = context.doc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampField != null) {
@@ -205,7 +204,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     private static String tsidDescription(IndexableField tsidField) {
-        String tsid = TimeSeriesIdFieldMapper.decodeTsid(tsidField.binaryValue()).toString();
+        String tsid = TimeSeriesIdFieldMapper.encodeTsid(tsidField.binaryValue()).toString();
         if (tsid.length() <= DESCRIPTION_TSID_LIMIT) {
             return tsid;
         }

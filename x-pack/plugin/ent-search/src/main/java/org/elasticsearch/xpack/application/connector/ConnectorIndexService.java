@@ -36,6 +36,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
@@ -660,6 +661,33 @@ public class ConnectorIndexService {
                     })
                 );
             }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    public void updateConnectorApiKeyIdOrApiKeySecretId(
+        UpdateConnectorApiKeyIdAction.Request request,
+        ActionListener<UpdateResponse> listener
+    ) {
+        try {
+            String connectorId = request.getConnectorId();
+            final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                    .id(connectorId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .source(request.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
+            );
+            clientWithOrigin.update(
+                updateRequest,
+                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        return;
+                    }
+                    l.onResponse(updateResponse);
+                })
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         }

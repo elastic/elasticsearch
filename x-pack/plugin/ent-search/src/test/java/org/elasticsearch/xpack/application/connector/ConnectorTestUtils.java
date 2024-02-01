@@ -249,6 +249,7 @@ public final class ConnectorTestUtils {
     public static Connector getRandomConnector() {
 
         return new Connector.Builder().setApiKeyId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setApiKeySecretId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setConfiguration(getRandomConnectorConfiguration())
             .setCustomScheduling(Map.of(randomAlphaOfLengthBetween(5, 10), getRandomConnectorCustomSchedule()))
             .setDescription(randomFrom(new String[] { null, randomAlphaOfLength(10) }))

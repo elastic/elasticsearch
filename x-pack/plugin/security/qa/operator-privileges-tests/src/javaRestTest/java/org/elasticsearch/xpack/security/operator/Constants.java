@@ -128,6 +128,7 @@ public class Constants {
         "cluster:admin/xpack/connector/list",
         "cluster:admin/xpack/connector/post",
         "cluster:admin/xpack/connector/put",
+        "cluster:admin/xpack/connector/update_api_key_id",
         "cluster:admin/xpack/connector/update_configuration",
         "cluster:admin/xpack/connector/update_error",
         "cluster:admin/xpack/connector/update_filtering",

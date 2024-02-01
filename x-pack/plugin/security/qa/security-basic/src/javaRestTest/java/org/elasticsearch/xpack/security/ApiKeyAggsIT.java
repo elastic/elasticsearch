@@ -85,6 +85,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 is(2)
             );
         });
+        // other bucket
         assertAggs(API_KEY_USER_AUTH_HEADER, """
             {
               "aggs": {
@@ -113,6 +114,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 is(1)
             );
         });
+        // anonymous filters
         assertAggs(API_KEY_USER_AUTH_HEADER, """
             {
               "aggs": {
@@ -146,6 +148,40 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             assertThat(
                 ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("all_user_keys")).get("buckets")).get(3).get("doc_count"),
                 is(0)
+            );
+        });
+        // nested filters
+        assertAggs(API_KEY_USER_AUTH_HEADER, """
+            {
+              "aggs": {
+                "level1": {
+                  "filters": {
+                    "keyed": false,
+                    "filters": {
+                      "rest-filter": {"term": {"type": "rest"}},
+                      "user-filter": {"wildcard": {"username": "api_*_user"}}
+                    }
+                  }
+                }
+              }
+            }
+            """, aggs -> {
+            assertThat(((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("level1")).get("buckets")).size(), is(2));
+            assertThat(
+                    ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("level1")).get("buckets")).get(0).get("doc_count"),
+                    is(2)
+            );
+            assertThat(
+                    ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("level1")).get("buckets")).get(0).get("key"),
+                    is("rest-filter")
+            );
+            assertThat(
+                    ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("level1")).get("buckets")).get(1).get("doc_count"),
+                    is(2)
+            );
+            assertThat(
+                    ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("level1")).get("buckets")).get(1).get("key"),
+                    is("user-filter")
             );
         });
     }

@@ -43,7 +43,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     private static final MethodHandle setrlimit$mh;
     private static final MethodHandle open$mh;
     private static final MethodHandle close$mh;
-    private static final MethodHandle fstat$mh;
+    private static final MethodHandle fstat64$mh;
 
     static {
         Arena arena = Arena.ofAuto();
@@ -57,14 +57,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         setrlimit$mh = downcallHandleWithErrno("setrlimit", rlimitDesc);
         open$mh = downcallHandleWithErrno("open", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT));
         close$mh = downcallHandleWithErrno("close", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
-        MethodHandle fstat = null;
-        try {
-            fstat = downcallHandleWithErrno("fstat", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
-        } catch (LinkageError e) {
-            logger.warn("could not find native function fstat, trying fstat64...", e);
-            fstat = downcallHandleWithErrno("fstat64", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
-        }
-        fstat$mh = fstat;
+        fstat64$mh = downcallHandleWithErrno("fstat64", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
     }
 
     static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor) {
@@ -109,12 +102,12 @@ class JdkPosixCLibrary implements PosixCLibrary {
         }
     }
 
-    class JdkStat implements Stat {
+    class JdkStat64 implements Stat64 {
 
         private final MemorySegment segment;
         private final int stSizeOffset;
 
-        JdkStat(int sizeof, int stSizeOffset) {
+        JdkStat64(int sizeof, int stSizeOffset) {
             var arena = Arena.ofAuto();
             this.segment = arena.allocate(sizeof, 8);
             this.stSizeOffset = stSizeOffset;
@@ -167,7 +160,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
-    public Stat newStat(int sizeof, int stSizeOffset) {
+    public Stat64 newStat64(int sizeof, int stSizeOffset) {
         return null;
     }
 
@@ -213,11 +206,11 @@ class JdkPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
-    public int fstat(int fd, Stat stat) {
-        assert stat instanceof JdkStat;
-        var jdkStat = (JdkStat) stat;
+    public int fstat64(int fd, Stat64 stat64) {
+        assert stat64 instanceof JdkStat64;
+        var jdkStat = (JdkStat64) stat64;
         try {
-            return (int) fstat$mh.invokeExact(errnoState, fd, jdkStat.segment);
+            return (int) fstat64$mh.invokeExact(errnoState, fd, jdkStat.segment);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

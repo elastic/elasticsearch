@@ -149,8 +149,8 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
             return;
         }
 
-        var stats = libc.newStat(SIZEOF_STAT, STAT_ST_SIZE_OFFSET);
-        if (libc.fstat(fd, stats) != 0) {
+        var stats = libc.newStat64(SIZEOF_STAT, STAT_ST_SIZE_OFFSET);
+        if (libc.fstat64(fd, stats) != 0) {
             logger.warn("Could not get stats for file [" + file + "] to preallocate size: " + libc.strerror(libc.errno()));
         } else {
             if (nativePreallocate(fd, stats.st_size(), newSize)) {

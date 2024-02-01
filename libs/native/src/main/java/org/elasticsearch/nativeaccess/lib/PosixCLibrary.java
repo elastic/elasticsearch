@@ -28,11 +28,11 @@ public interface PosixCLibrary {
     RLimit newRLimit();
 
     /** corresponds to struct stat64 */
-    interface Stat {
+    interface Stat64 {
         long st_size();
     }
 
-    Stat newStat(int sizeof, int stSizeOffset);
+    Stat64 newStat64(int sizeof, int stSizeOffset);
 
     int getrlimit(int resource, RLimit rlimit);
 
@@ -42,7 +42,7 @@ public interface PosixCLibrary {
 
     int close(int fd);
 
-    int fstat(int fd, Stat stats);
+    int fstat64(int fd, Stat64 stats);
 
     String strerror(int errno);
 

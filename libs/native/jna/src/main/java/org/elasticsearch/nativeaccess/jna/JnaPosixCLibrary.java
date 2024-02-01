@@ -11,7 +11,7 @@ package org.elasticsearch.nativeaccess.jna;
 import com.sun.jna.Native;
 
 import org.elasticsearch.nativeaccess.jna.JnaStaticPosixCLibrary.JnaRLimit;
-import org.elasticsearch.nativeaccess.jna.JnaStaticPosixCLibrary.JnaStat;
+import org.elasticsearch.nativeaccess.jna.JnaStaticPosixCLibrary.JnaStat64;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.lang.invoke.MethodHandles;
@@ -42,8 +42,8 @@ class JnaPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
-    public Stat newStat(int sizeof, int stSizeOffset) {
-        return new JnaStat(sizeof, stSizeOffset);
+    public Stat64 newStat64(int sizeof, int stSizeOffset) {
+        return new JnaStat64(sizeof, stSizeOffset);
     }
 
     @Override
@@ -71,10 +71,10 @@ class JnaPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
-    public int fstat(int fd, Stat stats) {
-        assert stats instanceof JnaStat;
-        var jnaStats = (JnaStat) stats;
-        return JnaStaticPosixCLibrary.fstat(fd, jnaStats);
+    public int fstat64(int fd, Stat64 stats) {
+        assert stats instanceof JnaStat64;
+        var jnaStats = (JnaStat64) stats;
+        return JnaStaticPosixCLibrary.fstat64(fd, jnaStats);
     }
 
     @Override

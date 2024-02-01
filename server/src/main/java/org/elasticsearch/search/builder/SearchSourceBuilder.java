@@ -66,6 +66,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.ToLongFunction;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
@@ -1262,6 +1263,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 parser.getTokenLocation()
             );
         }
+        List<KnnSearchBuilder.Builder> knnBuilders = new ArrayList<>();
 
         RetrieverBuilder<?> retrieverBuilder = null;
         SearchUsage searchUsage = new SearchUsage();
@@ -1351,7 +1353,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     postQueryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
                     searchUsage.trackSectionUsage(POST_FILTER_FIELD.getPreferredName());
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    knnSearch = List.of(KnnSearchBuilder.fromXContent(parser));
+                    knnBuilders = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (RANK_SUPPORTED == false) {
@@ -1548,10 +1550,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     searchAfterBuilder = SearchAfterBuilder.fromXContent(parser);
                     searchUsage.trackSectionUsage(SEARCH_AFTER.getPreferredName());
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    knnSearch = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.START_OBJECT) {
-                            knnSearch.add(KnnSearchBuilder.fromXContent(parser));
+                            knnBuilders.add(KnnSearchBuilder.fromXContent(parser));
                         } else {
                             throw new XContentParseException(
                                 parser.getTokenLocation(),
@@ -1593,6 +1594,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "] found after the main object.");
             }
         }
+
+        knnSearch = knnBuilders.stream().map(knnBuilder -> knnBuilder.build(size())).collect(Collectors.toList());
+
         if (retrieverBuilder != null) {
             if (subSearchSourceBuilders.isEmpty() == false) {
                 throw new IllegalArgumentException("cannot specify both [query] and [retriever]");
@@ -1620,6 +1624,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
             retrieverBuilder.extractToSearchSourceBuilder(this);
         }
+
         searchUsageConsumer.accept(searchUsage);
         return this;
     }

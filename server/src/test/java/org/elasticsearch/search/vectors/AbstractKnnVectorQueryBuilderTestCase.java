@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -78,7 +79,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         for (int i = 0; i < vector.length; i++) {
             vector[i] = elementType().equals(DenseVectorFieldMapper.ElementType.BYTE) ? randomByte() : randomFloat();
         }
-        int numCands = randomIntBetween(1, 1000);
+        int numCands = randomIntBetween(DEFAULT_SIZE, 1000);
         KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(fieldName, vector, numCands, randomBoolean() ? null : randomFloat());
         if (randomBoolean()) {
             List<QueryBuilder> filters = new ArrayList<>();

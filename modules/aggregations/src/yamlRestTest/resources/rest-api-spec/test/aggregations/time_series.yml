@@ -343,3 +343,64 @@ setup:
 
   - match: { aggregations.ts.buckets.0.key: { "key": "10" } }
   - match: { aggregations.ts.buckets.0.doc_count: 1 }
+
+---
+"auto_date_histogram aggregation with time_series aggregation":
+  - skip:
+      version: " - 8.12.99"
+      reason: "Handling for time series aggregation failures introduced in 8.13.0"
+
+  - do:
+      catch: '/\[by_time\] aggregation is incompatible with time series execution mode/'
+      search:
+        index: tsdb
+        body:
+          aggs:
+            by_time:
+              auto_date_histogram:
+                field: "@timestamp"
+              aggs:
+                ts:
+                  time_series: {}
+
+---
+"variable_width_histogram aggregation with time_series aggregation":
+  - skip:
+      version: " - 8.12.99"
+      reason: "Handling for time series aggregation failures introduced in 8.13.0"
+
+  - do:
+      catch: '/\[variable_width_histogram\] aggregation is incompatible with time series execution mode/'
+      search:
+        index: tsdb
+        body:
+          aggs:
+            variable_width_histogram:
+              variable_width_histogram:
+                field: val
+              aggs:
+                ts:
+                  time_series: {}
+
+---
+"rare_terms aggregation with time_series aggregation":
+  - skip:
+      version: " - 8.12.99"
+      reason: "Handling for time series aggregation failures introduced in 8.13.0"
+
+  - do:
+      catch: '/\[rare_terms\] aggregation is incompatible with time series execution mode/'
+      search:
+        index: tsdb
+        body:
+          aggs:
+            ts:
+              time_series: {}
+              aggs:
+                rare_terms:
+                  rare_terms:
+                    field: key
+                  aggs:
+                    max:
+                      max:
+                        field: val

@@ -73,7 +73,8 @@ public class XLMRobertaTokenizerTests extends ESTestCase {
                 new XLMRobertaTokenization(false, null, Tokenization.Truncate.NONE, -1)
             ).build()
         ) {
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE, -1, 0, null)
+                .get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Ela", "stic", "search", "▁fun"));
             assertArrayEquals(new int[] { 4, 5, 6, 8 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 1, 2, 3 }, tokenization.tokenMap());
@@ -88,7 +89,8 @@ public class XLMRobertaTokenizerTests extends ESTestCase {
                 new XLMRobertaTokenization(false, null, Tokenization.Truncate.NONE, -1)
             ).build()
         ) {
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch .<mask>.", Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch .<mask>.", Tokenization.Truncate.NONE, -1, 0, null)
+                .get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Ela", "stic", "search", "▁", ".", "<mask>", "▁", "."));
         }
     }

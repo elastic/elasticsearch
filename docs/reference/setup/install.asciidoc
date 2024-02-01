@@ -22,6 +22,8 @@ If you want to install and manage {es} yourself, you can:
 
 TIP: To try out Elasticsearch on your own machine, we recommend using Docker and running both Elasticsearch and Kibana. For more information, see <<run-elasticsearch-locally,Run Elasticsearch locally>>.
 
+TIP: For a step-by-step example of setting up the {stack} on your own premises, try out our tutorial: {stack-ref}/installing-stack-demo-self.html[Installing a self-managed Elastic Stack].
+
 [discrete]
 [[elasticsearch-install-packages]]
 === Elasticsearch install packages

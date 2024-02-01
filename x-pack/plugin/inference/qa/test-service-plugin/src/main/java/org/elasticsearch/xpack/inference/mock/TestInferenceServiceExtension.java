@@ -153,8 +153,7 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
             ActionListener<ChunkedInferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case ANY -> listener.onResponse(makeChunkedResults(input));
-                case SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));
+                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),

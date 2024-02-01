@@ -230,6 +230,7 @@ public class ElserMlNodeService implements InferenceService {
             checkCompatibleTaskType(model.getConfigurations().getTaskType());
         } catch (Exception e) {
             listener.onFailure(e);
+            return;
         }
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
@@ -258,6 +259,7 @@ public class ElserMlNodeService implements InferenceService {
             checkCompatibleTaskType(model.getConfigurations().getTaskType());
         } catch (Exception e) {
             listener.onFailure(e);
+            return;
         }
 
         var configUpdate = chunkingOptions.settingsArePresent()

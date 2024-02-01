@@ -176,15 +176,15 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
     record Dimension(String name, String value) implements Comparable<Dimension> {
 
         @Override
-            public String toString() {
-                return "Dimension{" + "name='" + name + '\'' + ", value='" + value + '\'' + '}';
-            }
-
-            @Override
-            public int compareTo(final Dimension that) {
-                return Comparator.comparing(Dimension::name).thenComparing(Dimension::value).compare(this, that);
-            }
+        public String toString() {
+            return "Dimension{" + "name='" + name + '\'' + ", value='" + value + '\'' + '}';
         }
+
+        @Override
+        public int compareTo(final Dimension that) {
+            return Comparator.comparing(Dimension::name).thenComparing(Dimension::value).compare(this, that);
+        }
+    }
 
     record TimeSeriesValue(long timestamp, double gauge) {
 
@@ -202,10 +202,10 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
         }
 
         @Override
-            public String toString() {
-                return "TimeSeriesValue{" + "timestamp=" + timestamp + ", gauge=" + gauge + '}';
-            }
+        public String toString() {
+            return "TimeSeriesValue{" + "timestamp=" + timestamp + ", gauge=" + gauge + '}';
         }
+    }
 
     static class TimeSeries {
         private final HashMap<String, Dimension> dimensions;

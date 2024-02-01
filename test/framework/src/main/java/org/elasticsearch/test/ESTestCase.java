@@ -40,7 +40,7 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
@@ -2145,7 +2145,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
     }
 
-    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ActionRequestBuilder<?, ?> builder) {
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, RequestBuilder<?, ?> builder) {
         return expectThrows(
             expectedType,
             "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",

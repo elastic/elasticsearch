@@ -180,13 +180,15 @@ phase completes.
           "min_age": "0ms",
           "actions": {
             "rollover": {
-              "max_age": "30s"
+              "max_age": "30s",
+              "max_primary_shard_docs": 200000000, <2>
+              "min_docs": 1
             }
           }
         },
-        "version": 3, <2>
-        "modified_date": "2018-10-15T13:21:41.576Z", <3>
-        "modified_date_in_millis": 1539609701576 <4>
+        "version": 3, <3>
+        "modified_date": "2018-10-15T13:21:41.576Z", <4>
+        "modified_date_in_millis": 1539609701576 <5>
       }
     }
   }
@@ -196,9 +198,10 @@ phase completes.
 
 <1> The JSON phase definition loaded from the specified policy when the index
 entered this phase
-<2> The version of the policy that was loaded
-<3> The date the loaded policy was last modified
-<4> The epoch time when the loaded policy was last modified
+<2> The rollover action includes the default `max_primary_shard_docs` and `min_docs` conditions. See <<ilm-rollover-options,ILM Rollover Options>> for more information.
+<3> The version of the policy that was loaded
+<4> The date the loaded policy was last modified
+<5> The epoch time when the loaded policy was last modified
 
 If {ilm-init} is waiting for a step to complete, the response includes status
 information for the step that's being performed on the index.

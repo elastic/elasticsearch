@@ -63,7 +63,7 @@ public class EsqlFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_500_062;
+        return TransportVersions.V_8_11_X;
     }
 
 }

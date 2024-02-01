@@ -9,13 +9,9 @@ package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.action.ActionType;
 
-public class PostConnectorSecretAction extends ActionType<PostConnectorSecretResponse> {
-
+public class PostConnectorSecretAction {
     public static final String NAME = "cluster:admin/xpack/connector/secret/post";
+    public static final ActionType<PostConnectorSecretResponse> INSTANCE = new ActionType<>(NAME);
 
-    public static final PostConnectorSecretAction INSTANCE = new PostConnectorSecretAction();
-
-    private PostConnectorSecretAction() {
-        super(NAME);
-    }
+    private PostConnectorSecretAction() {/* no instances */}
 }

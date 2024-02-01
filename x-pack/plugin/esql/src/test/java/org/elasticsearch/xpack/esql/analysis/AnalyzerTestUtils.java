@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -19,7 +21,6 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -95,10 +96,12 @@ public final class AnalyzerTestUtils {
         IndexResolution mapping = loadMapping(mappingFile, idxName);
         List<String> enrichFields = new ArrayList<>(mapping.get().mapping().keySet());
         enrichFields.remove(matchField);
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(idxName), matchField, enrichFields);
         EnrichResolution enrichResolution = new EnrichResolution();
-        enrichResolution.addResolvedPolicy(policyName, policy, Map.of("", idxName), mapping.get().mapping());
-        enrichResolution.addExistingPolicies(Set.of(policyName));
+        enrichResolution.addResolvedPolicy(
+            policyName,
+            Enrich.Mode.ANY,
+            new ResolvedEnrichPolicy(matchField, EnrichPolicy.MATCH_TYPE, enrichFields, Map.of("", idxName), mapping.get().mapping())
+        );
         return enrichResolution;
     }
 }

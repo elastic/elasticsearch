@@ -26,6 +26,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
@@ -377,9 +378,13 @@ public class DocValueFormatTests extends ESTestCase {
         timeSeriesIdBuilder.addString("string", randomAlphaOfLength(10));
         timeSeriesIdBuilder.addLong("long", randomLong());
         timeSeriesIdBuilder.addUnsignedLong("ulong", randomLong());
-        BytesRef tsidBytes = timeSeriesIdBuilder.build().toBytesRef();
-        Object tsidFormat = DocValueFormat.TIME_SERIES_ID.format(tsidBytes);
-        BytesRef tsidParse = DocValueFormat.TIME_SERIES_ID.parseBytesRef(tsidFormat);
-        assertEquals(tsidBytes, tsidParse);
+        BytesRef expected = timeSeriesIdBuilder.buildTsidHash().toBytesRef();
+        byte[] expectedBytes = new byte[expected.length];
+        System.arraycopy(expected.bytes, 0, expectedBytes, 0, expected.length);
+        BytesRef actual = DocValueFormat.TIME_SERIES_ID.parseBytesRef(expected);
+        assertEquals(expected, actual);
+        Object tsidFormat = DocValueFormat.TIME_SERIES_ID.format(expected);
+        Object tsidBase64 = Base64.getUrlEncoder().withoutPadding().encodeToString(expectedBytes);
+        assertEquals(tsidFormat, tsidBase64);
     }
 }

@@ -73,7 +73,8 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return Arrays.asList(
             new RestReindexAction(namedWriteableRegistry),
             new RestUpdateByQueryAction(namedWriteableRegistry),

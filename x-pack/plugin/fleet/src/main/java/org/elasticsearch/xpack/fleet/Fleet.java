@@ -364,7 +364,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return List.of(
             new RestGetGlobalCheckpointsAction(),
             new RestFleetSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry),

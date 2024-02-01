@@ -51,7 +51,8 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return Collections.singletonList(new RestRankEvalAction());
     }
 

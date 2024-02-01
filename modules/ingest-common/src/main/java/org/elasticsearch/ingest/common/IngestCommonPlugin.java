@@ -93,7 +93,8 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return List.of(new GrokProcessorGetAction.RestAction());
     }
 

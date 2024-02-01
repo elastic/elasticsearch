@@ -266,7 +266,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         if (enabled == false) {
             return emptyList();
         }

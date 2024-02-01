@@ -40,7 +40,8 @@ public class ApmIntegrationPlugin extends Plugin implements ActionPlugin {
         final SettingsFilter settingsFilter,
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return Collections.singletonList(testApmIntegrationRestHandler);
     }
 

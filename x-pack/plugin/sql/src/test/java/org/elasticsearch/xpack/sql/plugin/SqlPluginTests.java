@@ -56,6 +56,7 @@ public class SqlPluginTests extends ESTestCase {
                 new SettingsFilter(Collections.emptyList()),
                 mock(IndexNameExpressionResolver.class),
                 () -> mock(DiscoveryNodes.class),
+                null
             ),
             hasSize(7)
         );

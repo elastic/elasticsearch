@@ -43,7 +43,8 @@ public class HeapAttackPlugin extends Plugin implements ActionPlugin {
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return List.of(new RestTriggerOutOfMemoryAction());
     }
 }

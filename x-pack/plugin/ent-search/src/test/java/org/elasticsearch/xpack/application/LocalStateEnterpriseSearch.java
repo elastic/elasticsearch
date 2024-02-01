@@ -90,6 +90,7 @@ public class LocalStateEnterpriseSearch extends LocalStateCompositeXPackPlugin {
             settingsFilter,
             indexNameExpressionResolver,
             nodesInCluster,
+            clusterSupportsFeature
         );
     }
 

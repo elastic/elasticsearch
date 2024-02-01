@@ -258,7 +258,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         List<RestHandler> handlers = new ArrayList<>();
 
         handlers.addAll(

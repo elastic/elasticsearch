@@ -157,7 +157,8 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return List.of(new RestGeoIpDownloaderStatsAction());
     }
 

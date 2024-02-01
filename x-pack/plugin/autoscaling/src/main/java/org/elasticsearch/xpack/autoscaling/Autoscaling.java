@@ -139,7 +139,8 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         final SettingsFilter settingsFilter,
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return List.of(
             new RestGetAutoscalingCapacityHandler(),
             new RestDeleteAutoscalingPolicyHandler(),

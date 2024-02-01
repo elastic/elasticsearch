@@ -80,7 +80,8 @@ public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         if (enabled) {
             return Collections.singletonList(new RestSeekStatsAction());
         } else {

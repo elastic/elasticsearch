@@ -240,7 +240,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
             TimeValue timeSeriesPollInterval = updateTimeSeriesRangeService.get().pollInterval;
             additionalLookAheadTimeValidation(value, timeSeriesPollInterval);

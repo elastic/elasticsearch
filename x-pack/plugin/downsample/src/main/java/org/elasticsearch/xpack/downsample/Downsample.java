@@ -84,7 +84,8 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return List.of(new RestDownsampleAction());
     }
 

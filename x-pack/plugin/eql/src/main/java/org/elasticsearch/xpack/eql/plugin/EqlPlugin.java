@@ -111,7 +111,8 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
 
         return List.of(
             new RestEqlSearchAction(),

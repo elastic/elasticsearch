@@ -110,7 +110,8 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
             SettingsFilter settingsFilter,
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster,
-            Predicate<NodeFeature> clusterSupportsFeature) {
+            Predicate<NodeFeature> clusterSupportsFeature
+        ) {
             return List.of(new BaseRestHandler() {
                 @Override
                 public String getName() {

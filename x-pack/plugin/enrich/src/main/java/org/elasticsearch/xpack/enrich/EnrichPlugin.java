@@ -170,7 +170,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature) {
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return List.of(
             new RestGetEnrichPolicyAction(),
             new RestDeleteEnrichPolicyAction(),

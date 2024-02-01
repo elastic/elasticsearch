@@ -712,6 +712,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * that they throw type errors.
      */
     protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
+        return errorsForCasesWithoutExamples(testCaseSuppliers, AbstractFunctionTestCase::typeErrorMessage);
+    }
+
+    protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
+        List<TestCaseSupplier> testCaseSuppliers,
+        TypeErrorMessageSupplier typeErrorMessageSupplier
+    ) {
         typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
@@ -731,7 +738,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
              * Hopefully <null>, <null> cases will function the same as <null>, <valid>
              * cases.
              */.filter(types -> types.stream().filter(t -> t == DataTypes.NULL).count() <= 1)
-            .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types))
+            .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types, typeErrorMessageSupplier))
             .forEach(suppliers::add);
         return suppliers;
     }
@@ -807,20 +814,34 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return longer;
     }
 
+    @FunctionalInterface
+    protected interface TypeErrorMessageSupplier {
+        String apply(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types);
+    }
+
+    protected static TestCaseSupplier typeErrorSupplier(
+        boolean includeOrdinal,
+        List<Set<DataType>> validPerPosition,
+        List<DataType> types
+    ) {
+        return typeErrorSupplier(includeOrdinal, validPerPosition, types, AbstractFunctionTestCase::typeErrorMessage);
+    }
+
     /**
      * Build a test case that asserts that the combination of parameter types is an error.
      */
     protected static TestCaseSupplier typeErrorSupplier(
         boolean includeOrdinal,
         List<Set<DataType>> validPerPosition,
-        List<DataType> types
+        List<DataType> types,
+        TypeErrorMessageSupplier errorMessageSupplier
     ) {
         return new TestCaseSupplier(
             "type error for " + TestCaseSupplier.nameFromTypes(types),
             types,
             () -> TestCaseSupplier.TestCase.typeError(
                 types.stream().map(type -> new TestCaseSupplier.TypedData(randomLiteral(type).value(), type, type.typeName())).toList(),
-                typeErrorMessage(includeOrdinal, validPerPosition, types)
+                errorMessageSupplier.apply(includeOrdinal, validPerPosition, types)
             )
         );
     }
@@ -828,7 +849,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Build the expected error message for an invalid type signature.
      */
-    private static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
+    protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
         int badArgPosition = -1;
         for (int i = 0; i < types.size(); i++) {
             if (validPerPosition.get(i).contains(types.get(i)) == false) {
@@ -837,7 +858,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
         }
         if (badArgPosition == -1) {
-            throw new IllegalStateException("can't find badArgPosition");
+            throw new IllegalStateException(
+                "Can't generate error message for these types, you probably need a custom error message function"
+            );
         }
         String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
         String expectedType = expectedType(validPerPosition.get(badArgPosition));
@@ -846,6 +869,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static final Map<Set<DataType>, String> NAMED_EXPECTED_TYPES = Map.ofEntries(
+        Map.entry(
+            Set.of(
+                EsqlDataTypes.DATE_PERIOD,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.LONG,
+                EsqlDataTypes.TIME_DURATION,
+                DataTypes.NULL
+            ),
+            "numeric, date_period or time_duration"
+        ),
         Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
         Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
@@ -879,6 +913,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 DataTypes.NULL
             ),
             "datetime or numeric or string"
+        ),
+        // What Add accepts
+        Map.entry(
+            Set.of(
+                EsqlDataTypes.DATE_PERIOD,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.LONG,
+                DataTypes.NULL,
+                EsqlDataTypes.TIME_DURATION,
+                DataTypes.UNSIGNED_LONG
+            ),
+            "datetime or numeric"
         ),
         Map.entry(
             Set.of(

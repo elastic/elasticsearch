@@ -40,8 +40,7 @@ class JdkSystemdLibrary implements SystemdLibrary {
                 continue;
             }
             try (var stream = Files.walk(basepath)) {
-                var foundpath = stream
-                    .filter(Files::exists)
+                var foundpath = stream.filter(Files::exists)
                     .filter(Files::isDirectory)
                     .map(p -> p.resolve(libsystemd))
                     .filter(Files::exists)

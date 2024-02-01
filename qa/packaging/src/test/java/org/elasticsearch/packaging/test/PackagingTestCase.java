@@ -292,7 +292,7 @@ public abstract class PackagingTestCase extends Assert {
 
         try {
             assertions.run();
-        } catch (Exception|AssertionError e) {
+        } catch (Exception | AssertionError e) {
             logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
             throw e;
         }

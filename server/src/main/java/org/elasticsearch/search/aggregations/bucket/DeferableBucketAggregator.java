@@ -50,7 +50,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
             if (shouldDefer(subAggregators[i])) {
                 // Deferred collection isn't possible with TimeSeriesIndexSearcher,
                 // this will always result in incorrect results. The is caused by
-                // the fact that tsid will not be correctly recorded, because
+                // the fact that tsid will not be correctly recorded, because when
                 // deferred collection occurs the TimeSeriesIndexSearcher already
                 // completed execution.
                 if (inSortOrderExecutionRequired) {

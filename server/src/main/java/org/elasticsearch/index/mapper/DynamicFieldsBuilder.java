@@ -307,20 +307,34 @@ final class DynamicFieldsBuilder {
             this.parseField = parseField;
         }
 
-        void createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
-            Mapper mapper = builder.build(context.createDynamicMapperBuilderContext());
+        void createDynamicField(Mapper.Builder builder, DocumentParserContext context, MapperBuilderContext mapperBuilderContext)
+            throws IOException {
+            Mapper mapper = builder.build(mapperBuilderContext);
             context.addDynamicMapper(mapper);
             parseField.accept(context, mapper);
         }
 
+        void createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
+            createDynamicField(builder, context, context.createDynamicMapperBuilderContext());
+        }
+
         @Override
         public void newDynamicStringField(DocumentParserContext context, String name) throws IOException {
-            createDynamicField(
-                new TextFieldMapper.Builder(name, context.indexAnalyzers()).addMultiField(
-                    new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
-                ),
-                context
-            );
+            MapperBuilderContext mapperBuilderContext = context.createDynamicMapperBuilderContext();
+            if (mapperBuilderContext.parentObjectContainsDimensions()) {
+                createDynamicField(
+                    new KeywordFieldMapper.Builder(name, context.indexSettings().getIndexVersionCreated()),
+                    context,
+                    mapperBuilderContext
+                );
+            } else {
+                createDynamicField(
+                    new TextFieldMapper.Builder(name, context.indexAnalyzers()).addMultiField(
+                        new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
+                    ),
+                    context
+                );
+            }
         }
 
         @Override

@@ -443,22 +443,17 @@ public class IndicesOptionsTests extends ESTestCase {
         XContentType type = randomFrom(XContentType.values());
         final IndicesOptions defaults = IndicesOptions.LENIENT_EXPAND_OPEN;
         final boolean includeAllowNoIndices = randomBoolean();
-        final boolean allowNoIndices = includeAllowNoIndices ? randomBoolean() : defaults.allowNoIndices();
         final boolean includeExpandWildcards = randomBoolean();
-        final IndicesOptions.WildcardOptions expectedWildcardStates = includeExpandWildcards
-            ? IndicesOptions.WildcardOptions.parseParameters(
-                randomFrom(
-                    "all",
-                    "none",
-                    List.of("open", "closed"),
-                    List.of("open", "hidden"),
-                    List.of("closed"),
-                    List.of("closed", "hidden")
-                ),
-                allowNoIndices,
-                null
-            )
-            : defaults.wildcardOptions();
+        final IndicesOptions.WildcardOptions.Builder expectedWildcardStatesBuilder = IndicesOptions.WildcardOptions.builder(
+            defaults.wildcardOptions()
+        );
+        expectedWildcardStatesBuilder.allowEmptyExpressions(includeAllowNoIndices ? randomBoolean() : defaults.allowNoIndices());
+        if (includeExpandWildcards) {
+            expectedWildcardStatesBuilder.matchOpen(randomBoolean());
+            expectedWildcardStatesBuilder.matchClosed(randomBoolean());
+            expectedWildcardStatesBuilder.includeHidden(randomBoolean());
+        }
+        final IndicesOptions.WildcardOptions expectedWildcardStates = expectedWildcardStatesBuilder.build();
         final boolean includeIgnoreUnavailable = randomBoolean();
         final boolean ignoreUnavailable = includeIgnoreUnavailable ? randomBoolean() : defaults.ignoreUnavailable();
 
@@ -483,7 +478,7 @@ public class IndicesOptionsTests extends ESTestCase {
                 builder.field("ignore_unavailable", ignoreUnavailable);
             }
             if (includeAllowNoIndices) {
-                builder.field("allow_no_indices", allowNoIndices);
+                builder.field("allow_no_indices", expectedWildcardStates.allowEmptyExpressions());
             }
             builder.endObject();
             xContentBytes = BytesReference.bytes(builder);

@@ -526,7 +526,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(GeneralOptions.builder().ignoreThrottled(true).allowClosedIndices(false).allowClosedIndices(true))
+        .generalOptions(GeneralOptions.builder().ignoreThrottled(true).allowClosedIndices(false).allowAliasToMultipleIndices(true))
         .build();
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)

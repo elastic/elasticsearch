@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.profiling;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -26,16 +25,16 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
     public static final String NAME = "cluster:monitor/profiling/status/get";
 
     protected GetStatusAction() {
-        super(NAME, GetStatusAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private boolean profilingEnabled;
-        private boolean resourceManagementEnabled;
-        private boolean resourcesCreated;
-        private boolean pre891Data;
-        private boolean hasData;
+        private final boolean profilingEnabled;
+        private final boolean resourceManagementEnabled;
+        private final boolean resourcesCreated;
+        private final boolean pre891Data;
+        private final boolean hasData;
         private boolean timedOut;
 
         public Response(StreamInput in) throws IOException {
@@ -68,6 +67,10 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
 
         public boolean isResourcesCreated() {
             return resourcesCreated;
+        }
+
+        public boolean hasData() {
+            return hasData;
         }
 
         @Override
@@ -138,11 +141,6 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
 
         public void waitForResourcesCreated(boolean waitForResourcesCreated) {
             this.waitForResourcesCreated = waitForResourcesCreated;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

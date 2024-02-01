@@ -48,17 +48,20 @@ public class IndexIdTests extends AbstractWireSerializingTestCase<IndexId> {
         IndexId indexId = new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
         XContentBuilder builder = JsonXContent.contentBuilder();
         indexId.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-        String name = null;
-        String id = null;
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            final String currentFieldName = parser.currentName();
-            parser.nextToken();
-            if (currentFieldName.equals(IndexId.NAME)) {
-                name = parser.text();
-            } else if (currentFieldName.equals(IndexId.ID)) {
-                id = parser.text();
+        String name;
+        String id;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            name = null;
+            id = null;
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                final String currentFieldName = parser.currentName();
+                parser.nextToken();
+                if (currentFieldName.equals(IndexId.NAME)) {
+                    name = parser.text();
+                } else if (currentFieldName.equals(IndexId.ID)) {
+                    id = parser.text();
+                }
             }
         }
         assertNotNull(name);

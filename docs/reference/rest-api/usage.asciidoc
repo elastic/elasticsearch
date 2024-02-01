@@ -220,7 +220,15 @@ GET /_xpack/usage
       "grok" : 0,
       "limit" : 0,
       "where" : 0,
-      "sort" : 0
+      "sort" : 0,
+      "drop" : 0,
+      "show" : 0,
+      "rename" : 0,
+      "mv_expand" : 0,
+      "keep" : 0,
+      "enrich" : 0,
+      "from" : 0,
+      "row" : 0
     },
     "queries" : {
       "rest" : {

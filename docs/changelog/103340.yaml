@@ -1,0 +1,5 @@
+pr: 103340
+summary: Avoid humongous blocks
+area: ES|QL
+type: enhancement
+issues: []

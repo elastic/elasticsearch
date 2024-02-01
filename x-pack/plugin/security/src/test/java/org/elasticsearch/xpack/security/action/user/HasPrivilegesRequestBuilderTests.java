@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -94,14 +94,14 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
 
     public void testParseValidJsonWithJustClusterPrivileges() throws Exception {
         String json = Strings.format("""
-            { "cluster": [ "manage","%s","%s"] }""", ClusterHealthAction.NAME, ClusterStatsAction.NAME);
+            { "cluster": [ "manage","%s","%s"] }""", TransportClusterHealthAction.NAME, ClusterStatsAction.NAME);
 
         final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
         builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
 
         final HasPrivilegesRequest request = builder.request();
         assertThat(request.indexPrivileges().length, equalTo(0));
-        assertThat(request.clusterPrivileges(), arrayContaining("manage", ClusterHealthAction.NAME, ClusterStatsAction.NAME));
+        assertThat(request.clusterPrivileges(), arrayContaining("manage", TransportClusterHealthAction.NAME, ClusterStatsAction.NAME));
     }
 
     public void testUseOfFieldLevelSecurityThrowsException() throws Exception {

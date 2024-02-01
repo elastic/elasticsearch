@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.versionfield;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.core.termsenum.action.TermsEnumResponse;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 
@@ -67,18 +67,20 @@ public class VersionFieldIT extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh().get();
 
         // terms aggs
-        SearchResponse response = client().prepareSearch(indexName)
-            .addAggregation(AggregationBuilders.terms("myterms").field("version"))
-            .get();
-        Terms terms = response.getAggregations().get("myterms");
-        List<? extends Bucket> buckets = terms.getBuckets();
+        assertResponse(
+            client().prepareSearch(indexName).addAggregation(AggregationBuilders.terms("myterms").field("version")),
+            response -> {
+                Terms terms = response.getAggregations().get("myterms");
+                List<? extends Bucket> buckets = terms.getBuckets();
 
-        assertEquals(5, buckets.size());
-        assertEquals("1.0", buckets.get(0).getKey());
-        assertEquals("1.3.0", buckets.get(1).getKey());
-        assertEquals("2.1.0-alpha", buckets.get(2).getKey());
-        assertEquals("2.1.0", buckets.get(3).getKey());
-        assertEquals("3.11.5", buckets.get(4).getKey());
+                assertEquals(5, buckets.size());
+                assertEquals("1.0", buckets.get(0).getKey());
+                assertEquals("1.3.0", buckets.get(1).getKey());
+                assertEquals("2.1.0-alpha", buckets.get(2).getKey());
+                assertEquals("2.1.0", buckets.get(3).getKey());
+                assertEquals("3.11.5", buckets.get(4).getKey());
+            }
+        );
     }
 
     public void testTermsEnum() throws Exception {

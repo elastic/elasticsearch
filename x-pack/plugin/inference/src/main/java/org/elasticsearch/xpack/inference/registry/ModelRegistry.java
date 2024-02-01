@@ -34,6 +34,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -58,11 +59,11 @@ public class ModelRegistry {
     public record ModelConfigMap(Map<String, Object> config, Map<String, Object> secrets) {}
 
     /**
-     * Semi parsed model where model id, task type and service
+     * Semi parsed model where inference entity id, task type and service
      * are known but the settings are not parsed.
      */
     public record UnparsedModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         Map<String, Object> settings,
@@ -73,12 +74,12 @@ public class ModelRegistry {
             if (modelConfigMap.config() == null) {
                 throw new ElasticsearchStatusException("Missing config map", RestStatus.BAD_REQUEST);
             }
-            String modelId = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.MODEL_ID);
+            String inferenceEntityId = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.MODEL_ID);
             String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
             String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
             TaskType taskType = TaskType.fromString(taskTypeStr);
 
-            return new UnparsedModel(modelId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets());
+            return new UnparsedModel(inferenceEntityId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets());
         }
     }
 
@@ -94,23 +95,21 @@ public class ModelRegistry {
 
     /**
      * Get a model with its secret settings
-     * @param modelId Model to get
+     * @param inferenceEntityId Model to get
      * @param listener Model listener
      */
-    public void getModelWithSecrets(String modelId, ActionListener<UnparsedModel> listener) {
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap(searchResponse -> {
+    public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
             if (searchResponse.getHits().getHits().length == 0) {
-                listener.onFailure(new ResourceNotFoundException("Model not found [{}]", modelId));
+                delegate.onFailure(new ResourceNotFoundException("Model not found [{}]", inferenceEntityId));
                 return;
             }
 
-            var hits = searchResponse.getHits().getHits();
-            listener.onResponse(UnparsedModel.unparsedModelFromMap(createModelConfigMap(hits, modelId)));
+            delegate.onResponse(UnparsedModel.unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
+        });
 
-        }, listener::onFailure);
-
-        QueryBuilder queryBuilder = documentIdQuery(modelId);
+        QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
         SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN)
             .setQuery(queryBuilder)
             .setSize(2)
@@ -122,25 +121,23 @@ public class ModelRegistry {
     /**
      * Get a model.
      * Secret settings are not included
-     * @param modelId Model to get
+     * @param inferenceEntityId Model to get
      * @param listener Model listener
      */
-    public void getModel(String modelId, ActionListener<UnparsedModel> listener) {
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap(searchResponse -> {
+    public void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
             if (searchResponse.getHits().getHits().length == 0) {
-                listener.onFailure(new ResourceNotFoundException("Model not found [{}]", modelId));
+                delegate.onFailure(new ResourceNotFoundException("Model not found [{}]", inferenceEntityId));
                 return;
             }
 
-            var hits = searchResponse.getHits().getHits();
-            var modelConfigs = parseHitsAsModels(hits).stream().map(UnparsedModel::unparsedModelFromMap).toList();
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
             assert modelConfigs.size() == 1;
-            listener.onResponse(modelConfigs.get(0));
+            delegate.onResponse(modelConfigs.get(0));
+        });
 
-        }, listener::onFailure);
-
-        QueryBuilder queryBuilder = documentIdQuery(modelId);
+        QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
         SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
             .setQuery(queryBuilder)
             .setSize(1)
@@ -157,18 +154,16 @@ public class ModelRegistry {
      * @param listener Models listener
      */
     public void getModelsByTaskType(TaskType taskType, ActionListener<List<UnparsedModel>> listener) {
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap(searchResponse -> {
+        ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // Not an error if no models of this task_type
             if (searchResponse.getHits().getHits().length == 0) {
-                listener.onResponse(List.of());
+                delegate.onResponse(List.of());
                 return;
             }
 
-            var hits = searchResponse.getHits().getHits();
-            var modelConfigs = parseHitsAsModels(hits).stream().map(UnparsedModel::unparsedModelFromMap).toList();
-            listener.onResponse(modelConfigs);
-
-        }, listener::onFailure);
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
+            delegate.onResponse(modelConfigs);
+        });
 
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
 
@@ -188,18 +183,16 @@ public class ModelRegistry {
      * @param listener Models listener
      */
     public void getAllModels(ActionListener<List<UnparsedModel>> listener) {
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap(searchResponse -> {
+        ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // Not an error if no models of this task_type
             if (searchResponse.getHits().getHits().length == 0) {
-                listener.onResponse(List.of());
+                delegate.onResponse(List.of());
                 return;
             }
 
-            var hits = searchResponse.getHits().getHits();
-            var modelConfigs = parseHitsAsModels(hits).stream().map(UnparsedModel::unparsedModelFromMap).toList();
-            listener.onResponse(modelConfigs);
-
-        }, listener::onFailure);
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
+            delegate.onResponse(modelConfigs);
+        });
 
         // In theory the index should only contain model config documents
         // and a match all query would be sufficient. But just in case the
@@ -216,7 +209,7 @@ public class ModelRegistry {
         client.search(modelSearch, searchListener);
     }
 
-    private List<ModelConfigMap> parseHitsAsModels(SearchHit[] hits) {
+    private List<ModelConfigMap> parseHitsAsModels(SearchHits hits) {
         var modelConfigs = new ArrayList<ModelConfigMap>();
         for (var hit : hits) {
             modelConfigs.add(new ModelConfigMap(hit.getSourceAsMap(), Map.of()));
@@ -224,8 +217,8 @@ public class ModelRegistry {
         return modelConfigs;
     }
 
-    private ModelConfigMap createModelConfigMap(SearchHit[] hits, String modelId) {
-        Map<String, SearchHit> mappedHits = Arrays.stream(hits).collect(Collectors.toMap(hit -> {
+    private ModelConfigMap createModelConfigMap(SearchHits hits, String inferenceEntityId) {
+        Map<String, SearchHit> mappedHits = Arrays.stream(hits.getHits()).collect(Collectors.toMap(hit -> {
             if (hit.getIndex().startsWith(InferenceIndex.INDEX_NAME)) {
                 return InferenceIndex.INDEX_NAME;
             }
@@ -234,11 +227,11 @@ public class ModelRegistry {
                 return InferenceSecretsIndex.INDEX_NAME;
             }
 
-            logger.warn(format("Found invalid index for model [%s] at index [%s]", modelId, hit.getIndex()));
+            logger.warn(format("Found invalid index for model [%s] at index [%s]", inferenceEntityId, hit.getIndex()));
             throw new IllegalArgumentException(
                 format(
                     "Invalid result while loading model [%s] index: [%s]. Try deleting and reinitializing the service",
-                    modelId,
+                    inferenceEntityId,
                     hit.getIndex()
                 )
             );
@@ -247,9 +240,14 @@ public class ModelRegistry {
         if (mappedHits.containsKey(InferenceIndex.INDEX_NAME) == false
             || mappedHits.containsKey(InferenceSecretsIndex.INDEX_NAME) == false
             || mappedHits.size() > 2) {
-            logger.warn(format("Failed to load model [%s], found model parts from index prefixes: [%s]", modelId, mappedHits.keySet()));
+            logger.warn(
+                format("Failed to load model [%s], found model parts from index prefixes: [%s]", inferenceEntityId, mappedHits.keySet())
+            );
             throw new IllegalStateException(
-                format("Failed to load model, model [%s] is in an invalid state. Try deleting and reinitializing the service", modelId)
+                format(
+                    "Failed to load model, model [%s] is in an invalid state. Try deleting and reinitializing the service",
+                    inferenceEntityId
+                )
             );
         }
 
@@ -263,14 +261,14 @@ public class ModelRegistry {
         ActionListener<BulkResponse> bulkResponseActionListener = getStoreModelListener(model, listener);
 
         IndexRequest configRequest = createIndexRequest(
-            Model.documentId(model.getConfigurations().getModelId()),
+            Model.documentId(model.getConfigurations().getInferenceEntityId()),
             InferenceIndex.INDEX_NAME,
             model.getConfigurations(),
             false
         );
 
         IndexRequest secretsRequest = createIndexRequest(
-            Model.documentId(model.getConfigurations().getModelId()),
+            Model.documentId(model.getConfigurations().getInferenceEntityId()),
             InferenceSecretsIndex.INDEX_NAME,
             model.getSecrets(),
             false
@@ -285,16 +283,16 @@ public class ModelRegistry {
 
     private static ActionListener<BulkResponse> getStoreModelListener(Model model, ActionListener<Boolean> listener) {
         return ActionListener.wrap(bulkItemResponses -> {
-            var modelId = model.getConfigurations().getModelId();
+            var inferenceEntityId = model.getConfigurations().getInferenceEntityId();
 
             if (bulkItemResponses.getItems().length == 0) {
-                logger.warn(format("Storing model [%s] failed, no items were received from the bulk response", modelId));
+                logger.warn(format("Storing model [%s] failed, no items were received from the bulk response", inferenceEntityId));
 
                 listener.onFailure(
                     new ElasticsearchStatusException(
                         format(
                             "Failed to store inference model [%s], invalid bulk response received. Try reinitializing the service",
-                            modelId
+                            inferenceEntityId
                         ),
                         RestStatus.INTERNAL_SERVER_ERROR
                     )
@@ -309,34 +307,34 @@ public class ModelRegistry {
                 return;
             }
 
-            logBulkFailures(model.getConfigurations().getModelId(), bulkItemResponses);
+            logBulkFailures(model.getConfigurations().getInferenceEntityId(), bulkItemResponses);
 
             if (ExceptionsHelper.unwrapCause(failure.getCause()) instanceof VersionConflictEngineException) {
-                listener.onFailure(new ResourceAlreadyExistsException("Inference model [{}] already exists", modelId));
+                listener.onFailure(new ResourceAlreadyExistsException("Inference model [{}] already exists", inferenceEntityId));
                 return;
             }
 
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    format("Failed to store inference model [%s]", modelId),
+                    format("Failed to store inference model [%s]", inferenceEntityId),
                     RestStatus.INTERNAL_SERVER_ERROR,
                     failure.getCause()
                 )
             );
         }, e -> {
-            String errorMessage = format("Failed to store inference model [%s]", model.getConfigurations().getModelId());
+            String errorMessage = format("Failed to store inference model [%s]", model.getConfigurations().getInferenceEntityId());
             logger.warn(errorMessage, e);
             listener.onFailure(new ElasticsearchStatusException(errorMessage, RestStatus.INTERNAL_SERVER_ERROR, e));
         });
     }
 
-    private static void logBulkFailures(String modelId, BulkResponse bulkResponse) {
+    private static void logBulkFailures(String inferenceEntityId, BulkResponse bulkResponse) {
         for (BulkItemResponse item : bulkResponse.getItems()) {
             if (item.isFailed()) {
                 logger.warn(
                     format(
                         "Failed to store inference model [%s] index: [%s] bulk failure message [%s]",
-                        modelId,
+                        inferenceEntityId,
                         item.getIndex(),
                         item.getFailureMessage()
                     )
@@ -355,17 +353,13 @@ public class ModelRegistry {
         return null;
     }
 
-    public void deleteModel(String modelId, ActionListener<Boolean> listener) {
+    public void deleteModel(String inferenceEntityId, ActionListener<Boolean> listener) {
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
         request.indices(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN);
-        request.setQuery(documentIdQuery(modelId));
+        request.setQuery(documentIdQuery(inferenceEntityId));
         request.setRefresh(true);
 
-        client.execute(
-            DeleteByQueryAction.INSTANCE,
-            request,
-            ActionListener.wrap(r -> listener.onResponse(Boolean.TRUE), listener::onFailure)
-        );
+        client.execute(DeleteByQueryAction.INSTANCE, request, listener.delegateFailureAndWrap((l, r) -> l.onResponse(Boolean.TRUE)));
     }
 
     private static IndexRequest createIndexRequest(String docId, String indexName, ToXContentObject body, boolean allowOverwriting) {
@@ -380,7 +374,7 @@ public class ModelRegistry {
         }
     }
 
-    private QueryBuilder documentIdQuery(String modelId) {
-        return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(modelId)));
+    private QueryBuilder documentIdQuery(String inferenceEntityId) {
+        return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(inferenceEntityId)));
     }
 }

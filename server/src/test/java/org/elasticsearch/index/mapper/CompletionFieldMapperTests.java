@@ -223,7 +223,10 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         XContentBuilder builder = jsonBuilder().startObject();
         fieldMapper.toXContent(builder, new ToXContent.MapParams(Map.of("include_defaults", "true"))).endObject();
         builder.close();
-        Map<String, Object> serializedMap = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder)).map();
+        Map<String, Object> serializedMap;
+        try (var parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            serializedMap = parser.map();
+        }
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("field");
         assertThat(configMap.get("analyzer").toString(), is("simple"));
         assertThat(configMap.get("search_analyzer").toString(), is("standard"));

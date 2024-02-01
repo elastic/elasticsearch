@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -18,6 +17,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
@@ -64,10 +64,10 @@ public class RetryingHttpSender implements Retrier {
     }
 
     private class InternalRetrier extends RetryableAction<InferenceServiceResults> {
-        private final HttpRequestBase request;
+        private Request request;
         private final ResponseHandler responseHandler;
 
-        InternalRetrier(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener) {
+        InternalRetrier(Request request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener) {
             super(
                 logger,
                 threadPool,
@@ -86,7 +86,7 @@ public class RetryingHttpSender implements Retrier {
             ActionListener<HttpResult> responseListener = ActionListener.wrap(result -> {
                 try {
                     responseHandler.validateResponse(throttlerManager, logger, request, result);
-                    InferenceServiceResults inferenceResults = responseHandler.parseResult(result);
+                    InferenceServiceResults inferenceResults = responseHandler.parseResult(request, result);
 
                     listener.onResponse(inferenceResults);
                 } catch (Exception e) {
@@ -98,12 +98,13 @@ public class RetryingHttpSender implements Retrier {
                 listener.onFailure(transformIfRetryable(e));
             });
 
-            sender.send(request, responseListener);
+            sender.send(request.createHttpRequest(), responseListener);
         }
 
         @Override
         public boolean shouldRetry(Exception e) {
-            if (e instanceof RetryException retry) {
+            if (e instanceof Retryable retry) {
+                request = retry.rebuildRequest(request);
                 return retry.shouldRetry();
             }
 
@@ -137,29 +138,29 @@ public class RetryingHttpSender implements Retrier {
     }
 
     @Override
-    public void send(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener) {
+    public void send(Request request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener) {
         InternalRetrier retrier = new InternalRetrier(request, responseHandler, listener);
         retrier.run();
     }
 
-    private void logException(HttpRequestBase request, String requestType, Exception exception) {
+    private void logException(Request request, String requestType, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         throttlerManager.warn(
             logger,
-            format("Failed while sending request [%s] of type [%s]", request.getRequestLine(), requestType),
+            format("Failed while sending request from inference entity id [%s] of type [%s]", request.getInferenceEntityId(), requestType),
             causeException
         );
     }
 
-    private void logException(HttpRequestBase request, HttpResult result, String requestType, Exception exception) {
+    private void logException(Request request, HttpResult result, String requestType, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         throttlerManager.warn(
             logger,
             format(
-                "Failed to process the response for request [%s] of type [%s] with status [%s] [%s]",
-                request.getRequestLine(),
+                "Failed to process the response for request from inference entity id [%s] of type [%s] with status [%s] [%s]",
+                request.getInferenceEntityId(),
                 requestType,
                 result.response().getStatusLine().getStatusCode(),
                 result.response().getStatusLine().getReasonPhrase()

@@ -196,6 +196,7 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
         adminClient().performRequest(new Request("POST", INDEX_NAME + "/_refresh"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103072")
     public void testLearningToRankRescore() throws Exception {
         Request request = new Request("GET", "store/_search?size=3&error_trace");
         request.setJsonEntity("""
@@ -231,6 +232,7 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
         assertHitScores(client().performRequest(request), List.of(9.0, 9.0, 6.0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103072")
     public void testLearningToRankRescoreSmallWindow() throws Exception {
         Request request = new Request("GET", "store/_search?size=5");
         request.setJsonEntity("""
@@ -243,6 +245,7 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
         assertHitScores(client().performRequest(request), List.of(20.0, 20.0, 1.0, 1.0, 1.0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103072")
     public void testLearningToRankRescorerWithChainedRescorers() throws IOException {
         Request request = new Request("GET", "store/_search?size=5");
         request.setJsonEntity("""

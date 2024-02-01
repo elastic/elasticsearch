@@ -1,0 +1,5 @@
+pr: 103160
+summary: Set thread name used by REST client
+area: Java Low Level REST Client
+type: enhancement
+issues: []

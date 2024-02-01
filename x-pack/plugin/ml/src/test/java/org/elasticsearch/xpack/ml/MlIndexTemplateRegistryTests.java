@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
@@ -55,7 +55,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private Client client;
-    private ArgumentCaptor<PutComposableIndexTemplateAction.Request> putIndexTemplateRequestCaptor;
+    private ArgumentCaptor<TransportPutComposableIndexTemplateAction.Request> putIndexTemplateRequestCaptor;
 
     @Before
     public void setUpMocks() {
@@ -81,7 +81,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             )
         );
 
-        putIndexTemplateRequestCaptor = ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
+        putIndexTemplateRequestCaptor = ArgumentCaptor.forClass(TransportPutComposableIndexTemplateAction.Request.class);
     }
 
     public void testStateTemplate() {
@@ -96,9 +96,13 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client, times(4)).execute(same(PutComposableIndexTemplateAction.INSTANCE), putIndexTemplateRequestCaptor.capture(), any());
+        verify(client, times(4)).execute(
+            same(TransportPutComposableIndexTemplateAction.TYPE),
+            putIndexTemplateRequestCaptor.capture(),
+            any()
+        );
 
-        PutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
+        TransportPutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
             .stream()
             .filter(r -> r.name().equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX))
             .findFirst()
@@ -120,9 +124,13 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client, times(4)).execute(same(PutComposableIndexTemplateAction.INSTANCE), putIndexTemplateRequestCaptor.capture(), any());
+        verify(client, times(4)).execute(
+            same(TransportPutComposableIndexTemplateAction.TYPE),
+            putIndexTemplateRequestCaptor.capture(),
+            any()
+        );
 
-        PutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
+        TransportPutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
             .stream()
             .filter(r -> r.name().equals(MlStatsIndex.TEMPLATE_NAME))
             .findFirst()

@@ -13,6 +13,8 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
@@ -32,7 +34,18 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper {
 
-    public DateTrunc(Source source, Expression interval, Expression field) {
+    @FunctionInfo(returnType = "date", description = "Rounds down a date to the closest interval.")
+    public DateTrunc(
+        Source source,
+        // Need to replace the commas in the description here with semi-colon as there's a bug in the CSV parser
+        // used in the CSVTests and fixing it is not trivial
+        @Param(
+            name = "interval",
+            type = { "keyword" },
+            description = "Interval; expressed using the timespan literal syntax."
+        ) Expression interval,
+        @Param(name = "date", type = { "date" }, description = "Date expression") Expression field
+    ) {
         super(source, interval, field);
     }
 
@@ -149,10 +162,14 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
                 "Function [" + sourceText() + "] has invalid interval [" + interval().sourceText() + "]. " + e.getMessage()
             );
         }
-        return evaluator(fieldEvaluator, DateTrunc.createRounding(foldedInterval, zoneId()));
+        return evaluator(source(), fieldEvaluator, DateTrunc.createRounding(foldedInterval, zoneId()));
     }
 
-    public static ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEvaluator, Rounding.Prepared rounding) {
-        return new DateTruncEvaluator.Factory(fieldEvaluator, rounding);
+    public static ExpressionEvaluator.Factory evaluator(
+        Source source,
+        ExpressionEvaluator.Factory fieldEvaluator,
+        Rounding.Prepared rounding
+    ) {
+        return new DateTruncEvaluator.Factory(source, fieldEvaluator, rounding);
     }
 }

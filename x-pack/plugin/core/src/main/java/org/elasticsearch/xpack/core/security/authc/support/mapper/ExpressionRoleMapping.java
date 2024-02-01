@@ -14,8 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -103,7 +102,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             this.roleTemplates = Collections.emptyList();
         }
         this.expression = ExpressionParser.readExpression(in);
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
     }
 
     @Override
@@ -200,10 +199,12 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      * Parse an {@link ExpressionRoleMapping} from the provided <em>XContent</em>
      */
     public static ExpressionRoleMapping parse(String name, BytesReference source, XContentType xContentType) throws IOException {
-        final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
         try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = xContentType.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                source,
+                xContentType
+            )
         ) {
             return parse(name, parser);
         }

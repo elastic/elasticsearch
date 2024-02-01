@@ -189,13 +189,13 @@ public class LearningToRankService {
         try {
             Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, templateSource, SCRIPT_OPTIONS, Collections.emptyMap());
             String parsedTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(params).execute();
-            XContentParser parser = XContentType.JSON.xContent().createParser(parserConfiguration, parsedTemplate);
-
-            return new QueryExtractorBuilder(
-                queryExtractorBuilder.featureName(),
-                QueryProvider.fromXContent(parser, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT),
-                queryExtractorBuilder.defaultScore()
-            );
+            try (XContentParser parser = XContentType.JSON.xContent().createParser(parserConfiguration, parsedTemplate)) {
+                return new QueryExtractorBuilder(
+                    queryExtractorBuilder.featureName(),
+                    QueryProvider.fromXContent(parser, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT),
+                    queryExtractorBuilder.defaultScore()
+                );
+            }
         } catch (GeneralScriptException e) {
             if (e.getRootCause().getClass().getName().equals(MustacheInvalidParameterException.class.getName())) {
                 // Can't use instanceof since it return unexpected result.

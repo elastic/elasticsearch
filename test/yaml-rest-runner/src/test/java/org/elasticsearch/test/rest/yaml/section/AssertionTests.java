@@ -69,6 +69,17 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat((Integer) lengthAssertion.getExpectedValue(), equalTo(22));
     }
 
+    public void testParseIsAfter() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ field: 2021-05-25T12:30:00.000Z}");
+
+        IsAfterAssertion isAfterAssertion = IsAfterAssertion.parse(parser);
+
+        assertThat(isAfterAssertion, notNullValue());
+        assertThat(isAfterAssertion.getField(), equalTo("field"));
+        assertThat(isAfterAssertion.getExpectedValue(), instanceOf(String.class));
+        assertThat(isAfterAssertion.getExpectedValue(), equalTo("2021-05-25T12:30:00.000Z"));
+    }
+
     public void testParseMatchSimpleIntegerValue() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, "{ field: 10 }");
 

@@ -38,10 +38,10 @@ import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
@@ -174,8 +174,12 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         return client().execute(GetAsyncStatusAction.INSTANCE, new GetAsyncStatusRequest(id)).get();
     }
 
+    protected AsyncStatusResponse getAsyncStatus(String id, TimeValue keepAlive) throws ExecutionException, InterruptedException {
+        return client().execute(GetAsyncStatusAction.INSTANCE, new GetAsyncStatusRequest(id).setKeepAlive(keepAlive)).get();
+    }
+
     protected AcknowledgedResponse deleteAsyncSearch(String id) throws ExecutionException, InterruptedException {
-        return client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(id)).get();
+        return client().execute(TransportDeleteAsyncResultAction.TYPE, new DeleteAsyncResultRequest(id)).get();
     }
 
     /**
@@ -193,7 +197,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         assertBusy(() -> {
             try {
                 AsyncSearchResponse resp = getAsyncSearch(id);
-                assertFalse(resp.isRunning());
+                try {
+                    assertFalse(resp.isRunning());
+                } finally {
+                    resp.decRef();
+                }
             } catch (Exception exc) {
                 if (ExceptionsHelper.unwrapCause(exc.getCause()) instanceof ResourceNotFoundException == false) {
                     throw exc;

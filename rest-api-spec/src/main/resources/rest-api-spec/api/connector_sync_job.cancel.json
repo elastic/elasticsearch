@@ -1,12 +1,11 @@
 {
   "connector_sync_job.cancel": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/enterprise-search/current/connectors.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cancel-connector-sync-job-api.html",
       "description": "Cancels a connector sync job."
     },
     "stability": "experimental",
-    "visibility": "feature_flag",
-    "feature_flag": "es.connector_api_feature_flag_enabled",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

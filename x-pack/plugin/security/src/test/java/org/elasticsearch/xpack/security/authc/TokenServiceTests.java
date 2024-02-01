@@ -23,10 +23,10 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -62,6 +62,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -185,7 +186,7 @@ public class TokenServiceTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(IndexRequest.class), anyActionListener());
         doAnswer(invocationOnMock -> {
             BulkRequest request = (BulkRequest) invocationOnMock.getArguments()[0];
             @SuppressWarnings("unchecked")
@@ -254,7 +255,7 @@ public class TokenServiceTests extends ESTestCase {
             transportVersion = TransportVersions.V_8_8_1;
         } else {
             version = Version.V_8_9_0;
-            transportVersion = TransportVersions.V_8_500_020;
+            transportVersion = TransportVersions.V_8_9_X;
         }
         return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
@@ -269,6 +270,7 @@ public class TokenServiceTests extends ESTestCase {
     public static void startThreadPool() throws IOException {
         threadPool = new ThreadPool(
             settings,
+            MeterRegistry.NOOP,
             new FixedExecutorBuilder(
                 settings,
                 TokenService.THREAD_POOL_NAME,
@@ -1235,9 +1237,9 @@ public class TokenServiceTests extends ESTestCase {
                 assertThat(refreshFilter.fieldName(), is("refresh_token.token"));
                 final SearchHits hits;
                 if (storedRefreshToken.equals(refreshFilter.value())) {
-                    SearchHit hit = new SearchHit(randomInt(), "token_" + userToken.getId());
+                    SearchHit hit = SearchHit.unpooled(randomInt(), "token_" + userToken.getId());
                     hit.sourceRef(docSource);
-                    hits = new SearchHits(new SearchHit[] { hit }, null, 1);
+                    hits = SearchHits.unpooled(new SearchHit[] { hit }, null, 1);
                 } else {
                     hits = SearchHits.EMPTY_WITH_TOTAL_HITS;
                 }

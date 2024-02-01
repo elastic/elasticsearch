@@ -1,0 +1,37 @@
+[discrete]
+[[esql-to_cartesianpoint]]
+=== `TO_CARTESIANPOINT`
+
+*Syntax*
+
+[source,esql]
+----
+TO_CARTESIANPOINT(v)
+----
+
+*Parameters*
+
+`v`::
+Input value. The input can be a single- or multi-valued column or an expression.
+
+*Description*
+
+Converts an input value to a `point` value.
+
+A string will only be successfully converted if it respects the
+{wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.
+
+*Supported types*
+
+include::types/to_cartesianpoint.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/spatial.csv-spec[tag=to_cartesianpoint-str]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/spatial.csv-spec[tag=to_cartesianpoint-str-result]
+|===

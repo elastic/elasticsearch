@@ -8,8 +8,8 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
+import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -43,6 +43,10 @@ public class RestReloadAnalyzersAction extends BaseRestHandler {
             Strings.splitStringByCommaToArray(request.param("index"))
         );
         reloadAnalyzersRequest.indicesOptions(IndicesOptions.fromRequest(request, reloadAnalyzersRequest.indicesOptions()));
-        return channel -> client.execute(ReloadAnalyzerAction.INSTANCE, reloadAnalyzersRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            TransportReloadAnalyzersAction.TYPE,
+            reloadAnalyzersRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

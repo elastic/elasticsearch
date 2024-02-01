@@ -18,7 +18,7 @@ import java.io.IOException;
  * Block that stores int values.
  * This class is generated. Do not edit it.
  */
-public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock {
+public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock {
 
     /**
      * Retrieves the int value stored at the given value index.
@@ -164,44 +164,6 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
             }
         }
         return result;
-    }
-
-    /**
-     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newIntBlockBuilder}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize) {
-        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * Returns a builder.
-     * @deprecated use {@link BlockFactory#newIntBlockBuilder}
-     */
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newIntBlockBuilder(estimatedSize);
-    }
-
-    /**
-     * Returns a constant block built by the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newConstantIntBlockWith}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static IntBlock newConstantBlockWith(int value, int positions) {
-        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * Returns a constant block.
-     * @deprecated use {@link BlockFactory#newConstantIntBlockWith}
-     */
-    @Deprecated
-    static IntBlock newConstantBlockWith(int value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantIntBlockWith(value, positions);
     }
 
     /**

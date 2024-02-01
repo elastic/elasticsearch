@@ -14,10 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -40,27 +38,10 @@ public class IsolateDatafeedAction extends ActionType<IsolateDatafeedAction.Resp
     public static final String NAME = "cluster:internal/xpack/ml/datafeed/isolate";
 
     private IsolateDatafeedAction() {
-        super(NAME, IsolateDatafeedAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
-
-        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
-        static {
-            PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
-        }
-
-        public static Request fromXContent(XContentParser parser) {
-            return parseRequest(null, parser);
-        }
-
-        public static Request parseRequest(String datafeedId, XContentParser parser) {
-            Request request = PARSER.apply(parser, null);
-            if (datafeedId != null) {
-                request.datafeedId = datafeedId;
-            }
-            return request;
-        }
 
         private String datafeedId;
 

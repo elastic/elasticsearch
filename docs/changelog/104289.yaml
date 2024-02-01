@@ -1,0 +1,6 @@
+pr: 104289
+summary: Better handling of async processor failures
+area: Ingest Node
+type: bug
+issues:
+ - 101921

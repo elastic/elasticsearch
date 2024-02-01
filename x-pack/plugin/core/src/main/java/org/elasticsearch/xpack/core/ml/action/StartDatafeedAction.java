@@ -50,7 +50,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/datafeed/start";
 
     private StartDatafeedAction() {
-        super(NAME, NodeAcknowledgedResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {

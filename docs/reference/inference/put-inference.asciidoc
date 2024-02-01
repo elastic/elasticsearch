@@ -6,6 +6,11 @@ experimental[]
 
 Creates a model to perform an {infer} task.
 
+IMPORTANT: The {infer} APIs enable you to use certain services, such as ELSER, 
+OpenAI, or Hugging Face, in your cluster. This is not the same feature that you 
+can use on an ML node with custom {ml} models. If you want to train and use your 
+own model, use the <<ml-df-trained-models-apis>>.
+
 
 [discrete]
 [[put-inference-api-request]]
@@ -20,12 +25,19 @@ Creates a model to perform an {infer} task.
 
 * Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
 
+
 [discrete]
 [[put-inference-api-desc]]
 ==== {api-description-title}
 
 The create {infer} API enables you to create and configure an {infer} model to
 perform a specific {infer} task.
+
+The following services are available through the {infer} API:
+
+* ELSER
+* OpenAI
+* Hugging Face
 
 
 [discrete]
@@ -52,8 +64,10 @@ The type of the {infer} task that the model will perform. Available task types:
 (Required, string)
 The type of service supported for the specified task type.
 Available services:
-* `elser`,
-* `openai`.
+* `elser`: specify the `sparse_embedding` task type to use the ELSER service.
+* `openai`: specify the `text_embedding` task type to use the OpenAI service.
+* `hugging_face`: specify the `text_embedding` task type to use the Hugging Face 
+service.
 
 `service_settings`::
 (Required, object)
@@ -98,6 +112,26 @@ https://platform.openai.com/account/organization[**Settings** > **Organizations*
 The URL endpoint to use for the requests. Can be changed for testing purposes.
 Defaults to `https://api.openai.com/v1/embeddings`.
 =====
++
+.`service_settings` for `hugging_face`
+[%collapsible%closed]
+=====
+`api_key`:::
+(Required, string)
+A valid access token of your Hugging Face account. You can find your Hugging 
+Face access tokens or you can create a new one 
+https://huggingface.co/settings/tokens[on the settings page].
+
+IMPORTANT: You need to provide the API key only once, during the {infer} model 
+creation. The <<get-inference-api>> does not retrieve your API key. After 
+creating the {infer} model, you cannot change the associated API key. If you 
+want to use a different API key, delete the {infer} model and recreate it with 
+the same name and the updated API key.
+
+`url`:::
+(Required, string)
+The URL endpoint to use for the requests.
+=====
 
 `task_settings`::
 (Optional, object)
@@ -114,9 +148,17 @@ https://platform.openai.com/docs/guides/embeddings/what-are-embeddings[OpenAI do
 for the list of available text embedding models.
 =====
 
+
 [discrete]
 [[put-inference-api-example]]
 ==== {api-examples-title}
+
+This section contains example API calls for every service type.
+
+
+[discrete]
+[[inference-example-elser]]
+===== ELSER service
 
 The following example shows how to create an {infer} model called
 `my-elser-model` to perform a `sparse_embedding` task type.
@@ -154,6 +196,10 @@ Example response:
 // NOTCONSOLE
 
 
+[discrete]
+[[inference-example-openai]]
+===== OpenAI service
+
 The following example shows how to create an {infer} model called
 `openai_embeddings` to perform a `text_embedding` task type.
 
@@ -171,3 +217,34 @@ PUT _inference/text_embedding/openai_embeddings
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
+
+
+[discrete]
+[[inference-example-hugging-face]]
+===== Hugging Face service
+
+The following example shows how to create an {infer} model called
+`hugging-face_embeddings` to perform a `text_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/hugging-face-embeddings 
+{
+  "service": "hugging_face",
+  "service_settings": {
+    "api_key": "<access_token>", <1>
+    "url": "<url_endpoint>" <2>
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> A valid Hugging Face access token. You can find on the 
+https://huggingface.co/settings/tokens[settings page of your account].
+<2> The {infer} endpoint URL you created on Hugging Face. 
+
+Create a new {infer} endpoint on 
+https://ui.endpoints.huggingface.co/[the Hugging Face endpoint page] to get an 
+endpoint URL. Select the model you want to use on the new endpoint creation page 
+- for example `intfloat/e5-small-v2` - then select the `Sentence Embeddings` 
+task under the Advanced configuration section. Create the endpoint. Copy the URL 
+after the endpoint initialization has been finished.

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshots
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheRequest;
-import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheResponse;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodeCachesStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse;
@@ -112,12 +112,12 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
                 randomBoolean()
                     ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
                     : QueryBuilders.termQuery("test", "value" + randomIntBetween(0, 1000))
-            ).setSize(randomIntBetween(0, 1000)).get();
+            ).setSize(randomIntBetween(0, 1000)).get().decRef();
         }
 
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
 
-        final ClearSearchableSnapshotsCacheResponse clearCacheResponse = client().execute(
+        final BroadcastResponse clearCacheResponse = client().execute(
             ClearSearchableSnapshotsCacheAction.INSTANCE,
             new ClearSearchableSnapshotsCacheRequest(mountedIndex)
         ).actionGet();

@@ -20,10 +20,10 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.time.ZonedDateTime;
 import java.util.Collections;
@@ -129,22 +129,26 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
                 new DateHistogramAggregationBuilder(DATE_BUCKETS).fixedInterval(new DateHistogramInterval(bucketSpan + "ms"))
                     .field(timeField)
             )
-            .query(ExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end))
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end))
             .runtimeMappings(runtimeMappings);
 
         SearchRequest searchRequest = new SearchRequest(datafeedIndices).source(searchSourceBuilder).indicesOptions(indicesOptions);
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             SearchResponse response = client.execute(TransportSearchAction.TYPE, searchRequest).actionGet();
-            List<? extends Histogram.Bucket> buckets = ((Histogram) response.getAggregations().get(DATE_BUCKETS)).getBuckets();
-            Map<Long, Long> hashMap = Maps.newMapWithExpectedSize(buckets.size());
-            for (Histogram.Bucket bucket : buckets) {
-                long bucketTime = toHistogramKeyToEpoch(bucket.getKey());
-                if (bucketTime < 0) {
-                    throw new IllegalStateException("Histogram key [" + bucket.getKey() + "] cannot be converted to a timestamp");
+            try {
+                List<? extends Histogram.Bucket> buckets = ((Histogram) response.getAggregations().get(DATE_BUCKETS)).getBuckets();
+                Map<Long, Long> hashMap = Maps.newMapWithExpectedSize(buckets.size());
+                for (Histogram.Bucket bucket : buckets) {
+                    long bucketTime = toHistogramKeyToEpoch(bucket.getKey());
+                    if (bucketTime < 0) {
+                        throw new IllegalStateException("Histogram key [" + bucket.getKey() + "] cannot be converted to a timestamp");
+                    }
+                    hashMap.put(bucketTime, bucket.getDocCount());
                 }
-                hashMap.put(bucketTime, bucket.getDocCount());
+                return hashMap;
+            } finally {
+                response.decRef();
             }
-            return hashMap;
         }
     }
 

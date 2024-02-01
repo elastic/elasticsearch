@@ -22,7 +22,7 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
         WriteRequestBuilder<DeleteRequestBuilder> {
 
     public DeleteRequestBuilder(ElasticsearchClient client, @Nullable String index) {
-        super(client, DeleteAction.INSTANCE, new DeleteRequest(index));
+        super(client, TransportDeleteAction.TYPE, new DeleteRequest(index));
     }
 
     /**

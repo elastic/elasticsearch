@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -31,6 +32,7 @@ import static org.elasticsearch.action.admin.indices.mapping.put.TransportPutMap
 
 public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNodeAction<PutMappingRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/mapping/auto_put");
     private static final Logger logger = LogManager.getLogger(TransportAutoPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
@@ -47,7 +49,7 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
         final SystemIndices systemIndices
     ) {
         super(
-            AutoPutMappingAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -91,7 +93,7 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
             return;
         }
 
-        performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
+        performMappingUpdate(concreteIndices, request, listener, metadataMappingService, true);
     }
 
 }

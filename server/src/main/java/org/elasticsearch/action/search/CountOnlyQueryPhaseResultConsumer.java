@@ -49,12 +49,17 @@ class CountOnlyQueryPhaseResultConsumer extends SearchPhaseResults<SearchPhaseRe
     public void consumeResult(SearchPhaseResult result, Runnable next) {
         assert results.contains(result.getShardIndex()) == false : "shardIndex: " + result.getShardIndex() + " is already set";
         results.add(result.getShardIndex());
+        progressListener.notifyQueryResult(result.getShardIndex(), result.queryResult());
+        // We have an empty result, track that we saw it for this shard and continue;
+        if (result.queryResult().isNull()) {
+            next.run();
+            return;
+        }
         // set the relation to the first non-equal relation
         relationAtomicReference.compareAndSet(TotalHits.Relation.EQUAL_TO, result.queryResult().getTotalHits().relation);
         totalHits.add(result.queryResult().getTotalHits().value);
         terminatedEarly.compareAndSet(false, (result.queryResult().terminatedEarly() != null && result.queryResult().terminatedEarly()));
         timedOut.compareAndSet(false, result.queryResult().searchTimedOut());
-        progressListener.notifyQueryResult(result.getShardIndex(), result.queryResult());
         next.run();
     }
 
@@ -80,7 +85,7 @@ class CountOnlyQueryPhaseResultConsumer extends SearchPhaseResults<SearchPhaseRe
             1,
             0,
             0,
-            false
+            results.isEmpty()
         );
         if (progressListener != SearchProgressListener.NOOP) {
             progressListener.notifyFinalReduce(
@@ -99,20 +104,5 @@ class CountOnlyQueryPhaseResultConsumer extends SearchPhaseResults<SearchPhaseRe
     }
 
     @Override
-    public void incRef() {}
-
-    @Override
-    public boolean tryIncRef() {
-        return true;
-    }
-
-    @Override
-    public boolean decRef() {
-        return true;
-    }
-
-    @Override
-    public boolean hasReferences() {
-        return false;
-    }
+    public void close() {}
 }

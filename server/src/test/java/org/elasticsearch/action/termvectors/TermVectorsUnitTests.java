@@ -294,17 +294,18 @@ public class TermVectorsUnitTests extends ESTestCase {
 
     public void testMultiParser() throws Exception {
         byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest1.json");
-        XContentParser data = createParser(JsonXContent.jsonXContent, bytes);
-        MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), data);
-        checkParsedParameters(request);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
+            MultiTermVectorsRequest request = new MultiTermVectorsRequest();
+            request.add(new TermVectorsRequest(), parser);
+            checkParsedParameters(request);
+        }
 
         bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest2.json");
-        data = createParser(JsonXContent.jsonXContent, new BytesArray(bytes));
-        request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), data);
-
-        checkParsedParameters(request);
+        try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray(bytes))) {
+            MultiTermVectorsRequest request = new MultiTermVectorsRequest();
+            request.add(new TermVectorsRequest(), parser);
+            checkParsedParameters(request);
+        }
     }
 
     void checkParsedParameters(MultiTermVectorsRequest request) {

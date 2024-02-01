@@ -12,6 +12,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -94,9 +95,16 @@ public final class TimeSeriesRestDriver {
 
     public static Map<String, Map<String, Object>> explain(RestClient client, String indexPattern, boolean onlyErrors, boolean onlyManaged)
         throws IOException {
+        RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> warnings.isEmpty() == false && List.of("""
+                [indices.lifecycle.rollover.only_if_has_documents] setting was deprecated in Elasticsearch \
+                and will be removed in a future release.""").equals(warnings) == false)
+            .build();
+
         Request explainRequest = new Request("GET", indexPattern + "/_ilm/explain");
         explainRequest.addParameter("only_errors", Boolean.toString(onlyErrors));
         explainRequest.addParameter("only_managed", Boolean.toString(onlyManaged));
+        explainRequest.setOptions(consumeWarningsOptions);
         Response response = client.performRequest(explainRequest);
         Map<String, Object> responseMap;
         try (InputStream is = response.getEntity().getContent()) {

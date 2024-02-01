@@ -17,12 +17,12 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpda
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
@@ -115,6 +115,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadContext threadContext;
     private final PersistentTasksService persistentTasksService;
+    private String downsamplingInterval;
 
     private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
         IndexSettings.DEFAULT_PIPELINE.getKey(),
@@ -268,7 +269,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(sourceIndexName);
         getMappingsRequest.setParentTask(parentTask);
-        client.admin().indices().getMappings(getMappingsRequest, ActionListener.wrap(getMappingsResponse -> {
+        client.admin().indices().getMappings(getMappingsRequest, listener.delegateFailureAndWrap((delegate, getMappingsResponse) -> {
             final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
                 .entrySet()
                 .stream()
@@ -284,6 +285,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
             // Validate downsampling interval
             validateDownsamplingInterval(mapperService, request.getDownsampleConfig());
+            downsamplingInterval = request.getDownsampleConfig().getInterval().toString();
 
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();
@@ -307,7 +309,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             }
 
             if (validationException.validationErrors().isEmpty() == false) {
-                listener.onFailure(validationException);
+                delegate.onFailure(validationException);
                 return;
             }
 
@@ -315,7 +317,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             try {
                 mapping = createDownsampleIndexMapping(helper, request.getDownsampleConfig(), mapperService, sourceIndexMappings);
             } catch (IOException e) {
-                listener.onFailure(e);
+                delegate.onFailure(e);
                 return;
             }
             // 3. Create downsample index
@@ -329,7 +331,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     if (createIndexResp.isAcknowledged()) {
                         performShardDownsampling(
                             request,
-                            listener,
+                            delegate,
                             sourceIndexMetadata,
                             downsampleIndexName,
                             parentTask,
@@ -337,13 +339,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             labelFields
                         );
                     } else {
-                        listener.onFailure(new ElasticsearchException("Failed to create downsample index [" + downsampleIndexName + "]"));
+                        delegate.onFailure(new ElasticsearchException("Failed to create downsample index [" + downsampleIndexName + "]"));
                     }
                 }, e -> {
                     if (e instanceof ResourceAlreadyExistsException) {
                         performShardDownsampling(
                             request,
-                            listener,
+                            delegate,
                             sourceIndexMetadata,
                             downsampleIndexName,
                             parentTask,
@@ -351,11 +353,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             labelFields
                         );
                     } else {
-                        listener.onFailure(e);
+                        delegate.onFailure(e);
                     }
                 })
             );
-        }, listener::onFailure));
+        }));
     }
 
     // 3. downsample index created or already exist (in case of retry). Run downsample indexer persistent task on each shard.
@@ -400,6 +402,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
+                    if (persistentTask != null) {
+                        var runningPersistentTaskState = (DownsampleShardPersistentTaskState) persistentTask.getState();
+                        if (runningPersistentTaskState != null) {
+                            if (runningPersistentTaskState.failed()) {
+                                onFailure(new ElasticsearchException("downsample task [" + persistentTaskId + "] failed"));
+                                return;
+                            } else if (runningPersistentTaskState.cancelled()) {
+                                onFailure(new ElasticsearchException("downsample task [" + persistentTaskId + "] cancelled"));
+                                return;
+                            }
+                        }
+                    }
+
                     logger.info("Downsampling task [" + persistentTaskId + " completed for shard " + params.shardId());
                     if (countDown.decrementAndGet() == 0) {
                         logger.info("All downsampling tasks completed [" + numberOfShards + "]");
@@ -598,21 +613,23 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
             fieldProperties.get(TIME_SERIES_METRIC_PARAM).toString()
         );
+        builder.startObject(field);
         if (metricType == TimeSeriesParams.MetricType.COUNTER) {
             // For counters, we keep the same field type, because they store
             // only one value (the last value of the counter)
-            builder.startObject(field).field("type", fieldProperties.get("type")).field(TIME_SERIES_METRIC_PARAM, metricType).endObject();
+            for (String fieldProperty : fieldProperties.keySet()) {
+                builder.field(fieldProperty, fieldProperties.get(fieldProperty));
+            }
         } else {
             final String[] supportedAggsArray = metricType.supportedAggs();
             // We choose max as the default metric
             final String defaultMetric = List.of(supportedAggsArray).contains("max") ? "max" : supportedAggsArray[0];
-            builder.startObject(field)
-                .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
+            builder.field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
                 .array(AggregateDoubleMetricFieldMapper.Names.METRICS, supportedAggsArray)
                 .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
-                .field(TIME_SERIES_METRIC_PARAM, metricType)
-                .endObject();
+                .field(TIME_SERIES_METRIC_PARAM, metricType);
         }
+        builder.endObject();
     }
 
     private static void validateDownsamplingInterval(MapperService mapperService, DownsampleConfig config) {
@@ -831,7 +848,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     /**
      * Updates the downsample target index metadata (task status)
      */
-    class RefreshDownsampleIndexActionListener implements ActionListener<RefreshResponse> {
+    class RefreshDownsampleIndexActionListener implements ActionListener<BroadcastResponse> {
 
         private final ActionListener<AcknowledgedResponse> actionListener;
         private final TaskId parentTask;
@@ -851,7 +868,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         @Override
-        public void onResponse(final RefreshResponse response) {
+        public void onResponse(final BroadcastResponse response) {
             if (response.getFailedShards() != 0) {
                 logger.info("Post refresh failed [{}],{}", downsampleIndexName, Strings.toString(response));
             }
@@ -873,6 +890,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             Settings.builder()
                                 .put(downsampleIndex.getSettings())
                                 .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.SUCCESS)
+                                .put(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey(), downsamplingInterval)
                                 .build(),
                             downsampleIndexName
                         );

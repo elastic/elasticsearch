@@ -283,9 +283,9 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
      * define what type of indices or aliases are not allowed which will result in an error response.
      * @param allowAliasToMultipleIndices, allow aliases to multiple indices, true by default.
      * @param allowClosedIndices, allow closed indices, true by default.
-     * @param removeThrottled, filters out throttled (aka frozen indices), defaults to true.
+     * @param ignoreThrottled, filters out throttled (aka frozen indices), defaults to true.
      */
-    public record GeneralOptions(boolean allowAliasToMultipleIndices, boolean allowClosedIndices, @Deprecated boolean removeThrottled)
+    public record GeneralOptions(boolean allowAliasToMultipleIndices, boolean allowClosedIndices, @Deprecated boolean ignoreThrottled)
         implements
             ToXContentFragment {
 
@@ -295,27 +295,27 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             if (ignoreThrottled == null && defaultOptions != null) {
                 return defaultOptions;
             }
-            return (defaultOptions == null ? new Builder() : new Builder(defaultOptions)).removeThrottled(
+            return (defaultOptions == null ? new Builder() : new Builder(defaultOptions)).ignoreThrottled(
                 nodeBooleanValue(ignoreThrottled, "ignore_throttled")
             ).build();
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field("ignore_throttled", removeThrottled());
+            return builder.field("ignore_throttled", ignoreThrottled());
         }
 
         public static class Builder {
             private boolean allowAliasToMultipleIndices = true;
             private boolean allowClosedIndices = true;
-            private boolean removeThrottled = false;
+            private boolean ignoreThrottled = false;
 
             public Builder() {}
 
             Builder(GeneralOptions options) {
                 allowAliasToMultipleIndices = options.allowAliasToMultipleIndices;
                 allowClosedIndices = options.allowClosedIndices;
-                removeThrottled = options.removeThrottled;
+                ignoreThrottled = options.ignoreThrottled;
             }
 
             /**
@@ -339,13 +339,13 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             /**
              * Throttled indices will not be included in the result. Defaults to false.
              */
-            public Builder removeThrottled(boolean removeThrottled) {
-                this.removeThrottled = removeThrottled;
+            public Builder ignoreThrottled(boolean ignoreThrottled) {
+                this.ignoreThrottled = ignoreThrottled;
                 return this;
             }
 
             public GeneralOptions build() {
-                return new GeneralOptions(allowAliasToMultipleIndices, allowClosedIndices, removeThrottled);
+                return new GeneralOptions(allowAliasToMultipleIndices, allowClosedIndices, ignoreThrottled);
             }
         }
 
@@ -434,7 +434,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         .generalOptions(GeneralOptions.builder().allowClosedIndices(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = IndicesOptions.builder()
-        .generalOptions(GeneralOptions.builder().removeThrottled(true).allowClosedIndices(false))
+        .generalOptions(GeneralOptions.builder().ignoreThrottled(true).allowClosedIndices(false))
         .build();
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .wildcardOptions(WildcardOptions.builder().matchNone())
@@ -517,7 +517,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
      * @return whether indices that are marked as throttled should be ignored
      */
     public boolean ignoreThrottled() {
-        return generalOptions().removeThrottled();
+        return generalOptions().ignoreThrottled();
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
@@ -565,7 +565,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         GeneralOptions generalOptions = GeneralOptions.builder()
             .allowClosedIndices(options.contains(Option.ERROR_WHEN_CLOSED_INDICES) == false)
             .allowAliasToMultipleIndices(options.contains(Option.ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES) == false)
-            .removeThrottled(options.contains(Option.EXCLUDE_THROTTLED))
+            .ignoreThrottled(options.contains(Option.EXCLUDE_THROTTLED))
             .build();
         return new IndicesOptions(
             options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)
@@ -712,7 +712,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         final GeneralOptions generalOptions = GeneralOptions.builder()
             .allowAliasToMultipleIndices(allowAliasesToMultipleIndices)
             .allowClosedIndices(forbidClosedIndices == false)
-            .removeThrottled(ignoreThrottled)
+            .ignoreThrottled(ignoreThrottled)
             .build();
         return new IndicesOptions(
             ignoreUnavailable ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS : ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
@@ -784,7 +784,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             generalOptions.allowAliasToMultipleIndices(),
             generalOptions.allowClosedIndices() == false,
             wildcards.resolveAliases() == false,
-            generalOptions.removeThrottled()
+            generalOptions.ignoreThrottled()
         );
     }
 
@@ -809,7 +809,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         boolean parsedWildcardStates = false;
         WildcardOptions.Builder wildcardsBuilder = defaults == null ? null : WildcardOptions.builder(defaults.wildcardOptions());
         GeneralOptions.Builder generalBuilder = GeneralOptions.builder()
-            .removeThrottled(defaults != null && defaults.generalOptions().removeThrottled());
+            .ignoreThrottled(defaults != null && defaults.generalOptions().ignoreThrottled());
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
         Token token = parser.currentToken() == Token.START_OBJECT ? parser.currentToken() : parser.nextToken();
@@ -858,7 +858,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 } else if (ALLOW_NO_INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     allowNoIndices = parser.booleanValue();
                 } else if (IGNORE_THROTTLED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    generalBuilder.removeThrottled(parser.booleanValue());
+                    generalBuilder.ignoreThrottled(parser.booleanValue());
                 } else {
                     throw new ElasticsearchParseException(
                         "could not read indices options. unexpected index option [" + currentFieldName + "]"
@@ -897,7 +897,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             generalOptions.allowAliasToMultipleIndices(),
             generalOptions.allowClosedIndices() == false,
             wildcardOptions.resolveAliases() == false,
-            generalOptions.removeThrottled()
+            generalOptions.ignoreThrottled()
         );
     }
 

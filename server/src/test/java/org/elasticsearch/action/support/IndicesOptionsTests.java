@@ -359,7 +359,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(((List<?>) map.get("expand_wildcards")).contains("hidden"), equalTo(wildcardOptions.includeHidden()));
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
-        assertThat(map.get("ignore_throttled"), equalTo(generalOptions.removeThrottled()));
+        assertThat(map.get("ignore_throttled"), equalTo(generalOptions.ignoreThrottled()));
     }
 
     public void testFromXContent() throws IOException {

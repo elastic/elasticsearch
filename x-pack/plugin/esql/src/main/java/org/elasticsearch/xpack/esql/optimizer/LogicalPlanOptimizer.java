@@ -99,7 +99,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     public LogicalPlan optimize(LogicalPlan verified) {
-        return verified.optimized() ? verify(verified) : verify(execute(verified));
+        return verified.optimized() ? verifyOptimized(verified) : verifyOptimized(execute(verified));
     }
 
     @Override
@@ -1397,12 +1397,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified.
-     * @return a collection of verification failures; empty if and only if the plan is valid.
-     *
-     * The following verifications on an optimized logical plan are supported, it can be extended to other situations:
-     * 1. AUTO_BUCKET expression's from and to should be foldable.
+     * @throws VerificationException if and only if the plan is valid.
      */
-    LogicalPlan verify(LogicalPlan plan) throws VerificationException {
+    LogicalPlan verifyOptimized(LogicalPlan plan) throws VerificationException {
         Set<Failure> failures = new LinkedHashSet<>();
         plan.forEachUp(p -> {
             p.forEachExpression(AutoBucket.class, e -> {

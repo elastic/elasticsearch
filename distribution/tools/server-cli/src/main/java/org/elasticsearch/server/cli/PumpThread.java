@@ -49,9 +49,8 @@ class PumpThread extends Thread {
     /**
      * Waits for the stderr pump thread to exit.
      */
-    void drain() throws IOException {
+    void drain() {
         nonInterruptibleVoid(this::join);
-        checkForIoFailure();
     }
 
     void processLine(String line) {

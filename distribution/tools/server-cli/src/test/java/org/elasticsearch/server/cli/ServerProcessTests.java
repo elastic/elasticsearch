@@ -44,6 +44,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.bootstrap.BootstrapInfo.SERVER_READY_MARKER;
 import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -334,7 +335,7 @@ public class ServerProcessTests extends ESTestCase {
     public void testDetach() throws Exception {
         mainCallback = (args, stdin, stdout, stderr, exitCode) -> {
             assertThat(args.daemonize(), equalTo(true));
-            stderr.println(BootstrapInfo.SERVER_READY_MARKER);
+            stderr.println(SERVER_READY_MARKER);
             stderr.println("final message");
             stderr.close();
             stdout.close();
@@ -351,7 +352,7 @@ public class ServerProcessTests extends ESTestCase {
     public void testStop() throws Exception {
         CountDownLatch mainReady = new CountDownLatch(1);
         mainCallback = (args, stdin, stdout, stderr, exitCode) -> {
-            stderr.println(BootstrapInfo.SERVER_READY_MARKER);
+            stderr.println(SERVER_READY_MARKER);
             nonInterruptibleVoid(mainReady::await);
             stderr.println("final message");
         };
@@ -365,7 +366,7 @@ public class ServerProcessTests extends ESTestCase {
     public void testWaitFor() throws Exception {
         CountDownLatch mainReady = new CountDownLatch(1);
         mainCallback = (args, stdin, stdout, stderr, exitCode) -> {
-            stderr.println(BootstrapInfo.SERVER_READY_MARKER);
+            stderr.println(SERVER_READY_MARKER);
             mainReady.countDown();
             assertThat(stdin.read(), equalTo((int) BootstrapInfo.SERVER_SHUTDOWN_MARKER));
             stderr.println("final message");
@@ -374,11 +375,7 @@ public class ServerProcessTests extends ESTestCase {
         new Thread(() -> {
             // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
             nonInterruptibleVoid(mainReady::await);
-            try {
-                server.stop();
-            } catch (IOException e) {
-                // ignore
-            }
+            server.stop();
         }).start();
         int exitCode = server.waitFor();
         assertThat(process.main.isDone(), is(true));
@@ -389,7 +386,7 @@ public class ServerProcessTests extends ESTestCase {
     public void testProcessDies() throws Exception {
         CountDownLatch mainExit = new CountDownLatch(1);
         mainCallback = (args, stdin, stdout, stderr, exitCode) -> {
-            stderr.println(BootstrapInfo.SERVER_READY_MARKER);
+            stderr.println(SERVER_READY_MARKER);
             stderr.println("fatal message");
             stderr.close(); // mimic pipe break if cli process dies
             nonInterruptibleVoid(mainExit::await);

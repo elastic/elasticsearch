@@ -64,34 +64,29 @@ public class ServerProcess {
      * @throws IOException If an I/O error occurred while reading stdout / stderr or closing any of the standard streams
      */
     public synchronized void detach() throws IOException {
-        IOUtils.close(
-            // included here to not swallow any IO failures while draining the pumps
-            errorPump::drain,
-            stdoutPump::drain,
-            // once both bumps are drained, close streams
-            jvmProcess.getOutputStream(),
-            jvmProcess.getInputStream(),
-            jvmProcess.getErrorStream()
-        );
-        detached = true;
+        errorPump.drain();
+        stdoutPump.drain();
+        try {
+            IOUtils.close(
+                jvmProcess.getOutputStream(),
+                jvmProcess.getInputStream(),
+                jvmProcess.getErrorStream(),
+                // check for any IO failures while draining pumps
+                errorPump::checkForIoFailure,
+                stdoutPump::checkForIoFailure
+            );
+        } finally {
+            detached = true;
+        }
     }
 
     /**
      * Waits for the subprocess to exit.
      */
-    public int waitFor() throws IOException {
-        IOException ioFailure = null;
-        try {
-            // Just gather IO failures when draining the pumps
-            IOUtils.close(errorPump::drain, stdoutPump::drain);
-        } catch (IOException e) {
-            ioFailure = e;
-        }
-        Integer exitCode = nonInterruptible(jvmProcess::waitFor);
-        if (ioFailure != null) {
-            throw ioFailure;
-        }
-        return exitCode;
+    public int waitFor() {
+        errorPump.drain();
+        stdoutPump.drain();
+        return nonInterruptible(jvmProcess::waitFor);
     }
 
     /**
@@ -102,7 +97,7 @@ public class ServerProcess {
      *
      * <p> Note that if {@link #detach()} has been called, this method is a no-op.
      */
-    public synchronized void stop() throws IOException {
+    public synchronized void stop() {
         if (detached) {
             return;
         }

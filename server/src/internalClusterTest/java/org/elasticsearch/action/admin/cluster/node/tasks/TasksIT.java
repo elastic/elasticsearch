@@ -534,21 +534,8 @@ public class TasksIT extends ESIntegTestCase {
 
     public void testListTasksWaitForCompletion() throws Exception {
         waitForCompletionTestCase(randomBoolean(), id -> {
-            var startedOnAllNodes = new CountDownLatch(internalCluster().size());
-            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
-                    @Override
-                    public void onTaskRegistered(Task task) {
-                        if (Objects.equals(task.getAction(), "cluster:monitor/tasks/lists[n]")) {
-                            startedOnAllNodes.countDown();
-                        }
-                    }
-                });
-            }
-
+            var startedOnAllNodes = createStartedOnAllNodesLatch("cluster:monitor/tasks/lists[n]");
             var future = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).setWaitForCompletion(true).execute();
-
-            // This ensures the list task has started on every node and has a chance to see the TEST_TASK_ACTION
             safeAwait(startedOnAllNodes);
 
             // This ensures that a task has progressed to the point of listing all running tasks and subscribing to their updates
@@ -605,11 +592,18 @@ public class TasksIT extends ESIntegTestCase {
         // Start blocking test task
         TestTaskPlugin.NodesRequest request = new TestTaskPlugin.NodesRequest("test");
         request.setShouldStoreResult(storeResult);
-        ActionFuture<TestTaskPlugin.NodesResponse> future = client().execute(TEST_TASK_ACTION, request);
 
+        var startedOnAllNodes = createStartedOnAllNodesLatch(TEST_TASK_ACTION.name() + "[n]");
+        ActionFuture<TestTaskPlugin.NodesResponse> future = client().execute(TEST_TASK_ACTION, request);
         ActionFuture<T> waitResponseFuture;
         try {
-            var taskId = waitForTestTaskStartOnAllNodes();
+            safeAwait(startedOnAllNodes);
+
+            var tasks = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).get().getTasks();
+            assertThat(tasks, hasSize(1));
+            var taskId = tasks.get(0).taskId();
+            clusterAdmin().prepareGetTask(taskId).get();
+
             // Spin up a request to wait for the test task to finish
             waitResponseFuture = wait.apply(taskId);
         } finally {
@@ -653,10 +647,16 @@ public class TasksIT extends ESIntegTestCase {
      */
     private void waitForTimeoutTestCase(Function<TaskId, ? extends Iterable<? extends Throwable>> wait) throws Exception {
         // Start blocking test task
+        var startedOnAllNodes = createStartedOnAllNodesLatch(TEST_TASK_ACTION.name() + "[n]");
         TestTaskPlugin.NodesRequest request = new TestTaskPlugin.NodesRequest("test");
         ActionFuture<TestTaskPlugin.NodesResponse> future = client().execute(TEST_TASK_ACTION, request);
         try {
-            var taskId = waitForTestTaskStartOnAllNodes();
+            safeAwait(startedOnAllNodes);
+
+            var tasks = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).get().getTasks();
+            assertThat(tasks, hasSize(1));
+            var taskId = tasks.get(0).taskId();
+            clusterAdmin().prepareGetTask(taskId).get();
             // Spin up a request that should wait for those tasks to finish
             // It will timeout because we haven't unblocked the tasks
             Iterable<? extends Throwable> failures = wait.apply(taskId);
@@ -673,19 +673,19 @@ public class TasksIT extends ESIntegTestCase {
         future.get();
     }
 
-    /**
-     * Wait for the test task to be running on all nodes and return the TaskId of the primary task.
-     */
-    private TaskId waitForTestTaskStartOnAllNodes() throws Exception {
-        assertBusy(() -> {
-            List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "[n]").get().getTasks();
-            assertEquals(internalCluster().size(), tasks.size());
-        });
-        var tasks = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).get().getTasks();
-        assertThat(tasks, hasSize(1));
-        var taskId = tasks.get(0).taskId();
-        clusterAdmin().prepareGetTask(taskId).get();
-        return taskId;
+    private CountDownLatch createStartedOnAllNodesLatch(String taskName) {
+        var startedOnAllNodes = new CountDownLatch(internalCluster().size());
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
+                @Override
+                public void onTaskRegistered(Task task) {
+                    if (Objects.equals(task.getAction(), taskName)) {
+                        startedOnAllNodes.countDown();
+                    }
+                }
+            });
+        }
+        return startedOnAllNodes;
     }
 
     public void testTasksListWaitForNoTask() throws Exception {

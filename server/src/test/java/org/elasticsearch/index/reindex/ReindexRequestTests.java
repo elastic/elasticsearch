@@ -115,7 +115,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     @Override
     protected ReindexRequest doParseInstance(XContentParser parser) throws IOException {
-        return ReindexRequest.fromXContent(parser);
+        return ReindexRequest.fromXContent(parser, nf -> false);
     }
 
     @Override
@@ -349,7 +349,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
-            ReindexRequest r = ReindexRequest.fromXContent(p);
+            ReindexRequest r = ReindexRequest.fromXContent(p, nf -> false);
             assertEquals("localhost", r.getRemoteInfo().getHost());
             assertArrayEquals(new String[] { "source" }, r.getSearchRequest().indices());
         }
@@ -403,7 +403,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
-            return ReindexRequest.fromXContent(p);
+            return ReindexRequest.fromXContent(p, nf -> false);
         }
     }
 }

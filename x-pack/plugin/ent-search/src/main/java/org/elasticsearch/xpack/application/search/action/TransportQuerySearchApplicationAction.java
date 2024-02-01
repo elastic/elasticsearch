@@ -19,6 +19,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.ScriptService;
@@ -28,6 +29,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.SearchApplicationTemplateService;
+
+import java.util.function.Predicate;
 
 public class TransportQuerySearchApplicationAction extends HandledTransportAction<SearchApplicationSearchRequest, SearchResponse> {
 
@@ -46,7 +49,8 @@ public class TransportQuerySearchApplicationAction extends HandledTransportActio
         NamedWriteableRegistry namedWriteableRegistry,
         BigArrays bigArrays,
         ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         super(
             QuerySearchApplicationAction.NAME,
@@ -56,7 +60,7 @@ public class TransportQuerySearchApplicationAction extends HandledTransportActio
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
-        this.templateService = new SearchApplicationTemplateService(scriptService, xContentRegistry);
+        this.templateService = new SearchApplicationTemplateService(scriptService, xContentRegistry, clusterSupportsFeature);
         this.systemIndexService = new SearchApplicationIndexService(client, clusterService, namedWriteableRegistry, bigArrays);
     }
 

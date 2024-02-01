@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -36,6 +37,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.Predicate;
 
 public class TransportSearchTemplateAction extends HandledTransportAction<SearchTemplateRequest, SearchTemplateResponse> {
 
@@ -43,6 +45,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
 
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
     private final NodeClient client;
     private final SearchUsageHolder searchUsageHolder;
 
@@ -52,6 +55,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         ActionFilters actionFilters,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
+        Predicate<NodeFeature> clusterSupportsFeature,
         NodeClient client,
         UsageService usageService
     ) {
@@ -64,6 +68,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         );
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
+        this.clusterSupportsFeature = clusterSupportsFeature;
         this.client = client;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
     }
@@ -73,7 +78,14 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         final SearchTemplateResponse response = new SearchTemplateResponse();
         boolean success = false;
         try {
-            SearchRequest searchRequest = convert(request, response, scriptService, xContentRegistry, searchUsageHolder);
+            SearchRequest searchRequest = convert(
+                request,
+                response,
+                scriptService,
+                xContentRegistry,
+                clusterSupportsFeature,
+                searchUsageHolder
+            );
             if (searchRequest != null) {
                 client.search(searchRequest, listener.delegateResponse((l, e) -> {
                     response.decRef();
@@ -102,6 +114,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         SearchTemplateResponse response,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
+        Predicate<NodeFeature> clusterSupportsFeature,
         SearchUsageHolder searchUsageHolder
     ) throws IOException {
         Script script = new Script(
@@ -121,7 +134,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, source)) {
-            builder.parseXContent(parser, false, searchUsageHolder);
+            builder.parseXContent(parser, false, searchUsageHolder, clusterSupportsFeature);
         }
 
         if (searchTemplateRequest.isSimulate()) {

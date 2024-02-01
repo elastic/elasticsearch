@@ -340,7 +340,11 @@ public class WatchTests extends ESTestCase {
         ActionRegistry actionRegistry = registry(Collections.emptyList(), conditionRegistry, transformRegistry);
         WatchParser watchParser = new WatchParser(triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
 
-        WatcherSearchTemplateService searchTemplateService = new WatcherSearchTemplateService(scriptService, xContentRegistry());
+        WatcherSearchTemplateService searchTemplateService = new WatcherSearchTemplateService(
+            scriptService,
+            xContentRegistry(),
+            nf -> false
+        );
 
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
@@ -533,7 +537,7 @@ public class WatchTests extends ESTestCase {
     private InputRegistry registry(String inputType) {
         return switch (inputType) {
             case SearchInput.TYPE -> new InputRegistry(
-                Map.of(SearchInput.TYPE, new SearchInputFactory(settings, client, xContentRegistry(), scriptService))
+                Map.of(SearchInput.TYPE, new SearchInputFactory(settings, client, xContentRegistry(), nf -> false, scriptService))
             );
             default -> new InputRegistry(Map.of(SimpleInput.TYPE, new SimpleInputFactory()));
         };
@@ -592,7 +596,7 @@ public class WatchTests extends ESTestCase {
                 ScriptTransform.TYPE,
                 new ScriptTransformFactory(scriptService),
                 SearchTransform.TYPE,
-                new SearchTransformFactory(settings, client, xContentRegistry(), scriptService)
+                new SearchTransformFactory(settings, client, xContentRegistry(), nf -> false, scriptService)
             )
         );
     }

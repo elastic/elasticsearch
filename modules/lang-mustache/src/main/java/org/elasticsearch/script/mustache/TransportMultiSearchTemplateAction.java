@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -29,6 +30,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.script.mustache.TransportSearchTemplateAction.convert;
 
@@ -38,6 +40,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
 
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
     private final NodeClient client;
     private final SearchUsageHolder searchUsageHolder;
 
@@ -47,6 +50,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         ActionFilters actionFilters,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
+        Predicate<NodeFeature> clusterSupportsFeature,
         NodeClient client,
         UsageService usageService
     ) {
@@ -59,6 +63,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         );
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
+        this.clusterSupportsFeature = clusterSupportsFeature;
         this.client = client;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
     }
@@ -78,7 +83,14 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
             SearchRequest searchRequest;
             try {
-                searchRequest = convert(searchTemplateRequest, searchTemplateResponse, scriptService, xContentRegistry, searchUsageHolder);
+                searchRequest = convert(
+                    searchTemplateRequest,
+                    searchTemplateResponse,
+                    scriptService,
+                    xContentRegistry,
+                    clusterSupportsFeature,
+                    searchUsageHolder
+                );
             } catch (Exception e) {
                 searchTemplateResponse.decRef();
                 items[i] = new MultiSearchTemplateResponse.Item(null, e);

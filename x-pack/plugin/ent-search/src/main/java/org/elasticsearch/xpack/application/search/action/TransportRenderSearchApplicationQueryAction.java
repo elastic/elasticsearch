@@ -16,6 +16,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.ScriptService;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.SearchApplicationTemplateService;
 
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class TransportRenderSearchApplicationQueryAction extends HandledTransportAction<
     SearchApplicationSearchRequest,
@@ -47,7 +49,8 @@ public class TransportRenderSearchApplicationQueryAction extends HandledTranspor
         NamedWriteableRegistry namedWriteableRegistry,
         BigArrays bigArrays,
         ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         super(
             RenderSearchApplicationQueryAction.NAME,
@@ -57,7 +60,7 @@ public class TransportRenderSearchApplicationQueryAction extends HandledTranspor
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndexService = new SearchApplicationIndexService(client, clusterService, namedWriteableRegistry, bigArrays);
-        this.templateService = new SearchApplicationTemplateService(scriptService, xContentRegistry);
+        this.templateService = new SearchApplicationTemplateService(scriptService, xContentRegistry, clusterSupportsFeature);
     }
 
     @Override

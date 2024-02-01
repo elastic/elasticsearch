@@ -76,9 +76,9 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return Arrays.asList(
-            new RestReindexAction(namedWriteableRegistry),
-            new RestUpdateByQueryAction(namedWriteableRegistry),
-            new RestDeleteByQueryAction(namedWriteableRegistry),
+            new RestReindexAction(namedWriteableRegistry, clusterSupportsFeature),
+            new RestUpdateByQueryAction(namedWriteableRegistry, clusterSupportsFeature),
+            new RestDeleteByQueryAction(namedWriteableRegistry, clusterSupportsFeature),
             new RestRethrottleAction(nodesInCluster)
         );
     }

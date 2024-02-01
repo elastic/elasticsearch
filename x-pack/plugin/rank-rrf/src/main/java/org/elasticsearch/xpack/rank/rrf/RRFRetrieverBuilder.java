@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -21,6 +22,8 @@ import java.util.Collections;
 import java.util.List;
 
 public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuilder> {
+
+    public static final NodeFeature NODE_FEATURE = new NodeFeature(RRFRankPlugin.NAME + "_retriever");
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
     public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
@@ -46,6 +49,9 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
     }
 
     public static RRFRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
+        if (context.clusterSupportsFeature(NODE_FEATURE) == false) {
+            throw new IllegalArgumentException("[" + RRFRankPlugin.NAME + "] retriever is not a supported feature");
+        }
         if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
         }

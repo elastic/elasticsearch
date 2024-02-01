@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.retriever;
 
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
@@ -25,6 +26,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuilder> {
 
     public static final String NAME = "knn";
+    public static final NodeFeature NODE_FEATURE = new NodeFeature(NAME + "_retriever");
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField K_FIELD = new ParseField("k");
@@ -73,6 +75,9 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
     }
 
     public static KnnRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
+        if (context.clusterSupportsFeature(NODE_FEATURE) == false) {
+            throw new IllegalArgumentException("[" + NAME + "] retriever is not a supported feature");
+        }
         return PARSER.apply(parser, context);
     }
 

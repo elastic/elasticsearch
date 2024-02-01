@@ -84,7 +84,8 @@ public final class TransportRankEvalActionTests extends ESTestCase {
             client,
             transportService,
             mock(ScriptService.class),
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            nf -> false
         );
         action.doExecute(null, rankEvalRequest, null);
     }

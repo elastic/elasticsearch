@@ -31,7 +31,7 @@ public final class RestDeleteByQueryActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestDeleteByQueryAction(mock(NamedWriteableRegistry.class)));
+        controller().registerHandler(new RestDeleteByQueryAction(mock(NamedWriteableRegistry.class), nf -> false));
         verifyingClient.setExecuteVerifier((actionType, request) -> mock(BulkByScrollResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(BulkByScrollResponse.class));
     }

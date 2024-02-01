@@ -13,4 +13,6 @@ module org.elasticsearch.rank.rrf {
     requires org.elasticsearch.xcore;
 
     exports org.elasticsearch.xpack.rank.rrf;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.rank.rrf.RRFFeatureSpecification;
 }

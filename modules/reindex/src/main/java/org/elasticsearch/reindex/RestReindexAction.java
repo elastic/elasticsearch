@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestRequest;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -33,10 +35,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> implements RestRequestFilter {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestReindexAction(NamedWriteableRegistry namedWriteableRegistry) {
+    public RestReindexAction(NamedWriteableRegistry namedWriteableRegistry, Predicate<NodeFeature> clusterSupportsFeature) {
         super(ReindexAction.INSTANCE);
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     @Override
@@ -64,7 +68,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
         ReindexRequest internal;
         try (XContentParser parser = request.contentParser()) {
-            internal = ReindexRequest.fromXContent(parser);
+            internal = ReindexRequest.fromXContent(parser, clusterSupportsFeature);
         }
 
         if (request.hasParam("scroll")) {

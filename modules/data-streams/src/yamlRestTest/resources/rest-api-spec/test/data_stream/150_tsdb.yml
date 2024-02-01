@@ -196,6 +196,7 @@ index without timestamp with pipeline:
 dynamic templates:
   - skip:
       version: " - 8.12.99"
+      features: "default_shards"
       reason: "Support for dynamic fields was added in 8.13"
   - do:
       indices.put_index_template:
@@ -287,6 +288,7 @@ dynamic templates:
 dynamic templates - conflicting aliases:
   - skip:
       version: " - 8.12.99"
+      features: "default_shards"
       reason: "Support for dynamic fields was added in 8.13"
   - do:
       indices.put_index_template:

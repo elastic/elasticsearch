@@ -288,16 +288,11 @@ public abstract class PackagingTestCase extends Assert {
      * Starts and stops elasticsearch, and performs assertions while it is running.
      */
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
-        try {
-            awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
-        } catch (Exception e) {
-            dumpDebug();
-            throw e;
-        }
+        awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
 
         try {
             assertions.run();
-        } catch (Exception e) {
+        } catch (Exception|AssertionError e) {
             logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
             throw e;
         }
@@ -367,12 +362,17 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
-        assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode(), equalTo(0));
-        switch (distribution.packaging) {
-            case TAR, ZIP -> Archives.assertElasticsearchStarted(installation);
-            case DEB, RPM -> Packages.assertElasticsearchStarted(sh, installation);
-            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> Docker.waitForElasticsearchToStart();
-            default -> throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+        try {
+            assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode(), equalTo(0));
+            switch (distribution.packaging) {
+                case TAR, ZIP -> Archives.assertElasticsearchStarted(installation);
+                case DEB, RPM -> Packages.assertElasticsearchStarted(sh, installation);
+                case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> Docker.waitForElasticsearchToStart();
+                default -> throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+            }
+        } catch (AssertionError e) {
+            dumpDebug();
+            throw e;
         }
     }
 

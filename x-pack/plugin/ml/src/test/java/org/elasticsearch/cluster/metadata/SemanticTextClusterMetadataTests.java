@@ -13,14 +13,26 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public class SemanticTextClusterMetadataTests extends MlSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        Collection<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
+        plugins.add(InferencePlugin.class);
+        return Collections.unmodifiableCollection(plugins);
+    }
+
     public void testCreateIndexWithSemanticTextField() {
         final IndexService indexService = createIndex(
             "test",

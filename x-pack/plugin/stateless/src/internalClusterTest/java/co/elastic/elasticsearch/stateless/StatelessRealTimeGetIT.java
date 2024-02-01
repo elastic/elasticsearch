@@ -37,13 +37,17 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.LiveVersionMap;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -60,11 +64,14 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
@@ -574,5 +581,89 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         });
         indexDocs(indexName, 100);
         assertBusy(() -> assertThat(sentNewCommitNotificationsForIndex.get(), greaterThan(0)));
+    }
+
+    public void testGetFromTranslogDuringRelocation() throws ExecutionException, InterruptedException, TimeoutException {
+        startMasterOnlyNode();
+        var indexNodeA = startIndexNode();
+        startSearchNode();
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+        if (randomBoolean()) {
+            // Enforce safe access mode
+            client().prepareIndex(indexName).setId("unique-id").setSource("field1", randomUnicodeOfLength(10)).get();
+            var map = getLiveVersionMap(indexNodeA, indexName, 0);
+            assertTrue(isSafeAccessRequired(map));
+        }
+        var bulkResponse = indexDocs(indexName, randomIntBetween(10, 50));
+        var id = randomFrom(Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).collect(Collectors.toSet()));
+        var indexNodeB = startIndexNode();
+        CountDownLatch receivedGetFromTranslog = new CountDownLatch(1);
+        CountDownLatch continueGetFromTranslog = new CountDownLatch(1);
+        AtomicLong getFromTranslogCountOnNodeA = new AtomicLong();
+        AtomicLong getFromTranslogCountOnNodeB = new AtomicLong();
+        MockTransportService.getInstance(indexNodeA)
+            .addRequestHandlingBehavior(TransportGetFromTranslogAction.NAME, (handler, request, channel, task) -> {
+                receivedGetFromTranslog.countDown();
+                getFromTranslogCountOnNodeA.incrementAndGet();
+                safeAwait(continueGetFromTranslog);
+                handler.messageReceived(request, channel, task);
+            });
+        MockTransportService.getInstance(indexNodeB)
+            .addRequestHandlingBehavior(TransportGetFromTranslogAction.NAME, (handler, request, channel, task) -> {
+                getFromTranslogCountOnNodeB.incrementAndGet();
+                handler.messageReceived(request, channel, task);
+            });
+        // Trigger a GetFromTranslog and relocate the shard before indexNodeA gets to process the request.
+        final var getNonExistingId = randomBoolean();
+        var getFuture = client().prepareGet(indexName, getNonExistingId ? "non-existing" : id).setRealtime(true).execute();
+        safeAwait(receivedGetFromTranslog);
+        logger.info("--> starting promotable shard relocation");
+        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
+        ensureGreen(indexName);
+        logger.info("--> relocation finished");
+        continueGetFromTranslog.countDown();
+        var getResponse = getFuture.get(10, TimeUnit.SECONDS);
+        assertEquals(1L, getFromTranslogCountOnNodeA.get());
+        assertEquals(1L, getFromTranslogCountOnNodeB.get());
+        assertThat(getResponse.isExists(), equalTo(getNonExistingId ? false : true));
+    }
+
+    public void testGetFromTranslogRetries() throws ExecutionException, InterruptedException, TimeoutException {
+        startMasterOnlyNode();
+        var indexNodeA = startIndexNode();
+        startSearchNode();
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+        final var shardId = findIndexShard(indexName).shardId();
+        final var failCount = randomIntBetween(1, 3);
+        final var getFromTranslogSeen = new AtomicInteger();
+        MockTransportService.getInstance(indexNodeA)
+            .addRequestHandlingBehavior(TransportGetFromTranslogAction.NAME, (handler, request, channel, task) -> {
+                if (getFromTranslogSeen.incrementAndGet() <= failCount) {
+                    channel.sendResponse(randomFrom(new IndexNotFoundException(indexName), new ShardNotFoundException(shardId)));
+
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+        final var getFuture = client().prepareGet(indexName, "non-existing").setRealtime(true).execute();
+        // Trigger enough cluster state updates to see the reties succeed.
+        for (int i = 0; i < failCount; i++) {
+            indicesAdmin().preparePutMapping(indexName).setSource("field" + i, "type=keyword").get();
+        }
+        assertFalse(getFuture.get(10, TimeUnit.SECONDS).isExists());
+        assertEquals(failCount + 1, getFromTranslogSeen.get());
+    }
+
+    private LiveVersionMap getLiveVersionMap(String indexNodeName, String indexName, int shardId) {
+        var indicesService = internalCluster().getInstance(IndicesService.class, indexNodeName);
+        var indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
+        var indexShard = indexService.getShard(shardId);
+        assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+        var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
+        return indexEngine.getLiveVersionMap();
     }
 }

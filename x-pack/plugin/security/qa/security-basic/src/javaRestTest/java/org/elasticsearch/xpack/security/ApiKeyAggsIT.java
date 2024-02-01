@@ -161,27 +161,46 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                       "rest-filter": {"term": {"type": "rest"}},
                       "user-filter": {"wildcard": {"username": "api_*_user"}}
                     }
+                  },
+                  "aggs": {
+                    "level2": {
+                      "filters": {
+                        "filters": {
+                          "invalidated": {"term": {"invalidated": true}},
+                          "not-invalidated": {"term": {"invalidated": false}}
+                        }
+                      }
+                    }
                   }
                 }
               }
             }
             """, aggs -> {
-            assertThat(((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("level1")).get("buckets")).size(), is(2));
+            List<Map<String, Object>> level1Buckets = (List<Map<String, Object>>) ((Map<String, Object>) aggs.get("level1")).get("buckets");
+            assertThat(level1Buckets.size(), is(2));
+            assertThat(level1Buckets.get(0).get("doc_count"), is(2));
+            assertThat(level1Buckets.get(0).get("key"), is("rest-filter"));
             assertThat(
-                    ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("level1")).get("buckets")).get(0).get("doc_count"),
-                    is(2)
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) level1Buckets.get(0).get("level2")).get("buckets"))
+                    .get("invalidated")).get("doc_count"),
+                is(0)
             );
             assertThat(
-                    ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("level1")).get("buckets")).get(0).get("key"),
-                    is("rest-filter")
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) level1Buckets.get(0).get("level2")).get("buckets"))
+                    .get("not-invalidated")).get("doc_count"),
+                is(2)
+            );
+            assertThat(level1Buckets.get(1).get("doc_count"), is(2));
+            assertThat(level1Buckets.get(1).get("key"), is("user-filter"));
+            assertThat(
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) level1Buckets.get(1).get("level2")).get("buckets"))
+                    .get("invalidated")).get("doc_count"),
+                is(0)
             );
             assertThat(
-                    ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("level1")).get("buckets")).get(1).get("doc_count"),
-                    is(2)
-            );
-            assertThat(
-                    ((List<Map<String, Object>>) ((Map<String, Object>) aggs.get("level1")).get("buckets")).get(1).get("key"),
-                    is("user-filter")
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) level1Buckets.get(1).get("level2")).get("buckets"))
+                    .get("not-invalidated")).get("doc_count"),
+                is(2)
             );
         });
     }

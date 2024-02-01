@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.health.node.check;
+package org.elasticsearch.health.node.tracker;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -37,7 +37,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DiskCheckTests extends ESTestCase {
+public class DiskHealthTrackerTests extends ESTestCase {
 
     private static final DiskHealthInfo GREEN = new DiskHealthInfo(HealthStatus.GREEN, null);
     private NodeService nodeService;
@@ -48,7 +48,7 @@ public class DiskCheckTests extends ESTestCase {
     private DiscoveryNode searchAndIndexNode;
     private HealthMetadata healthMetadata;
     private ClusterState clusterState;
-    private DiskCheck diskCheck;
+    private DiskHealthTracker diskHealthTracker;
 
     @Before
     public void setUp() throws Exception {
@@ -91,7 +91,7 @@ public class DiskCheckTests extends ESTestCase {
         // Set-up node service with a node with a healthy disk space usage
         nodeService = mock(NodeService.class);
 
-        diskCheck = new DiskCheck(nodeService, clusterService);
+        diskHealthTracker = new DiskHealthTracker(nodeService, clusterService);
     }
 
     public void testNoDiskData() {
@@ -116,25 +116,25 @@ public class DiskCheckTests extends ESTestCase {
                 eq(false)
             )
         ).thenReturn(nodeStats());
-        DiskHealthInfo diskHealth = diskCheck.getHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.UNKNOWN, DiskHealthInfo.Cause.NODE_HAS_NO_DISK_STATS), diskHealth);
     }
 
     public void testGreenDiskStatus() {
         simulateHealthDiskSpace();
-        DiskHealthInfo diskHealth = diskCheck.getHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
         assertEquals(GREEN, diskHealth);
     }
 
     public void testYellowDiskStatus() {
         initializeIncreasedDiskSpaceUsage();
-        DiskHealthInfo diskHealth = diskCheck.getHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD), diskHealth);
     }
 
     public void testRedDiskStatus() {
         simulateDiskOutOfSpace();
-        DiskHealthInfo diskHealth = diskCheck.getHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD), diskHealth);
     }
 
@@ -144,7 +144,7 @@ public class DiskCheckTests extends ESTestCase {
             b -> b.nodes(DiscoveryNodes.builder().add(node).add(frozenNode).localNodeId(frozenNode.getId()).build())
         );
         when(clusterService.state()).thenReturn(clusterStateFrozenLocalNode);
-        DiskHealthInfo diskHealth = diskCheck.getHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
         assertEquals(GREEN, diskHealth);
     }
 
@@ -154,7 +154,7 @@ public class DiskCheckTests extends ESTestCase {
             b -> b.nodes(DiscoveryNodes.builder().add(node).add(frozenNode).localNodeId(frozenNode.getId()).build())
         );
         when(clusterService.state()).thenReturn(clusterStateFrozenLocalNode);
-        DiskHealthInfo diskHealth = diskCheck.getHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD), diskHealth);
     }
 
@@ -165,7 +165,7 @@ public class DiskCheckTests extends ESTestCase {
             b -> b.nodes(DiscoveryNodes.builder().add(node).add(searchNode).localNodeId(searchNode.getId()).build())
         );
         when(clusterService.state()).thenReturn(clusterStateSearchLocalNode);
-        DiskHealthInfo diskHealth = diskCheck.getHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
         assertEquals(GREEN, diskHealth);
     }
 
@@ -176,7 +176,7 @@ public class DiskCheckTests extends ESTestCase {
             b -> b.nodes(DiscoveryNodes.builder().add(node).add(searchNode).localNodeId(searchNode.getId()).build())
         );
         when(clusterService.state()).thenReturn(clusterStateSearchLocalNode);
-        DiskHealthInfo diskHealth = diskCheck.getHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD), diskHealth);
     }
 
@@ -187,7 +187,7 @@ public class DiskCheckTests extends ESTestCase {
             b -> b.nodes(DiscoveryNodes.builder().add(node).add(searchAndIndexNode).localNodeId(searchAndIndexNode.getId()).build())
         );
         when(clusterService.state()).thenReturn(clusterStateSearchLocalNode);
-        DiskHealthInfo diskHealth = diskCheck.getHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD), diskHealth);
     }
 
@@ -204,7 +204,7 @@ public class DiskCheckTests extends ESTestCase {
         ).copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
 
         initializeIncreasedDiskSpaceUsage();
-        DiskHealthInfo diskHealth = diskCheck.getHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD), diskHealth);
     }
 
@@ -213,7 +213,7 @@ public class DiskCheckTests extends ESTestCase {
         final ClusterState state = state(indexName, true, ShardRoutingState.RELOCATING);
         // local node coincides with the node hosting the (relocating) primary shard
         DiscoveryNode localNode = state.nodes().getLocalNode();
-        assertTrue(DiskCheck.hasRelocatingShards(state, localNode));
+        assertTrue(DiskHealthTracker.hasRelocatingShards(state, localNode));
 
         DiscoveryNode dedicatedMasterNode = DiscoveryNodeUtils.builder("master-node-1")
             .name("master-node")
@@ -222,7 +222,7 @@ public class DiskCheckTests extends ESTestCase {
         ClusterState newState = ClusterState.builder(state)
             .nodes(new DiscoveryNodes.Builder(state.nodes()).add(dedicatedMasterNode))
             .build();
-        assertFalse(DiskCheck.hasRelocatingShards(newState, dedicatedMasterNode));
+        assertFalse(DiskHealthTracker.hasRelocatingShards(newState, dedicatedMasterNode));
     }
 
     private void simulateDiskOutOfSpace() {

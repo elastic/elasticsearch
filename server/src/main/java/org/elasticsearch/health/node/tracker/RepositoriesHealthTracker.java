@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.health.node.check;
+package org.elasticsearch.health.node.tracker;
 
 import org.elasticsearch.health.node.RepositoriesHealthInfo;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
@@ -19,15 +19,15 @@ import java.util.ArrayList;
 /**
  * Determines the health of repositories on this node.
  */
-public class RepositoriesCheck implements HealthCheck<RepositoriesHealthInfo> {
+public class RepositoriesHealthTracker extends HealthTracker<RepositoriesHealthInfo> {
     private final RepositoriesService repositoriesService;
 
-    public RepositoriesCheck(RepositoriesService repositoriesService) {
+    public RepositoriesHealthTracker(RepositoriesService repositoriesService) {
         this.repositoriesService = repositoriesService;
     }
 
     @Override
-    public RepositoriesHealthInfo getHealth() {
+    public RepositoriesHealthInfo checkCurrentHealth() {
         var unknown = new ArrayList<String>();
         var invalid = new ArrayList<String>();
         repositoriesService.getRepositories().forEach((name, repository) -> {
@@ -41,7 +41,7 @@ public class RepositoriesCheck implements HealthCheck<RepositoriesHealthInfo> {
     }
 
     @Override
-    public void addHealthToBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, RepositoriesHealthInfo healthInfo) {
+    public void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, RepositoriesHealthInfo healthInfo) {
         builder.repositoriesHealthInfo(healthInfo);
     }
 }

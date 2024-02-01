@@ -27,9 +27,8 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
-import org.elasticsearch.health.node.LocalHealthMonitor.HealthCheckWithRef;
-import org.elasticsearch.health.node.check.HealthCheck;
 import org.elasticsearch.health.node.selection.HealthNodeExecutorTests;
+import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,8 +56,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
     private HealthMetadata healthMetadata;
     private ClusterState clusterState;
     private Client client;
-    private MockHealthCheck mockHealthCheck;
-    private HealthCheckWithRef<DiskHealthInfo> mockHealthCheckWithRef;
+    private MockHealthTracker mockHealthTracker;
     private LocalHealthMonitor localHealthMonitor;
 
     @BeforeClass
@@ -116,7 +114,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         FeatureService featureService = new FeatureService(List.of(new HealthFeatures()));
 
-        mockHealthCheck = new MockHealthCheck();
+        mockHealthTracker = new MockHealthTracker();
 
         localHealthMonitor = LocalHealthMonitor.create(
             Settings.EMPTY,
@@ -124,10 +122,8 @@ public class LocalHealthMonitorTests extends ESTestCase {
             threadPool,
             client,
             featureService,
-            List.of(mockHealthCheck)
+            List.of(mockHealthTracker)
         );
-
-        mockHealthCheckWithRef = (HealthCheckWithRef<DiskHealthInfo>) localHealthMonitor.getHealthChecksWithRefs().get(0);
     }
 
     @SuppressWarnings("unchecked")
@@ -142,9 +138,9 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         // We override the poll interval like this to avoid the min value set by the setting which is too high for this test
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
-        assertNull(getReferenceValue());
+        assertNull(mockHealthTracker.getLastReportedValue());
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertEquals(GREEN, getReferenceValue()));
+        assertBusy(() -> assertEquals(GREEN, mockHealthTracker.getLastReportedValue()));
     }
 
     @SuppressWarnings("unchecked")
@@ -159,7 +155,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
         assertBusy(() -> assertTrue(clientCalled.get()));
-        assertNull(getReferenceValue());
+        assertNull(mockHealthTracker.getLastReportedValue());
     }
 
     @SuppressWarnings("unchecked")
@@ -181,7 +177,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         when(clusterService.state()).thenReturn(previous);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertEquals(GREEN, getReferenceValue()));
+        assertBusy(() -> assertEquals(GREEN, mockHealthTracker.getLastReportedValue()));
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
         assertBusy(() -> assertEquals(2, counter.get()));
     }
@@ -205,7 +201,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         when(clusterService.state()).thenReturn(previous);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertEquals(GREEN, getReferenceValue()));
+        assertBusy(() -> assertEquals(GREEN, mockHealthTracker.getLastReportedValue()));
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
         assertBusy(() -> assertEquals(2, counter.get()));
     }
@@ -223,12 +219,12 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         // Ensure that there are no issues if the cluster state hasn't been initialized yet
         localHealthMonitor.setEnabled(true);
-        assertNull(getReferenceValue());
+        assertNull(mockHealthTracker.getLastReportedValue());
         assertEquals(0, clientCalledCount.get());
 
         when(clusterService.state()).thenReturn(clusterState);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertEquals(GREEN, getReferenceValue()));
+        assertBusy(() -> assertEquals(GREEN, mockHealthTracker.getLastReportedValue()));
         assertEquals(1, clientCalledCount.get());
 
         DiskHealthInfo nextHealthStatus = new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD);
@@ -236,28 +232,24 @@ public class LocalHealthMonitorTests extends ESTestCase {
         // Disable the local monitoring
         localHealthMonitor.setEnabled(false);
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(1));
-        mockHealthCheck.setHealthInfo(nextHealthStatus);
+        mockHealthTracker.setHealthInfo(nextHealthStatus);
         assertEquals(1, clientCalledCount.get());
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueSeconds(30));
 
         localHealthMonitor.setEnabled(true);
-        assertBusy(() -> assertEquals(nextHealthStatus, getReferenceValue()));
+        assertBusy(() -> assertEquals(nextHealthStatus, mockHealthTracker.getLastReportedValue()));
     }
 
-    private DiskHealthInfo getReferenceValue() {
-        return mockHealthCheckWithRef.reference().get();
-    }
-
-    private static class MockHealthCheck implements HealthCheck<DiskHealthInfo> {
+    private static class MockHealthTracker extends HealthTracker<DiskHealthInfo> {
         private DiskHealthInfo healthInfo = GREEN;
 
         @Override
-        public DiskHealthInfo getHealth() {
+        public DiskHealthInfo checkCurrentHealth() {
             return healthInfo;
         }
 
         @Override
-        public void addHealthToBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, DiskHealthInfo healthInfo) {
+        public void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, DiskHealthInfo healthInfo) {
             builder.diskHealthInfo(healthInfo);
         }
 

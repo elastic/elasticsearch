@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.health.node.check;
+package org.elasticsearch.health.node.tracker;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -27,9 +27,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class RepositoriesCheckTests extends ESTestCase {
+public class RepositoriesHealthTrackerTests extends ESTestCase {
 
-    private RepositoriesCheck repositoriesCheck;
+    private RepositoriesHealthTracker repositoriesHealthTracker;
 
     private RepositoriesService repositoriesService;
 
@@ -39,13 +39,13 @@ public class RepositoriesCheckTests extends ESTestCase {
 
         repositoriesService = mock(RepositoriesService.class);
 
-        repositoriesCheck = new RepositoriesCheck(repositoriesService);
+        repositoriesHealthTracker = new RepositoriesHealthTracker(repositoriesService);
     }
 
     public void test_getHealth_noRepos() {
         when(repositoriesService.getRepositories()).thenReturn(Map.of());
 
-        var health = repositoriesCheck.getHealth();
+        var health = repositoriesHealthTracker.checkCurrentHealth();
 
         assertTrue(health.unknownRepositories().isEmpty());
         assertTrue(health.invalidRepositories().isEmpty());
@@ -59,7 +59,7 @@ public class RepositoriesCheckTests extends ESTestCase {
         when(repo.getMetadata()).thenReturn(metadata);
         when(repositoriesService.getRepositories()).thenReturn(Map.of(randomAlphaOfLength(10), repo));
 
-        var health = repositoriesCheck.getHealth();
+        var health = repositoriesHealthTracker.checkCurrentHealth();
 
         assertTrue(health.unknownRepositories().isEmpty());
         assertTrue(health.invalidRepositories().isEmpty());
@@ -69,7 +69,7 @@ public class RepositoriesCheckTests extends ESTestCase {
         when(repositoriesService.getRepositories())
             .thenReturn(Map.of(randomAlphaOfLength(10), new UnknownTypeRepository(createRepositoryMetadata())));
 
-        var health = repositoriesCheck.getHealth();
+        var health = repositoriesHealthTracker.checkCurrentHealth();
 
         assertFalse(health.unknownRepositories().isEmpty());
         assertTrue(health.invalidRepositories().isEmpty());
@@ -81,7 +81,7 @@ public class RepositoriesCheckTests extends ESTestCase {
             Map.of(repoName, new InvalidRepository(createRepositoryMetadata(), new RepositoryException(repoName, "Test")))
         );
 
-        var health = repositoriesCheck.getHealth();
+        var health = repositoriesHealthTracker.checkCurrentHealth();
 
         assertTrue(health.unknownRepositories().isEmpty());
         assertEquals(1, health.invalidRepositories().size());
@@ -91,7 +91,7 @@ public class RepositoriesCheckTests extends ESTestCase {
         var builder = mock(UpdateHealthInfoCacheAction.Request.Builder.class);
         var health = new RepositoriesHealthInfo(List.of(), List.of());
 
-        repositoriesCheck.addHealthToBuilder(builder, health);
+        repositoriesHealthTracker.addToRequestBuilder(builder, health);
 
         verify(builder).repositoriesHealthInfo(health);
     }

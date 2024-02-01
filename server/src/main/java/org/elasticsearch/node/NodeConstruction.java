@@ -97,10 +97,10 @@ import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
-import org.elasticsearch.health.node.check.DiskCheck;
-import org.elasticsearch.health.node.check.HealthCheck;
-import org.elasticsearch.health.node.check.RepositoriesCheck;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
+import org.elasticsearch.health.node.tracker.DiskHealthTracker;
+import org.elasticsearch.health.node.tracker.HealthTracker;
+import org.elasticsearch.health.node.tracker.RepositoriesHealthTracker;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -1191,14 +1191,17 @@ class NodeConstruction {
         );
         HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, featureService, settings);
 
-        List<HealthCheck<?>> healthChecks = List.of(new DiskCheck(nodeService, clusterService), new RepositoriesCheck(repositoriesService));
+        List<HealthTracker<?>> healthTrackers = List.of(
+            new DiskHealthTracker(nodeService, clusterService),
+            new RepositoriesHealthTracker(repositoriesService)
+        );
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
             settings,
             clusterService,
             threadPool,
             client,
             featureService,
-            healthChecks
+            healthTrackers
         );
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
 

@@ -20,6 +20,7 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelRegistry;
 
@@ -224,6 +225,7 @@ public class BulkShardRequestInferenceProvider {
                         inferenceFieldNames.stream().map(docMap::get).map(String::valueOf).collect(Collectors.toList()),
                         // TODO check for additional settings needed
                         Map.of(),
+                        InputType.INGEST,
                         ActionListener.releaseAfter(inferenceResultsListener, docRef.acquire())
                     );
             }

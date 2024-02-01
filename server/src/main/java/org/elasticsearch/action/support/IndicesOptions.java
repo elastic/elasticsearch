@@ -267,6 +267,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                                 DEPRECATION_LOGGER.warn(DeprecationCategory.API, "expand_wildcards", WILDCARD_NONE_DEPRECATION_MESSAGE);
                             }
                         }
+                        default -> throw new IllegalArgumentException("No valid expand wildcard value [" + expandState + "]");
                     }
                 }
                 return this;

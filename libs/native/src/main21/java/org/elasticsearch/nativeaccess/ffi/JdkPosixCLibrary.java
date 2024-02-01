@@ -8,6 +8,8 @@
 
 package org.elasticsearch.nativeaccess.ffi;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.lang.foreign.Arena;
@@ -27,6 +29,8 @@ import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
 
 class JdkPosixCLibrary implements PosixCLibrary {
 
+    private static final Logger logger = LogManager.getLogger(JdkPosixCLibrary.class);
+
     // errno can change between system calls, so we capture it
     private static final StructLayout CAPTURE_ERRNO_LAYOUT = Linker.Option.captureStateLayout();
     static final Linker.Option CAPTURE_ERRNO_OPTION = Linker.Option.captureCallState("errno");
@@ -42,6 +46,8 @@ class JdkPosixCLibrary implements PosixCLibrary {
     private static final MethodHandle fstat$mh;
 
     static {
+        System.loadLibrary("c");
+
         Arena arena = Arena.ofAuto();
         errnoState = arena.allocate(CAPTURE_ERRNO_LAYOUT);
 
@@ -53,7 +59,14 @@ class JdkPosixCLibrary implements PosixCLibrary {
         setrlimit$mh = downcallHandleWithErrno("setrlimit", rlimitDesc);
         open$mh = downcallHandleWithErrno("open", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT));
         close$mh = downcallHandleWithErrno("close", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
-        fstat$mh = downcallHandleWithErrno("fstat", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        MethodHandle fstat = null;
+        try {
+            fstat = downcallHandleWithErrno("fstat", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        } catch (LinkageError e) {
+            logger.warn("could not find native function fstat", e);
+            downcallHandleWithErrno("stat", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+        }
+        fstat$mh = fstat;
     }
 
     static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor) {

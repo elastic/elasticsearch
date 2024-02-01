@@ -608,13 +608,8 @@ public class TasksIT extends ESIntegTestCase {
         ActionFuture<TestTaskPlugin.NodesResponse> future = client().execute(TEST_TASK_ACTION, request);
 
         ActionFuture<T> waitResponseFuture;
-        TaskId taskId;
         try {
-            taskId = waitForTestTaskStartOnAllNodes();
-
-            // Wait for the task to start
-            assertBusy(() -> clusterAdmin().prepareGetTask(taskId).get());
-
+            var taskId = waitForTestTaskStartOnAllNodes();
             // Spin up a request to wait for the test task to finish
             waitResponseFuture = wait.apply(taskId);
         } finally {
@@ -661,11 +656,7 @@ public class TasksIT extends ESIntegTestCase {
         TestTaskPlugin.NodesRequest request = new TestTaskPlugin.NodesRequest("test");
         ActionFuture<TestTaskPlugin.NodesResponse> future = client().execute(TEST_TASK_ACTION, request);
         try {
-            TaskId taskId = waitForTestTaskStartOnAllNodes();
-
-            // Wait for the task to start
-            assertBusy(() -> clusterAdmin().prepareGetTask(taskId).get());
-
+            var taskId = waitForTestTaskStartOnAllNodes();
             // Spin up a request that should wait for those tasks to finish
             // It will timeout because we haven't unblocked the tasks
             Iterable<? extends Throwable> failures = wait.apply(taskId);
@@ -690,9 +681,11 @@ public class TasksIT extends ESIntegTestCase {
             List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "[n]").get().getTasks();
             assertEquals(internalCluster().size(), tasks.size());
         });
-        List<TaskInfo> task = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).get().getTasks();
-        assertThat(task, hasSize(1));
-        return task.get(0).taskId();
+        var tasks = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).get().getTasks();
+        assertThat(tasks, hasSize(1));
+        var taskId = tasks.get(0).taskId();
+        clusterAdmin().prepareGetTask(taskId).get();
+        return taskId;
     }
 
     public void testTasksListWaitForNoTask() throws Exception {

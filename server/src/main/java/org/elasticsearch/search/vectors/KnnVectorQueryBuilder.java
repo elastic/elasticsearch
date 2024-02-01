@@ -183,7 +183,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                     "["
                         + NUM_CANDS_FIELD.getPreferredName()
                         + "] field was mandatory in previous releases "
-                        + "and is required to be non-null by some nodes in this cluster. "
+                        + "and is required to be non-null by some nodes. "
                         + "Please make sure to provide the parameter as part of the request."
                 );
             } else {

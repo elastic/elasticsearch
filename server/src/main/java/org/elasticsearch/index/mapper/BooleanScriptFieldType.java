@@ -227,11 +227,11 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
                 return existsQuery(context);
             }
             applyScriptContext(context);
-            return new BooleanScriptFieldTermQuery(script, leafFactory(context), concreteFieldName(), true);
+            return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), true);
         }
         if (falseAllowed) {
             applyScriptContext(context);
-            return new BooleanScriptFieldTermQuery(script, leafFactory(context), concreteFieldName(), false);
+            return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), false);
         }
         return new MatchNoDocsQuery("neither true nor false allowed");
     }

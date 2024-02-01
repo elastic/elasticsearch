@@ -144,7 +144,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(concreteFieldName(), context, format);
+            return SourceValueFetcher.toString(name(), context, format);
         }
 
         @Override

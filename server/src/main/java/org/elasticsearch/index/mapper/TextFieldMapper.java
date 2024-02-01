@@ -780,7 +780,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(concreteFieldName(), context, format);
+            return SourceValueFetcher.toString(name(), context, format);
         }
 
         @Override
@@ -1093,7 +1093,7 @@ public final class TextFieldMapper extends FieldMapper {
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(concreteFieldName())),
+                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
                 fieldDataContext.lookupSupplier().get(),
                 TextDocValuesField::new
             );

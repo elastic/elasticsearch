@@ -335,7 +335,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(concreteFieldName(), context, format);
+            return SourceValueFetcher.toString(name(), context, format);
         }
 
         @Override
@@ -493,7 +493,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
-            return SourceValueFetcher.toString(concreteFieldName(), context, format);
+            return SourceValueFetcher.toString(name(), context, format);
         }
 
         @Override
@@ -605,7 +605,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
-            return SourceValueFetcher.toString(concreteFieldName(), context, format);
+            return SourceValueFetcher.toString(name(), context, format);
         }
 
         @Override

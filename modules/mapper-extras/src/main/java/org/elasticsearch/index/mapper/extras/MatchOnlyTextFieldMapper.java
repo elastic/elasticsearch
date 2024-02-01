@@ -185,7 +185,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(concreteFieldName(), context, format);
+            return SourceValueFetcher.toString(name(), context, format);
         }
 
         private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
@@ -352,7 +352,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(concreteFieldName())),
+                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
                 fieldDataContext.lookupSupplier().get(),
                 TextDocValuesField::new
             );

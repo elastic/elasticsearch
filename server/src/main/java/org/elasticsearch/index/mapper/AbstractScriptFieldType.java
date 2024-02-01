@@ -184,6 +184,11 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
         );
     }
 
+    @Override
+    public String concreteFieldName() {
+        return null;
+    }
+
     /**
      * Create a script leaf factory.
      */

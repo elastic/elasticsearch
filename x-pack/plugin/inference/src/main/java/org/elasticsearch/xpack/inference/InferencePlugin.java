@@ -23,6 +23,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.ModelRegistry;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -48,7 +50,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
@@ -76,6 +78,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
+
     private List<InferenceServiceExtension> inferenceServiceExtensions;
 
     public InferencePlugin(Settings settings) {
@@ -126,7 +129,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         );
         httpFactory.set(httpRequestSenderFactory);
 
-        ModelRegistry modelRegistry = new ModelRegistry(services.client());
+        ModelRegistry modelRegistry = new ModelRegistryImpl(services.client());
 
         if (inferenceServiceExtensions == null) {
             inferenceServiceExtensions = new ArrayList<>();
@@ -139,12 +142,13 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         registry.init(services.client());
         inferenceServiceRegistry.set(registry);
 
-        return List.of(modelRegistry, registry);
+        return List.of(new PluginComponentBinding<>(ModelRegistry.class, modelRegistry), registry);
     }
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         inferenceServiceExtensions = loader.loadExtensions(InferenceServiceExtension.class);
+        loader.loadExtensions(ModelRegistry.class);
     }
 
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {

@@ -25,8 +25,14 @@ public interface ModelRegistry {
     void deleteModel(String modelId, ActionListener<Boolean> listener);
 
     /**
-     * Semi parsed model where model id, task type and service
+     * Semi parsed model where inference entity id, task type and service
      * are known but the settings are not parsed.
      */
-    record UnparsedModel(String modelId, TaskType taskType, String service, Map<String, Object> settings, Map<String, Object> secrets) {}
+    record UnparsedModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        Map<String, Object> settings,
+        Map<String, Object> secrets
+    ) {}
 }

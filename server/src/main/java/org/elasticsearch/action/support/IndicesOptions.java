@@ -428,45 +428,139 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         .generalOptions(GeneralOptions.DEFAULT)
         .build();
 
-    public static final IndicesOptions STRICT_EXPAND_OPEN = DEFAULT;
+    public static final IndicesOptions STRICT_EXPAND_OPEN = IndicesOptions.builder()
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
-        .wildcardOptions(WildcardOptions.builder().includeHidden(true))
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(true)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
-        .wildcardOptions(WildcardOptions.builder().matchClosed(true))
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(true)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
-        .wildcardOptions(WildcardOptions.builder().matchClosed(true).includeHidden(true))
+        .wildcardOptions(
+            WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
+        )
+        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED = IndicesOptions.builder()
-        .wildcardOptions(WildcardOptions.builder().matchClosed(true))
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(true)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
-        .wildcardOptions(WildcardOptions.builder().matchClosed(true).includeHidden(true))
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
+        )
+        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = IndicesOptions.builder()
-        .generalOptions(GeneralOptions.builder().allowClosedIndices(false))
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .generalOptions(GeneralOptions.builder().allowClosedIndices(false).allowAliasToMultipleIndices(true).ignoreThrottled(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = IndicesOptions.builder()
-        .wildcardOptions(WildcardOptions.builder().includeHidden(true))
-        .generalOptions(GeneralOptions.builder().allowClosedIndices(false))
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(true)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .generalOptions(GeneralOptions.builder().allowClosedIndices(false).allowAliasToMultipleIndices(true).ignoreThrottled(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = IndicesOptions.builder()
-        .generalOptions(GeneralOptions.builder().ignoreThrottled(true).allowClosedIndices(false))
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .generalOptions(GeneralOptions.builder().ignoreThrottled(true).allowClosedIndices(false).allowClosedIndices(true))
         .build();
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
-        .wildcardOptions(WildcardOptions.builder().matchNone())
-        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(false).allowClosedIndices(false))
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(false)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(false).allowClosedIndices(false).ignoreThrottled(false))
         .build();
     public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
-        .wildcardOptions(WildcardOptions.builder().matchNone())
-        .generalOptions(GeneralOptions.builder().allowClosedIndices(false))
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(false)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .generalOptions(GeneralOptions.builder().allowClosedIndices(false).allowAliasToMultipleIndices(true).ignoreThrottled(false))
         .build();
 
     /**

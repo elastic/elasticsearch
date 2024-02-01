@@ -272,5 +272,4 @@ public final class ApplicationPrivilege extends Privilege {
             && Objects.equals(this.application, ((ApplicationPrivilege) o).application)
             && Arrays.equals(this.patterns, ((ApplicationPrivilege) o).patterns);
     }
-
 }

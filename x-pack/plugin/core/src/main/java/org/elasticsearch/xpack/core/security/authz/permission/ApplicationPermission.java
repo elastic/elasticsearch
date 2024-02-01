@@ -191,18 +191,18 @@ public final class ApplicationPermission {
         }
 
         private boolean matchesPrivilege(ApplicationPrivilege other) {
-            if (this.privilege.equals(other)) {
-                return true;
-            }
-            if (this.application.test(other.getApplication()) == false) {
+            assert other.name().size() <= 1 : "can only compare to singletons";
+            if (application.test(other.getApplication()) == false) {
                 return false;
             }
             if (Operations.isTotal(privilege.getAutomaton())) {
                 return true;
             }
-            return Operations.isEmpty(privilege.getAutomaton()) == false
-                && Operations.isEmpty(other.getAutomaton()) == false
-                && Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton());
+            // If both empty, privileges are not stored, so we need to compare based on privilege names
+            if (Operations.isEmpty(privilege.getAutomaton()) && Operations.isEmpty(other.getAutomaton())) {
+                return privilege.name().containsAll(other.name());
+            }
+            return Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton());
         }
 
         @Override

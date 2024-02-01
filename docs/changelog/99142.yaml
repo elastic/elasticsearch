@@ -1,0 +1,6 @@
+pr: 99142
+summary: Reuse number field mapper tests in other modules
+area: Search
+type: enhancement
+issues:
+  - 92947

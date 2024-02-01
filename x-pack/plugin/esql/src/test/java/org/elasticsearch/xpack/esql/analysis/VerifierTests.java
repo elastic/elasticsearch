@@ -29,11 +29,11 @@ public class VerifierTests extends ESTestCase {
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
-            "1:40: second argument of [a + c] must be [numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a + c] must be [datetime or numeric], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a + c")
         );
         assertEquals(
-            "1:40: second argument of [a - c] must be [numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a - c] must be [datetime or numeric], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a - c")
         );
     }
@@ -221,16 +221,7 @@ public class VerifierTests extends ESTestCase {
                 var op = left + " " + operation + " " + right;
                 assertThat(
                     error("row n = to_" + type + "(1), ul = to_ul(1) | eval " + op),
-                    containsString(
-                        "first argument of ["
-                            + op
-                            + "] is ["
-                            + leftType
-                            + "] and second is ["
-                            + rightType
-                            + "]."
-                            + " [unsigned_long] can only be operated on together with another [unsigned_long]"
-                    )
+                    containsString("[" + operation + "] has arguments with incompatible types [" + leftType + "] and [" + rightType + "]")
                 );
             }
         }
@@ -238,7 +229,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testUnsignedLongNegation() {
         assertEquals(
-            "1:29: negation unsupported for arguments of type [unsigned_long] in expression [-x]",
+            "1:29: argument of [-x] must be [numeric, date_period or time_duration], found value [x] type [unsigned_long]",
             error("row x = to_ul(1) | eval y = -x")
         );
     }

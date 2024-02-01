@@ -15,7 +15,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -56,7 +56,7 @@ public final class DataExtractorUtils {
     }
 
     public static DataExtractor.DataSummary getDataSummary(SearchResponse searchResponse) {
-        Aggregations aggregations = searchResponse.getAggregations();
+        InternalAggregations aggregations = searchResponse.getAggregations();
         long totalHits = searchResponse.getHits().getTotalHits().value;
         if (totalHits == 0) {
             return new DataExtractor.DataSummary(null, null, 0L);

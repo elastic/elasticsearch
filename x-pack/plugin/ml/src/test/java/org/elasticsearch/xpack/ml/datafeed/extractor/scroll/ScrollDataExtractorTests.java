@@ -31,7 +31,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -595,7 +595,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
             new SearchHits(SearchHits.EMPTY, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1)
         );
         when(searchResponse.getAggregations()).thenReturn(
-            new Aggregations(List.of(new Min("earliest_time", start, null, null), new Max("latest_time", end, null, null)))
+            InternalAggregations.from(List.of(new Min("earliest_time", start, null, null), new Max("latest_time", end, null, null)))
         );
         return searchResponse;
     }

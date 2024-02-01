@@ -66,4 +66,9 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
         MatcherAssert.assertThat(xContentResult, is("""
             {"texts":["abc"]}"""));
     }
+
+    public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
+        var thrownException = expectThrows(AssertionError.class, () -> CohereEmbeddingsRequestEntity.covertToString(InputType.UNSPECIFIED));
+        MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
+    }
 }

@@ -22,7 +22,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
@@ -365,7 +364,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
             new SearchHits(SearchHits.EMPTY, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1)
         );
         when(searchResponse.getAggregations()).thenReturn(
-            new Aggregations(List.of(new Min("earliest_time", start, null, null), new Max("latest_time", end, null, null)))
+            InternalAggregations.from(List.of(new Min("earliest_time", start, null, null), new Max("latest_time", end, null, null)))
         );
         return searchResponse;
     }

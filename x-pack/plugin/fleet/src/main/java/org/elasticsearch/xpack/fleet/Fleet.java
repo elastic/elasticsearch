@@ -301,7 +301,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                     dataStreamDescriptors.stream().map(SystemDataStreamDescriptor::getDataStreamName).toArray(String[]::new)
                 );
                 request.indicesOptions(
-                    IndicesOptions.newBuilder(request.indicesOptions())
+                    IndicesOptions.builder(request.indicesOptions())
                         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
                         .build()
                 );

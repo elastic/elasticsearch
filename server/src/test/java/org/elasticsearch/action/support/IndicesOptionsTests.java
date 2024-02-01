@@ -372,7 +372,7 @@ public class IndicesOptionsTests extends ESTestCase {
         );
         ConcreteTargetOptions concreteTargetOptions = new ConcreteTargetOptions(randomBoolean());
 
-        IndicesOptions indicesOptions = IndicesOptions.newBuilder()
+        IndicesOptions indicesOptions = IndicesOptions.builder()
             .concreteTargetOptions(concreteTargetOptions)
             .wildcardOptions(wildcardOptions)
             .build();

@@ -350,7 +350,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
                     .toArray(Strings.EMPTY_ARRAY)
             );
             request.indicesOptions(
-                IndicesOptions.newBuilder(request.indicesOptions())
+                IndicesOptions.builder(request.indicesOptions())
                     .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
                     .build()
             );

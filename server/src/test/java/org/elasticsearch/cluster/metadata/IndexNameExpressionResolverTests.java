@@ -821,7 +821,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // same as above, but DO NOT expand wildcards
         IndexNameExpressionResolver.Context context_no_expand = new IndexNameExpressionResolver.Context(
             state,
-            IndicesOptions.newBuilder().wildcardOptions(doNotExpandWildcards()).build(),
+            IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build(),
             randomFrom(SystemIndexAccessLevel.values())
         );
         IndexNotFoundException infe_no_expand = expectThrows(
@@ -863,7 +863,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // same as above, but DO NOT expand wildcards
         IndexNameExpressionResolver.Context context_no_expand = new IndexNameExpressionResolver.Context(
             state,
-            IndicesOptions.newBuilder().wildcardOptions(doNotExpandWildcards()).build(),
+            IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build(),
             randomFrom(SystemIndexAccessLevel.values())
         );
         IndexNotFoundException infe_no_expand = expectThrows(
@@ -1993,7 +1993,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             // same delete request but with request options that DO NOT expand wildcards
             DeleteIndexRequest request = new DeleteIndexRequest("does_not_exist").indicesOptions(
-                IndicesOptions.newBuilder().wildcardOptions(doNotExpandWildcards()).build()
+                IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build()
             );
             IndexNotFoundException infe = expectThrows(
                 IndexNotFoundException.class,
@@ -2294,7 +2294,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new IndicesOptions(
                     IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
                     IndicesOptions.WildcardOptions.DEFAULT,
-                    IndicesOptions.GeneralOptions.newBuilder().removeThrottled(true).build()
+                    IndicesOptions.GeneralOptions.builder().removeThrottled(true).build()
                 ),
                 "ind*",
                 "test-index"
@@ -2306,7 +2306,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(
                 state,
-                IndicesOptions.newBuilder().wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().matchClosed(true)).build(),
+                IndicesOptions.builder().wildcardOptions(IndicesOptions.WildcardOptions.builder().matchClosed(true)).build(),
                 "ind*",
                 "test-index"
             );
@@ -2601,7 +2601,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // Ignore data streams and DO NOT expand wildcards
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder().wildcardOptions(doNotExpandWildcards()).build();
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream")
@@ -2616,7 +2616,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // Ignore data streams, allow no indices, ignore unavailable and DO NOT expand wildcards
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder()
+            IndicesOptions indicesOptions = IndicesOptions.builder()
                 .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
                 .wildcardOptions(doNotExpandWildcards())
                 .build();
@@ -2630,14 +2630,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but don't expand wildcards
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder().wildcardOptions(doNotExpandWildcards()).build();
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, true);
             assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis)));
         }
         {
             // Ignore data streams
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder()
-                .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().allowEmptyExpressions(false).build())
+            IndicesOptions indicesOptions = IndicesOptions.builder()
+                .wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(false).build())
                 .build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
@@ -2647,7 +2647,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but don't expand wildcards
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder().wildcardOptions(doNotExpandWildcards(false)).build();
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards(false)).build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", true, false)
@@ -2665,7 +2665,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but don't expand wildcards
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder().wildcardOptions(doNotExpandWildcards()).build();
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false)
@@ -2674,7 +2674,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // Ignore data streams, allow no indices and ignore unavailable
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder()
+            IndicesOptions indicesOptions = IndicesOptions.builder()
                 .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
                 .build();
             Exception e = expectThrows(
@@ -2685,7 +2685,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but don't expand wildcards
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder()
+            IndicesOptions indicesOptions = IndicesOptions.builder()
                 .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
                 .wildcardOptions(doNotExpandWildcards())
                 .build();
@@ -2728,22 +2728,22 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder()
-                .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().matchOpen(randomBoolean()))
+            IndicesOptions indicesOptions = IndicesOptions.builder()
+                .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(randomBoolean()))
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias1);
             assertThat(result, arrayContainingInAnyOrder(index1.getIndex(), index2.getIndex(), index3.getIndex(), index4.getIndex()));
         }
         {
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder()
-                .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().matchOpen(randomBoolean()))
+            IndicesOptions indicesOptions = IndicesOptions.builder()
+                .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(randomBoolean()))
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias2);
             assertThat(result, arrayContainingInAnyOrder(index3.getIndex(), index4.getIndex()));
         }
         {
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder()
-                .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().matchOpen(randomBoolean()))
+            IndicesOptions indicesOptions = IndicesOptions.builder()
+                .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(randomBoolean()))
                 .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias3);
             assertThat(result, arrayContainingInAnyOrder(index5.getIndex(), index6.getIndex()));
@@ -2758,7 +2758,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but DO NOT expand wildcards
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder().wildcardOptions(doNotExpandWildcards()).build();
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, dataStreamAlias1)
@@ -2775,7 +2775,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but DO NOT expand wildcards
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder().wildcardOptions(doNotExpandWildcards()).build();
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, dataStreamAlias2)
@@ -2792,7 +2792,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but DO NOT expand wildcards
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder().wildcardOptions(doNotExpandWildcards()).build();
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, dataStreamAlias3)
@@ -2827,7 +2827,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but DO NOT expand wildcards
-            IndicesOptions indicesOptions = IndicesOptions.newBuilder().wildcardOptions(doNotExpandWildcards()).build();
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, dataStreamAlias1, false, true);
             assertThat(result, notNullValue());
             assertThat(result.getName(), backingIndexEqualTo(dataStream2, 2));
@@ -3238,7 +3238,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     private static IndicesOptions.WildcardOptions doNotExpandWildcards(boolean lenient) {
-        return IndicesOptions.WildcardOptions.newBuilder()
+        return IndicesOptions.WildcardOptions.builder()
             .matchOpen(false)
             .matchClosed(false)
             .includeHidden(randomBoolean())

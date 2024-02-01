@@ -268,10 +268,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         DataStreamsStatsAction.Request request = new DataStreamsStatsAction.Request();
         if (includeHidden) {
             request.indicesOptions(
-                IndicesOptions.newBuilder(request.indicesOptions())
-                    .wildcardOptions(
-                        IndicesOptions.WildcardOptions.newBuilder(request.indicesOptions().wildcardOptions()).includeHidden(true)
-                    )
+                IndicesOptions.builder(request.indicesOptions())
+                    .wildcardOptions(IndicesOptions.WildcardOptions.builder(request.indicesOptions().wildcardOptions()).includeHidden(true))
                     .build()
             );
         }

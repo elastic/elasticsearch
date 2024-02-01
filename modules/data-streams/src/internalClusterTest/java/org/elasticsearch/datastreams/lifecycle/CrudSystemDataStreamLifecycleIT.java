@@ -236,7 +236,7 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                 dataStreamDescriptors.stream().map(SystemDataStreamDescriptor::getDataStreamName).toList().toArray(Strings.EMPTY_ARRAY)
             );
             request.indicesOptions(
-                IndicesOptions.newBuilder(request.indicesOptions())
+                IndicesOptions.builder(request.indicesOptions())
                     .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
                     .build()
             );

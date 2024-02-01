@@ -19,8 +19,6 @@ import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
-import java.util.List;
 
 class JnaLinuxCLibrary implements LinuxCLibrary {
 
@@ -39,7 +37,8 @@ class JnaLinuxCLibrary implements LinuxCLibrary {
         }
     }
 
-    static final class JnaSockFProg extends Structure implements Structure.ByReference, SockFProg {
+    @Structure.FieldOrder({ "len", "filter" })
+    public static final class JnaSockFProg extends Structure implements Structure.ByReference, SockFProg {
         public short len;           // number of filters
         public Pointer filter;        // filters
 
@@ -56,11 +55,6 @@ class JnaLinuxCLibrary implements LinuxCLibrary {
                 bbuf.putInt(f.k());
             }
             this.filter = filter;
-        }
-
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList("len", "filter");
         }
 
         @Override

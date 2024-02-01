@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,8 +18,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class ResolveClusterInfo implements Writeable {
-
-    private static final Logger logger = LogManager.getLogger(ResolveClusterInfo.class);
 
     private final boolean connected;
     private final Boolean skipUnavailable;  // remote clusters don't know their setting, so they put null and querying cluster fills in

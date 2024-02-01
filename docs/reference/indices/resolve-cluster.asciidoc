@@ -118,8 +118,7 @@ streams that match `logs*`. In that case, that cluster will return nothing if yo
 a {ccs}.
 
 3. The remote cluster is an older version that does not support the feature you want to
-use in your search. (Note that officially, cross-cluster searches are only supported back
-to the <<ccs-supported-configurations,previous minor version>>.)
+use in your search.
 
 
 [[resolve-index-api-example]]

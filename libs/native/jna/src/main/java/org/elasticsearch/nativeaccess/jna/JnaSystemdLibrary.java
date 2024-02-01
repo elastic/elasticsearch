@@ -8,11 +8,25 @@
 
 package org.elasticsearch.nativeaccess.jna;
 
+import com.sun.jna.Library;
+import com.sun.jna.Native;
+
 import org.elasticsearch.nativeaccess.lib.SystemdLibrary;
 
 public class JnaSystemdLibrary implements SystemdLibrary {
+
+    private interface NativeFunctions extends Library {
+        int sd_notify(int unset_environment, String state);
+    }
+
+    private final NativeFunctions functions;
+
+    JnaSystemdLibrary() {
+        this.functions = Native.load("libsystemd.so.0", NativeFunctions.class);
+    }
+
     @Override
     public int sd_notify(int unset_environment, String state) {
-        return JnaStaticSystemdLibrary.sd_notify(unset_environment, state);
+        return functions.sd_notify(unset_environment, state);
     }
 }

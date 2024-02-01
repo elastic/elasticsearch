@@ -8,18 +8,21 @@
 
 package org.elasticsearch.nativeaccess.jna;
 
+import com.sun.jna.IntegerType;
 import com.sun.jna.Native;
+import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
+import com.sun.jna.Structure;
+import com.sun.jna.Structure.ByReference;
 import com.sun.jna.WString;
 import com.sun.jna.ptr.IntByReference;
+import com.sun.jna.win32.StdCallLibrary;
 
 import org.elasticsearch.nativeaccess.NativeAccess.ConsoleCtrlHandler;
-import org.elasticsearch.nativeaccess.jna.JnaStaticKernel32Library.JnaJobObjectBasicLimitInformation;
-import org.elasticsearch.nativeaccess.jna.JnaStaticKernel32Library.JnaMemoryBasicInformation;
-import org.elasticsearch.nativeaccess.jna.JnaStaticKernel32Library.NativeHandlerCallback;
-import org.elasticsearch.nativeaccess.jna.JnaStaticKernel32Library.SizeT;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.IntConsumer;
 
 class JnaKernel32Library implements Kernel32Library {
@@ -45,16 +48,159 @@ class JnaKernel32Library implements Kernel32Library {
         }
     }
 
+    public static class SizeT extends IntegerType {
+        // JNA requires this no-arg constructor to be public,
+        // otherwise it fails to register kernel32 library
+        public SizeT() {
+            this(0);
+        }
+
+        public SizeT(long value) {
+            super(Native.SIZE_T_SIZE, value);
+        }
+    }
+
+    /**
+     * @see MemoryBasicInformation
+     */
+    public static class JnaMemoryBasicInformation extends Structure implements MemoryBasicInformation {
+        // note: these members must be public for jna to set them
+        public Pointer BaseAddress = new Pointer(0);
+        public byte[] _ignore = new byte[16];
+        public SizeT RegionSize = new SizeT();
+        public NativeLong State;
+        public NativeLong Protect;
+        public NativeLong Type;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("BaseAddress", "_ignore", "RegionSize", "State", "Protect", "Type");
+        }
+
+        @Override
+        public Address BaseAddress() {
+            return new JnaAddress(BaseAddress);
+        }
+
+        @Override
+        public long RegionSize() {
+            return RegionSize.longValue();
+        }
+
+        @Override
+        public long State() {
+            return State.longValue();
+        }
+
+        @Override
+        public long Protect() {
+            return Protect.longValue();
+        }
+
+        @Override
+        public long Type() {
+            return Type.longValue();
+        }
+    }
+
+    /**
+     * Basic limit information for a job object
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147%28v=vs.85%29.aspx
+     */
+    public static class JnaJobObjectBasicLimitInformation extends Structure implements ByReference, JobObjectBasicLimitInformation {
+        public byte[] _ignore1 = new byte[16];
+        public int LimitFlags;
+        public byte[] _ignore2 = new byte[20];
+        public int ActiveProcessLimit;
+        public byte[] _ignore3 = new byte[20];
+
+        public JnaJobObjectBasicLimitInformation() {
+            super(8);
+        }
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("_ignore1", "LimitFlags", "_ignore2", "ActiveProcessLimit", "_ignore3");
+        }
+
+        @Override
+        public void setLimitFlags(int v) {
+            LimitFlags = v;
+        }
+
+        @Override
+        public void setActiveProcessLimit(int v) {
+            ActiveProcessLimit = v;
+        }
+    }
+
+    /**
+     * Handles consoles event with WIN API
+     * <p>
+     * See http://msdn.microsoft.com/en-us/library/windows/desktop/ms683242%28v=vs.85%29.aspx
+     */
+    static class NativeHandlerCallback implements StdCallLibrary.StdCallCallback {
+
+        private final ConsoleCtrlHandler handler;
+
+        NativeHandlerCallback(ConsoleCtrlHandler handler) {
+            this.handler = handler;
+        }
+
+        public boolean callback(long dwCtrlType) {
+            return handler.handle((int) dwCtrlType);
+        }
+    }
+
+    private interface NativeFunctions extends StdCallLibrary {
+        Pointer GetCurrentProcess();
+
+        boolean CloseHandle(Pointer handle);
+
+        boolean VirtualLock(Pointer address, SizeT size);
+
+        int VirtualQueryEx(Pointer handle, Pointer address, JnaMemoryBasicInformation memoryInfo, int length);
+
+        boolean SetProcessWorkingSetSize(Pointer handle, SizeT minSize, SizeT maxSize);
+
+        int GetCompressedFileSizeW(WString lpFileName, IntByReference lpFileSizeHigh);
+
+        int GetShortPathNameW(WString lpszLongPath, char[] lpszShortPath, int cchBuffer);
+
+        boolean SetConsoleCtrlHandler(StdCallLibrary.StdCallCallback handler, boolean add);
+
+        Pointer CreateJobObjectW(Pointer jobAttributes, String name);
+
+        boolean AssignProcessToJobObject(Pointer job, Pointer process);
+
+        boolean QueryInformationJobObject(
+            Pointer job,
+            int infoClass,
+            JnaJobObjectBasicLimitInformation info,
+            int infoLength,
+            Pointer returnLength
+        );
+
+        boolean SetInformationJobObject(Pointer job, int infoClass, JnaJobObjectBasicLimitInformation info, int infoLength);
+    }
+
+    private final NativeFunctions functions;
+
+    JnaKernel32Library() {
+        this.functions = Native.load("kernel32", NativeFunctions.class);
+    }
+
     @Override
     public Handle GetCurrentProcess() {
-        return new JnaHandle(JnaStaticKernel32Library.GetCurrentProcess());
+        return new JnaHandle(functions.GetCurrentProcess());
     }
 
     @Override
     public boolean CloseHandle(Handle handle) {
         assert handle instanceof JnaHandle;
         var jnaHandle = (JnaHandle) handle;
-        return JnaStaticKernel32Library.CloseHandle(jnaHandle.pointer);
+        return functions.CloseHandle(jnaHandle.pointer);
     }
 
     @Override
@@ -72,7 +218,7 @@ class JnaKernel32Library implements Kernel32Library {
     public boolean VirtualLock(Address address, long size) {
         assert address instanceof JnaAddress;
         var jnaAddress = (JnaAddress) address;
-        return JnaStaticKernel32Library.VirtualLock(jnaAddress.pointer, new SizeT(size));
+        return functions.VirtualLock(jnaAddress.pointer, new SizeT(size));
     }
 
     @Override
@@ -83,21 +229,21 @@ class JnaKernel32Library implements Kernel32Library {
         var jnaHandle = (JnaHandle) handle;
         var jnaAddress = (JnaAddress) address;
         var jnaMemoryInfo = (JnaMemoryBasicInformation) memoryInfo;
-        return JnaStaticKernel32Library.VirtualQueryEx(jnaHandle.pointer, jnaAddress.pointer, jnaMemoryInfo, jnaMemoryInfo.size());
+        return functions.VirtualQueryEx(jnaHandle.pointer, jnaAddress.pointer, jnaMemoryInfo, jnaMemoryInfo.size());
     }
 
     @Override
     public boolean SetProcessWorkingSetSize(Handle handle, long minSize, long maxSize) {
         assert handle instanceof JnaHandle;
         var jnaHandle = (JnaHandle) handle;
-        return JnaStaticKernel32Library.SetProcessWorkingSetSize(jnaHandle.pointer, new SizeT(minSize), new SizeT(maxSize));
+        return functions.SetProcessWorkingSetSize(jnaHandle.pointer, new SizeT(minSize), new SizeT(maxSize));
     }
 
     @Override
     public int GetCompressedFileSizeW(String lpFileName, IntConsumer lpFileSizeHigh) {
         var wideFileName = new WString(lpFileName);
         var fileSizeHigh = new IntByReference();
-        int ret = JnaStaticKernel32Library.GetCompressedFileSizeW(wideFileName, fileSizeHigh);
+        int ret = functions.GetCompressedFileSizeW(wideFileName, fileSizeHigh);
         lpFileSizeHigh.accept(fileSizeHigh.getValue());
         return ret;
     }
@@ -105,18 +251,18 @@ class JnaKernel32Library implements Kernel32Library {
     @Override
     public int GetShortPathNameW(String lpszLongPath, char[] lpszShortPath, int cchBuffer) {
         var wideFileName = new WString(lpszLongPath);
-        return JnaStaticKernel32Library.GetShortPathNameW(wideFileName, lpszShortPath, cchBuffer);
+        return functions.GetShortPathNameW(wideFileName, lpszShortPath, cchBuffer);
     }
 
     @Override
     public boolean SetConsoleCtrlHandler(ConsoleCtrlHandler handler, boolean add) {
         NativeHandlerCallback callback = new NativeHandlerCallback(handler);
-        return JnaStaticKernel32Library.SetConsoleCtrlHandler(callback, true);
+        return functions.SetConsoleCtrlHandler(callback, true);
     }
 
     @Override
     public Handle CreateJobObjectW() {
-        return new JnaHandle(JnaStaticKernel32Library.CreateJobObjectW(null, null));
+        return new JnaHandle(functions.CreateJobObjectW(null, null));
     }
 
     @Override
@@ -125,7 +271,7 @@ class JnaKernel32Library implements Kernel32Library {
         assert process instanceof JnaHandle;
         var jnaJob = (JnaHandle) job;
         var jnaProcess = (JnaHandle) process;
-        return JnaStaticKernel32Library.AssignProcessToJobObject(jnaJob.pointer, jnaProcess.pointer);
+        return functions.AssignProcessToJobObject(jnaJob.pointer, jnaProcess.pointer);
     }
 
     @Override
@@ -139,7 +285,7 @@ class JnaKernel32Library implements Kernel32Library {
         assert info instanceof JnaJobObjectBasicLimitInformation;
         var jnaJob = (JnaHandle) job;
         var jnaInfo = (JnaJobObjectBasicLimitInformation) info;
-        return JnaStaticKernel32Library.QueryInformationJobObject(jnaJob.pointer, infoClass, jnaInfo, jnaInfo.size(), null);
+        return functions.QueryInformationJobObject(jnaJob.pointer, infoClass, jnaInfo, jnaInfo.size(), null);
     }
 
     @Override
@@ -148,6 +294,6 @@ class JnaKernel32Library implements Kernel32Library {
         assert info instanceof JnaJobObjectBasicLimitInformation;
         var jnaJob = (JnaHandle) job;
         var jnaInfo = (JnaJobObjectBasicLimitInformation) info;
-        return JnaStaticKernel32Library.SetInformationJobObject(jnaJob.pointer, infoClass, jnaInfo, jnaInfo.size());
+        return functions.SetInformationJobObject(jnaJob.pointer, infoClass, jnaInfo, jnaInfo.size());
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.application.connector.filtering.FilteringRuleCond
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationInfo;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
@@ -246,6 +247,7 @@ public final class ConnectorTestUtils {
     public static Connector getRandomConnector() {
 
         return new Connector.Builder().setApiKeyId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setApiKeySecretId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setConfiguration(getRandomConnectorConfiguration())
             .setCustomScheduling(Map.of(randomAlphaOfLengthBetween(5, 10), getRandomConnectorCustomSchedule()))
             .setDescription(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
@@ -334,6 +336,11 @@ public final class ConnectorTestUtils {
 
     public static ConnectorSyncStatus getRandomSyncStatus() {
         ConnectorSyncStatus[] values = ConnectorSyncStatus.values();
+        return values[randomInt(values.length - 1)];
+    }
+
+    public static ConnectorSyncJobType getRandomSyncJobType() {
+        ConnectorSyncJobType[] values = ConnectorSyncJobType.values();
         return values[randomInt(values.length - 1)];
     }
 

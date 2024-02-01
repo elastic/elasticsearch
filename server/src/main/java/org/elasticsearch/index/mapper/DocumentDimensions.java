@@ -32,17 +32,19 @@ public interface DocumentDimensions {
      * value is already computed in some cases when we want to collect
      * dimensions, so we can save re-computing the UTF-8 encoding.
      */
-    void addString(String fieldName, BytesRef utf8Value);
+    DocumentDimensions addString(String fieldName, BytesRef utf8Value);
 
-    default void addString(String fieldName, String value) {
-        addString(fieldName, new BytesRef(value));
+    default DocumentDimensions addString(String fieldName, String value) {
+        return addString(fieldName, new BytesRef(value));
     }
 
-    void addIp(String fieldName, InetAddress value);
+    DocumentDimensions addIp(String fieldName, InetAddress value);
 
-    void addLong(String fieldName, long value);
+    DocumentDimensions addLong(String fieldName, long value);
 
-    void addUnsignedLong(String fieldName, long value);
+    DocumentDimensions addUnsignedLong(String fieldName, long value);
+
+    DocumentDimensions validate(IndexSettings settings);
 
     /**
      * Makes sure that each dimension only appears on time.
@@ -51,29 +53,40 @@ public interface DocumentDimensions {
         private final Set<String> names = new HashSet<>();
 
         @Override
-        public void addString(String fieldName, BytesRef value) {
+        public DocumentDimensions addString(String fieldName, BytesRef value) {
             add(fieldName);
+            return this;
         }
 
         // Override to skip the UTF-8 conversion that happens in the default implementation
         @Override
-        public void addString(String fieldName, String value) {
+        public DocumentDimensions addString(String fieldName, String value) {
             add(fieldName);
+            return this;
         }
 
         @Override
-        public void addIp(String fieldName, InetAddress value) {
+        public DocumentDimensions addIp(String fieldName, InetAddress value) {
             add(fieldName);
+            return this;
         }
 
         @Override
-        public void addLong(String fieldName, long value) {
+        public DocumentDimensions addLong(String fieldName, long value) {
             add(fieldName);
+            return this;
         }
 
         @Override
-        public void addUnsignedLong(String fieldName, long value) {
+        public DocumentDimensions addUnsignedLong(String fieldName, long value) {
             add(fieldName);
+            return this;
+        }
+
+        @Override
+        public DocumentDimensions validate(final IndexSettings settings) {
+            // DO NOTHING
+            return this;
         }
 
         private void add(String fieldName) {

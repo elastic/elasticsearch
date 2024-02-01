@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder.translateQueryFields;
+import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.translateQueryFields;
 
 public class ApiKeyAggregationsBuilder {
 

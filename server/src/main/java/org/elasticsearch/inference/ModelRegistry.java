@@ -60,4 +60,40 @@ public interface ModelRegistry {
         Map<String, Object> settings,
         Map<String, Object> secrets
     ) {}
+
+    class NoopModelRegistry implements ModelRegistry {
+        @Override
+        public void getModel(String modelId, ActionListener<UnparsedModel> listener) {
+            fail(listener);
+        }
+
+        @Override
+        public void getModelsByTaskType(TaskType taskType, ActionListener<List<UnparsedModel>> listener) {
+            listener.onResponse(List.of());
+        }
+
+        @Override
+        public void getAllModels(ActionListener<List<UnparsedModel>> listener) {
+            listener.onResponse(List.of());
+        }
+
+        @Override
+        public void storeModel(Model model, ActionListener<Boolean> listener) {
+            fail(listener);
+        }
+
+        @Override
+        public void deleteModel(String modelId, ActionListener<Boolean> listener) {
+            fail(listener);
+        }
+
+        @Override
+        public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+            fail(listener);
+        }
+
+        private static void fail(ActionListener<?> listener) {
+            listener.onFailure(new IllegalArgumentException("No model registry configured"));
+        }
+    }
 }

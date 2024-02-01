@@ -123,6 +123,8 @@ import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
@@ -1085,6 +1087,14 @@ class NodeConstruction {
                 ReadinessService.class,
                 serviceProvider.newReadinessService(pluginsService, clusterService, environment)
             );
+        }
+
+        // Register noop versions of inference services if Inference plugin is not available
+        if (pluginComponents.stream().noneMatch(p -> p instanceof InferenceServiceRegistry)) {
+            modules.bindToInstance(InferenceServiceRegistry.class, new InferenceServiceRegistry.NoopInferenceServiceRegistry());
+        }
+        if (pluginComponents.stream().noneMatch(p -> p instanceof ModelRegistry)) {
+            modules.bindToInstance(ModelRegistry.class, new ModelRegistry.NoopModelRegistry());
         }
 
         injector = modules.createInjector();

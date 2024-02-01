@@ -27,14 +27,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class GetSearchApplicationAction extends ActionType<GetSearchApplicationAction.Response> {
+public class GetSearchApplicationAction {
 
-    public static final GetSearchApplicationAction INSTANCE = new GetSearchApplicationAction();
     public static final String NAME = "cluster:admin/xpack/application/search_application/get";
+    public static final ActionType<GetSearchApplicationAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    private GetSearchApplicationAction() {
-        super(NAME, GetSearchApplicationAction.Response::new);
-    }
+    private GetSearchApplicationAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
         private final String name;

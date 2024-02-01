@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
@@ -26,6 +27,7 @@ import java.util.Date;
 
 import static org.elasticsearch.xpack.core.async.GetAsyncResultRequestTests.randomSearchId;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104838")
 public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<AsyncStatusResponse> {
 
     @Override

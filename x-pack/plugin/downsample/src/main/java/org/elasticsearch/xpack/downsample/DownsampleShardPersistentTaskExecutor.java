@@ -241,7 +241,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         public static final String NAME = "indices:data/read/downsample_delegate";
 
         private DelegatingAction() {
-            super(NAME, in -> new ActionResponse.Empty());
+            super(NAME);
         }
 
         public static class Request extends ActionRequest implements IndicesRequest {

@@ -16,10 +16,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -51,9 +52,9 @@ import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -1365,28 +1366,52 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
-    public void testNonExistingEnrichPolicy() {
-        var e = expectThrows(VerificationException.class, () -> analyze("""
-            from test
-            | enrich foo on bar
-            """));
-        assertThat(e.getMessage(), containsString("unresolved enrich policy [foo]"));
-    }
+    public void testEnrichPolicyWithError() {
+        IndexResolution testIndex = loadMapping("mapping-basic.json", "test");
+        IndexResolution languageIndex = loadMapping("mapping-languages.json", "languages");
+        EnrichResolution enrichResolution = new EnrichResolution();
+        Map<String, String> enrichIndices = Map.of("", "languages");
+        enrichResolution.addResolvedPolicy(
+            "languages",
+            Enrich.Mode.COORDINATOR,
+            new ResolvedEnrichPolicy(
+                "language_code",
+                "match",
+                List.of("language_code", "language_name"),
+                enrichIndices,
+                languageIndex.get().mapping()
+            )
+        );
+        enrichResolution.addError("languages", Enrich.Mode.REMOTE, "error-1");
+        enrichResolution.addError("languages", Enrich.Mode.ANY, "error-2");
+        enrichResolution.addError("foo", Enrich.Mode.ANY, "foo-error-101");
 
-    public void testNonExistingEnrichNoMatchField() {
-        var e = expectThrows(VerificationException.class, () -> analyze("""
-            from test
-            | enrich foo
-            """));
-        assertThat(e.getMessage(), containsString("unresolved enrich policy [foo]"));
-    }
+        AnalyzerContext context = new AnalyzerContext(configuration("from test"), new EsqlFunctionRegistry(), testIndex, enrichResolution);
+        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
+        {
+            LogicalPlan plan = analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:coordinator] languages ON x", analyzer);
+            List<Enrich> resolved = new ArrayList<>();
+            plan.forEachDown(Enrich.class, resolved::add);
+            assertThat(resolved, hasSize(1));
+        }
+        var e = expectThrows(
+            VerificationException.class,
+            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:any] languages ON x", analyzer)
+        );
+        assertThat(e.getMessage(), containsString("error-2"));
+        e = expectThrows(
+            VerificationException.class,
+            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH languages ON xs", analyzer)
+        );
+        assertThat(e.getMessage(), containsString("error-2"));
+        e = expectThrows(
+            VerificationException.class,
+            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:remote] languages ON x", analyzer)
+        );
+        assertThat(e.getMessage(), containsString("error-1"));
 
-    public void testNonExistingEnrichPolicyWithSimilarName() {
-        var e = expectThrows(VerificationException.class, () -> analyze("""
-            from test
-            | enrich language on bar
-            """));
-        assertThat(e.getMessage(), containsString("unresolved enrich policy [language], did you mean [languages]"));
+        e = expectThrows(VerificationException.class, () -> analyze("from test | ENRICH foo", analyzer));
+        assertThat(e.getMessage(), containsString("foo-error-101"));
     }
 
     public void testEnrichPolicyMatchFieldName() {
@@ -1457,10 +1482,19 @@ public class AnalyzerTests extends ESTestCase {
             """;
         IndexResolution testIndex = loadMapping("mapping-basic.json", "test");
         IndexResolution languageIndex = loadMapping("mapping-languages.json", "languages");
-        var enrichPolicy = new EnrichPolicy("match", null, List.of("unused"), "language_code", List.of("language_code", "language_name"));
         EnrichResolution enrichResolution = new EnrichResolution();
-        enrichResolution.addResolvedPolicy("languages", enrichPolicy, Map.of("", "languages"), languageIndex.get().mapping());
-        enrichResolution.addExistingPolicies(Set.of("languages"));
+        Map<String, String> enrichIndices = Map.of("", "languages");
+        enrichResolution.addResolvedPolicy(
+            "languages",
+            Enrich.Mode.ANY,
+            new ResolvedEnrichPolicy(
+                "language_code",
+                "match",
+                List.of("language_code", "language_name"),
+                enrichIndices,
+                languageIndex.get().mapping()
+            )
+        );
         AnalyzerContext context = new AnalyzerContext(configuration(query), new EsqlFunctionRegistry(), testIndex, enrichResolution);
         Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
         LogicalPlan plan = analyze(query, analyzer);
@@ -1486,9 +1520,80 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [x5], did you mean any of [x1, x2, x3]?"));
     }
 
+    public void testInsensitiveEqualsWrongType() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | where first_name =~ 12
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("second argument of [first_name =~ 12] must be [string], found value [12] type [integer]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | where first_name =~ languages
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("second argument of [first_name =~ languages] must be [string], found value [languages] type [integer]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | where languages =~ "foo"
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("first argument of [languages =~ \"foo\"] must be [string], found value [languages] type [integer]")
+        );
+    }
+
     public void testUnresolvedMvExpand() {
         var e = expectThrows(VerificationException.class, () -> analyze("row foo = 1 | mv_expand bar"));
         assertThat(e.getMessage(), containsString("Unknown column [bar]"));
+    }
+
+    public void testUnsupportedTypesInStats() {
+        verifyUnsupported(
+            """
+                  row x = to_unsigned_long(\"10\")
+                  | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+                """,
+            "Found 8 problems\n"
+                + "line 2:12: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
+                + "line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:39: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [max(x)] type [unsigned_long]\n"
+                + "line 2:47: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
+                + "line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:88: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [min(x)] type [unsigned_long]\n"
+                + "line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:115: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]"
+        );
+
+        verifyUnsupported(
+            """
+                row x = to_version("1.2")
+                | stats  avg(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+                """,
+            "Found 7 problems\n"
+                + "line 2:10: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
+                + "line 2:18: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [max(x)] type [version]\n"
+                + "line 2:26: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
+                + "line 2:37: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
+                + "found value [x] type [version]\n"
+                + "line 2:67: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [min(x)] type [version]\n"
+                + "line 2:75: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
+                + "found value [x] type [version]\n"
+                + "line 2:94: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [version]"
+        );
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

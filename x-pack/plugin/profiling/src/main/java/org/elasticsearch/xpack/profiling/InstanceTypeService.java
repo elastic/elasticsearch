@@ -25,9 +25,9 @@ public final class InstanceTypeService {
     private InstanceTypeService() {}
 
     private static final class Holder {
-        private static final Map<InstanceType, CostEntry> costsPerDatacenter;
+        private static final Map<InstanceType, CostEntry> COSTS_PER_DATACENTER;
         static {
-            final Logger log = LogManager.getLogger(TransportGetStackTracesAction.class);
+            final Logger log = LogManager.getLogger(InstanceTypeService.class);
             final StopWatch watch = new StopWatch("loadProfilingCostsData");
             final Map<InstanceType, CostEntry> tmp = new HashMap<>();
             final Map<Object, Object> objects = new HashMap<>();
@@ -59,13 +59,13 @@ public final class InstanceTypeService {
                 }
             }
 
-            costsPerDatacenter = Map.copyOf(tmp);
+            COSTS_PER_DATACENTER = Map.copyOf(tmp);
 
             log.debug(watch::report);
         }
     }
 
     public static CostEntry getCosts(InstanceType instance) {
-        return Holder.costsPerDatacenter.get(instance);
+        return Holder.COSTS_PER_DATACENTER.get(instance);
     }
 }

@@ -2,7 +2,7 @@
 add dimensions with put_mapping:
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -55,7 +55,7 @@ add dimensions with put_mapping:
 add dimensions to no dims with dynamic_template over index:
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -103,7 +103,7 @@ add dimensions to no dims with dynamic_template over index:
 add dimensions to no dims with dynamic_template over bulk:
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -151,7 +151,7 @@ add dimensions to no dims with dynamic_template over bulk:
 add dimensions to some dims with dynamic_template over index:
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -203,7 +203,7 @@ add dimensions to some dims with dynamic_template over index:
 add dimensions to some dims with dynamic_template over bulk:
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:

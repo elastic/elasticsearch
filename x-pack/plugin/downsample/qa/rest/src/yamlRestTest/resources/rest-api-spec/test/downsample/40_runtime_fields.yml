@@ -2,7 +2,7 @@
 "Runtime fields accessing metric fields in downsample target index":
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
       features: close_to
 
   - do:
@@ -164,7 +164,7 @@
 "Runtime field accessing dimension fields in downsample target index":
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -285,7 +285,7 @@
 "Runtime field accessing label fields in downsample target index":
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:

@@ -298,7 +298,7 @@ setup:
 "Downsample index":
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.downsample:
@@ -732,7 +732,7 @@ setup:
 "Downsample a downsampled index":
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.downsample:
@@ -871,7 +871,7 @@ setup:
 "Downsample histogram as label":
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.downsample:
@@ -1283,7 +1283,7 @@ setup:
 "Downsample object field":
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.downsample:
@@ -1351,7 +1351,7 @@ setup:
 "Downsample empty and missing labels":
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.downsample:
@@ -1412,7 +1412,7 @@ setup:
 "Downsample label with ignore_above":
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -1539,7 +1539,7 @@ setup:
 "Downsample index with empty dimension":
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -1622,7 +1622,7 @@ setup:
 "Downsample index with empty dimension on routing path":
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:

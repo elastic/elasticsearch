@@ -2,7 +2,7 @@
 setup:
   - skip:
       version: " - 8.1.99,8.7.00 - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
       features: "arbitrary_key"
 
   # Force allocating all shards to a single node so that we can shrink later.
@@ -103,7 +103,7 @@ split:
 shrink:
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.shrink:
@@ -130,7 +130,7 @@ shrink:
 clone:
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.clone:

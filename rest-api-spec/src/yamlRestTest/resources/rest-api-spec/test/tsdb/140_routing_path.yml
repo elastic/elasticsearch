@@ -3,7 +3,7 @@ missing routing path field:
   - skip:
       features: close_to
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -123,7 +123,7 @@ multi-value routing path field:
   - skip:
       features: close_to
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:

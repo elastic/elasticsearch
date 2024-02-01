@@ -64,7 +64,7 @@ setup:
 aggretate multi_terms:
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:

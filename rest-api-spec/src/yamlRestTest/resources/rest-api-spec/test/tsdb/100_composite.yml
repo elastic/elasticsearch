@@ -65,7 +65,7 @@ setup:
 composite aggregation on tsid:
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:
@@ -115,7 +115,7 @@ composite aggregation on tsid:
 composite aggregation on tsid with after:
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:

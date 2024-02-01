@@ -2,7 +2,7 @@
 setup:
   - skip:
       version: " - 8.1.99,8.7.00 - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -172,7 +172,7 @@ fetch a tag:
 "fetch the tsid":
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:
@@ -267,7 +267,7 @@ aggregate a tag:
 "aggregate the tsid":
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:
@@ -310,7 +310,7 @@ aggregate a tag:
 sort by tsid:
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:

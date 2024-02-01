@@ -65,7 +65,7 @@ setup:
 search an alias:
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.put_alias:
@@ -94,7 +94,7 @@ search an alias:
 index into alias:
   - skip:
       version: " - 8.12.99"
-      reason: _tsid hasing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.put_alias:

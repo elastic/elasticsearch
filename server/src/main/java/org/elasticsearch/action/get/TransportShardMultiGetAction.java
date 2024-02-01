@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
@@ -174,6 +173,10 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         ShardId shardId = indexShard.shardId();
         if (request.refresh()) {
             var node = getCurrentNodeOfPrimary(clusterService.state(), shardId);
+            if (node == null) {
+                listener.onFailure(new NoShardAvailableActionException(shardId, "primary shard is not active"));
+                return;
+            }
             logger.trace("send refresh action for shard {} to node {}", shardId, node.getId());
             var refreshRequest = new BasicReplicationRequest(shardId);
             refreshRequest.setParentTask(request.getParentTask());
@@ -210,10 +213,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         tryShardMultiGetFromTranslog(request, indexShard, state, listener.delegateResponse((l, e) -> {
             final var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("mget_from_translog[shard] failed", cause);
-            if (cause instanceof ShardNotFoundException
-                || cause instanceof IndexNotFoundException
-                || cause instanceof NoShardAvailableActionException
-                || cause instanceof UnavailableShardsException) {
+            if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
                 logger.debug("retrying mget_from_translog[shard]");
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -245,6 +245,10 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     ) {
         final var shardId = indexShard.shardId();
         var node = getCurrentNodeOfPrimary(state, shardId);
+        if (node == null) {
+            listener.onFailure(new NoShardAvailableActionException(shardId, "primary shard is not active"));
+            return;
+        }
         TransportShardMultiGetFomTranslogAction.Request mgetFromTranslogRequest = new TransportShardMultiGetFomTranslogAction.Request(
             request,
             shardId

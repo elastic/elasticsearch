@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
@@ -235,7 +234,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     static DiscoveryNode getCurrentNodeOfPrimary(ClusterState clusterState, ShardId shardId) {
         var shardRoutingTable = clusterState.routingTable().shardRoutingTable(shardId);
         if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
-            throw new NoShardAvailableActionException(shardId, "primary shard is not active");
+            return null;
         }
         DiscoveryNode node = clusterState.nodes().get(shardRoutingTable.primaryShard().currentNodeId());
         assert node != null;

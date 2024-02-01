@@ -21,7 +21,8 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.NumberFieldMapperTests;
+import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -35,6 +36,7 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -45,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notANumber;
 
-public class ScaledFloatFieldMapperTests extends MapperTestCase {
+public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -199,7 +201,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         assertEquals(1230, storedField.numericValue().longValue());
     }
 
-    public void testCoerce() throws Exception {
+    public void testCoerce() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
@@ -450,6 +452,41 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
+        // No outOfRangeSpecs are specified because ScaledFloatFieldMapper doesn't extend NumberFieldMapper and doesn't use a
+        // NumberFieldMapper.NumberType that is present in OutOfRangeSpecs
+        return Collections.emptyList();
+    }
+
+    @Override
+    public void testIgnoreMalformedWithObject() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+
+    @Override
+    public void testAllowMultipleValuesField() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+
+    @Override
+    public void testScriptableTypes() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+
+    @Override
+    public void testDimension() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+
+    @Override
+    protected Number missingValue() {
+        return 0.123;
+    }
+
+    @Override
+    protected Number randomNumber() {
+        /*
+         * The source parser and doc values round trip will both reduce
+         * the precision to 32 bits if the value is more precise.
+         * randomDoubleBetween will smear the values out across a wide
+         * range of valid values.
+         */
+        return randomBoolean() ? randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true) : randomFloat();
     }
 
     public void testEncodeDecodeExactScalingFactor() {

@@ -191,15 +191,15 @@ public final class ApplicationPermission {
         }
 
         private boolean matchesPrivilege(ApplicationPrivilege other) {
-            assert other.name().size() <= 1 : "can only compare to singletons";
+            assert other.name().size() <= 1 : "can only compare to singletons but got [" + other + "]";
             if (application.test(other.getApplication()) == false) {
                 return false;
             }
             if (Operations.isTotal(privilege.getAutomaton())) {
                 return true;
             }
-            // If both empty, privileges are not stored, so we need to compare based on privilege names
-            if (Operations.isEmpty(privilege.getAutomaton()) && Operations.isEmpty(other.getAutomaton())) {
+            // If the privilege we are checking is not registered (i.e., maps to no action patterns) check by name instead
+            if (Operations.isEmpty(other.getAutomaton())) {
                 return privilege.name().containsAll(other.name());
             }
             return Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton());

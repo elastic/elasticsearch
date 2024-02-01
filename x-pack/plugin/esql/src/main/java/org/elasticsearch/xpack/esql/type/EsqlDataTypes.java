@@ -175,6 +175,10 @@ public final class EsqlDataTypes {
         return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
     }
 
+    public static boolean isSpatialPoint(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT;
+    }
+
     /**
      * Supported types that can be contained in a block.
      */

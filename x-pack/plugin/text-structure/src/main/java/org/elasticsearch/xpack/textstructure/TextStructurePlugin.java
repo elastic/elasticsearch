@@ -16,16 +16,21 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
+import org.elasticsearch.xpack.core.textstructure.action.TestGrokPatternAction;
 import org.elasticsearch.xpack.textstructure.rest.RestFindStructureAction;
+import org.elasticsearch.xpack.textstructure.rest.RestTestGrokPatternAction;
 import org.elasticsearch.xpack.textstructure.transport.TransportFindStructureAction;
+import org.elasticsearch.xpack.textstructure.transport.TransportTestGrokPatternAction;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -45,14 +50,17 @@ public class TextStructurePlugin extends Plugin implements ActionPlugin {
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return Arrays.asList(new RestFindStructureAction());
+        return Arrays.asList(new RestFindStructureAction(), new RestTestGrokPatternAction());
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(FindStructureAction.INSTANCE, TransportFindStructureAction.class));
+        return Arrays.asList(
+            new ActionHandler<>(FindStructureAction.INSTANCE, TransportFindStructureAction.class),
+            new ActionHandler<>(TestGrokPatternAction.INSTANCE, TransportTestGrokPatternAction.class)
+        );
     }
-
 }

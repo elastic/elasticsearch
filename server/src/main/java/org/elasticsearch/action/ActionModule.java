@@ -266,6 +266,7 @@ import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
@@ -428,7 +429,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -507,7 +507,7 @@ public class ActionModule extends AbstractModule {
                 new RestHeaderDefinition(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, false)
             )
         ).collect(Collectors.toSet());
-        UnaryOperator<RestHandler> restInterceptor = getRestServerComponent(
+        final RestInterceptor restInterceptor = getRestServerComponent(
             "REST interceptor",
             actionPlugins,
             restPlugin -> restPlugin.getRestHandlerInterceptor(threadPool.getThreadContext())
@@ -1009,7 +1009,7 @@ public class ActionModule extends AbstractModule {
 
         // Desired nodes
         registerHandler.accept(new RestGetDesiredNodesAction());
-        registerHandler.accept(new RestUpdateDesiredNodesAction());
+        registerHandler.accept(new RestUpdateDesiredNodesAction(clusterSupportsFeature));
         registerHandler.accept(new RestDeleteDesiredNodesAction());
 
         for (ActionPlugin plugin : actionPlugins) {
@@ -1021,7 +1021,8 @@ public class ActionModule extends AbstractModule {
                 indexScopedSettings,
                 settingsFilter,
                 indexNameExpressionResolver,
-                nodesInCluster
+                nodesInCluster,
+                clusterSupportsFeature
             )) {
                 registerHandler.accept(handler);
             }

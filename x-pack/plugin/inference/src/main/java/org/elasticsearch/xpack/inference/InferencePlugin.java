@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
@@ -62,6 +64,7 @@ import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -71,8 +74,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
     private final Settings settings;
-    // We'll keep a reference to the http manager just in case the inference services don't get closed individually
-    private final SetOnce<HttpClientManager> httpManager = new SetOnce<>();
     private final SetOnce<HttpRequestSenderFactory> httpFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
@@ -103,7 +104,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(
             new RestInferenceAction(),
@@ -119,11 +121,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
 
-        httpManager.set(HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager));
-
         var httpRequestSenderFactory = new HttpRequestSenderFactory(
             services.threadPool(),
-            httpManager.get(),
+            HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager),
             services.clusterService(),
             settings
         );
@@ -155,7 +155,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             ElserMlNodeService::new,
             context -> new HuggingFaceElserService(httpFactory, serviceComponents),
             context -> new HuggingFaceService(httpFactory, serviceComponents),
-            context -> new OpenAiService(httpFactory, serviceComponents)
+            context -> new OpenAiService(httpFactory, serviceComponents),
+            context -> new CohereService(httpFactory, serviceComponents)
         );
     }
 
@@ -234,6 +235,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var serviceComponentsRef = serviceComponents.get();
         var throttlerToClose = serviceComponentsRef != null ? serviceComponentsRef.throttlerManager() : null;
 
-        IOUtils.closeWhileHandlingException(httpManager.get(), throttlerToClose);
+        IOUtils.closeWhileHandlingException(inferenceServiceRegistry.get(), throttlerToClose);
     }
 }

@@ -37,7 +37,7 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
     public static final String NAME = "internal:cluster/formation/info";
 
     private ClusterFormationInfoAction() {
-        super(NAME, ClusterFormationInfoAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

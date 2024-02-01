@@ -21,11 +21,8 @@ import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -85,11 +82,9 @@ public class Verifier {
             // handle aggregate first to disambiguate between missing fields or incorrect function declaration
             if (p instanceof Aggregate aggregate) {
                 for (NamedExpression agg : aggregate.aggregates()) {
-                    if (agg instanceof Alias as) {
-                        var child = as.child();
-                        if (child instanceof UnresolvedAttribute u) {
-                            failures.add(fail(child, "invalid stats declaration; [{}] is not an aggregate function", child.sourceText()));
-                        }
+                    var child = Alias.unwrap(agg);
+                    if (child instanceof UnresolvedAttribute) {
+                        failures.add(fail(child, "invalid stats declaration; [{}] is not an aggregate function", child.sourceText()));
                     }
                 }
             }
@@ -150,36 +145,36 @@ public class Verifier {
 
     private static void checkAggregate(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof Aggregate agg) {
+            // check aggregates
             agg.aggregates().forEach(e -> {
-                var exp = e instanceof Alias ? ((Alias) e).child() : e;
-                if (exp instanceof AggregateFunction aggFunc) {
-                    Expression field = aggFunc.field();
-
-                    // TODO: allow an expression?
-                    if ((field instanceof FieldAttribute
-                        || field instanceof MetadataAttribute
-                        || field instanceof ReferenceAttribute
-                        || field instanceof Literal) == false) {
+                var exp = Alias.unwrap(e);
+                if (exp instanceof AggregateFunction af) {
+                    af.field().forEachDown(AggregateFunction.class, f -> {
+                        failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
+                    });
+                } else {
+                    if (Expressions.match(agg.groupings(), g -> Alias.unwrap(g).semanticEquals(exp)) == false) {
                         failures.add(
                             fail(
-                                e,
-                                "aggregate function's field must be an attribute or literal; found ["
-                                    + field.sourceText()
+                                exp,
+                                "expected an aggregate function or group but got ["
+                                    + exp.sourceText()
                                     + "] of type ["
-                                    + field.nodeName()
+                                    + exp.nodeName()
                                     + "]"
                             )
                         );
                     }
-                } else if (agg.groupings().contains(exp) == false) { // TODO: allow an expression?
-                    failures.add(
-                        fail(
-                            exp,
-                            "expected an aggregate function or group but got [" + exp.sourceText() + "] of type [" + exp.nodeName() + "]"
-                        )
-                    );
                 }
             });
+
+            // check grouping
+            // The grouping can not be an aggregate function
+            agg.groupings().forEach(e -> e.forEachUp(g -> {
+                if (g instanceof AggregateFunction af) {
+                    failures.add(fail(g, "cannot use an aggregate [{}] for grouping", af));
+                }
+            }));
         }
     }
 
@@ -214,12 +209,17 @@ public class Verifier {
     private static void checkEvalFields(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof Eval eval) {
             eval.fields().forEach(field -> {
+                // check supported types
                 DataType dataType = field.dataType();
                 if (EsqlDataTypes.isRepresentable(dataType) == false) {
                     failures.add(
                         fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
                     );
                 }
+                // check no aggregate functions are used
+                field.forEachDown(AggregateFunction.class, af -> {
+                    failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
+                });
             });
         }
     }

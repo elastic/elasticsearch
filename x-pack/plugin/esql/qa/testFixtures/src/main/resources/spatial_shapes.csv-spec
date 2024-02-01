@@ -3,11 +3,16 @@
 #
 
 convertFromString#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
-row wkt = "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))"
-| eval pt = to_geoshape(wkt);
+// tag::to_geoshape-str[]
+ROW wkt = "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))"
+| EVAL geom = TO_GEOSHAPE(wkt)
+// end::to_geoshape-str[]
+;
 
-wkt:keyword                                     |pt:geo_shape
+// tag::to_geoshape-str-result[]
+wkt:keyword                                     | geom:geo_shape
 "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))" | POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))
+// end::to_geoshape-str-result[]
 ;
 
 convertFromStringArray#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
@@ -18,12 +23,35 @@ wkt:keyword                                                                     
 ["POLYGON ((30 10\, 40 40\, 20 40\, 10 20\, 30 10))", "POINT(75.8092915005895 22.727749187571)"] |[POLYGON ((30 10\, 40 40\, 20 40\, 10 20\, 30 10)), POINT(75.8092915005895 22.727749187571)]
 ;
 
+convertFromStringViaPoint#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
+ROW wkt = "POINT (30 10)"
+| EVAL point = TO_GEOPOINT(wkt)
+| EVAL shape = TO_GEOSHAPE(point)
+;
+
+wkt:keyword     | point:geo_point | shape:geo_shape
+"POINT (30 10)" | POINT (30 10)   | POINT (30 10)
+;
+
 # need to work out how to upload WKT
-simpleLoad#[skip:-8.12.99, reason: spatial type geo_shape  only added in 8.13]
+simpleLoad#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
 FROM countries_bbox | WHERE id == "ISL";
 
 id:keyword|	name:keyword|	shape:geo_shape
 ISL|Iceland|BBOX(-24.538400, -13.499446, 66.536100, 63.390000)
+;
+
+simpleLoadPointsAsShapes#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
+FROM airports
+| WHERE abbrev == "CPH" OR abbrev == "VLC"
+| SORT abbrev
+| EVAL location = TO_GEOSHAPE(location), city_location = TO_GEOSHAPE(city_location)
+| KEEP abbrev, name, location, country, city, city_location
+;
+
+abbrev:keyword | name:text    | location:geo_shape                         | country:keyword | city:keyword | city_location:geo_shape
+"CPH"          | "Copenhagen" | POINT(12.6493508684508 55.6285017221528)   | "Denmark"       | "Copenhagen" | POINT(12.5683 55.6761)
+"VLC"          | "Valencia"   | POINT(-0.473474930771676 39.4914597884489) | "Spain"         | "Paterna"    | POINT(-0.4406 39.5028)
 ;
 
 geo_shapeEquals#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
@@ -70,14 +98,18 @@ wkt:keyword                               |pt:geo_shape
 #
 
 convertCartesianShapeFromString#[skip:-8.12.99, reason: spatial type cartesian_shape only added in 8.13]
-
-row wkt = "POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))"
-| mv_expand wkt
-| eval pt = to_cartesianshape(wkt)
+// tag::to_cartesianshape-str[]
+ROW wkt = ["POINT(4297.11 -1475.53)", "POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))"]
+| MV_EXPAND wkt
+| EVAL geom = TO_CARTESIANSHAPE(wkt)
+// end::to_cartesianshape-str[]
 ;
 
-wkt:keyword               |pt:cartesian_shape 
+// tag::to_cartesianshape-str-result[]
+wkt:keyword               |geom:cartesian_shape
+"POINT(4297.11 -1475.53)" |POINT(4297.11 -1475.53)
 "POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))" |POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))
+// end::to_cartesianshape-str-result[]
 ;
 
 convertCartesianFromStringArray#[skip:-8.12.99, reason:spatial type cartesian_shape only added in 8.13]
@@ -88,12 +120,34 @@ wkt:keyword                                                                     
 ["POLYGON ((3339584.72 1118889.97\, 4452779.63 4865942.27\, 2226389.81 4865942.27\, 1113194.90 2273030.92\, 3339584.72 1118889.97))", "POINT(7580.93 2272.77)"] |[POLYGON ((3339584.72 1118889.97\, 4452779.63 4865942.27\, 2226389.81 4865942.27\, 1113194.90 2273030.92\, 3339584.72 1118889.97)), POINT(7580.93 2272.77)]
 ;
 
+convertCartesianFromStringViaPoint#[skip:-8.12.99, reason: spatial type cartesian_shape only added in 8.13]
+ROW wkt = "POINT (3010 -1010)"
+| EVAL point = TO_CARTESIANPOINT(wkt)
+| EVAL shape = TO_CARTESIANSHAPE(point)
+;
+
+wkt:keyword          | point:cartesian_point | shape:cartesian_shape
+"POINT (3010 -1010)" | POINT (3010 -1010)    | POINT (3010 -1010)
+;
+
 # need to work out how to upload WKT
 simpleCartesianShapeLoad#[skip:-8.12.99, reason: spatial type cartesian_shape only added in 8.13]
 FROM countries_bbox_web | WHERE id == "ISL";
 
 id:keyword|	name:keyword|shape:cartesian_shape
 ISL|Iceland|BBOX(-2731602.192501422, -1502751.454502109, 1.0025136653899286E7, 9196525.03584683)
+;
+
+simpleLoadCartesianPointsAsShapes#[skip:-8.12.99, reason: spatial type cartesian_shape only added in 8.13]
+FROM airports_web
+| WHERE abbrev == "CPH" OR abbrev == "VLC"
+| SORT abbrev
+| EVAL location = TO_CARTESIANSHAPE(location)
+;
+
+abbrev:keyword | name:text    | scalerank:integer | type:keyword | location:cartesian_shape
+"CPH"          | "Copenhagen" | 3                 | "major"      | POINT(1408119.2975413958 7484813.53657096)
+"VLC"          | "Valencia"   | 8                 | "mid"        | POINT(-52706.98819688343 4792315.469321795)
 ;
 
 cartesianshapeEquals#[skip:-8.12.99, reason: spatial type cartesian_shape only added in 8.13]

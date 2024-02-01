@@ -57,7 +57,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UpdateRequest.class);
 
-    private static ObjectParser<UpdateRequest, Void> PARSER;
+    private static final ObjectParser<UpdateRequest, Void> PARSER;
 
     private static final ParseField SCRIPT_FIELD = new ParseField("script");
     private static final ParseField SCRIPTED_UPSERT_FIELD = new ParseField("scripted_upsert");
@@ -831,6 +831,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public boolean isRequireAlias() {
         return requireAlias;
+    }
+
+    @Override
+    public boolean isRequireDataStream() {
+        // Always false because data streams cannot accept update operations
+        return false;
     }
 
     @Override

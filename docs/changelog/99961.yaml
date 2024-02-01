@@ -1,0 +1,6 @@
+pr: 99961
+summary: "ESQL: Correct out-of-range filter pushdowns"
+area: ES|QL
+type: bug
+issues:
+ - 99960

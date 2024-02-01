@@ -26,7 +26,8 @@ public class CostCalculatorTests extends ESTestCase {
                         "eu-west-1",
                         "c5n.xlarge"
                     ),
-                    "" // Doesn't matter for cost calculation.
+                    "", // Doesn't matter for cost calculation.
+                    null
                 )
             ),
             Map.entry(HOST_ID_B,
@@ -37,7 +38,8 @@ public class CostCalculatorTests extends ESTestCase {
                         "on-prem-region",
                         "on-prem-instance-type"
                     ),
-                    "" // Doesn't matter for cost calculation.
+                    "", // Doesn't matter for cost calculation.
+                    null
                 )
             )
         );

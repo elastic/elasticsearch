@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -492,7 +493,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, List.of("abc"), new HashMap<>(), listener);
+            service.infer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -527,7 +528,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, List.of("abc"), new HashMap<>(), listener);
+            service.infer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
 
             var result = listener.actionGet(TIMEOUT);
 

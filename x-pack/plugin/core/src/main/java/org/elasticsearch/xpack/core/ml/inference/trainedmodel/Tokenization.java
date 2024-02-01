@@ -52,16 +52,20 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         }
     }
 
-    public record SpanSettings(@Nullable Integer maxSequenceLength, @Nullable Integer span) implements Writeable {
+    public record SpanSettings(@Nullable Integer maxSequenceLength, int span) implements Writeable {
+
+        public SpanSettings(@Nullable Integer maxSequenceLength) {
+            this(maxSequenceLength, UNSET_SPAN_VALUE);
+        }
 
         SpanSettings(StreamInput in) throws IOException {
-            this(in.readOptionalVInt(), in.readOptionalVInt());
+            this(in.readOptionalVInt(), in.readVInt());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalVInt(maxSequenceLength);
-            out.writeOptionalVInt(span);
+            out.writeVInt(span);
         }
     };
 
@@ -76,7 +80,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
     private static final boolean DEFAULT_DO_LOWER_CASE = false;
     private static final boolean DEFAULT_WITH_SPECIAL_TOKENS = true;
     private static final Truncate DEFAULT_TRUNCATION = Truncate.FIRST;
-    private static final int UNSET_SPAN_VALUE = -1;
+    public static final int UNSET_SPAN_VALUE = -1;
 
     static <T extends Tokenization> void declareCommonFields(ConstructingObjectParser<T, ?> parser) {
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DO_LOWER_CASE);
@@ -152,7 +156,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
             );
         }
 
-        int updatedSpan = update.span() == null ? this.span : update.span();
+        int updatedSpan = update.span() == UNSET_SPAN_VALUE ? this.span : update.span();
         validateSpanAndMaxSequenceLength(maxLength, updatedSpan);
         return buildWindowingTokenization(maxLength, updatedSpan);
     }

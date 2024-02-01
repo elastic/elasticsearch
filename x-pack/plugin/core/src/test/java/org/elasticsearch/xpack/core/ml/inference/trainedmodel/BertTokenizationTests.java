@@ -75,13 +75,13 @@ public class BertTokenizationTests extends AbstractBWCSerializationTestCase<Bert
     public void testUpdateWindowSettings() {
         var tokenization = new BertTokenization(true, true, 100, Tokenization.Truncate.FIRST, -1);
         {
-            var update = tokenization.updateWindowSettings(new Tokenization.SpanSettings(null, null));
+            var update = tokenization.updateWindowSettings(new Tokenization.SpanSettings((Integer) null));
             // settings not changed
             assertEquals(tokenization.getMaxSequenceLength(), update.getMaxSequenceLength());
             assertEquals(tokenization.getSpan(), update.getSpan());
         }
         {
-            var update = tokenization.updateWindowSettings(new Tokenization.SpanSettings(20, null));
+            var update = tokenization.updateWindowSettings(new Tokenization.SpanSettings(20));
             assertEquals(20, update.getMaxSequenceLength());
             assertEquals(tokenization.getSpan(), update.getSpan());
         }

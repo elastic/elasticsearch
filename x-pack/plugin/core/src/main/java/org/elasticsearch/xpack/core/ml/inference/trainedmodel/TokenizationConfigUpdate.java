@@ -26,10 +26,10 @@ public class TokenizationConfigUpdate implements InferenceConfigUpdate {
     private final Tokenization.SpanSettings spanSettings;
 
     public TokenizationConfigUpdate(@Nullable Integer maxSequenceLength, @Nullable Integer span) {
-        this(new Tokenization.SpanSettings(maxSequenceLength, span));
+        this(span == null ? new Tokenization.SpanSettings(maxSequenceLength) : new Tokenization.SpanSettings(maxSequenceLength, span));
     }
 
-    public TokenizationConfigUpdate(Tokenization.SpanSettings spanSettings) {
+    private TokenizationConfigUpdate(Tokenization.SpanSettings spanSettings) {
         this.spanSettings = spanSettings;
     }
 

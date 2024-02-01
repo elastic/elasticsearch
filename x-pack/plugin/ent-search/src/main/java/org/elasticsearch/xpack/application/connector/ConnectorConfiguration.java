@@ -262,7 +262,7 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
             }
             if (validations != null) {
                 builder.xContentList(VALIDATIONS_FIELD.getPreferredName(), validations);
-        }
+            }
             builder.field(VALUE_FIELD.getPreferredName(), value);
         }
         builder.endObject();

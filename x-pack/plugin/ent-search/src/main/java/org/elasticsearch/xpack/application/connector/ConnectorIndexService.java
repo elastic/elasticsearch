@@ -211,7 +211,6 @@ public class ConnectorIndexService {
         final DeleteRequest deleteRequest = new DeleteRequest(CONNECTOR_INDEX_NAME).id(connectorId)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-
         try {
             clientWithOrigin.delete(
                 deleteRequest,
@@ -605,16 +604,7 @@ public class ConnectorIndexService {
 
     private static ConnectorIndexService.ConnectorResult mapSearchResponseToConnectorList(SearchResponse response) {
         final List<Connector> connectorResults = Arrays.stream(response.getHits().getHits())
-            .map(searchHit -> {
-                try {
-                    return ConnectorIndexService.hitToConnector(searchHit);
-                } catch (Exception e) {
-                    // Log the exception or handle it as needed
-                    System.err.println("Error processing search hit with ID " + searchHit.getId() + ": " + e);
-                    return null; // or you can use Optional<Connector> to handle this more gracefully
-                }
-            })
-            .filter(Objects::nonNull)
+            .map(ConnectorIndexService::hitToConnector)
             .toList();
         return new ConnectorIndexService.ConnectorResult(connectorResults, (int) response.getHits().getTotalHits().value);
     }

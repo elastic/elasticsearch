@@ -796,17 +796,11 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         GeneralOptions generalOptions = GeneralOptions.parseParameter(ignoreThrottled, defaultSettings.generalOptions);
 
         // note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
-        return fromOptions(
-            ConcreteTargetOptions.fromParameter(ignoreUnavailableString, defaultSettings.concreteTargetOptions).allowUnavailableTargets(),
-            wildcards.allowEmptyExpressions(),
-            wildcards.matchOpen(),
-            wildcards.matchClosed(),
-            wildcards.includeHidden(),
-            generalOptions.allowAliasToMultipleIndices(),
-            generalOptions.allowClosedIndices() == false,
-            wildcards.resolveAliases() == false,
-            generalOptions.ignoreThrottled()
-        );
+        return IndicesOptions.builder()
+            .concreteTargetOptions(ConcreteTargetOptions.fromParameter(ignoreUnavailableString, defaultSettings.concreteTargetOptions))
+            .wildcardOptions(wildcards)
+            .generalOptions(generalOptions)
+            .build();
     }
 
     @Override
@@ -828,8 +822,8 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
 
     public static IndicesOptions fromXContent(XContentParser parser, @Nullable IndicesOptions defaults) throws IOException {
         boolean parsedWildcardStates = false;
-        WildcardOptions.Builder wildcardsBuilder = defaults == null ? null : WildcardOptions.builder(defaults.wildcardOptions());
-        GeneralOptions.Builder generalBuilder = GeneralOptions.builder()
+        WildcardOptions.Builder wildcards = defaults == null ? null : WildcardOptions.builder(defaults.wildcardOptions());
+        GeneralOptions.Builder generalOptions = GeneralOptions.builder()
             .ignoreThrottled(defaults != null && defaults.generalOptions().ignoreThrottled());
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
@@ -845,7 +839,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (parsedWildcardStates == false) {
                         parsedWildcardStates = true;
-                        wildcardsBuilder = WildcardOptions.builder();
+                        wildcards = WildcardOptions.builder();
                         List<String> values = new ArrayList<>();
                         while ((token = parser.nextToken()) != Token.END_ARRAY) {
                             if (token.isValue()) {
@@ -856,7 +850,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                                 );
                             }
                         }
-                        wildcardsBuilder.expandStates(values.toArray(new String[] {}));
+                        wildcards.expandStates(values.toArray(new String[] {}));
                     } else {
                         throw new ElasticsearchParseException("already parsed expand_wildcards");
                     }
@@ -869,8 +863,8 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (parsedWildcardStates == false) {
                         parsedWildcardStates = true;
-                        wildcardsBuilder = WildcardOptions.builder();
-                        wildcardsBuilder.expandStates(new String[] { parser.text() });
+                        wildcards = WildcardOptions.builder();
+                        wildcards.expandStates(new String[] { parser.text() });
                     } else {
                         throw new ElasticsearchParseException("already parsed expand_wildcards");
                     }
@@ -879,7 +873,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 } else if (ALLOW_NO_INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     allowNoIndices = parser.booleanValue();
                 } else if (IGNORE_THROTTLED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    generalBuilder.ignoreThrottled(parser.booleanValue());
+                    generalOptions.ignoreThrottled(parser.booleanValue());
                 } else {
                     throw new ElasticsearchParseException(
                         "could not read indices options. unexpected index option [" + currentFieldName + "]"
@@ -890,7 +884,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             }
         }
 
-        if (wildcardsBuilder == null) {
+        if (wildcards == null) {
             throw new ElasticsearchParseException("indices options xcontent did not contain " + EXPAND_WILDCARDS_FIELD.getPreferredName());
         } else {
             if (allowNoIndices == null) {
@@ -898,7 +892,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                     "indices options xcontent did not contain " + ALLOW_NO_INDICES_FIELD.getPreferredName()
                 );
             } else {
-                wildcardsBuilder.allowEmptyExpressions(allowNoIndices);
+                wildcards.allowEmptyExpressions(allowNoIndices);
             }
         }
         if (ignoreUnavailable == null) {
@@ -906,20 +900,11 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 "indices options xcontent did not contain " + IGNORE_UNAVAILABLE_FIELD.getPreferredName()
             );
         }
-
-        WildcardOptions wildcardOptions = wildcardsBuilder.build();
-        GeneralOptions generalOptions = generalBuilder.build();
-        return IndicesOptions.fromOptions(
-            ignoreUnavailable,
-            wildcardOptions.allowEmptyExpressions(),
-            wildcardOptions.matchOpen(),
-            wildcardOptions.matchClosed(),
-            wildcardOptions.includeHidden(),
-            generalOptions.allowAliasToMultipleIndices(),
-            generalOptions.allowClosedIndices() == false,
-            wildcardOptions.resolveAliases() == false,
-            generalOptions.ignoreThrottled()
-        );
+        return IndicesOptions.builder()
+            .concreteTargetOptions(new ConcreteTargetOptions(ignoreUnavailable))
+            .wildcardOptions(wildcards)
+            .generalOptions(generalOptions)
+            .build();
     }
 
     /**

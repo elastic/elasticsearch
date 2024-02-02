@@ -1268,8 +1268,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         public void markItemForFailureStore(int slot, String targetIndexName, Exception e) {
             if (DataStream.isFailureStoreEnabled() == false) {
                 // Assert false for development, but if we somehow find ourselves here, default to failure logic.
-                assert false : "Attempting to route a failed write request type to a failure store but the failure store is not enabled! " +
-                    "This should be guarded against in TransportBulkAction#shouldStoreFailure()";
+                assert false
+                    : "Attempting to route a failed write request type to a failure store but the failure store is not enabled! "
+                        + "This should be guarded against in TransportBulkAction#shouldStoreFailure()";
                 markItemAsFailed(slot, e);
             } else {
                 // We get the index write request to find the source of the failed document

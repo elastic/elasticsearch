@@ -32,15 +32,15 @@ The following is a high-level overview of the steps required to configure a FIPS
 
 * Use an externally installed Java installation. The JVM bundled with {es} is not configured for FIPS 140-2.
 * Install a FIPS certified security provider .jar file(s) in {es}'s `lib` directory.
-* Configure Java to use the FIPS certified security provider (xref:java-security-provider[see below]).
+* Configure Java to use a FIPS certified security provider (xref:java-security-provider[see below]).
 * Configure {es}'s security manager to allow use of the FIPS certified provider (xref:java-security-manager[see below]).
 * Ensure the keystore and truststore are configured correctly (xref:keystore-fips-password[see below]).
 * Ensure the TLS settings are configured correctly (xref:fips-tls[see below]).
 * Ensure the password hashing settings are configured correctly (xref:fips-stored-password-hashing[see below]).
 * Ensure the cached password hashing settings are configured correctly (xref:fips-cached-password-hashing[see below]).
-* Set `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`.
+* Configure `elasticsearch.yml` to use FIPS 140-2 mode, see (xref:configuring-es-yml[below]).
 * Verify the security provider is installed and configured correctly (xref:verify-security-provider[see below]).
-* Understand the upgrade considerations (xref:fips-upgrade-considerations[see below]). and limitations (xref:fips-limitations[see below]).
+* Review the upgrade considerations (xref:fips-upgrade-considerations[see below]) and limitations (xref:fips-limitations[see below]).
 
 
 [discrete]
@@ -187,6 +187,19 @@ them undefined, since `ssha256` is the default value for all
 The user cache will be emptied upon node restart, so any existing
 hashes using non-compliant algorithms will be discarded and the new
 ones will be created using the algorithm you have selected.
+
+[discrete]
+[[configuring-es-yml]]
+==== Verify the security provider is installed
+
+* Set `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`. This setting is used to ensure to configure some internal
+configuration to be FIPS 140-2 compliant and provides some additional verification.
+
+* Set `xpack.security.autoconfiguration.enabled` to `false`. This will disable the automatic configuration of the security settings.
+Users must ensure that the security settings are configured correctly for FIPS-140-2 compliance. This is only applicable for new installations.
+
+* Optional: Set `xpack.security.fips_mode.required_providers` in `elasticsearch.yml` to ensure the required security providers.
+see xref:verify-security-provider[below].
 
 [discrete]
 [[verify-security-provider]]

@@ -176,7 +176,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         mapper = new Mapper(functionRegistry);
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping);
+        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         var enrichResolution = setupEnrichResolution();
         analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), TEST_VERIFIER);
@@ -194,7 +194,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Some tests use data from the airports index, so we load it here, and use it in the plan_airports() function.
         mappingAirports = loadMapping("mapping-airports.json");
-        EsIndex airports = new EsIndex("airports", mappingAirports);
+        EsIndex airports = new EsIndex("airports", mappingAirports, Set.of("airports"));
         IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
         analyzerAirports = new Analyzer(
             new AnalyzerContext(config, functionRegistry, getIndexResultAirports, enrichResolution),

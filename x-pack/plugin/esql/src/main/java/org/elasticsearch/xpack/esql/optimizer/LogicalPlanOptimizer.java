@@ -154,7 +154,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
             new ReplaceNestedExpressionWithEval(),
-            new ReplaceAliasingEvalWithProject()
+            new ReplaceAliasingEvalWithProject(),
+            new SkipQueryOnEmptyMappings()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
 
@@ -642,6 +643,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
             return plan.output().isEmpty() ? skipPlan(plan) : plan;
+        }
+    }
+
+    static class SkipQueryOnEmptyMappings extends OptimizerRules.OptimizerRule<EsRelation> {
+
+        @Override
+        protected LogicalPlan rule(EsRelation plan) {
+            return plan.index().concreteIndices().isEmpty() ? new LocalRelation(plan.source(), plan.output(), LocalSupplier.EMPTY) : plan;
         }
     }
 

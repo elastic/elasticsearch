@@ -56,6 +56,7 @@ import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -139,7 +140,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     private Analyzer makeAnalyzer(String mappingFileName, EnrichResolution enrichResolution) {
         var mapping = loadMapping(mappingFileName);
-        EsIndex test = new EsIndex("test", mapping);
+        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
         IndexResolution getIndexResult = IndexResolution.valid(test);
 
         return new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), new Verifier(new Metrics()));

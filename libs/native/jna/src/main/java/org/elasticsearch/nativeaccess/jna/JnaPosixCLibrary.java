@@ -80,7 +80,7 @@ class JnaPosixCLibrary implements PosixCLibrary {
 
         String strerror(int errno);
 
-        int open(String filename, int flags, int mode);
+        int open(String filename, int flags, Object... mode);
 
         int close(int fd);
     }

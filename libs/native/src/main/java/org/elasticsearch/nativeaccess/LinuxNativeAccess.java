@@ -94,7 +94,7 @@ class LinuxNativeAccess extends PosixNativeAccess {
     private final SystemdLibrary systemd;
 
     LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
-        super(libraryProvider, 8, -1L, 9, 144, 48);
+        super(libraryProvider, 8, -1L, 9, 144, 48, 64);
         this.linuxLibc = libraryProvider.getLibrary(LinuxCLibrary.class);
 
         if ("docker".equals(System.getProperty("es.distribution.type"))) {

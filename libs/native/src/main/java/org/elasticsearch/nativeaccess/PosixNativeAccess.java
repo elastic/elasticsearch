@@ -25,6 +25,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     protected final int RLIMIT_FSIZE = 1; // same on mac and linux
     protected final int SIZEOF_STAT;
     protected final int STAT_ST_SIZE_OFFSET;
+    protected final int O_CREAT;
 
     protected final PosixCLibrary libc;
 
@@ -34,7 +35,8 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         long RLIMIT_INFINITY,
         int RLIMIT_AS,
         int SIZEOF_STAT,
-        int STAT_ST_SIZE_OFFSET
+        int STAT_ST_SIZE_OFFSET,
+        int O_CREAT
     ) {
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
         this.RLIMIT_MEMLOCK = RLIMIT_MEMLOCK;
@@ -42,6 +44,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         this.RLIMIT_AS = RLIMIT_AS;
         this.SIZEOF_STAT = SIZEOF_STAT;
         this.STAT_ST_SIZE_OFFSET = STAT_ST_SIZE_OFFSET;
+        this.O_CREAT = O_CREAT;
     }
 
     @Override
@@ -142,8 +145,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     @Override
     public void tryPreallocate(Path file, long newSize) {
         // get fd and current size, then pass to OS variant
-        // TODO: figure out mode flags to open with
-        int fd = libc.open(file.toAbsolutePath().toString(), O_WRONLY, 0);
+        int fd = libc.open(file.toAbsolutePath().toString(), O_WRONLY, O_CREAT);
         if (fd == -1) {
             logger.warn("Could not open file [" + file + "] to preallocate size: " + libc.strerror(libc.errno()));
             return;

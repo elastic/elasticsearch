@@ -325,6 +325,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
     exports org.elasticsearch.search.aggregations.bucket.composite;
+    exports org.elasticsearch.search.aggregations.bucket.countedterms;
     exports org.elasticsearch.search.aggregations.bucket.filter;
     exports org.elasticsearch.search.aggregations.bucket.geogrid;
     exports org.elasticsearch.search.aggregations.bucket.global;

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
@@ -48,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -311,6 +313,43 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             Iterator<Object> row = resp.values().next();
             assertThat(row.next(), equalTo(7L));
             assertThat(row.next(), equalTo("Linkin Park"));
+        }
+    }
+
+    /**
+     * Some enrich queries that could fail without the PushDownEnrich rule.
+     */
+    public void testForPushDownEnrichRule() {
+        {
+            String query = String.format(Locale.ROOT, """
+                FROM listens*
+                | eval x = TO_STR(song_id)
+                | SORT x
+                | %s
+                | SORT song_id
+                | LIMIT 5
+                | STATS listens = count(*) BY title
+                | SORT listens DESC
+                | KEEP title, listens
+                """, enrichSongCommand());
+            try (EsqlQueryResponse resp = run(query)) {
+                assertThat(EsqlTestUtils.getValuesList(resp), equalTo(List.of(List.of("Hotel California", 3L), List.of("In The End", 2L))));
+            }
+        }
+        {
+            String query = String.format(Locale.ROOT, """
+                FROM listens*
+                | eval x = TO_STR(song_id)
+                | SORT x
+                | KEEP x, song_id
+                | %s
+                | SORT song_id
+                | KEEP title, song_id
+                | LIMIT 1
+                """, enrichSongCommand());
+            try (EsqlQueryResponse resp = run(query)) {
+                assertThat(EsqlTestUtils.getValuesList(resp), equalTo(List.of(List.of("Hotel California", "s1"))));
+            }
         }
     }
 

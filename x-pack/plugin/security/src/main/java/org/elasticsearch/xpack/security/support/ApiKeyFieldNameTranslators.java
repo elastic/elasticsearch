@@ -25,6 +25,8 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.search.QueryParserHelper;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -60,40 +62,58 @@ public class ApiKeyFieldNameTranslators {
     }
 
     /**
-     * Translate the query level field name to index level field names.
-     * It throws an exception if the field name is not explicitly allowed.
+     * Adds the {@param fieldSortBuilders} to the {@param searchSourceBuilder}, translating the field names,
+     * form query level to index level, see {@link #translate}.
+     * The optional {@param visitor} can be used to collect all the translated field names.
      */
-    public static String translate(String fieldName) {
-        if (Regex.isSimpleMatchPattern(fieldName)) {
-            throw new IllegalArgumentException("Field name pattern [" + fieldName + "] is not allowed for API Key query or aggregation");
-        }
-        for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
-            if (translator.supports(fieldName)) {
-                return translator.translate(fieldName);
+    public static void translateFieldSortBuilders(
+        List<FieldSortBuilder> fieldSortBuilders,
+        SearchSourceBuilder searchSourceBuilder,
+        @Nullable Consumer<String> visitor
+    ) {
+        final Consumer<String> fieldNameVisitor = visitor != null ? visitor : ignored -> {};
+        fieldSortBuilders.forEach(fieldSortBuilder -> {
+            if (fieldSortBuilder.getNestedSort() != null) {
+                throw new IllegalArgumentException("nested sorting is not supported for API Key query");
             }
-        }
-        throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query or aggregation");
+            if (FieldSortBuilder.DOC_FIELD_NAME.equals(fieldSortBuilder.getFieldName())) {
+                searchSourceBuilder.sort(fieldSortBuilder);
+            } else {
+                final String translatedFieldName = translate(fieldSortBuilder.getFieldName());
+                fieldNameVisitor.accept(translatedFieldName);
+                if (translatedFieldName.equals(fieldSortBuilder.getFieldName())) {
+                    searchSourceBuilder.sort(fieldSortBuilder);
+                } else {
+                    final FieldSortBuilder translatedFieldSortBuilder = new FieldSortBuilder(translatedFieldName).order(
+                        fieldSortBuilder.order()
+                    )
+                        .missing(fieldSortBuilder.missing())
+                        .unmappedType(fieldSortBuilder.unmappedType())
+                        .setFormat(fieldSortBuilder.getFormat());
+
+                    if (fieldSortBuilder.sortMode() != null) {
+                        translatedFieldSortBuilder.sortMode(fieldSortBuilder.sortMode());
+                    }
+                    if (fieldSortBuilder.getNestedSort() != null) {
+                        translatedFieldSortBuilder.setNestedSort(fieldSortBuilder.getNestedSort());
+                    }
+                    if (fieldSortBuilder.getNumericType() != null) {
+                        translatedFieldSortBuilder.setNumericType(fieldSortBuilder.getNumericType());
+                    }
+                    searchSourceBuilder.sort(translatedFieldSortBuilder);
+                }
+            }
+        });
     }
 
     /**
-     * Translates a query level field name pattern to the matching index level field names.
-     * The result can be the empty set, if the pattern doesn't match any of the allowed index level field names.
-     * If the pattern is actually a concrete field name rather than a pattern,
-     * it is also translated, but only if the query level field name is allowed, otherwise an exception is thrown.
+     * Deep copies the passed-in {@param queryBuilder} translating all the field names, from query level to index level,
+     * see {@link  #translate}. In general, the returned builder should create the same query as if the query were
+     * created by the passed in {@param queryBuilder}, only with the field names translated.
+     * Field name patterns (including "*"), are also replaced with the explicit index level field names whose
+     * associated query level field names match the pattern.
+     * The optional {@param visitor} can be used to collect all the translated field names.
      */
-    public static Set<String> translatePattern(String fieldNameOrPattern) {
-        Set<String> indexFieldNames = new HashSet<>();
-        for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
-            if (translator.supports(fieldNameOrPattern)) {
-                indexFieldNames.add(translator.translate(fieldNameOrPattern));
-            }
-        }
-        // It's OK to "translate" to the empty set the concrete disallowed or unknown field names, because
-        // the SimpleQueryString query type is lenient in the sense that it ignores unknown fields and field name patterns,
-        // so this preprocessing can ignore them too.
-        return indexFieldNames;
-    }
-
     public static QueryBuilder translateQueryBuilderFields(QueryBuilder queryBuilder, @Nullable Consumer<String> visitor) {
         Objects.requireNonNull(queryBuilder, "unsupported \"null\" query builder for field name translation");
         final Consumer<String> fieldNameVisitor = visitor != null ? visitor : ignored -> {};
@@ -246,6 +266,40 @@ public class ApiKeyFieldNameTranslators {
         } else {
             throw new IllegalArgumentException("Query type [" + queryBuilder.getName() + "] is not supported for API Key query");
         }
+    }
+
+    /**
+     * Translate the query level field name to index level field names.
+     * It throws an exception if the field name is not explicitly allowed.
+     */
+    protected static String translate(String fieldName) {
+        // protected for testing
+        if (Regex.isSimpleMatchPattern(fieldName)) {
+            throw new IllegalArgumentException("Field name pattern [" + fieldName + "] is not allowed for API Key query or aggregation");
+        }
+        for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
+            if (translator.supports(fieldName)) {
+                return translator.translate(fieldName);
+            }
+        }
+        throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query or aggregation");
+    }
+
+    /**
+     * Translates a query level field name pattern to the matching index level field names.
+     * The result can be the empty set, if the pattern doesn't match any of the allowed index level field names.
+     */
+    private static Set<String> translatePattern(String fieldNameOrPattern) {
+        Set<String> indexFieldNames = new HashSet<>();
+        for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
+            if (translator.supports(fieldNameOrPattern)) {
+                indexFieldNames.add(translator.translate(fieldNameOrPattern));
+            }
+        }
+        // It's OK to "translate" to the empty set the concrete disallowed or unknown field names.
+        // For eg, the SimpleQueryString query type is lenient in the sense that it ignores unknown fields and field name patterns,
+        // so this preprocessing can ignore them too.
+        return indexFieldNames;
     }
 
     abstract static class FieldNameTranslator {

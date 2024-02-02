@@ -140,11 +140,11 @@ class JnaKernel32Library implements Kernel32Library {
      * <p>
      * See http://msdn.microsoft.com/en-us/library/windows/desktop/ms683242%28v=vs.85%29.aspx
      */
-    static class NativeHandlerCallback implements StdCallLibrary.StdCallCallback {
+    public static class NativeHandlerCallback implements StdCallLibrary.StdCallCallback {
 
         private final ConsoleCtrlHandler handler;
 
-        NativeHandlerCallback(ConsoleCtrlHandler handler) {
+        public NativeHandlerCallback(ConsoleCtrlHandler handler) {
             this.handler = handler;
         }
 

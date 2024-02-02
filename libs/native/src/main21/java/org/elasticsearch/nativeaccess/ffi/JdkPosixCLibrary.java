@@ -55,9 +55,12 @@ class JdkPosixCLibrary implements PosixCLibrary {
         var rlimitDesc = FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS);
         getrlimit$mh = downcallHandleWithErrno("getrlimit", rlimitDesc);
         setrlimit$mh = downcallHandleWithErrno("setrlimit", rlimitDesc);
-        open$mh = downcallHandle("open", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT),
+        open$mh = downcallHandle(
+            "open",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT),
             CAPTURE_ERRNO_OPTION,
-            Linker.Option.firstVariadicArg(2));
+            Linker.Option.firstVariadicArg(2)
+        );
         close$mh = downcallHandleWithErrno("close", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
 
         MethodHandle fstat;

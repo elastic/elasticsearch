@@ -304,6 +304,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         return new TimeValue(tookInMillis);
     }
 
+    public long getTookInMillis() {
+        return tookInMillis;
+    }
+
     /**
      * The total number of shards the search was executed on.
      */

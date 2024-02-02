@@ -510,7 +510,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(this.concreteFieldName());
+            return context.fieldExistsInIndex(this.name());
         }
 
         @Override
@@ -587,7 +587,7 @@ public final class DateFieldMapper extends FieldMapper {
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
                 Query query;
                 if (isIndexed()) {
-                    query = LongPoint.newRangeQuery(concreteFieldName(), l, u);
+                    query = LongPoint.newRangeQuery(name(), l, u);
                     if (hasDocValues()) {
                         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(concreteFieldName(), l, u);
                         query = new IndexOrDocValuesQuery(query, dvQuery);
@@ -595,7 +595,7 @@ public final class DateFieldMapper extends FieldMapper {
                 } else {
                     query = SortedNumericDocValuesField.newSlowRangeQuery(concreteFieldName(), l, u);
                 }
-                if (hasDocValues() && context.indexSortedOnField(concreteFieldName())) {
+                if (hasDocValues() && context.indexSortedOnField(name())) {
                     query = new IndexSortSortedNumericDocValuesRangeQuery(concreteFieldName(), l, u, query);
                 }
                 return query;
@@ -675,7 +675,7 @@ public final class DateFieldMapper extends FieldMapper {
             long pivotLong = resolution.convert(pivotTime);
             // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
             if (isIndexed()) {
-                return LongPoint.newDistanceFeatureQuery(concreteFieldName(), 1.0f, originLong, pivotLong);
+                return LongPoint.newDistanceFeatureQuery(name(), 1.0f, originLong, pivotLong);
             } else {
                 return new LongScriptFieldDistanceFeatureQuery(
                     new Script(""),
@@ -702,13 +702,13 @@ public final class DateFieldMapper extends FieldMapper {
                 // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds
                 return Relation.INTERSECTS;
             }
-            byte[] minPackedValue = PointValues.getMinPackedValue(reader, concreteFieldName());
+            byte[] minPackedValue = PointValues.getMinPackedValue(reader, name());
             if (minPackedValue == null) {
                 // no points, so nothing matches
                 return Relation.DISJOINT;
             }
             long minValue = LongPoint.decodeDimension(minPackedValue, 0);
-            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, concreteFieldName()), 0);
+            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
             return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
         }
@@ -793,7 +793,7 @@ public final class DateFieldMapper extends FieldMapper {
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
                 return new SortedNumericIndexFieldData.Builder(
-                    concreteFieldName(),
+                    name(),
                     resolution.numericType(),
                     resolution.getDefaultToScriptFieldFactory()
                 );
@@ -801,7 +801,7 @@ public final class DateFieldMapper extends FieldMapper {
 
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
-                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(concreteFieldName());
+                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
 
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name(),
@@ -913,7 +913,7 @@ public final class DateFieldMapper extends FieldMapper {
                 timestamp = fieldType().parse(dateAsString);
             } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
                 if (ignoreMalformed) {
-                    context.addIgnoredField(mappedFieldType.concreteFieldName());
+                    context.addIgnoredField(mappedFieldType.name());
                     return;
                 } else {
                     throw e;
@@ -926,14 +926,14 @@ public final class DateFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, long timestamp) {
         if (indexed && hasDocValues) {
-            context.doc().add(new LongField(fieldType().concreteFieldName(), timestamp));
+            context.doc().add(new LongField(fieldType().name(), timestamp));
         } else if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().concreteFieldName(), timestamp));
         } else if (indexed) {
-            context.doc().add(new LongPoint(fieldType().concreteFieldName(), timestamp));
+            context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
         if (store) {
-            context.doc().add(new StoredField(fieldType().concreteFieldName(), timestamp));
+            context.doc().add(new StoredField(fieldType().name(), timestamp));
         }
         if (hasDocValues == false && (indexed || store)) {
             // When the field doesn't have doc values so that we can run exists queries, we also need to index the field name separately.

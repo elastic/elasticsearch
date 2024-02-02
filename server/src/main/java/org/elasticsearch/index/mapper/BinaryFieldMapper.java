@@ -122,7 +122,7 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(concreteFieldName(), CoreValuesSourceType.KEYWORD);
+            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
@@ -162,14 +162,14 @@ public class BinaryFieldMapper extends FieldMapper {
             return;
         }
         if (stored) {
-            context.doc().add(new StoredField(fieldType().concreteFieldName(), value));
+            context.doc().add(new StoredField(fieldType().name(), value));
         }
 
         if (hasDocValues) {
             CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().concreteFieldName());
             if (field == null) {
                 field = new CustomBinaryDocValuesField(fieldType().concreteFieldName(), value);
-                context.doc().addWithKey(fieldType().concreteFieldName(), field);
+                context.doc().addWithKey(fieldType().name(), field);
             } else {
                 field.add(value);
             }

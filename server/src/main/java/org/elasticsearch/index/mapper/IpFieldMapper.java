@@ -243,7 +243,7 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(concreteFieldName());
+            return context.fieldExistsInIndex(name());
         }
 
         private static InetAddress parse(Object value) {
@@ -284,7 +284,7 @@ public class IpFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
             Query query;
             if (value instanceof InetAddress) {
-                query = InetAddressPoint.newExactQuery(concreteFieldName(), (InetAddress) value);
+                query = InetAddressPoint.newExactQuery(name(), (InetAddress) value);
             } else {
                 if (value instanceof BytesRef) {
                     value = ((BytesRef) value).utf8ToString();
@@ -292,10 +292,10 @@ public class IpFieldMapper extends FieldMapper {
                 String term = value.toString();
                 if (term.contains("/")) {
                     final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
-                    query = InetAddressPoint.newPrefixQuery(concreteFieldName(), cidr.v1(), cidr.v2());
+                    query = InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
                 } else {
                     InetAddress address = InetAddresses.forString(term);
-                    query = InetAddressPoint.newExactQuery(concreteFieldName(), address);
+                    query = InetAddressPoint.newExactQuery(name(), address);
                 }
             }
             if (isIndexed()) {
@@ -342,7 +342,7 @@ public class IpFieldMapper extends FieldMapper {
                 }
                 addresses[i++] = address;
             }
-            return InetAddressPoint.newSetQuery(concreteFieldName(), addresses);
+            return InetAddressPoint.newSetQuery(name(), addresses);
         }
 
         @Override
@@ -355,7 +355,7 @@ public class IpFieldMapper extends FieldMapper {
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
             return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (lower, upper) -> {
-                Query query = InetAddressPoint.newRangeQuery(concreteFieldName(), lower, upper);
+                Query query = InetAddressPoint.newRangeQuery(name(), lower, upper);
                 if (isIndexed()) {
                     if (hasDocValues()) {
                         return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query));
@@ -419,7 +419,7 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(concreteFieldName(), CoreValuesSourceType.IP, IpDocValuesField::new);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.IP, IpDocValuesField::new);
         }
 
         @Override
@@ -533,10 +533,10 @@ public class IpFieldMapper extends FieldMapper {
             address = value(context.parser(), nullValue);
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed) {
-                context.addIgnoredField(fieldType().concreteFieldName());
+                context.addIgnoredField(fieldType().name());
                 if (storeIgnored) {
                     // Save a copy of the field so synthetic source can load it
-                    context.doc().add(IgnoreMalformedStoredValues.storedField(fieldType().concreteFieldName(), context.parser()));
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(fieldType().name(), context.parser()));
                 }
                 return;
             } else {
@@ -558,10 +558,10 @@ public class IpFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
         if (dimension) {
-            context.getDimensions().addIp(fieldType().concreteFieldName(), address).validate(context.indexSettings());
+            context.getDimensions().addIp(fieldType().name(), address).validate(context.indexSettings());
         }
         if (indexed) {
-            Field field = new InetAddressPoint(fieldType().concreteFieldName(), address);
+            Field field = new InetAddressPoint(fieldType().name(), address);
             context.doc().add(field);
         }
         if (hasDocValues) {
@@ -570,7 +570,7 @@ public class IpFieldMapper extends FieldMapper {
             context.addToFieldNames(fieldType().name());
         }
         if (stored) {
-            context.doc().add(new StoredField(fieldType().concreteFieldName(), new BytesRef(InetAddressPoint.encode(address))));
+            context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         }
     }
 
@@ -591,7 +591,7 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     public void doValidate(MappingLookup lookup) {
-        if (dimension && null != lookup.nestedLookup().getNestedParent(fieldType().concreteFieldName())) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(fieldType().name())) {
             throw new IllegalArgumentException(
                 TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
             );

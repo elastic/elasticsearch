@@ -527,7 +527,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
 
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(mappedFieldType.concreteFieldName(), value, fieldType);
+            Field field = new Field(mappedFieldType.name(), value, fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());

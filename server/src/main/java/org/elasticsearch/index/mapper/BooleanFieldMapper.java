@@ -275,12 +275,12 @@ public class BooleanFieldMapper extends FieldMapper {
             }
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return new SortedNumericIndexFieldData.Builder(concreteFieldName(), NumericType.BOOLEAN, BooleanDocValuesField::new);
+                return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN, BooleanDocValuesField::new);
             }
 
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
-                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(concreteFieldName());
+                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
 
                 return new SourceValueFetcherSortedBooleanIndexFieldData.Builder(
                     name(),
@@ -336,7 +336,7 @@ public class BooleanFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
             if (isIndexed()) {
                 return new TermRangeQuery(
-                    concreteFieldName(),
+                    name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),
                     includeLower,
@@ -402,7 +402,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.concreteFieldName(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -427,10 +427,10 @@ public class BooleanFieldMapper extends FieldMapper {
                 value = context.parser().booleanValue();
             } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
-                    context.addIgnoredField(mappedFieldType.concreteFieldName());
+                    context.addIgnoredField(mappedFieldType.name());
                     if (storeMalformedFields) {
                         // Save a copy of the field so synthetic source can load it
-                        context.doc().add(IgnoreMalformedStoredValues.storedField(fieldType().concreteFieldName(), context.parser()));
+                        context.doc().add(IgnoreMalformedStoredValues.storedField(fieldType().name(), context.parser()));
                     }
                 } else {
                     throw e;
@@ -445,10 +445,10 @@ public class BooleanFieldMapper extends FieldMapper {
             return;
         }
         if (indexed) {
-            context.doc().add(new StringField(fieldType().concreteFieldName(), value ? Values.TRUE : Values.FALSE, Field.Store.NO));
+            context.doc().add(new StringField(fieldType().name(), value ? Values.TRUE : Values.FALSE, Field.Store.NO));
         }
         if (stored) {
-            context.doc().add(new StoredField(fieldType().concreteFieldName(), value ? "T" : "F"));
+            context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
         }
         if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().concreteFieldName(), value ? 1 : 0));

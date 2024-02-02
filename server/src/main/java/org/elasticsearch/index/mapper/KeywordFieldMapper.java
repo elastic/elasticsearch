@@ -598,7 +598,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                             + "] is only supported in synthetic _source index if it creates doc values or stored fields"
                     );
                 }
-                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(concreteFieldName());
+                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
             SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
@@ -606,7 +606,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {
             if (getTextSearchInfo().hasNorms()) {
-                return BlockSourceReader.lookupFromNorms(concreteFieldName());
+                return BlockSourceReader.lookupFromNorms(name());
             }
             if (isIndexed() || isStored()) {
                 return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
@@ -638,7 +638,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     );
                 }
                 return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
-                    concreteFieldName(),
+                    name(),
                     CoreValuesSourceType.KEYWORD,
                     KeywordDocValuesField::new
                 ) {
@@ -649,7 +649,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 };
             }
 
-            Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(concreteFieldName());
+            Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
@@ -661,7 +661,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private SortedSetOrdinalsIndexFieldData.Builder fieldDataFromDocValues() {
             return new SortedSetOrdinalsIndexFieldData.Builder(
-                concreteFieldName(),
+                name(),
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
             );
@@ -687,7 +687,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         return null;
                     }
 
-                    return normalizeValue(normalizer(), concreteFieldName(), keywordValue);
+                    return normalizeValue(normalizer(), name(), keywordValue);
                 }
             };
         }
@@ -719,7 +719,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (value instanceof BytesRef) {
                 value = ((BytesRef) value).utf8ToString();
             }
-            return getTextSearchInfo().searchAnalyzer().normalize(concreteFieldName(), value.toString());
+            return getTextSearchInfo().searchAnalyzer().normalize(name(), value.toString());
         }
 
         /**
@@ -737,7 +737,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return super.wildcardQuery(value, method, caseInsensitive, true, context);
             } else {
                 if (getTextSearchInfo().searchAnalyzer() != null) {
-                    value = normalizeWildcardPattern(concreteFieldName(), value, getTextSearchInfo().searchAnalyzer());
+                    value = normalizeWildcardPattern(name(), value, getTextSearchInfo().searchAnalyzer());
                 } else {
                     value = indexedValueForSearch(value).utf8ToString();
                 }
@@ -758,7 +758,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return super.normalizedWildcardQuery(value, method, context);
             } else {
                 if (getTextSearchInfo().searchAnalyzer() != null) {
-                    value = normalizeWildcardPattern(concreteFieldName(), value, getTextSearchInfo().searchAnalyzer());
+                    value = normalizeWildcardPattern(name(), value, getTextSearchInfo().searchAnalyzer());
                 } else {
                     value = indexedValueForSearch(value).utf8ToString();
                 }
@@ -915,7 +915,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         if (value.length() > fieldType().ignoreAbove()) {
-            context.addIgnoredField(fieldType().concreteFieldName());
+            context.addIgnoredField(fieldType().name());
             if (storeIgnored) {
                 // Save a copy of the field so synthetic source can load it
                 context.doc().add(new StoredField(originalName(), new BytesRef(value)));
@@ -923,13 +923,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        value = normalizeValue(fieldType().normalizer(), fieldType().concreteFieldName(), value);
+        value = normalizeValue(fieldType().normalizer(), fieldType().name(), value);
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
 
         if (fieldType().isDimension()) {
-            context.getDimensions().addString(fieldType().concreteFieldName(), binaryValue).validate(context.indexSettings());
+            context.getDimensions().addString(fieldType().name(), binaryValue).validate(context.indexSettings());
         }
 
         // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to
@@ -952,7 +952,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             throw new IllegalArgumentException(msg);
         }
 
-        Field field = new KeywordField(fieldType().concreteFieldName(), binaryValue, fieldType);
+        Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
         context.doc().add(field);
 
         if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
@@ -994,7 +994,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.concreteFieldName(), fieldType().normalizer);
+        return Map.of(mappedFieldType.name(), fieldType().normalizer);
     }
 
     @Override
@@ -1005,7 +1005,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public void doValidate(MappingLookup lookup) {
-        if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(fieldType().concreteFieldName())) {
+        if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(fieldType().name())) {
             throw new IllegalArgumentException(
                 TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
             );
@@ -1046,7 +1046,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
         if (fieldType.stored()) {
             return new StringStoredFieldFieldLoader(
-                fieldType().concreteFieldName(),
+                fieldType().name(),
                 simpleName,
                 fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName()
             ) {

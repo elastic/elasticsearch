@@ -69,7 +69,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new ConstantIndexFieldData.Builder(
                 fieldDataContext.fullyQualifiedIndexName(),
-                concreteFieldName(),
+                name(),
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new DelegateDocValuesField(
                     new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),

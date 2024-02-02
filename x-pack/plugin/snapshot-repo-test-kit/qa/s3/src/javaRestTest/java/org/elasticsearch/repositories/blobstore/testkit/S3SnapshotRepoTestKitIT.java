@@ -35,7 +35,6 @@ public class S3SnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTest
         .setting("logger.org.elasticsearch.repositories.s3", "TRACE")
         .setting("logger.org.elasticsearch.repositories.blobstore.testkit", "TRACE")
         .setting("logger.com.amazonaws.request", "DEBUG")
-        .setting("logger.org.apache.http.wire", "DEBUG")
         .build();
 
     @ClassRule

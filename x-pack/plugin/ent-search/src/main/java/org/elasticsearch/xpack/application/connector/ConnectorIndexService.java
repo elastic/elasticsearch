@@ -733,7 +733,7 @@ public class ConnectorIndexService {
      * excluding the document with the given _id if it is provided.
      *
      * @param indexName    The name of the index to check for existence in the connector index.
-     * @param connectorId  The ID of the connector document to exclude from the search. Can be null if no document should be excluded.
+     * @param connectorId  The ID of the {@link Connector} to exclude from the search. Can be null if no document should be excluded.
      * @param listener     The listener for handling boolean responses and errors.
      */
     private void isDataIndexNameAlreadyInUse(String indexName, String connectorId, ActionListener<Boolean> listener) {

@@ -313,12 +313,21 @@ public class ObjectMapper extends Mapper {
                                 + "] which does not support subobjects"
                         );
                     }
+                    if (type.equals(PassThroughObjectMapper.CONTENT_TYPE) && objBuilder instanceof RootObjectMapper.Builder == false) {
+                        throw new MapperParsingException(
+                            "Tried to add passthrough subobject ["
+                                + fieldName
+                                + "] to object ["
+                                + objBuilder.name()
+                                + "], passthrough is not supported as a subobject"
+                        );
+                    }
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
                     Mapper.Builder fieldBuilder;
-                    if (objBuilder.subobjects.value() == false) {
+                    if (objBuilder.subobjects.value() == false || type.equals(FieldAliasMapper.CONTENT_TYPE)) {
                         fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
                     } else {
                         String[] fieldNameParts = fieldName.split("\\.");

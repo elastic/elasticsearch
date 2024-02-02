@@ -173,6 +173,14 @@ public final class ApplicationPermission {
             .collect(Collectors.toSet());
     }
 
+    public Set<String> getResourcePatternsByName(ApplicationPrivilege privilege) {
+        return permissions.stream()
+            .filter(e -> e.privilege.getApplication().equals(privilege.getApplication()) && e.privilege.name().equals(privilege.name()))
+            .map(e -> e.resourceNames)
+            .flatMap(Set::stream)
+            .collect(Collectors.toSet());
+    }
+
     private static class PermissionEntry {
         private final ApplicationPrivilege privilege;
         private final Predicate<String> application;

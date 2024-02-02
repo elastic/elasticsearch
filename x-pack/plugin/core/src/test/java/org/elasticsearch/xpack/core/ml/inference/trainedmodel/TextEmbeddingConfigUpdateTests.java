@@ -63,7 +63,7 @@ public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestC
         assertThat(originalConfig, equalTo(originalConfig.apply(new TextEmbeddingConfigUpdate.Builder().build())));
 
         assertThat(
-            new TextEmbeddingConfig(
+            TextEmbeddingConfig.create(
                 originalConfig.getVocabularyConfig(),
                 originalConfig.getTokenization(),
                 "ml-results",
@@ -75,7 +75,7 @@ public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestC
         Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
         Tokenization tokenization = cloneWithNewTruncation(originalConfig.getTokenization(), truncate);
         assertThat(
-            new TextEmbeddingConfig(
+            TextEmbeddingConfig.create(
                 originalConfig.getVocabularyConfig(),
                 tokenization,
                 originalConfig.getResultsField(),

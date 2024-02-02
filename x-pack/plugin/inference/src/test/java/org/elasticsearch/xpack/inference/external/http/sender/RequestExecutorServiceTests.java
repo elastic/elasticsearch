@@ -31,6 +31,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -227,12 +228,13 @@ public class RequestExecutorServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         BlockingQueue<AbstractRunnable> queue = mock(LinkedBlockingQueue.class);
 
+        Function<Integer, BlockingQueue<AbstractRunnable>> createQueue = (Integer capacity) -> queue;
+
         var service = new RequestExecutorService(
             getTestName(),
             mock(HttpClient.class),
             threadPool,
-            queue,
-            RequestExecutorServiceTests::createQueue,
+            createQueue,
             null,
             createRequestExecutorServiceSettingsEmpty()
         );
@@ -256,8 +258,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             getTestName(),
             mock(HttpClient.class),
             threadPool,
-            queue,
-            RequestExecutorServiceTests::createQueue,
+            getCreateQueueFunctionWithMock(queue),
             null,
             createRequestExecutorServiceSettingsEmpty()
         );
@@ -312,6 +313,14 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertThat(service.remainingQueueCapacity(), is(2));
     }
 
+    public void testChangingCapacity_RejectsOverflowTasks() {
+        fail();
+    }
+
+    public void testChangingCapacity_ToZero_SetsQueueCapacityToUnbounded() {
+        fail();
+    }
+
     private Future<?> submitShutdownRequest(CountDownLatch waitToShutdown, RequestExecutorService service) {
         return threadPool.generic().submit(() -> {
             try {
@@ -342,5 +351,11 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
     private static LinkedBlockingQueue<AbstractRunnable> createQueue(int capacity) {
         return new LinkedBlockingQueue<>(capacity);
+    }
+
+    private static Function<Integer, BlockingQueue<AbstractRunnable>> getCreateQueueFunctionWithMock(
+        BlockingQueue<AbstractRunnable> mockQueue
+    ) {
+        return (Integer capacity) -> mockQueue;
     }
 }

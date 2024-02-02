@@ -18,17 +18,22 @@ import java.util.function.Function;
 
 /**
  * Provides a limited functionality queue that can have its capacity adjusted.
- * @param <K> the items to store in the queue
+ * @param <E> the items to store in the queue
  */
-public class AdjustableCapacityBlockingQueue<K> {
+public class AdjustableCapacityBlockingQueue<E> {
 
-    private BlockingQueue<K> queue;
-    private final Function<Integer, BlockingQueue<K>> createQueue;
+    private BlockingQueue<E> queue;
+    private final Function<Integer, BlockingQueue<E>> createQueue;
     private final ReentrantReadWriteLock lock;
 
-    public AdjustableCapacityBlockingQueue(BlockingQueue<K> queue, Function<Integer, BlockingQueue<K>> createQueue) {
-        this.queue = Objects.requireNonNull(queue);
+    /**
+     * Constructs the adjustable capacity queue
+     * @param initialCapacity the initial capacity of the queue
+     * @param createQueue a function for creating a new backing queue with the specified capacity
+     */
+    public AdjustableCapacityBlockingQueue(int initialCapacity, Function<Integer, BlockingQueue<E>> createQueue) {
         this.createQueue = Objects.requireNonNull(createQueue);
+        queue = createQueue.apply(initialCapacity);
         lock = new ReentrantReadWriteLock();
     }
 
@@ -39,13 +44,13 @@ public class AdjustableCapacityBlockingQueue<K> {
      * @param capacity the new capacity for the queue.
      * @return a list of elements that could not fit within the queue given the new capacity requirement.
      */
-    public List<K> setCapacity(int capacity) {
+    public List<E> setCapacity(int capacity) {
         final ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
-        List<K> remainingItems = new ArrayList<>(queue.size());
+        List<E> remainingItems = new ArrayList<>(queue.size());
 
         writeLock.lock();
         try {
-            BlockingQueue<K> newQueue = createQueue.apply(capacity);
+            BlockingQueue<E> newQueue = createQueue.apply(capacity);
             queue.drainTo(newQueue, capacity);
             queue.drainTo(remainingItems);
             queue = newQueue;
@@ -56,7 +61,7 @@ public class AdjustableCapacityBlockingQueue<K> {
         return remainingItems;
     }
 
-    public boolean offer(K item) {
+    public boolean offer(E item) {
         final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
 
         readLock.lock();
@@ -67,11 +72,11 @@ public class AdjustableCapacityBlockingQueue<K> {
         }
     }
 
-    public int drainTo(Collection<? super K> c) {
+    public int drainTo(Collection<? super E> c) {
         return drainTo(c, Integer.MAX_VALUE);
     }
 
-    public int drainTo(Collection<? super K> c, int maxElements) {
+    public int drainTo(Collection<? super E> c, int maxElements) {
         final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
 
         readLock.lock();
@@ -82,7 +87,7 @@ public class AdjustableCapacityBlockingQueue<K> {
         }
     }
 
-    public K poll(long timeout, TimeUnit timeUnit) throws InterruptedException {
+    public E poll(long timeout, TimeUnit timeUnit) throws InterruptedException {
         final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
 
         readLock.lockInterruptibly();
@@ -93,7 +98,7 @@ public class AdjustableCapacityBlockingQueue<K> {
         }
     }
 
-    public K take() throws InterruptedException {
+    public E take() throws InterruptedException {
         final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
 
         readLock.lockInterruptibly();

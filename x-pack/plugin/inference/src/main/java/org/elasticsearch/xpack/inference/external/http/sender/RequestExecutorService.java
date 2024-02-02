@@ -66,15 +66,7 @@ class RequestExecutorService implements RequestExecutor {
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings
     ) {
-        this(
-            serviceName,
-            httpClient,
-            threadPool,
-            buildQueue(settings.getQueueCapacity()),
-            RequestExecutorService::buildQueue,
-            startupLatch,
-            settings
-        );
+        this(serviceName, httpClient, threadPool, RequestExecutorService::buildQueue, startupLatch, settings);
     }
 
     private static BlockingQueue<AbstractRunnable> buildQueue(int capacity) {
@@ -95,7 +87,6 @@ class RequestExecutorService implements RequestExecutor {
         String serviceName,
         HttpClient httpClient,
         ThreadPool threadPool,
-        BlockingQueue<AbstractRunnable> queue,
         Function<Integer, BlockingQueue<AbstractRunnable>> createQueue,
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings
@@ -104,7 +95,7 @@ class RequestExecutorService implements RequestExecutor {
         this.httpClient = Objects.requireNonNull(httpClient);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.httpContext = HttpClientContext.create();
-        this.queue = new AdjustableCapacityBlockingQueue<>(Objects.requireNonNull(queue), createQueue);
+        this.queue = new AdjustableCapacityBlockingQueue<>(settings.getQueueCapacity(), createQueue);
         this.startupLatch = startupLatch;
 
         Objects.requireNonNull(settings);

@@ -122,15 +122,7 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
     }
 
     private static DateFormatter toFormatter(Object format, ZoneId zone) {
-        String pattern = ((BytesRef) format).utf8ToString();
-        DateFormatter formatter;
-        try {
-            formatter = forPattern(pattern);
-        } catch (ClassCastException e) {
-            // https://github.com/elastic/elasticsearch/issues/104124#issuecomment-1921755275
-            throw new InvalidArgumentException("invalid date pattern for []: Invalid format: [" + pattern + "]", e);
-        }
-        return formatter.withZone(zone);
+        return forPattern(((BytesRef) format).utf8ToString()).withZone(zone);
     }
 
     @Override

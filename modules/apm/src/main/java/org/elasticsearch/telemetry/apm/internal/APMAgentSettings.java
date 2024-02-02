@@ -119,7 +119,7 @@ public class APMAgentSettings {
         // Core:
         // forbid 'enabled', must remain enabled to dynamically enable tracing / metrics
         // forbid 'recording', controlled by 'telemetry.metrics.enabled' / 'telemetry.tracing.enabled'
-        "instrument",
+        // forbid 'instrument', automatic instrumentation can cause issues
         "service_name",
         "service_node_name",
         // forbid 'service_version', forced by APMJvmOptions

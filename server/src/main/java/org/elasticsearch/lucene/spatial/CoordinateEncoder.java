@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.elasticsearch.lucene.spatial;
 
 /**
  * Interface for classes that help encode double-valued spatial coordinates x/y to

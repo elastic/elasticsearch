@@ -6,16 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.elasticsearch.lucene.spatial;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.index.PointValues;
 
-import static org.elasticsearch.index.fielddata.TriangleTreeVisitor.TriangleTreeDecodedVisitor;
-import static org.elasticsearch.index.fielddata.TriangleTreeVisitor.abFromTriangle;
-import static org.elasticsearch.index.fielddata.TriangleTreeVisitor.bcFromTriangle;
-import static org.elasticsearch.index.fielddata.TriangleTreeVisitor.caFromTriangle;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.TriangleTreeDecodedVisitor;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.abFromTriangle;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.bcFromTriangle;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.caFromTriangle;
 
 /**
  * A {@link TriangleTreeDecodedVisitor} implementation for {@link Component2D} geometries.

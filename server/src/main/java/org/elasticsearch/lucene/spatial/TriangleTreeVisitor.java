@@ -6,11 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.elasticsearch.lucene.spatial;
 
-import static org.elasticsearch.index.fielddata.TriangleTreeWriter.AB_FROM_TRIANGLE;
-import static org.elasticsearch.index.fielddata.TriangleTreeWriter.BC_FROM_TRIANGLE;
-import static org.elasticsearch.index.fielddata.TriangleTreeWriter.CA_FROM_TRIANGLE;
+import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.AB_FROM_TRIANGLE;
+import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.BC_FROM_TRIANGLE;
+import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.CA_FROM_TRIANGLE;
 
 /** Visitor for triangle interval tree.
  *

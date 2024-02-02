@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.elasticsearch.lucene.spatial;
 
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;

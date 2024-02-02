@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.elasticsearch.common.geo.SpatialPoint;
-import org.elasticsearch.index.fielddata.CoordinateEncoder;
-import org.elasticsearch.index.fielddata.TriangleTreeVisitor;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.TriangleTreeVisitor;
 
 import java.util.function.BiFunction;
 

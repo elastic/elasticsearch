@@ -30,8 +30,8 @@ import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

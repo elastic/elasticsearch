@@ -11,7 +11,7 @@ import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.DimensionalShapeType;
+import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.elasticsearch.lucene.spatial;
 
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -30,9 +30,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.index.fielddata.DimensionalShapeType.LINE;
-import static org.elasticsearch.index.fielddata.DimensionalShapeType.POINT;
-import static org.elasticsearch.index.fielddata.DimensionalShapeType.POLYGON;
+import static org.elasticsearch.lucene.spatial.DimensionalShapeType.LINE;
+import static org.elasticsearch.lucene.spatial.DimensionalShapeType.POINT;
+import static org.elasticsearch.lucene.spatial.DimensionalShapeType.POLYGON;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

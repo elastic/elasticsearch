@@ -11,7 +11,7 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.Rectangle;
-import org.elasticsearch.index.fielddata.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 import java.util.List;
 

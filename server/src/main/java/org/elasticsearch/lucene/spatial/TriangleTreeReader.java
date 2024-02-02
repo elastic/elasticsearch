@@ -6,16 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.elasticsearch.lucene.spatial;
 
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.fielddata.TriangleTreeWriter.LEFT;
-import static org.elasticsearch.index.fielddata.TriangleTreeWriter.LINE;
-import static org.elasticsearch.index.fielddata.TriangleTreeWriter.POINT;
-import static org.elasticsearch.index.fielddata.TriangleTreeWriter.RIGHT;
+import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.LEFT;
+import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.LINE;
+import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.POINT;
+import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.RIGHT;
 
 /**
  * A tree reader for a previous serialized {@link org.elasticsearch.geometry.Geometry} using

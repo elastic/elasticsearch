@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.XYGeometry;
-import org.elasticsearch.index.fielddata.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 /** Lucene geometry query for {@link BinaryShapeDocValuesField}. */
 public class CartesianShapeDocValuesQuery extends ShapeDocValuesQuery<XYGeometry> {

@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.lucene.spatial;
 
 import org.apache.lucene.document.XYShape;
 import org.apache.lucene.index.IndexableField;
@@ -22,6 +22,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.mapper.ShapeIndexer;
 
 import java.util.ArrayList;
 import java.util.Arrays;

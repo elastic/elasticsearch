@@ -29,8 +29,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geo.XShapeTestUtil;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.fielddata.CoordinateEncoder;
-import org.elasticsearch.index.mapper.CartesianShapeIndexer;
+import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

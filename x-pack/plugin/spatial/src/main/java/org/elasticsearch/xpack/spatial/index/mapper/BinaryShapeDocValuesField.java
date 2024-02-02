@@ -11,10 +11,10 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.fielddata.CentroidCalculator;
-import org.elasticsearch.index.fielddata.CoordinateEncoder;
-import org.elasticsearch.index.fielddata.GeometryDocValueWriter;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
+import org.elasticsearch.lucene.spatial.CentroidCalculator;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 
 import java.io.IOException;
 import java.util.ArrayList;

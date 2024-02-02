@@ -1,0 +1,5 @@
+pr: 105050
+summary: Do not set apm agent instrument setting
+area: Infra/Metrics
+type: bug
+issues: []

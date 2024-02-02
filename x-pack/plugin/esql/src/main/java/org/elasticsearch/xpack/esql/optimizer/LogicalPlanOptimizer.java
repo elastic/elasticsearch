@@ -130,7 +130,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownAndCombineFilters(),
             new PushDownEval(),
             new PushDownRegexExtract(),
-            // new PushDownEnrich(),
+            new PushDownEnrich(),
             new PushDownAndCombineOrderBy(),
             new PruneOrderByBeforeStats(),
             new PruneRedundantSortClauses()
@@ -819,6 +819,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             if (child instanceof OrderBy orderBy) {
                 return orderBy.replaceChild(re.replaceChild(orderBy.child()));
             } else if (child instanceof Project) {
+                // Note that this rule may reduce the efficiency of the plan by delaying projections, resulting in more columns
+                // being transferred between nodes or clusters when the enrich operation is executed in a different location.
                 var projectWithChild = pushDownPastProject(re);
                 var attrs = asAttributes(re.enrichFields());
                 return projectWithChild.withProjections(mergeOutputExpressions(attrs, projectWithChild.projections()));

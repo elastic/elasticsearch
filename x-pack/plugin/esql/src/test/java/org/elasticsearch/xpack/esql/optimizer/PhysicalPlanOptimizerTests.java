@@ -94,7 +94,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.HashSet;
 import java.util.List;
@@ -2974,23 +2973,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var eval = as(fragment.fragment(), Eval.class);
             as(eval.child(), EsRelation.class);
         }
-    }
-
-    @Test
-    public void testEnrichWithSort() {
-        PhysicalPlan plan = physicalPlan(
-            """
-                from test
-                | eval employee_id = to_str(emp_no)
-                | sort emp_no
-                | limit 5
-                | enrich departments
-                | sort employee_id
-                | limit 5
-                """);
-        System.err.println("--> plan " + plan);
-        PhysicalPlan physicalPlan = optimizedPlan(plan);
-        System.err.println("--> optmized " + physicalPlan);
     }
 
     @SuppressWarnings("SameParameterValue")

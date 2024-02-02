@@ -35,7 +35,7 @@ The following is a high-level overview of the steps required to configure a FIPS
 * Configure Java to use the FIPS certified security provider (xref:java-security-provider[see below]).
 * Configure {es}'s security manager to allow use of the FIPS certified provider (xref:java-security-manager[see below]).
 * Ensure the keystore and truststore are configured correctly (xref:keystore-fips-password[see below]).
-* Ensure the TLS settings are configured correctly (xref:tls[see below]).
+* Ensure the TLS settings are configured correctly (xref:fips-tls[see below]).
 * Ensure the password hashing settings are configured correctly (xref:fips-stored-password-hashing[see below]).
 * Ensure the cached password hashing settings are configured correctly (xref:fips-cached-password-hashing[see below]).
 * Set `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`.
@@ -93,6 +93,7 @@ Note that when the keystore is password-protected, you must supply the password 
 Elasticsearch starts.
 
 [discrete]
+[[fips-tls]]
 ==== TLS
 
 SSLv2 and SSLv3 are not allowed by FIPS 140-2, so `SSLv2Hello` and `SSLv3` cannot

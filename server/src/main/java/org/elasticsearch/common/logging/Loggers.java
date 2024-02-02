@@ -135,7 +135,7 @@ public class Loggers {
         // If configuring an ancestor / root, the restriction has to be explicitly set afterward.
         boolean setRestriction = false;
 
-        if (isRootLogger(logger) == false) {
+        if (isRootLogger(logger.getName()) == false) {
             Level actual = level != null ? level : parentLoggerLevel(logger);
             if (actual.isMoreSpecificThan(Level.INFO) == false) {
                 for (String restricted : restrictedLoggers) {
@@ -150,32 +150,29 @@ public class Loggers {
             }
             Configurator.setLevel(logger.getName(), level);
         } else {
+            assert level != null : "Log level is required when configuring the root logger";
             final LoggerContext ctx = LoggerContext.getContext(false);
             final Configuration config = ctx.getConfiguration();
             final LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
             loggerConfig.setLevel(level);
             ctx.updateLoggers();
-
-            Level actual = level != null ? level : LogManager.getRootLogger().getLevel();
-            if (actual.isMoreSpecificThan(Level.INFO) == false) {
-                setRestriction = true;
-            }
-        }
-
-        if (setRestriction) {
-            restrictedLoggers.stream()
-                .filter(restricted -> isRootLogger(logger) || isDescendantOf(restricted, logger.getName()))
-                .forEach(restricted -> setLevel(LogManager.getLogger(restricted), Level.INFO, List.of()));
+            setRestriction = level.isMoreSpecificThan(Level.INFO) == false;
         }
 
         // we have to descend the hierarchy
         final LoggerContext ctx = LoggerContext.getContext(false);
         for (final LoggerConfig loggerConfig : ctx.getConfiguration().getLoggers().values()) {
-            // make sure to not overwrite the log level of restricted loggers
-            boolean isRestricted = setRestriction
-                && restrictedLoggers.stream().anyMatch(restricted -> isSameOrDescendantOf(loggerConfig.getName(), restricted));
-            if (isRestricted == false && isDescendantOf(loggerConfig.getName(), logger.getName())) {
+            if (isDescendantOf(loggerConfig.getName(), logger.getName())) {
                 Configurator.setLevel(loggerConfig.getName(), level);
+            }
+        }
+
+        if (setRestriction) {
+            // if necessary, after setting the level of an ancestor, enforce restriction again
+            for (String restricted : restrictedLoggers) {
+                if (isDescendantOf(restricted, logger.getName())) {
+                    setLevel(LogManager.getLogger(restricted), Level.INFO, List.of());
+                }
             }
         }
     }
@@ -188,12 +185,12 @@ public class Loggers {
         return LogManager.getRootLogger().getLevel();
     }
 
-    private static boolean isRootLogger(Logger logger) {
-        return LogManager.ROOT_LOGGER_NAME.equals(logger.getName());
+    private static boolean isRootLogger(String name) {
+        return LogManager.ROOT_LOGGER_NAME.equals(name);
     }
 
     private static boolean isDescendantOf(String candidate, String ancestor) {
-        return candidate.startsWith(ancestor + ".");
+        return isRootLogger(ancestor) || candidate.startsWith(ancestor + ".");
     }
 
     private static boolean isSameOrDescendantOf(String candidate, String ancestor) {

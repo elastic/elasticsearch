@@ -661,6 +661,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         assertEquals(failCount + 1, getFromTranslogSeen.get());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1393")
     public void testShardMultiGetFromTranslogDuringRelocation() throws Exception {
         startMasterOnlyNode();
         var indexNodeA = startIndexNode();

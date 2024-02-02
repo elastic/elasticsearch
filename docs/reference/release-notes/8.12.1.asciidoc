@@ -14,7 +14,7 @@ Allocation::
 
 Application::
 * [Connector API] Fix bug in configuration validation parser {es-pull}104198[#104198]
-* [Connectors API] Fix bug when triggering a sync job via API {es-pull}104802[#104802]
+* [Connector API] Fix bug when triggering a sync job via API {es-pull}104802[#104802]
 * [Profiling] Query in parallel on content nodes {es-pull}104600[#104600]
 
 Data streams::

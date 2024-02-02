@@ -71,11 +71,7 @@ public class ModelRegistryImpl implements ModelRegistry {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
     }
 
-    /**
-     * Get a model with its secret settings
-     * @param inferenceEntityId Model to get
-     * @param listener Model listener
-     */
+    @Override
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
@@ -96,12 +92,6 @@ public class ModelRegistryImpl implements ModelRegistry {
         client.search(modelSearch, searchListener);
     }
 
-    /**
-     * Get a model.
-     * Secret settings are not included
-     * @param inferenceEntityId Model to get
-     * @param listener Model listener
-     */
     @Override
     public void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
@@ -126,12 +116,6 @@ public class ModelRegistryImpl implements ModelRegistry {
         client.search(modelSearch, searchListener);
     }
 
-    /**
-     * Get all models of a particular task type.
-     * Secret settings are not included
-     * @param taskType The task type
-     * @param listener Models listener
-     */
     @Override
     public void getModelsByTaskType(TaskType taskType, ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
@@ -157,11 +141,6 @@ public class ModelRegistryImpl implements ModelRegistry {
         client.search(modelSearch, searchListener);
     }
 
-    /**
-     * Get all models.
-     * Secret settings are not included
-     * @param listener Models listener
-     */
     @Override
     public void getAllModels(ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {

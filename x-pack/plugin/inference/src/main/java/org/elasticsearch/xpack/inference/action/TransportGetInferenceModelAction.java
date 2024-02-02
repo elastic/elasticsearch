@@ -25,7 +25,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -126,7 +125,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         );
     }
 
-    private GetInferenceModelAction.Response parseModels(List<ModelRegistryImpl.UnparsedModel> unparsedModels) {
+    private GetInferenceModelAction.Response parseModels(List<ModelRegistry.UnparsedModel> unparsedModels) {
         var parsedModels = new ArrayList<ModelConfigurations>();
 
         for (var unparsedModel : unparsedModels) {

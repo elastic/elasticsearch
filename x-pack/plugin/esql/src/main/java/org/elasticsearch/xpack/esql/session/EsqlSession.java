@@ -49,13 +49,10 @@ import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.util.Holder;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -205,95 +202,94 @@ public class EsqlSession {
 
             esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, false, Map.of(), listener);
 
-//            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, false, Map.of(), new ActionListener<>() {
-//                @Override
-//                public void onResponse(IndexResolution fromQl) {
-//                    esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, false, Map.of(), new ActionListener<>() {
-//                        @Override
-//                        public void onResponse(IndexResolution fromEsql) {
-//                            if (fromQl.isValid() != fromEsql.isValid()) {
-//                                throw new AssertionError(
-//                                    "ql and esql didn't make the same resolution: validity differs " + fromQl + " != " + fromEsql
-//                                );
-//                            }
-//                            assertSameMappings("", fromQl.get().mapping(), fromEsql.get().mapping());
-//                            if (fromQl.get().concreteIndices().equals(fromEsql.get().concreteIndices()) == false) {
-//                                throw new AssertionError(
-//                                    "ql and esql didn't make the same resolution: concrete indices differ "
-//                                        + fromQl.get().concreteIndices()
-//                                        + " != "
-//                                        + fromEsql.get().concreteIndices()
-//                                );
-//                            }
-//                            if (fromQl.equals(fromEsql) == false) {
-//                                throw new AssertionError(
-//                                    "ql and esql didn't make the same resolution: differed in unknown way " + fromQl + " != " + fromEsql
-//                                );
-//                            }
-//                            listener.onResponse(fromEsql);
-//                        }
-//
-//                        private void assertSameMappings(String prefix, Map<String, EsField> fromQl, Map<String, EsField> fromEsql) {
-//                            List<String> qlFields = new ArrayList<>();
-//                            qlFields.addAll(fromQl.keySet());
-//                            Collections.sort(qlFields);
-//
-//                            List<String> esqlFields = new ArrayList<>();
-//                            esqlFields.addAll(fromEsql.keySet());
-//                            Collections.sort(esqlFields);
-//                            if (qlFields.equals(esqlFields) == false) {
-//                                throw new AssertionError(
-//                                    prefix
-//                                        + ": ql and esql didn't make the same resolution: fields differ \n"
-//                                        + qlFields
-//                                        + " !=\n"
-//                                        + esqlFields
-//                                );
-//                            }
-//
-//                            for (int f = 0; f < qlFields.size(); f++) {
-//                                String name = qlFields.get(f);
-//                                EsField qlField = fromQl.get(name);
-//                                EsField esqlField = fromEsql.get(name);
-//
-//                                if (qlField.getProperties().isEmpty() == false || esqlField.getProperties().isEmpty() == false) {
-//                                    assertSameMappings(
-//                                        prefix.equals("") ? name : prefix + "." + name,
-//                                        qlField.getProperties(),
-//                                        esqlField.getProperties()
-//                                    );
-//                                }
-//
-//                                if (qlField.equals(esqlField) == false) {
-//                                    throw new AssertionError(
-//                                        prefix
-//                                            + ": ql and esql didn't make the same resolution: mappings differ, first is\n"
-//                                            + qlField
-//                                            + " !=\n"
-//                                            + esqlField
-//                                    );
-//                                }
-//                            }
-//                        }
-//
-//                        @Override
-//                        public void onFailure(Exception e) {
-//                            listener.onFailure(e);
-//                        }
-//                    });
-//                }
-//
-//                @Override
-//                public void onFailure(Exception e) {
-//                    listener.onFailure(e);
-//                }
-//            },
-//                EsqlSession::specificValidity,
-//                IndexResolver.PRESERVE_PROPERTIES,
-//                // TODO no matter what metadata fields are asked in a query, the "allowedMetadataFields" is always _index, does it make
-//                // sense to reflect the actual list of metadata fields instead?
-//                IndexResolver.INDEX_METADATA_FIELD
-//            );
+            // indexResolver.resolveAsMergedMapping(table.index(), fieldNames, false, Map.of(), new ActionListener<>() {
+            // @Override
+            // public void onResponse(IndexResolution fromQl) {
+            // esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, false, Map.of(), new ActionListener<>() {
+            // @Override
+            // public void onResponse(IndexResolution fromEsql) {
+            // if (fromQl.isValid() == false) {
+            // if (fromEsql.isValid()) {
+            // throw new IllegalArgumentException(
+            // "ql and esql didn't make the same resolution: validity differs " + fromQl + " != " + fromEsql
+            // );
+            // }
+            // } else {
+            // assertSameMappings("", fromQl.get().mapping(), fromEsql.get().mapping());
+            // if (fromQl.get().concreteIndices().equals(fromEsql.get().concreteIndices()) == false) {
+            // throw new IllegalArgumentException(
+            // "ql and esql didn't make the same resolution: concrete indices differ " + fromQl.get()
+            // .concreteIndices() + " != " + fromEsql.get().concreteIndices());
+            // }
+            // if (fromQl.equals(fromEsql) == false) {
+            // throw new IllegalArgumentException(
+            // "ql and esql didn't make the same resolution: differed in unknown way " + fromQl + " != " + fromEsql);
+            // }
+            // }
+            // listener.onResponse(fromEsql);
+            // }
+            //
+            // private void assertSameMappings(String prefix, Map<String, EsField> fromQl, Map<String, EsField> fromEsql) {
+            // List<String> qlFields = new ArrayList<>();
+            // qlFields.addAll(fromQl.keySet());
+            // Collections.sort(qlFields);
+            //
+            // List<String> esqlFields = new ArrayList<>();
+            // esqlFields.addAll(fromEsql.keySet());
+            // Collections.sort(esqlFields);
+            // if (qlFields.equals(esqlFields) == false) {
+            // throw new IllegalArgumentException(
+            // prefix
+            // + ": ql and esql didn't make the same resolution: fields differ \n"
+            // + qlFields
+            // + " !=\n"
+            // + esqlFields
+            // );
+            // }
+            //
+            // for (int f = 0; f < qlFields.size(); f++) {
+            // String name = qlFields.get(f);
+            // EsField qlField = fromQl.get(name);
+            // EsField esqlField = fromEsql.get(name);
+            //
+            // if (qlField.getProperties().isEmpty() == false || esqlField.getProperties().isEmpty() == false) {
+            // assertSameMappings(
+            // prefix.equals("") ? name : prefix + "." + name,
+            // qlField.getProperties(),
+            // esqlField.getProperties()
+            // );
+            // }
+            //
+            // if (qlField.equals(esqlField) == false) {
+            // throw new IllegalArgumentException(
+            // prefix
+            // + ": ql and esql didn't make the same resolution: mappings differ, first is\n"
+            // + qlField
+            // + " !=\n"
+            // + esqlField
+            // );
+            // }
+            // }
+            // }
+            //
+            // @Override
+            // public void onFailure(Exception e) {
+            // listener.onFailure(e);
+            // }
+            // });
+            // }
+            //
+            // @Override
+            // public void onFailure(Exception e) {
+            // listener.onFailure(e);
+            // }
+            // },
+            // EsqlSession::specificValidity,
+            // IndexResolver.PRESERVE_PROPERTIES,
+            // // TODO no matter what metadata fields are asked in a query, the "allowedMetadataFields" is always _index, does it make
+            // // sense to reflect the actual list of metadata fields instead?
+            // IndexResolver.INDEX_METADATA_FIELD
+            // );
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)

@@ -104,10 +104,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                     EsqlDataTypeRegistry.INSTANCE,
                     Set::of
                 ),
-                new EsqlIndexResolver(
-                    services.client(),
-                    EsqlDataTypeRegistry.INSTANCE
-                )
+                new EsqlIndexResolver(services.client(), EsqlDataTypeRegistry.INSTANCE)
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),

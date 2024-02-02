@@ -41,6 +41,7 @@ import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
@@ -53,10 +54,6 @@ public class EsqlIndexResolver {
         EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
         EnumSet.of(WildcardStates.OPEN)
     );
-
-    public static final Set<String> ALL_FIELDS = Set.of("*");
-    public static final Set<String> INDEX_METADATA_FIELD = Set.of("_index");
-    public static final String UNMAPPED = "unmapped";
 
     private final Client client;
     private final DataTypeRegistry typeRegistry;
@@ -97,6 +94,7 @@ public class EsqlIndexResolver {
         for (String name : names) {
             Map<String, EsField> fields = rootFields;
             String fullName = name;
+            boolean isAlias = false;
             while (true) {
                 int nextDot = name.indexOf('.');
                 if (nextDot < 0) {
@@ -105,13 +103,15 @@ public class EsqlIndexResolver {
                 String parent = name.substring(0, nextDot);
                 EsField obj = fields.get(parent);
                 if (obj == null) {
-                    // NOCOMMIT What do?
-                    break;
+                    obj = new EsField(parent, OBJECT, new HashMap<>(), false, true);
+                    isAlias = true;
+                    fields.put(parent, obj);
                 }
                 fields = obj.getProperties();
                 name = name.substring(nextDot + 1);
             }
-            EsField field = createField(fieldCapsResponse, name, fieldsCaps.get(fullName));
+            // TODO we're careful to make isAlias match IndexResolver - but do we use it?
+            EsField field = createField(fieldCapsResponse, name, fieldsCaps.get(fullName), isAlias);
             fields.put(name, field);
         }
 
@@ -141,7 +141,12 @@ public class EsqlIndexResolver {
         return fieldsCaps;
     }
 
-    private EsField createField(FieldCapabilitiesResponse fieldCapsResponse, String name, List<IndexFieldCapabilities> fcs) {
+    private EsField createField(
+        FieldCapabilitiesResponse fieldCapsResponse,
+        String name,
+        List<IndexFieldCapabilities> fcs,
+        boolean isAlias
+    ) {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = typeRegistry.fromEs(first.type(), first.metricType());
@@ -167,13 +172,13 @@ public class EsqlIndexResolver {
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
 
         if (type == TEXT) {
-            return new TextEsField(name, new HashMap<>(), false, false);
+            return new TextEsField(name, new HashMap<>(), false, isAlias);
         }
         if (type == KEYWORD) {
             int length = Short.MAX_VALUE;
             // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
             boolean normalized = false;
-            return new KeywordEsField(name, new HashMap<>(), first.isAggregatable(), length, normalized, false);
+            return new KeywordEsField(name, new HashMap<>(), first.isAggregatable(), length, normalized, isAlias);
         }
         if (type == DATETIME) {
             return DateEsField.dateEsField(name, new HashMap<>(), first.isAggregatable());
@@ -183,7 +188,7 @@ public class EsqlIndexResolver {
             return new UnsupportedEsField(name, originalType, null, new HashMap<>());
         }
 
-        return new EsField(name, type, new HashMap<>(), first.isAggregatable(), false);
+        return new EsField(name, type, new HashMap<>(), first.isAggregatable(), isAlias);
     }
 
     private EsField conflictingTypes(String name, FieldCapabilitiesResponse fieldCapsResponse) {

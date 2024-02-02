@@ -37,6 +37,8 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.RotatableSecret;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -177,6 +179,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtUtil;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -1892,8 +1895,20 @@ public class Security extends Plugin
         if (enabled) {
             realms.get().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
                 if (realm instanceof JwtRealm jwtRealm) {
+                    final SecureString newClientSharedSecret = CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(
+                        realm.realmRef().getName()
+                    ).get(settings);
+
+                    JwtUtil.validateClientAuthenticationSettings(
+                        RealmSettings.getFullSettingKey(jwtRealm.name(), JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
+                        JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE.getConcreteSettingForNamespace(jwtRealm.realmRef().getName())
+                            .get(settings),
+                        RealmSettings.getFullSettingKey(jwtRealm.name(), JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
+                        new RotatableSecret(newClientSharedSecret)
+                    );
                     jwtRealm.rotateClientSecret(
-                        CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName()).get(settings)
+                        newClientSharedSecret
+
                     );
                 }
             });

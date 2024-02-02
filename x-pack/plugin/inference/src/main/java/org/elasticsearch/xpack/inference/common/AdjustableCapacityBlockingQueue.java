@@ -96,4 +96,8 @@ public class AdjustableCapacityBlockingQueue<K> {
     public int size() {
         return queue.size();
     }
+
+    public int remainingCapacity() {
+        return queue.remainingCapacity();
+    }
 }

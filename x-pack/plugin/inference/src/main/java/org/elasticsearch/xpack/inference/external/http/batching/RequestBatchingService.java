@@ -83,7 +83,7 @@ public class RequestBatchingService<K> implements RequestExecutor<K> {
 
     private static <K> BlockingQueue<Task<K>> buildQueue(int capacity) {
         BlockingQueue<Task<K>> queue;
-        if (capacity < 0) {
+        if (capacity <= 0) {
             queue = new LinkedBlockingQueue<>();
         } else {
             queue = new LinkedBlockingQueue<>(capacity);
@@ -296,6 +296,11 @@ public class RequestBatchingService<K> implements RequestExecutor<K> {
 
     public int queueSize() {
         return queue.size();
+    }
+
+    // default for testing
+    int remainingQueueCapacity() {
+        return queue.remainingCapacity();
     }
 
     /**

@@ -25,9 +25,11 @@ import org.junit.Before;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -110,16 +112,7 @@ public class RequestBatchingServiceTests extends ESTestCase {
             createRequestBatchingServiceSettingsEmpty()
         );
 
-        Future<?> executorTermination = threadPool.generic().submit(() -> {
-            try {
-                // wait for a task to be added to be executed before beginning shutdown
-                waitToShutdown.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
-                service.shutdown();
-                service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
-            } catch (Exception e) {
-                fail(Strings.format("Failed to shutdown executor: %s", e));
-            }
-        });
+        Future<?> executorTermination = submitShutdownRequest(waitToShutdown, service);
 
         var model = OpenAiEmbeddingsModelTests.createModel("url", null, "secret", "model", null);
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -299,17 +292,21 @@ public class RequestBatchingServiceTests extends ESTestCase {
         verify(queue, times(1)).poll(anyLong(), any());
     }
 
-    public void testChangingCapacity_SetsCapacityToTwo() {
+    public void testChangingCapacity_SetsCapacityToTwo() throws ExecutionException, InterruptedException, TimeoutException {
+        var waitToShutdown = new CountDownLatch(1);
+        var requestSender = mock(RequestSender.class);
+
         var settings = createRequestBatchingServiceSettings(null, null, 1);
         var service = new RequestBatchingService<>(
             getTestName(),
             threadPool,
             null,
-            new OpenAiRequestBatcherFactory(new BatchingComponents(mock(RequestSender.class), threadPool)),
+            new OpenAiRequestBatcherFactory(new BatchingComponents(requestSender, threadPool)),
             settings
         );
 
-        service.submit(OpenAiInferenceRequestCreatorTests.createMock(), List.of("abc"), null, new PlainActionFuture<>());
+        var model = OpenAiEmbeddingsModelTests.createModel("url", null, "secret", "model", null);
+        service.submit(OpenAiInferenceRequestCreatorTests.create(model), List.of("abc"), null, new PlainActionFuture<>());
         assertThat(service.queueSize(), is(1));
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -322,11 +319,33 @@ public class RequestBatchingServiceTests extends ESTestCase {
         );
 
         settings.setQueueCapacity(2);
-        service.start();
-        // TODO stop the service
 
-        service.submit(mock(OpenAiEmbeddingsRequestCreator.class), List.of("abc"), null, new PlainActionFuture<>());
-        assertThat(service.queueSize(), is(2));
+        // There is a request already queued, and its execution path will initiate shutting down the service
+        doAnswer(invocation -> {
+            waitToShutdown.countDown();
+            return Void.TYPE;
+        }).when(requestSender).send(any(), any(), any(), any(), any());
+
+        Future<?> executorTermination = submitShutdownRequest(waitToShutdown, service);
+
+        service.start();
+
+        executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        assertTrue(service.isTerminated());
+        assertThat(service.remainingQueueCapacity(), is(2));
+    }
+
+    private <K> Future<?> submitShutdownRequest(CountDownLatch waitToShutdown, RequestBatchingService<K> service) {
+        return threadPool.generic().submit(() -> {
+            try {
+                // wait for a task to be added to be executed before beginning shutdown
+                waitToShutdown.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+                service.shutdown();
+                service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+            } catch (Exception e) {
+                fail(Strings.format("Failed to shutdown executor: %s", e));
+            }
+        });
     }
 
     private RequestBatchingService<OpenAiAccount> createWithoutLatch() {

@@ -133,6 +133,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             thrownException.getMessage(),
             is("Failed to enqueue task because the http executor service [test_service] has already shutdown")
         );
+        assertTrue(thrownException.isExecutorShutdown());
     }
 
     public void testSend_Throws_WhenQueueIsFull() {
@@ -154,6 +155,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             thrownException.getMessage(),
             is("Failed to execute task because the http executor service [test_service] queue is full")
         );
+        assertFalse(thrownException.isExecutorShutdown());
     }
 
     public void testTaskThrowsError_CallsOnFailure() throws Exception {
@@ -313,12 +315,80 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertThat(service.remainingQueueCapacity(), is(2));
     }
 
-    public void testChangingCapacity_RejectsOverflowTasks() {
-        fail();
+    public void testChangingCapacity_RejectsOverflowTasks() throws IOException, ExecutionException, InterruptedException, TimeoutException {
+        var waitToShutdown = new CountDownLatch(1);
+        var httpClient = mock(HttpClient.class);
+
+        var settings = createRequestExecutorServiceSettings(3);
+        var service = new RequestExecutorService("test_service", httpClient, threadPool, null, settings);
+
+        service.execute(HttpRequestTests.createMock("inferenceEntityId"), null, new PlainActionFuture<>());
+        service.execute(HttpRequestTests.createMock("inferenceEntityId"), null, new PlainActionFuture<>());
+
+        PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+        service.execute(HttpRequestTests.createMock("inferenceEntityId"), null, listener);
+        assertThat(service.queueSize(), is(3));
+
+        settings.setQueueCapacity(1);
+
+        // There is a request already queued, and its execution path will initiate shutting down the service
+        doAnswer(invocation -> {
+            waitToShutdown.countDown();
+            return Void.TYPE;
+        }).when(httpClient).send(any(), any(), any());
+
+        Future<?> executorTermination = submitShutdownRequest(waitToShutdown, service);
+
+        service.start();
+
+        executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        assertTrue(service.isTerminated());
+        assertThat(service.remainingQueueCapacity(), is(1));
+        assertThat(service.queueSize(), is(0));
+
+        var thrownException = expectThrows(
+            EsRejectedExecutionException.class,
+            () -> listener.actionGet(TIMEOUT.getSeconds(), TimeUnit.SECONDS)
+        );
+        assertThat(thrownException.getMessage(), is("Failed to send request, http executor service [test_service] queue is full"));
+        assertFalse(thrownException.isExecutorShutdown());
     }
 
-    public void testChangingCapacity_ToZero_SetsQueueCapacityToUnbounded() {
-        fail();
+    public void testChangingCapacity_ToZero_SetsQueueCapacityToUnbounded() throws IOException, ExecutionException, InterruptedException,
+        TimeoutException {
+        var waitToShutdown = new CountDownLatch(1);
+        var httpClient = mock(HttpClient.class);
+
+        var settings = createRequestExecutorServiceSettings(1);
+        var service = new RequestExecutorService("test_service", httpClient, threadPool, null, settings);
+
+        service.execute(HttpRequestTests.createMock("inferenceEntityId"), null, new PlainActionFuture<>());
+        assertThat(service.queueSize(), is(1));
+
+        PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+        service.execute(HttpRequestTests.createMock("inferenceEntityId"), null, listener);
+
+        var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(
+            thrownException.getMessage(),
+            is("Failed to execute task because the http executor service [test_service] queue is full")
+        );
+
+        settings.setQueueCapacity(0);
+
+        // There is a request already queued, and its execution path will initiate shutting down the service
+        doAnswer(invocation -> {
+            waitToShutdown.countDown();
+            return Void.TYPE;
+        }).when(httpClient).send(any(), any(), any());
+
+        Future<?> executorTermination = submitShutdownRequest(waitToShutdown, service);
+
+        service.start();
+
+        executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        assertTrue(service.isTerminated());
+        assertThat(service.remainingQueueCapacity(), is(Integer.MAX_VALUE));
     }
 
     private Future<?> submitShutdownRequest(CountDownLatch waitToShutdown, RequestExecutorService service) {

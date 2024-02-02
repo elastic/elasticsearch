@@ -30,6 +30,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
@@ -116,12 +117,31 @@ class RequestExecutorService implements RequestExecutor {
         try {
             var remainingTasks = queue.setCapacity(newCapacity);
             if (remainingTasks.isEmpty() == false) {
-                rejectTasks(remainingTasks);
+                rejectTasks(remainingTasks, this::rejectTaskBecauseOfQueueCapacity);
             }
         } catch (Exception e) {
             logger.warn(
                 format("Failed to set the capacity of the task queue to [%s] for request batching service [%s]", newCapacity, serviceName),
                 e
+            );
+        }
+    }
+
+    private void rejectTaskBecauseOfQueueCapacity(AbstractRunnable task) {
+        try {
+            task.onRejection(
+                new EsRejectedExecutionException(
+                    format("Failed to send request, http executor service [%s] queue is full", serviceName),
+                    false
+                )
+            );
+        } catch (Exception e) {
+            logger.warn(
+                format(
+                    "Failed to notify request [%s] for service [%s] of rejection after queue capacity change when queue is now full",
+                    task,
+                    serviceName
+                )
             );
         }
     }
@@ -193,19 +213,13 @@ class RequestExecutorService implements RequestExecutor {
             List<AbstractRunnable> notExecuted = new ArrayList<>();
             queue.drainTo(notExecuted);
 
-            rejectTasks(notExecuted);
+            rejectTasks(notExecuted, this::rejectTaskBecauseOfShutdown);
         } catch (Exception e) {
             logger.warn(format("Failed to notify tasks of queuing service [%s] shutdown", serviceName));
         }
     }
 
-    private void rejectTasks(List<AbstractRunnable> tasks) {
-        for (var task : tasks) {
-            rejectTask(task);
-        }
-    }
-
-    private void rejectTask(AbstractRunnable task) {
+    private void rejectTaskBecauseOfShutdown(AbstractRunnable task) {
         try {
             task.onRejection(
                 new EsRejectedExecutionException(
@@ -217,6 +231,12 @@ class RequestExecutorService implements RequestExecutor {
             logger.warn(
                 format("Failed to notify request [%s] for service [%s] of rejection after queuing service shutdown", task, serviceName)
             );
+        }
+    }
+
+    private void rejectTasks(List<AbstractRunnable> tasks, Consumer<AbstractRunnable> rejectionFunction) {
+        for (var task : tasks) {
+            rejectionFunction.accept(task);
         }
     }
 

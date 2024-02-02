@@ -239,7 +239,6 @@ final class FieldTypeLookup {
         String resolvedField = field;
         if (fullSubfieldNameToParentPath.containsKey(field)) {
             resolvedField = fullSubfieldNameToParentPath.get(field);
-            // TODO: Potential bug here? Shouldn't we return early here since copy_to cannot be used transitively?
         }
 
         return fieldToCopiedFields.containsKey(resolvedField) ? fieldToCopiedFields.get(resolvedField) : Set.of(resolvedField);

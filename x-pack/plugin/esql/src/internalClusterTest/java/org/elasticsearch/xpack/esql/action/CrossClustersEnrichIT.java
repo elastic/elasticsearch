@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.VerificationException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -200,11 +201,11 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
     }
 
     static String enrichHosts(Enrich.Mode mode) {
-        return EnrichHelper.randomEnrichCommand(hostPolicy, "hosts", mode);
+        return EsqlTestUtils.randomEnrichCommand("hosts", mode, hostPolicy.getMatchField(), hostPolicy.getEnrichFields());
     }
 
     static String enrichVendors(Enrich.Mode mode) {
-        return EnrichHelper.randomEnrichCommand(vendorPolicy, "vendors", mode);
+        return EsqlTestUtils.randomEnrichCommand("vendors", mode, vendorPolicy.getMatchField(), vendorPolicy.getEnrichFields());
     }
 
     public void testWithHostsPolicy() {

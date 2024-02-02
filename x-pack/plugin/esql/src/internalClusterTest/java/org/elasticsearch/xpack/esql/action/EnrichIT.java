@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
@@ -203,7 +204,12 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     private static String enrichSongCommand() {
-        return EnrichHelper.randomEnrichCommand(policy, "songs", randomFrom(Enrich.Mode.COORDINATOR, Enrich.Mode.ANY));
+        return EsqlTestUtils.randomEnrichCommand(
+            "songs",
+            randomFrom(Enrich.Mode.COORDINATOR, Enrich.Mode.ANY),
+            policy.getMatchField(),
+            policy.getEnrichFields()
+        );
     }
 
     public void testSumDurationByArtist() {

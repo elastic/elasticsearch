@@ -146,10 +146,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             Task task,
             BulkRequest bulkRequest,
             long startTimeNanos,
-            ActionListener<BulkResponse> listener,
             String executorName,
             AtomicArray<BulkItemResponse> responses,
-            Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+            Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
+            ActionListener<BulkResponse> listener
         ) {
             assertTrue(indexCreated);
             isExecuted = true;

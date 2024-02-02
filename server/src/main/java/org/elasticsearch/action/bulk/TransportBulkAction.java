@@ -405,13 +405,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         // Optimizing when there are no prerequisite actions
         if (indicesToAutoCreate.isEmpty() && dataStreamsToBeRolledOver.isEmpty()) {
-            executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
+            executeBulk(task, bulkRequest, startTime, executorName, responses, indicesThatCannotBeCreated, listener);
             return;
         }
         Runnable executeBulkRunnable = () -> threadPool.executor(executorName).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
-                executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
+                executeBulk(task, bulkRequest, startTime, executorName, responses, indicesThatCannotBeCreated, listener);
             }
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
@@ -612,10 +612,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Task task,
         BulkRequest bulkRequest,
         long startTimeNanos,
-        ActionListener<BulkResponse> listener,
         String executorName,
         AtomicArray<BulkItemResponse> responses,
-        Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+        Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
+        ActionListener<BulkResponse> listener
     ) {
         new BulkOperation(
             task,
@@ -629,6 +629,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             relativeTimeProvider,
             startTimeNanos,
+            modelRegistry,
+            inferenceServiceRegistry,
             listener
         ).run();
     }

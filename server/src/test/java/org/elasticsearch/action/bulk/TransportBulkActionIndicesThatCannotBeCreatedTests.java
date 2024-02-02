@@ -132,10 +132,10 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
                 Task task,
                 BulkRequest bulkRequest,
                 long startTimeNanos,
-                ActionListener<BulkResponse> listener,
                 String executorName,
                 AtomicArray<BulkItemResponse> responses,
-                Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+                Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
+                ActionListener<BulkResponse> listener
             ) {
                 assertEquals(expected, indicesThatCannotBeCreated.keySet());
             }

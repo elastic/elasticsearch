@@ -290,6 +290,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         ActionListener<SearchResponse> loggingAndMetrics = listener.delegateFailureAndWrap((l, searchResponse) -> {
             searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+            searchResponseMetrics.recordFailedShardsCount(searchResponse.getFailedShards());
             if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
                 // Deduplicate failures by exception message and index
                 ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());

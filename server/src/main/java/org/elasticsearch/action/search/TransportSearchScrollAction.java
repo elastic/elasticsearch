@@ -57,6 +57,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         ActionListener<SearchResponse> loggingAndMetrics = listener.delegateFailureAndWrap((l, searchResponse) -> {
             searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+            searchResponseMetrics.recordFailedShardsCount(searchResponse.getFailedShards());
             if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
                 ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
                 for (ShardOperationFailedException f : groupedFailures) {

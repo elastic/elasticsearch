@@ -16,7 +16,7 @@ import java.io.IOException;
 
 /**
  * Specific instance of QueryPhaseExecutionException that indicates that a search timeout occurred.
- * Always returns http status 405 (Gateway Timeout)
+ * Always returns http status 504 (Gateway Timeout)
  */
 public class QueryPhaseTimeoutException extends QueryPhaseExecutionException {
     public QueryPhaseTimeoutException(SearchShardTarget shardTarget, String msg) {

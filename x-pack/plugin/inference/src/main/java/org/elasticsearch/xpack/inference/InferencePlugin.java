@@ -23,6 +23,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.InferenceServiceRegistryImpl;
 import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -138,11 +139,14 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         inferenceServices.add(this::getInferenceServiceFactories);
 
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client());
-        var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
+        var registry = new InferenceServiceRegistryImpl(inferenceServices, factoryContext);
         registry.init(services.client());
         inferenceServiceRegistry.set(registry);
 
-        return List.of(new PluginComponentBinding<>(ModelRegistry.class, modelRegistry), registry);
+        return List.of(
+            new PluginComponentBinding<>(ModelRegistry.class, modelRegistry),
+            new PluginComponentBinding<>(InferenceServiceRegistry.class, registry)
+        );
     }
 
     @Override

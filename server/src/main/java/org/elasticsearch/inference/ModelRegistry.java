@@ -14,10 +14,35 @@ import java.util.List;
 import java.util.Map;
 
 public interface ModelRegistry {
-    void getModel(String modelId, ActionListener<UnparsedModel> listener);
 
+    /**
+     * Get a model.
+     * Secret settings are not included
+     * @param inferenceEntityId Model to get
+     * @param listener Model listener
+     */
+    void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener);
+
+    /**
+     * Get a model with its secret settings
+     * @param inferenceEntityId Model to get
+     * @param listener Model listener
+     */
+    void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener);
+
+    /**
+     * Get all models of a particular task type.
+     * Secret settings are not included
+     * @param taskType The task type
+     * @param listener Models listener
+     */
     void getModelsByTaskType(TaskType taskType, ActionListener<List<UnparsedModel>> listener);
 
+    /**
+     * Get all models.
+     * Secret settings are not included
+     * @param listener Models listener
+     */
     void getAllModels(ActionListener<List<UnparsedModel>> listener);
 
     void storeModel(Model model, ActionListener<Boolean> listener);
@@ -35,4 +60,40 @@ public interface ModelRegistry {
         Map<String, Object> settings,
         Map<String, Object> secrets
     ) {}
+
+    class NoopModelRegistry implements ModelRegistry {
+        @Override
+        public void getModel(String modelId, ActionListener<UnparsedModel> listener) {
+            fail(listener);
+        }
+
+        @Override
+        public void getModelsByTaskType(TaskType taskType, ActionListener<List<UnparsedModel>> listener) {
+            listener.onResponse(List.of());
+        }
+
+        @Override
+        public void getAllModels(ActionListener<List<UnparsedModel>> listener) {
+            listener.onResponse(List.of());
+        }
+
+        @Override
+        public void storeModel(Model model, ActionListener<Boolean> listener) {
+            fail(listener);
+        }
+
+        @Override
+        public void deleteModel(String modelId, ActionListener<Boolean> listener) {
+            fail(listener);
+        }
+
+        @Override
+        public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+            fail(listener);
+        }
+
+        private static void fail(ActionListener<?> listener) {
+            listener.onFailure(new IllegalArgumentException("No model registry configured"));
+        }
+    }
 }

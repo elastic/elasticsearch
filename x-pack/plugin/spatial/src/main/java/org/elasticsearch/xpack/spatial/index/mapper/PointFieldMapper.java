@@ -153,7 +153,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
     @Override
     protected void index(DocumentParserContext context, CartesianPoint point) {
         if (fieldType().isIndexed()) {
-            context.doc().add(new XYPointField(fieldType().concreteFieldName(), (float) point.getX(), (float) point.getY()));
+            context.doc().add(new XYPointField(fieldType().name(), (float) point.getX(), (float) point.getY()));
         }
         if (fieldType().hasDocValues()) {
             context.doc().add(new XYDocValuesField(fieldType().concreteFieldName(), (float) point.getX(), (float) point.getY()));
@@ -161,7 +161,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             context.addToFieldNames(fieldType().name());
         }
         if (fieldType().isStored()) {
-            context.doc().add(new StoredField(fieldType().concreteFieldName(), point.toString()));
+            context.doc().add(new StoredField(fieldType().name(), point.toString()));
         }
     }
 
@@ -206,7 +206,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new CartesianPointIndexFieldData.Builder(
-                concreteFieldName(),
+                name(),
                 CartesianPointValuesSourceType.instance(),
                 CartesianPointDocValuesField::new
             );

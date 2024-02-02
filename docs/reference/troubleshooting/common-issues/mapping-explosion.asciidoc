@@ -41,12 +41,15 @@ timing out in the browser's Developer Tools Network tab.
 doesn't normally cause problems unless it's combined with overriding
 <<mapping-settings-limit,`index.mapping.total_fields.limit`>>. The
 default `1000` limit is considered generous, though overriding to `10000`
-doesn't cause noticable impact depending on use case. However, to give
+doesn't cause noticeable impact depending on use case. However, to give
 a bad example, overriding to `100000` and this limit being hit
 by mapping totals would usually have strong performance implications.
 
 If your index mapped fields expect to contain a large, arbitrary set of
 keys, you may instead consider:
+
+* Setting <<mapping-settings-limit,`index.mapping.total_fields.ignore_dynamic_beyond_limit`>> to `true`.
+Instead of rejecting documents that exceed the field limit, this will ignore dynamic fields once the limit is reached.
 
 * Using the <<flattened,flattened>> data type. Please note,
 however, that flattened objects is link:https://github.com/elastic/kibana/issues/25820[not fully supported in {kib}] yet. For example, this could apply to sub-mappings like { `host.name` ,

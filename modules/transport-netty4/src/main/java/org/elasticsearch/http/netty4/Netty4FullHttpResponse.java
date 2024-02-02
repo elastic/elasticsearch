@@ -13,10 +13,11 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
-public final class Netty4FullHttpResponse extends DefaultFullHttpResponse implements Netty4RestResponse {
+public final class Netty4FullHttpResponse extends DefaultFullHttpResponse implements Netty4HttpResponse, HttpResponse {
 
     private final int sequence;
 
@@ -28,5 +29,15 @@ public final class Netty4FullHttpResponse extends DefaultFullHttpResponse implem
     @Override
     public int getSequence() {
         return sequence;
+    }
+
+    @Override
+    public void addHeader(String name, String value) {
+        headers().add(name, value);
+    }
+
+    @Override
+    public boolean containsHeader(String name) {
+        return headers().contains(name);
     }
 }

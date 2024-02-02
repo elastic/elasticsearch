@@ -282,7 +282,7 @@ public class HeapAttackIT extends ESRestTestCase {
 
     public void testTooManyEval() throws IOException {
         initManyLongs();
-        assertCircuitBreaks(() -> manyEval(1500));
+        assertCircuitBreaks(() -> manyEval(1000));
     }
 
     private Response manyEval(int evalLines) throws IOException {

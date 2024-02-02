@@ -8,19 +8,16 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 
-public class XPackInfoAction extends ActionType<XPackInfoResponse> {
+public class XPackInfoAction {
 
     public static final String NAME = "cluster:monitor/xpack/info";
-    public static final XPackInfoAction INSTANCE = new XPackInfoAction();
+    public static final ActionType<XPackInfoResponse> INSTANCE = new ActionType<>(NAME);
     public static final RemoteClusterActionType<XPackInfoResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
         NAME,
         XPackInfoResponse::new
     );
 
-    public XPackInfoAction() {
-        super(NAME, Writeable.Reader.localOnly());
-    }
+    private XPackInfoAction() {/* no instances */}
 }

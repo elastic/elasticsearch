@@ -183,18 +183,18 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         Set<String> platformArchitectures,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
-        ActionListener<Model> modelListener = ActionListener.wrap(model -> {
+        ActionListener<Model> modelListener = listener.delegateFailureAndWrap((delegate, model) -> {
             service.checkModelConfig(
                 model,
-                listener.delegateFailureAndWrap(
+                delegate.delegateFailureAndWrap(
                     // model is valid good to persist then start
-                    (delegate, verifiedModel) -> modelRegistry.storeModel(
+                    (delegate2, verifiedModel) -> modelRegistry.storeModel(
                         verifiedModel,
-                        delegate.delegateFailureAndWrap((l, r) -> putAndStartModel(service, verifiedModel, l))
+                        delegate2.delegateFailureAndWrap((l, r) -> putAndStartModel(service, verifiedModel, l))
                     )
                 )
             );
-        }, listener::onFailure);
+        });
 
         service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures, modelListener);
 

@@ -127,9 +127,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 settings.put("foo", "bar");
 
                 ActionListener<Model> errorVerificationListener = ActionListener.wrap((model) -> {
-                    if (throwOnUnknown == false) {
-
-                    } else {
+                    if (throwOnUnknown) {
                         fail("Model verification should fail when throwOnUnknown is true");
                     }
                 }, (e) -> {
@@ -174,7 +172,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 settings.put(ModelConfigurations.TASK_SETTINGS, Map.of("foo", "bar"));
 
                 ActionListener<Model> errorVerificationListener = ActionListener.wrap((model) -> {
-                    if (throwOnUnknown == false) {} else {
+                    if (throwOnUnknown) {
                         fail("Model verification should fail when throwOnUnknown is true");
                     }
                 }, (e) -> {
@@ -219,7 +217,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 settings.put(ModelConfigurations.TASK_SETTINGS, Map.of("foo", "bar"));
 
                 ActionListener<Model> errorVerificationListener = ActionListener.wrap((model) -> {
-                    if (throwOnUnknown == false) {} else {
+                    if (throwOnUnknown) {
                         fail("Model verification should fail when throwOnUnknown is true");
                     }
                 }, (e) -> {

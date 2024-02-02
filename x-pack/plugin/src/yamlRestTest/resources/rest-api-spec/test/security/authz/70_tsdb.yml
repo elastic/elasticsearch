@@ -104,13 +104,13 @@ document level security on tag:
 
   - match: {hits.total.value: 4}
   - length: {aggregations.tsids.buckets: 1}
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
 
 ---
 document level security on dimension:
   - skip:
-      version: " - 8.0.99"
+      version: " - 8.11.99"
       reason: _tsid support introduced in 8.1.0
       features: headers
 
@@ -151,7 +151,7 @@ document level security on dimension:
 
   - match: { hits.total.value: 4 }
   - length: { aggregations.tsids.buckets: 1 }
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
 
 ---

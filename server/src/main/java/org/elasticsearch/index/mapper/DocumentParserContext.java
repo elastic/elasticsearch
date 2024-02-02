@@ -552,7 +552,12 @@ public abstract class DocumentParserContext {
         if (p.endsWith(".")) {
             p = p.substring(0, p.length() - 1);
         }
-        return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic(), false);
+        boolean containsDimensions = false;
+        ObjectMapper objectMapper = mappingLookup.objectMappers().get(p);
+        if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
+            containsDimensions = passThroughObjectMapper.containsDimensions();
+        }
+        return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic(), false, containsDimensions);
     }
 
     public abstract XContentParser parser();

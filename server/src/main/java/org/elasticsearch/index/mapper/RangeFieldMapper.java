@@ -435,7 +435,7 @@ public class RangeFieldMapper extends FieldMapper {
                 "error parsing field [" + name() + "], expected an object but got " + parser.currentName()
             );
         }
-        context.doc().addAll(fieldType().rangeType.createFields(context, fieldType().name(), range, index, hasDocValues, store));
+        context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
 
         if (hasDocValues == false && (index || store)) {
             context.addToFieldNames(fieldType().name());

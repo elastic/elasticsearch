@@ -651,7 +651,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     // close the subParser so we advance to the end of the object
                     subParser.close();
                 }
-                context.addIgnoredField(fieldType().name());
+                context.addIgnoredField(name());
                 context.path().remove();
                 return;
             }
@@ -678,7 +678,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed numbers"
             );
         }
-        return new AggregateMetricSyntheticFieldLoader(fieldType().name(), simpleName(), metrics);
+        return new AggregateMetricSyntheticFieldLoader(name(), simpleName(), metrics);
     }
 
     public static class AggregateMetricSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {

@@ -959,7 +959,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (value.length() <= ignoreAbove) {
                 createFields(value, parseDoc, fields);
             } else {
-                context.addIgnoredField(fieldType().name());
+                context.addIgnoredField(name());
                 if (storeIgnored) {
                     parseDoc.add(new StoredField(originalName(), new BytesRef(value)));
                 }

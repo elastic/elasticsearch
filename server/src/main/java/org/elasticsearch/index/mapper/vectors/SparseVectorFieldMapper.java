@@ -107,7 +107,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return FeatureField.newLinearQuery(concreteFieldName(), indexedValueForSearch(value), DEFAULT_BOOST);
+            return FeatureField.newLinearQuery(name(), indexedValueForSearch(value), DEFAULT_BOOST);
         }
 
         @Override
@@ -185,7 +185,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 } else if (token == Token.VALUE_NULL) {
                     // ignore feature, this is consistent with numeric fields
                 } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
-                    final String key = fieldType().name() + "." + feature;
+                    final String key = name() + "." + feature;
                     float value = context.parser().floatValue(true);
                     if (context.doc().getByKey(key) != null) {
                         throw new IllegalArgumentException(
@@ -194,7 +194,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                                 + "] in the same document"
                         );
                     }
-                    context.doc().addWithKey(key, new FeatureField(fieldType().name(), feature, value));
+                    context.doc().addWithKey(key, new FeatureField(name(), feature, value));
                 } else {
                     throw new IllegalArgumentException(
                         "[sparse_vector] fields take hashes that map a feature to a strictly positive "

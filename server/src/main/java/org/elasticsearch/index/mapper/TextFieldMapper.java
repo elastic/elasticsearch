@@ -1240,7 +1240,7 @@ public final class TextFieldMapper extends FieldMapper {
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         Map<String, NamedAnalyzer> analyzersMap = new HashMap<>();
-        analyzersMap.put(fieldType().name(), indexAnalyzer);
+        analyzersMap.put(name(), indexAnalyzer);
         if (phraseFieldInfo != null) {
             analyzersMap.put(
                 phraseFieldInfo.field,
@@ -1447,7 +1447,7 @@ public final class TextFieldMapper extends FieldMapper {
             );
         }
         if (store) {
-            return new StringStoredFieldFieldLoader(fieldType().name(), simpleName(), null) {
+            return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     b.value((String) value);
@@ -1468,7 +1468,7 @@ public final class TextFieldMapper extends FieldMapper {
                 Locale.ROOT,
                 "field [%s] of type [%s] doesn't support synthetic source unless it is stored or has a sub-field of"
                     + " type [keyword] with doc values or stored and without a normalizer",
-                fieldType().name(),
+                name(),
                 typeName()
             )
         );

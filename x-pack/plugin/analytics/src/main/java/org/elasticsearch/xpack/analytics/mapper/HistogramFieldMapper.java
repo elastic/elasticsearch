@@ -403,7 +403,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 }
             }
             BytesRef docValue = streamOutput.bytes().toBytesRef();
-            Field field = new BinaryDocValuesField(fieldType().name(), docValue);
+            Field field = new BinaryDocValuesField(name(), docValue);
             if (context.doc().getByKey(fieldType().name()) != null) {
                 throw new IllegalArgumentException(
                     "Field ["

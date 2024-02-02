@@ -137,7 +137,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public String concreteFieldName() {
-            // constant_keyword are not indexed in lucene
+            // constant_keyword do not have a representation in lucene
             return null;
         }
 

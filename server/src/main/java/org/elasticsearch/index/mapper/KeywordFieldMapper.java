@@ -915,7 +915,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         if (value.length() > fieldType().ignoreAbove()) {
-            context.addIgnoredField(fieldType().name());
+            context.addIgnoredField(name());
             if (storeIgnored) {
                 // Save a copy of the field so synthetic source can load it
                 context.doc().add(new StoredField(originalName(), new BytesRef(value)));
@@ -923,7 +923,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        value = normalizeValue(fieldType().normalizer(), fieldType().name(), value);
+        value = normalizeValue(fieldType().normalizer(), name(), value);
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
@@ -1005,7 +1005,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public void doValidate(MappingLookup lookup) {
-        if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(fieldType().name())) {
+        if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(name())) {
             throw new IllegalArgumentException(
                 TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
             );
@@ -1046,7 +1046,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
         if (fieldType.stored()) {
             return new StringStoredFieldFieldLoader(
-                fieldType().name(),
+                name(),
                 simpleName,
                 fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName()
             ) {

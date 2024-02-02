@@ -106,7 +106,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return FeatureField.newLinearQuery(concreteFieldName(), indexedValueForSearch(value), DEFAULT_BOOST);
+            return FeatureField.newLinearQuery(name(), indexedValueForSearch(value), DEFAULT_BOOST);
         }
 
         private static String indexedValueForSearch(Object value) {

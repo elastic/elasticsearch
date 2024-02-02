@@ -533,10 +533,10 @@ public class IpFieldMapper extends FieldMapper {
             address = value(context.parser(), nullValue);
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed) {
-                context.addIgnoredField(fieldType().name());
+                context.addIgnoredField(name());
                 if (storeIgnored) {
                     // Save a copy of the field so synthetic source can load it
-                    context.doc().add(IgnoreMalformedStoredValues.storedField(fieldType().name(), context.parser()));
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
                 }
                 return;
             } else {
@@ -591,7 +591,7 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     public void doValidate(MappingLookup lookup) {
-        if (dimension && null != lookup.nestedLookup().getNestedParent(fieldType().name())) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(name())) {
             throw new IllegalArgumentException(
                 TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
             );

@@ -186,6 +186,7 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
 
     @Override
     public String concreteFieldName() {
+        // ScriptFieldTypes do not have a representation in lucene
         return null;
     }
 

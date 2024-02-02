@@ -222,7 +222,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
         parser.parse(context.parser(), v -> index(context, v), e -> {
             if (ignoreMalformed()) {
-                context.addIgnoredField(fieldType().name());
+                context.addIgnoredField(name());
             } else {
                 throw new DocumentParsingException(
                     context.parser().getTokenLocation(),

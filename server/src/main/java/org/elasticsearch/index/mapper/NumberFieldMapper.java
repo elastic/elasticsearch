@@ -1843,7 +1843,7 @@ public class NumberFieldMapper extends FieldMapper {
                 context.addIgnoredField(mappedFieldType.name());
                 if (storeMalformedFields) {
                     // Save a copy of the field so synthetic source can load it
-                    context.doc().add(IgnoreMalformedStoredValues.storedField(fieldType().name(), context.parser()));
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
                 }
                 return;
             } else {
@@ -1922,7 +1922,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public void doValidate(MappingLookup lookup) {
-        if (dimension && null != lookup.nestedLookup().getNestedParent(fieldType().name())) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(name())) {
             throw new IllegalArgumentException(
                 TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
             );
@@ -1944,7 +1944,7 @@ public class NumberFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return type.syntheticFieldLoader(fieldType().name(), simpleName(), ignoreMalformed.value());
+        return type.syntheticFieldLoader(name(), simpleName(), ignoreMalformed.value());
     }
 
     // For testing only:

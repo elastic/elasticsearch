@@ -31,6 +31,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.countedterms.CountedTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -48,7 +49,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
-import org.elasticsearch.xpack.countedkeyword.CountedTermsAggregationBuilder;
 
 import java.time.Duration;
 import java.time.Instant;

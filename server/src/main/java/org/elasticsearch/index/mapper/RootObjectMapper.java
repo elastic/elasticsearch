@@ -308,10 +308,8 @@ public class RootObjectMapper extends ObjectMapper {
                 runtimeFields.remove(runtimeField.getKey());
             } else if (runtimeFields.containsKey(runtimeField.getKey())) {
                 runtimeFields.put(runtimeField.getKey(), runtimeField.getValue());
-            } else {
-                if (parentMergeContext.decrementFieldBudgetIfPossible(1)) {
-                    runtimeFields.put(runtimeField.getValue().name(), runtimeField.getValue());
-                }
+            } else if (parentMergeContext.decrementFieldBudgetIfPossible(1)) {
+                runtimeFields.put(runtimeField.getValue().name(), runtimeField.getValue());
             }
         }
 

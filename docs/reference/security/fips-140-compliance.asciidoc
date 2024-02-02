@@ -198,7 +198,7 @@ configuration to be FIPS 140-2 compliant and provides some additional verificati
 * Set `xpack.security.autoconfiguration.enabled` to `false`. This will disable the automatic configuration of the security settings.
 Users must ensure that the security settings are configured correctly for FIPS-140-2 compliance. This is only applicable for new installations.
 
-* Optional: Set `xpack.security.fips_mode.required_providers` in `elasticsearch.yml` to ensure the required security providers.
+* Optional: Set `xpack.security.fips_mode.required_providers` in `elasticsearch.yml` to ensure the required security providers (8.13+).
 see xref:verify-security-provider[below].
 
 [discrete]
@@ -209,11 +209,12 @@ To verify that the security provider is installed and in use, you can use any of
 
 * Verify the required security providers are configured with the lowest order in the file pointed to by `java.security.properties`.
 For example, `security.provider.1` is a lower order than `security.provider.2`
+
 * Set `xpack.security.fips_mode.required_providers` in `elasticsearch.yml` to the list of required security providers.
-This setting is used to ensure that the correct security provider is installed and configured.
+This setting is used to ensure that the correct security provider is installed and configured. (8.13+)
 If the security provider is not installed correctly, {es} will fail to start. `["BCFIPS", "BCJSSE"]` are the values to
 use for Bouncy Castle's FIPS JCE and JSSE certified provider.
-* Set `logger.org.elasticsearch.xpack.security` to `trace` in `elasticsearch.yml` and check the logs for the algorithms and providers that are in use.
+
 
 [discrete]
 [[fips-upgrade-considerations]]

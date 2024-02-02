@@ -129,8 +129,10 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Returns the lucene field name, defaults to name() needs to be overwritten
-     * if mapping field name is different from lucene field name.
+     * Returns the lucene field name, defaults to name() needs to be overwritten if mapping field name is different
+     * from lucene field name. For 99% of the case we have the same string for both user defined mapping and lucene
+     * index. This is not the case for runtime fields, constant keywords and for rank features, the first two do  
+     * not have a representation in lucene while the last is always represented with a single '_feature' filed.
      * @return the lucene field name
      * */
     public String concreteFieldName() {
@@ -358,7 +360,7 @@ public abstract class MappedFieldType {
         if (hasDocValues() || getTextSearchInfo().hasNorms()) {
             return new FieldExistsQuery(name());
         } else {
-            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, concreteFieldName()));
         }
     }
 

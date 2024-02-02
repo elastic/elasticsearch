@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -28,6 +30,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -62,14 +65,14 @@ public class ApiKeyFieldNameTranslators {
      */
     public static String translate(String fieldName) {
         if (Regex.isSimpleMatchPattern(fieldName)) {
-            throw new IllegalArgumentException("Field name pattern [" + fieldName + "] is not allowed for API Key query");
+            throw new IllegalArgumentException("Field name pattern [" + fieldName + "] is not allowed for API Key query or aggregation");
         }
         for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
             if (translator.supports(fieldName)) {
                 return translator.translate(fieldName);
             }
         }
-        throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query");
+        throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query or aggregation");
     }
 
     /**
@@ -91,53 +94,61 @@ public class ApiKeyFieldNameTranslators {
         return indexFieldNames;
     }
 
-    public static QueryBuilder translateQueryBuilderFields(QueryBuilder qb, Consumer<String> fieldNameVisitor) {
-        if (qb instanceof final BoolQueryBuilder query) {
+    public static QueryBuilder translateQueryBuilderFields(QueryBuilder queryBuilder, @Nullable Consumer<String> visitor) {
+        Objects.requireNonNull(queryBuilder, "unsupported \"null\" query builder for field name translation");
+        final Consumer<String> fieldNameVisitor = visitor != null ? visitor : ignored -> {};
+        if (queryBuilder instanceof final BoolQueryBuilder query) {
             final BoolQueryBuilder newQuery = QueryBuilders.boolQuery()
                 .minimumShouldMatch(query.minimumShouldMatch())
                 .adjustPureNegative(query.adjustPureNegative())
-                .boost(query.boost());
+                .boost(query.boost())
+                .queryName(query.queryName());
             query.must().stream().map(q -> translateQueryBuilderFields(q, fieldNameVisitor)).forEach(newQuery::must);
             query.should().stream().map(q -> translateQueryBuilderFields(q, fieldNameVisitor)).forEach(newQuery::should);
             query.mustNot().stream().map(q -> translateQueryBuilderFields(q, fieldNameVisitor)).forEach(newQuery::mustNot);
             query.filter().stream().map(q -> translateQueryBuilderFields(q, fieldNameVisitor)).forEach(newQuery::filter);
             return newQuery;
-        } else if (qb instanceof MatchAllQueryBuilder) {
-            return qb;
-        } else if (qb instanceof IdsQueryBuilder) {
-            return qb;
-        } else if (qb instanceof final TermQueryBuilder query) {
+        } else if (queryBuilder instanceof final MatchAllQueryBuilder query) {
+            // just be safe and consistent to always return a new copy instance of the translated query builders
+            return QueryBuilders.matchAllQuery().boost(query.boost()).queryName(query.queryName());
+        } else if (queryBuilder instanceof final IdsQueryBuilder query) {
+            // just be safe and consistent to always return a new copy instance of the translated query builders
+            return QueryBuilders.idsQuery().addIds(query.ids().toArray(new String[0])).boost(query.boost()).queryName(query.queryName());
+        } else if (queryBuilder instanceof final TermQueryBuilder query) {
             final String translatedFieldName = translate(query.fieldName());
             fieldNameVisitor.accept(translatedFieldName);
             return QueryBuilders.termQuery(translatedFieldName, query.value())
                 .caseInsensitive(query.caseInsensitive())
-                .boost(query.boost());
-        } else if (qb instanceof final ExistsQueryBuilder query) {
+                .boost(query.boost())
+                .queryName(query.queryName());
+        } else if (queryBuilder instanceof final ExistsQueryBuilder query) {
             final String translatedFieldName = translate(query.fieldName());
             fieldNameVisitor.accept(translatedFieldName);
-            return QueryBuilders.existsQuery(translatedFieldName).boost(query.boost());
-        } else if (qb instanceof final TermsQueryBuilder query) {
+            return QueryBuilders.existsQuery(translatedFieldName).boost(query.boost()).queryName(query.queryName());
+        } else if (queryBuilder instanceof final TermsQueryBuilder query) {
             if (query.termsLookup() != null) {
                 throw new IllegalArgumentException("terms query with terms lookup is not supported for API Key query");
             }
             final String translatedFieldName = translate(query.fieldName());
             fieldNameVisitor.accept(translatedFieldName);
-            return QueryBuilders.termsQuery(translatedFieldName, query.getValues()).boost(query.boost());
-        } else if (qb instanceof final PrefixQueryBuilder query) {
+            return QueryBuilders.termsQuery(translatedFieldName, query.getValues()).boost(query.boost()).queryName(query.queryName());
+        } else if (queryBuilder instanceof final PrefixQueryBuilder query) {
             final String translatedFieldName = translate(query.fieldName());
             fieldNameVisitor.accept(translatedFieldName);
             return QueryBuilders.prefixQuery(translatedFieldName, query.value())
                 .caseInsensitive(query.caseInsensitive())
                 .rewrite(query.rewrite())
-                .boost(query.boost());
-        } else if (qb instanceof final WildcardQueryBuilder query) {
+                .boost(query.boost())
+                .queryName(query.queryName());
+        } else if (queryBuilder instanceof final WildcardQueryBuilder query) {
             final String translatedFieldName = translate(query.fieldName());
             fieldNameVisitor.accept(translatedFieldName);
             return QueryBuilders.wildcardQuery(translatedFieldName, query.value())
                 .caseInsensitive(query.caseInsensitive())
                 .rewrite(query.rewrite())
-                .boost(query.boost());
-        } else if (qb instanceof final MatchQueryBuilder query) {
+                .boost(query.boost())
+                .queryName(query.queryName());
+        } else if (queryBuilder instanceof final MatchQueryBuilder query) {
             final String translatedFieldName = translate(query.fieldName());
             fieldNameVisitor.accept(translatedFieldName);
             final MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery(translatedFieldName, query.value());
@@ -164,9 +175,10 @@ public class ApiKeyFieldNameTranslators {
                 .fuzzyTranspositions(query.fuzzyTranspositions())
                 .lenient(query.lenient())
                 .autoGenerateSynonymsPhraseQuery(query.autoGenerateSynonymsPhraseQuery())
-                .boost(query.boost());
+                .boost(query.boost())
+                .queryName(query.queryName());
             return matchQueryBuilder;
-        } else if (qb instanceof final RangeQueryBuilder query) {
+        } else if (queryBuilder instanceof final RangeQueryBuilder query) {
             if (query.relation() != null) {
                 throw new IllegalArgumentException("range query with relation is not supported for API Key query");
             }
@@ -185,19 +197,23 @@ public class ApiKeyFieldNameTranslators {
             if (query.to() != null) {
                 newQuery.to(query.to()).includeUpper(query.includeUpper());
             }
-            return newQuery.boost(query.boost());
-        } else if (qb instanceof final SimpleQueryStringBuilder simpleQueryStringBuilder) {
-            if (simpleQueryStringBuilder.fields().isEmpty()) {
-                simpleQueryStringBuilder.field("*");
+            return newQuery.boost(query.boost()).queryName(query.queryName());
+        } else if (queryBuilder instanceof final SimpleQueryStringBuilder query) {
+            SimpleQueryStringBuilder simpleQueryStringBuilder = QueryBuilders.simpleQueryStringQuery(query.value());
+            Map<String, Float> queryFields = new HashMap<>(query.fields());
+            // be explicit that no field means all fields
+            if (queryFields.isEmpty()) {
+                queryFields.put("*", AbstractQueryBuilder.DEFAULT_BOOST);
             }
-            // override lenient if querying all the fields, because, due to different field mappings,
+            // override "lenient" if querying all the fields, because, due to different field mappings,
             // the query parsing will almost certainly fail otherwise
-            if (QueryParserHelper.hasAllFieldsWildcard(simpleQueryStringBuilder.fields().keySet())) {
+            if (QueryParserHelper.hasAllFieldsWildcard(queryFields.keySet())) {
                 simpleQueryStringBuilder.lenient(true);
+            } else {
+                simpleQueryStringBuilder.lenient(query.lenient());
             }
-            Map<String, Float> requestedFields = new HashMap<>(simpleQueryStringBuilder.fields());
-            simpleQueryStringBuilder.fields().clear();
-            for (Map.Entry<String, Float> requestedFieldNameOrPattern : requestedFields.entrySet()) {
+            // translate query-level field name patterns to index-level concrete field names
+            for (Map.Entry<String, Float> requestedFieldNameOrPattern : queryFields.entrySet()) {
                 for (String translatedField : translatePattern(requestedFieldNameOrPattern.getKey())) {
                     simpleQueryStringBuilder.fields()
                         .compute(
@@ -208,16 +224,27 @@ public class ApiKeyFieldNameTranslators {
                 }
             }
             if (simpleQueryStringBuilder.fields().isEmpty()) {
-                // A SimpleQueryStringBuilder with empty fields() will eventually produce a SimpleQueryString query
-                // that accesses all the fields, including disallowed ones.
-                // Instead, the behavior we're after is that a query that accesses only disallowed fields should
-                // not match any docs.
-                return new MatchNoneQueryBuilder();
-            } else {
-                return simpleQueryStringBuilder;
+                // A SimpleQueryStringBuilder with empty fields() will eventually produce a SimpleQueryString
+                // Lucene query that accesses all the fields, including disallowed ones.
+                // Instead, the behavior we're after here is that a query that accesses only disallowed fields
+                // mustn't match any docs.
+                return new MatchNoneQueryBuilder().boost(simpleQueryStringBuilder.boost()).queryName(simpleQueryStringBuilder.queryName());
             }
+            return simpleQueryStringBuilder.analyzer(query.analyzer())
+                .defaultOperator(query.defaultOperator())
+                .minimumShouldMatch(query.minimumShouldMatch())
+                .flags(query.flags())
+                .type(query.type())
+                .quoteFieldSuffix(query.quoteFieldSuffix())
+                .analyzeWildcard(query.analyzeWildcard())
+                .autoGenerateSynonymsPhraseQuery(query.autoGenerateSynonymsPhraseQuery())
+                .fuzzyTranspositions(query.fuzzyTranspositions())
+                .fuzzyMaxExpansions(query.fuzzyMaxExpansions())
+                .fuzzyPrefixLength(query.fuzzyPrefixLength())
+                .boost(query.boost())
+                .queryName(query.queryName());
         } else {
-            throw new IllegalArgumentException("Query type [" + qb.getName() + "] is not supported for API Key query");
+            throw new IllegalArgumentException("Query type [" + queryBuilder.getName() + "] is not supported for API Key query");
         }
     }
 

@@ -139,6 +139,7 @@ public class Constants {
         "cluster:admin/xpack/connector/update_pipeline",
         "cluster:admin/xpack/connector/update_scheduling",
         "cluster:admin/xpack/connector/update_service_type",
+        "cluster:admin/xpack/connector/update_status",
         "cluster:admin/xpack/connector/secret/delete",
         "cluster:admin/xpack/connector/secret/get",
         "cluster:admin/xpack/connector/secret/post",

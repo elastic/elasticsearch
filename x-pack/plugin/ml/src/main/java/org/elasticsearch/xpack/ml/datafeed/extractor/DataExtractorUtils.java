@@ -60,14 +60,19 @@ public final class DataExtractorUtils {
         if (aggregations == null) {
             return new DataExtractor.DataSummary(null, null, 0L);
         } else {
-            Long earliestTime = toLong((aggregations.<Min>get(EARLIEST_TIME)).value());
-            Long latestTime = toLong((aggregations.<Max>get(LATEST_TIME)).value());
+            Long earliestTime = toLongIfFinite((aggregations.<Min>get(EARLIEST_TIME)).value());
+            Long latestTime = toLongIfFinite((aggregations.<Max>get(LATEST_TIME)).value());
             long totalHits = searchResponse.getHits().getTotalHits().value;
             return new DataExtractor.DataSummary(earliestTime, latestTime, totalHits);
         }
     }
 
-    private static Long toLong(double x) {
+    /**
+     * The min and max aggregations return infinity when there is no data. To ensure consistency
+     * between the different types of data summary we represent no data by earliest and latest times
+     * being <code>null</code>. Hence, this method converts infinite values to <code>null</code>.
+     */
+    private static Long toLongIfFinite(double x) {
         return Double.isFinite(x) ? (long) x : null;
     }
 

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.IOUtils;
@@ -41,6 +42,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
 
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
 
+    private final Client client;
     private final Environment env;
     private final NativeController nativeController;
     private final String nodeName;
@@ -51,6 +53,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
     private volatile Duration processConnectTimeout;
 
     public NativeAnalyticsProcessFactory(
+        Client client,
         Environment env,
         NativeController nativeController,
         ClusterService clusterService,
@@ -58,6 +61,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
         ResultsPersisterService resultsPersisterService,
         DataFrameAnalyticsAuditor auditor
     ) {
+        this.client = client;
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
         this.nodeName = clusterService.getNodeName();
@@ -135,7 +139,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
     private void startProcess(DataFrameAnalyticsConfig config, ExecutorService executorService, NativeAnalyticsProcess process)
         throws IOException {
         if (config.getAnalysis().persistsState()) {
-            IndexingStateProcessor stateProcessor = new IndexingStateProcessor(config.getId(), resultsPersisterService, auditor);
+            IndexingStateProcessor stateProcessor = new IndexingStateProcessor(client, config.getId(), resultsPersisterService, auditor);
             process.start(executorService, stateProcessor);
         } else {
             process.start(executorService);

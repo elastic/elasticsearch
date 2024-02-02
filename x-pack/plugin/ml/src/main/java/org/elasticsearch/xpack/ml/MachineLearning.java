@@ -974,7 +974,7 @@ public class MachineLearning extends Plugin
             clusterService,
             settings
         );
-        AnnotationPersister anomalyDetectionAnnotationPersister = new AnnotationPersister(resultsPersisterService);
+        AnnotationPersister anomalyDetectionAnnotationPersister = new AnnotationPersister(client, resultsPersisterService);
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings, indexNameExpressionResolver);
         JobResultsPersister jobResultsPersister = new JobResultsPersister(originSettingClient, resultsPersisterService);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(
@@ -1025,6 +1025,7 @@ public class MachineLearning extends Plugin
                     xContentRegistry
                 );
                 autodetectProcessFactory = new NativeAutodetectProcessFactory(
+                    client,
                     environment,
                     settings,
                     nativeController,
@@ -1034,6 +1035,7 @@ public class MachineLearning extends Plugin
                 );
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
                 analyticsProcessFactory = new NativeAnalyticsProcessFactory(
+                    client,
                     environment,
                     nativeController,
                     clusterService,

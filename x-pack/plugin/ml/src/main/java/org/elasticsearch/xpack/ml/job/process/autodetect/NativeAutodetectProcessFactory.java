@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -42,6 +43,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     private static final Logger logger = LogManager.getLogger(NativeAutodetectProcessFactory.class);
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
 
+    private final Client client;
     private final Environment env;
     private final Settings settings;
     private final NativeController nativeController;
@@ -51,6 +53,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     private volatile Duration processConnectTimeout;
 
     public NativeAutodetectProcessFactory(
+        Client client,
         Environment env,
         Settings settings,
         NativeController nativeController,
@@ -58,6 +61,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         ResultsPersisterService resultsPersisterService,
         AnomalyDetectionAuditor auditor
     ) {
+        this.client = client;
         this.env = Objects.requireNonNull(env);
         this.settings = Objects.requireNonNull(settings);
         this.nativeController = Objects.requireNonNull(nativeController);
@@ -100,7 +104,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         // The extra 1 is the control field
         int numberOfFields = job.allInputFields().size() + (includeTokensField ? 1 : 0) + 1;
 
-        IndexingStateProcessor stateProcessor = new IndexingStateProcessor(job.getId(), resultsPersisterService, auditor);
+        IndexingStateProcessor stateProcessor = new IndexingStateProcessor(client, job.getId(), resultsPersisterService, auditor);
         ProcessResultsParser<AutodetectResult> resultsParser = new ProcessResultsParser<>(
             AutodetectResult.PARSER,
             NamedXContentRegistry.EMPTY

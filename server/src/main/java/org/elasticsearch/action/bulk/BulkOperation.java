@@ -238,7 +238,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     }
                     responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                 }
-                releaseOnFinish.close();
             }
 
             @Override
@@ -250,7 +249,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
                     responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
                 }
-                releaseOnFinish.close();
             }
         }, () -> {
             decRefOnFinish.decRef();

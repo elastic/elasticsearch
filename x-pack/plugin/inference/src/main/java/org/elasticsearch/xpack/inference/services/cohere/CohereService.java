@@ -180,7 +180,7 @@ public class CohereService extends SenderService {
                 SimilarityMeasure.DOT_PRODUCT,
                 embeddingSize,
                 model.getServiceSettings().getCommonSettings().getMaxInputTokens(),
-                model.getServiceSettings().getCommonSettings().getModel()
+                model.getServiceSettings().getCommonSettings().getModelId()
             ),
             model.getServiceSettings().getEmbeddingType()
         );

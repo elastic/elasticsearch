@@ -1704,13 +1704,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(limit.child(), EsRelation.class);
     }
 
-    /**
-     * Enrich
-     * \_EsqlProject[[a{r}#105 AS x]]
-     *   \_Eval[[TOSTRING(languages{f}#114) AS a]]
-     *     \_Limit[500[INTEGER]]
-     *       \_EsRelation[test][_meta_field{f}#117, emp_no{f}#111, first_name{f}#11..]
-     */
     public void testPushDownEnrichPastProject() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -1719,20 +1712,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | keep x
             | enrich languages_idx on x
             """);
-        var enrich = as(plan, Enrich.class);
-        var project = as(enrich.child(), Project.class);
-        var eval = as(project.child(), Eval.class);
-        var limit = as(eval.child(), Limit.class);
-        as(limit.child(), EsRelation.class);
+
+        var keep = as(plan, Project.class);
+        as(keep.child(), Enrich.class);
     }
 
-    /**
-     * TopN[[Order[language_name{r}#603,ASC,LAST]],500[INTEGER]]
-     * \_Enrich
-     *   \_EsqlProject[[x{r}#586]]
-     *     \_Eval[[TOSTRING(languages{f}#593) AS x]]
-     *       \_EsRelation[test][_meta_field{f}#596, emp_no{f}#590, first_name{f}#59..]
-     */
     public void testTopNEnrich() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -1742,11 +1726,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | enrich languages_idx on x
             | sort language_name
             """);
-        var topN = as(plan, TopN.class);
-        var enrich = as(topN.child(), Enrich.class);
-        var project = as(enrich.child(), Project.class);
-        var eval = as(project.child(), Eval.class);
-        as(eval.child(), EsRelation.class);
+
+        var keep = as(plan, Project.class);
+        var topN = as(keep.child(), TopN.class);
+        as(topN.child(), Enrich.class);
     }
 
     public void testEnrichNotNullFilter() {

@@ -76,7 +76,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
         if (searchSourceBuilder.rankBuilder() == null) {
             searchSourceBuilder.rankBuilder(new RRFRankBuilder(windowSize, rankConstant));
         } else {
-            throw new IllegalStateException("[rank] cannot be declared on multiple retrievers");
+            throw new IllegalArgumentException("[rank] cannot be declared on multiple retrievers");
         }
     }
 }

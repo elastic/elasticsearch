@@ -404,8 +404,21 @@ public class JwtRealm extends Realm implements CachingRealm, ReloadableSecurityC
 
     @Override
     public void reload(Settings settings) {
-        var clientSecret = CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(this.realmRef().getName()).get(settings);
-        this.clientAuthenticationSharedSecret.rotate(clientSecret, config.getSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD));
+        final SecureString newClientSharedSecret = CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(
+            this.realmRef().getName()
+        ).get(settings);
+
+        JwtUtil.validateClientAuthenticationSettings(
+            RealmSettings.getFullSettingKey(this.config, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
+            this.clientAuthenticationType,
+            RealmSettings.getFullSettingKey(this.config, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
+            new RotatableSecret(newClientSharedSecret)
+        );
+
+        this.clientAuthenticationSharedSecret.rotate(
+            newClientSharedSecret,
+            config.getSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD)
+        );
     }
 
     /**

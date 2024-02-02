@@ -21,7 +21,12 @@ include::{es-repo-dir}/tab-widgets/troubleshooting/snapshot/corrupt-repository-w
 When a snapshot repository is marked as "unknown", it means that an {es} node is
 unable to instantiate the repository due to an unknown repository type. This is
 usually caused by a missing plugin on the node. Make sure each node in the cluster
-has the required plugins.
+has the required plugins by following the following steps:
+
+1. Retrieve the affected nodes from the affected resources section of the health report.
+2. Use the <<cluster-nodes-info,nodes info API>> to retrieve the plugins installed on each node.
+3. Cross reference this with a node that works correctly to find out which plugins are missing
+and install the missing plugins.
 
 
 [[diagnosing-invalid-repositories]]
@@ -31,3 +36,8 @@ When an {es} node faces an unexpected exception when trying to instantiate a sna
 repository, it will mark the repository as "invalid" and write a warning to the log file.
 Please refer to the logs of the affected node(s) for more information on the exact
 reason that caused the unexpected exception.
+
+1. Retrieve the affected nodes from the affected resources section of the health report.
+2. Refer to the logs of the affected node(s) and search for the repository name.
+You should be able to find logs that will contain relevant exception.
+3. Try to resolve the errors reported.

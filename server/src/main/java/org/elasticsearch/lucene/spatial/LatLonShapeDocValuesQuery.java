@@ -1,24 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.spatial.index.mapper;
+package org.elasticsearch.lucene.spatial;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.Rectangle;
-import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 import java.util.List;
 
 /** Lucene geometry query for {@link BinaryShapeDocValuesField}. */
-class LatLonShapeDocValuesQuery extends ShapeDocValuesQuery<LatLonGeometry> {
+public class LatLonShapeDocValuesQuery extends ShapeDocValuesQuery<LatLonGeometry> {
 
-    LatLonShapeDocValuesQuery(String field, ShapeField.QueryRelation relation, LatLonGeometry... geometries) {
+    public LatLonShapeDocValuesQuery(String field, ShapeField.QueryRelation relation, LatLonGeometry... geometries) {
         super(field, CoordinateEncoder.GEO, relation, geometries);
     }
 

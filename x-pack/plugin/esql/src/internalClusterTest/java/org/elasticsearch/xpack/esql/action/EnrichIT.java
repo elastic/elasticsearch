@@ -319,9 +319,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * The PushDownEnrich rule may reduce the efficiency of the plan by delaying projections, resulting in more columns
-     * being transferred between nodes or clusters when the enrich operation is executed in a different location.
-     * However, some queries would fail without that rule.
+     * Some enrich queries that could fail without the PushDownEnrich rule.
      */
     public void testForPushDownEnrichRule() {
         {

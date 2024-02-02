@@ -99,7 +99,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     public LogicalPlan optimize(LogicalPlan verified) {
-        return verified.optimized() ? verifyOptimized(verified) : verifyOptimized(execute(verified));
+        return verifyOptimized(verified.optimized() ? verified : execute(verified));
     }
 
     @Override
@@ -1397,7 +1397,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified.
-     * @throws VerificationException if and only if the plan is valid.
+     * @throws VerificationException if the plan is invalid.
      */
     LogicalPlan verifyOptimized(LogicalPlan plan) throws VerificationException {
         Set<Failure> failures = new LinkedHashSet<>();

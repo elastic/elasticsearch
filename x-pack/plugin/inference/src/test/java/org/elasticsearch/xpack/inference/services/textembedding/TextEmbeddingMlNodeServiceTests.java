@@ -192,12 +192,10 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID
             );
 
-            service.parseRequestConfig(
-                randomInferenceEntityId,
-                taskType,
-                settings,
-                Set.of(),
-                getModelVerificationActionListener(e5ServiceSettings)
+            var parsedModel = service.parsePersistedConfig(randomInferenceEntityId, taskType, settings);
+            assertEquals(
+                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingMlNodeService.NAME, e5ServiceSettings),
+                parsedModel
             );
 
         }
@@ -254,6 +252,46 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
             assertEquals(
                 new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingMlNodeService.NAME, e5ServiceSettings),
                 parsedModel
+            );
+        }
+
+        // Invalid config map
+        {
+            var service = createService(mock(Client.class));
+            var settings = new HashMap<String, Object>();
+            settings.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingMlNodeServiceSettings.NUM_THREADS, 4)
+                )
+            );
+            settings.put("not_a_valid_config_setting", randomAlphaOfLength(10));
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings)
+            );
+        }
+
+        // Invalid service settings
+        {
+            var service = createService(mock(Client.class));
+            var settings = new HashMap<String, Object>();
+            settings.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        TextEmbeddingMlNodeServiceSettings.NUM_THREADS,
+                        4,
+                        "not_a_valid_service_setting",
+                        randomAlphaOfLength(10)
+                    )
+                )
+            );
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings)
             );
         }
     }

@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -105,7 +104,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             false,
             "filename"
         );
-        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
@@ -146,7 +145,7 @@ public class GeoIpProcessorTests extends ESTestCase {
             false,
             "filename"
         );
-        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));
@@ -361,7 +360,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         );
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", Arrays.asList("8.8.8.8", "82.171.64.0"));
+        document.put("source_field", List.of("8.8.8.8", "82.171.64.0"));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
@@ -391,7 +390,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         );
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", Arrays.asList("8.8.8.8", "127.0.0.1"));
+        document.put("source_field", List.of("8.8.8.8", "127.0.0.1"));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
@@ -421,7 +420,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         );
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", Arrays.asList("127.0.0.1", "127.0.0.1"));
+        document.put("source_field", List.of("127.0.0.1", "127.0.0.1"));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
@@ -437,7 +436,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         }, () -> true, "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false, false, "filename");
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", Arrays.asList("8.8.8.8", "82.171.64.0"));
+        document.put("source_field", List.of("8.8.8.8", "82.171.64.0"));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
@@ -472,7 +471,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         );
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", Arrays.asList("8.8.8.8", "127.0.0.1"));
+        document.put("source_field", List.of("8.8.8.8", "127.0.0.1"));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
@@ -500,7 +499,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         );
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", Arrays.asList("127.0.0.1", "127.0.0.2"));
+        document.put("source_field", List.of("127.0.0.1", "127.0.0.2"));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
@@ -522,7 +521,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         );
 
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", Arrays.asList("127.0.0.1", "127.0.0.2"));
+        document.put("source_field", List.of("127.0.0.1", "127.0.0.2"));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 

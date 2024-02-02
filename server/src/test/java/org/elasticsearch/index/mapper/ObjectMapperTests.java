@@ -407,7 +407,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals(
-            "Failed to parse mapping: Tried to add nested object [time] to object [service] which does not support subobjects",
+            "Failed to parse mapping: Tried to add subobject [time] to object [service] which does not support subobjects",
             exception.getMessage()
         );
     }
@@ -457,7 +457,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals(
-            "Failed to parse mapping: Tried to add nested object [metrics.service] to object [_doc] which does not support subobjects",
+            "Failed to parse mapping: Tried to add subobject [metrics.service] to object [_doc] which does not support subobjects",
             exception.getMessage()
         );
     }

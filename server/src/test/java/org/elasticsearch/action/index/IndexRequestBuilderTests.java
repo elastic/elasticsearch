@@ -9,7 +9,6 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -82,21 +81,5 @@ public class IndexRequestBuilderTests extends ESTestCase {
         doc.close();
         indexRequestBuilder.setSource(doc);
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
-    }
-
-    public void testValidation() {
-        IndexRequestBuilder indexRequestBuilder = new IndexRequestBuilder(this.testClient);
-        Map<String, String> source = new HashMap<>();
-        source.put("SomeKey", "SomeValue");
-        indexRequestBuilder.setSource(source);
-        assertNotNull(indexRequestBuilder.request());
-        indexRequestBuilder.setSource("SomeKey", "SomeValue");
-        expectThrows(IllegalStateException.class, indexRequestBuilder::request);
-
-        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
-        indexRequestBuilder.setTimeout(randomTimeValue());
-        assertNotNull(indexRequestBuilder.request());
-        indexRequestBuilder.setTimeout(TimeValue.timeValueSeconds(randomIntBetween(1, 30)));
-        expectThrows(IllegalStateException.class, indexRequestBuilder::request);
     }
 }

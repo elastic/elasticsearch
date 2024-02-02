@@ -8,18 +8,23 @@
 
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -29,21 +34,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     implements
         WriteRequestBuilder<IndexRequestBuilder> {
     private String id = null;
-    /*
-     * The following variables hold information about the source of the request. Only one of sourceMap, sourceArray, sourceString,
-     * sourceBytesReference, or sourceBytes can actually be used. When request() is called it makes sure that only one is set.
-     */
-    private Map<String, ?> sourceMap;
-    private Object[] sourceArray;
-    private XContentBuilder sourceXContentBuilder;
-    private String sourceString;
+
     private BytesReference sourceBytesReference;
-    private byte[] sourceBytes;
-    // Optionally used with sourceBytes:
-    private Integer sourceOffset;
-    // Optionally used with sourceBytes:
-    private Integer sourceLength;
-    // Optionally used with sourceMap, sourceArray, sourceString, sourceBytesReference, or sourceBytes:
     private XContentType sourceContentType;
 
     private String pipeline;
@@ -101,8 +93,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * @param source The map to index
      */
     public IndexRequestBuilder setSource(Map<String, ?> source) {
-        this.sourceMap = source;
-        return this;
+        return setSource(source, Requests.INDEX_CONTENT_TYPE);
     }
 
     /**
@@ -111,9 +102,13 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * @param source The map to index
      */
     public IndexRequestBuilder setSource(Map<String, ?> source, XContentType contentType) {
-        this.sourceMap = source;
-        this.sourceContentType = contentType;
-        return this;
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            builder.map(source);
+            return setSource(builder);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -123,7 +118,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * or using the {@link #setSource(byte[], XContentType)}.
      */
     public IndexRequestBuilder setSource(String source, XContentType xContentType) {
-        this.sourceString = source;
+        this.sourceBytesReference = new BytesArray(source);
         this.sourceContentType = xContentType;
         return this;
     }
@@ -132,7 +127,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the content source to index.
      */
     public IndexRequestBuilder setSource(XContentBuilder sourceBuilder) {
-        this.sourceXContentBuilder = sourceBuilder;
+        this.sourceBytesReference = BytesReference.bytes(sourceBuilder);
+        this.sourceContentType = sourceBuilder.contentType();
         return this;
     }
 
@@ -140,7 +136,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the document to index in bytes form.
      */
     public IndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
-        this.sourceBytes = source;
+        this.sourceBytesReference = new BytesArray(source, 0, source.length);
         this.sourceContentType = xContentType;
         return this;
     }
@@ -155,9 +151,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * @param xContentType The type/format of the source
      */
     public IndexRequestBuilder setSource(byte[] source, int offset, int length, XContentType xContentType) {
-        this.sourceBytes = source;
-        this.sourceOffset = offset;
-        this.sourceLength = length;
+        this.sourceBytesReference = new BytesArray(source, offset, length);
         this.sourceContentType = xContentType;
         return this;
     }
@@ -171,11 +165,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * </p>
      */
     public IndexRequestBuilder setSource(Object... source) {
-        if (source.length % 2 != 0) {
-            throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
-        }
-        this.sourceArray = source;
-        return this;
+        return setSource(Requests.INDEX_CONTENT_TYPE, source);
     }
 
     /**
@@ -190,9 +180,17 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         if (source.length % 2 != 0) {
             throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
         }
-        this.sourceArray = source;
-        this.sourceContentType = xContentType;
-        return this;
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+            builder.startObject();
+            for (int i = 0; i < source.length; i++) {
+                builder.field(source[i++].toString(), source[i]);
+            }
+            builder.endObject();
+            return setSource(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate", e);
+        }
     }
 
     /**
@@ -292,31 +290,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         IndexRequest request = new IndexRequest();
         super.apply(request);
         request.id(id);
-        if (sourceMap != null && sourceContentType != null) {
-            request.source(sourceMap, sourceContentType);
-        } else if (sourceMap != null) {
-            request.source(sourceMap);
-        }
-        if (sourceArray != null && sourceContentType != null) {
-            request.source(sourceContentType, sourceArray);
-        } else if (sourceArray != null) {
-            request.source(sourceArray);
-        }
-        if (sourceXContentBuilder != null) {
-            request.source(sourceXContentBuilder);
-        }
-        if (sourceString != null && sourceContentType != null) {
-            request.source(sourceString, sourceContentType);
-        }
         if (sourceBytesReference != null && sourceContentType != null) {
             request.source(sourceBytesReference, sourceContentType);
-        }
-        if (sourceBytes != null && sourceContentType != null) {
-            if (sourceOffset != null && sourceLength != null) {
-                request.source(sourceBytes, sourceOffset, sourceLength, sourceContentType);
-            } else {
-                request.source(sourceBytes, sourceContentType);
-            }
         }
         if (pipeline != null) {
             request.setPipeline(pipeline);
@@ -358,31 +333,5 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
             request.versionType(versionType);
         }
         return request;
-    }
-
-    @Override
-    protected void validate() throws IllegalStateException {
-        super.validate();
-        int sourceFieldsSet = countSourceFieldsSet();
-        if (sourceFieldsSet > 1) {
-            throw new IllegalStateException("Only one setSource() method may be called, but " + sourceFieldsSet + " have been");
-        }
-    }
-
-    /*
-     * Returns the number of the source fields that are non-null (ideally this will be 1).
-     */
-    private int countSourceFieldsSet() {
-        return countNonNullObjects(sourceMap, sourceArray, sourceXContentBuilder, sourceString, sourceBytesReference, sourceBytes);
-    }
-
-    private int countNonNullObjects(Object... objects) {
-        int sum = 0;
-        for (Object object : objects) {
-            if (object != null) {
-                sum++;
-            }
-        }
-        return sum;
     }
 }

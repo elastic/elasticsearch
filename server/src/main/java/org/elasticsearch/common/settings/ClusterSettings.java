@@ -190,12 +190,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
                     if (rootLevel == null) {
-                        Loggers.setRestrictionAwareLevel(LogManager.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                        Loggers.setLevel(LogManager.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
                     } else {
-                        Loggers.setRestrictionAwareLevel(LogManager.getRootLogger(), rootLevel);
+                        Loggers.setLevel(LogManager.getRootLogger(), rootLevel);
                     }
                 } else {
-                    Loggers.setRestrictionAwareLevel(LogManager.getLogger(component), value.get(key));
+                    Loggers.setLevel(LogManager.getLogger(component), value.get(key));
                 }
             }
         }

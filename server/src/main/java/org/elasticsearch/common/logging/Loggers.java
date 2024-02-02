@@ -30,6 +30,8 @@ import java.util.stream.Stream;
  */
 public class Loggers {
 
+    private Loggers() {};
+
     public static final String SPACE = " ";
 
     /** Restricted loggers can't be set to a level less specific than INFO. */
@@ -113,23 +115,23 @@ public class Loggers {
      * level.
      */
     public static void setLevel(Logger logger, String level) {
-        setLevel(logger, level == null ? null : Level.valueOf(level), List.of());
-    }
-
-    public static void setLevel(Logger logger, Level level) {
-        setLevel(logger, level, List.of());
-    }
-
-    public static void setRestrictionAwareLevel(Logger logger, String level) {
         setLevel(logger, level == null ? null : Level.valueOf(level), RESTRICTED_LOGGERS);
     }
 
-    public static void setRestrictionAwareLevel(Logger logger, Level level) {
+    /**
+     * Set the level of the logger. If the new level is null, the logger will inherit it's level from its nearest ancestor with a non-null
+     * level.
+     */
+    public static void setLevel(Logger logger, Level level) {
         setLevel(logger, level, RESTRICTED_LOGGERS);
     }
 
+    static void setLevel(Logger logger, String level, List<String> restrictedLoggers) {
+        setLevel(logger, level == null ? null : Level.valueOf(level), restrictedLoggers);
+    }
+
     // visible for testing
-    protected static void setLevel(Logger logger, Level level, List<String> restrictedLoggers) {
+    static void setLevel(Logger logger, Level level, List<String> restrictedLoggers) {
         // If configuring an ancestor / root, the restriction has to be explicitly set afterward.
         boolean setRestriction = false;
 

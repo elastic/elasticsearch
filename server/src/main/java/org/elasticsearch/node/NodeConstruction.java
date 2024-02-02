@@ -143,6 +143,7 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
+import org.elasticsearch.plugins.InferenceRegistryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -1090,24 +1091,20 @@ class NodeConstruction {
         }
 
         // Register noop versions of inference services if Inference plugin is not available
-        if (isPluginComponentDefined(pluginComponents, InferenceServiceRegistry.class) == false) {
-            logger.warn("Inference service is not available");
-            modules.bindToInstance(InferenceServiceRegistry.class, new InferenceServiceRegistry.NoopInferenceServiceRegistry());
-        }
-        if (isPluginComponentDefined(pluginComponents, ModelRegistry.class) == false) {
-            logger.warn("Model registry is not available");
-            modules.bindToInstance(ModelRegistry.class, new ModelRegistry.NoopModelRegistry());
-        }
+        Optional<InferenceRegistryPlugin> inferenceRegistryPlugin = getSinglePlugin(InferenceRegistryPlugin.class);
+        modules.bindToInstance(
+            InferenceServiceRegistry.class,
+            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getInferenceServiceRegistry)
+                .orElse(new InferenceServiceRegistry.NoopInferenceServiceRegistry())
+        );
+        modules.bindToInstance(
+            ModelRegistry.class,
+            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getModelRegistry).orElse(new ModelRegistry.NoopModelRegistry())
+        );
 
         injector = modules.createInjector();
 
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
-    }
-
-    private static boolean isPluginComponentDefined(Collection<?> pluginComponents, Class<?> clazz) {
-        return pluginComponents.stream()
-            .map(p -> p instanceof PluginComponentBinding ? ((PluginComponentBinding) p).impl() : p)
-            .anyMatch(p -> clazz.isAssignableFrom(clazz));
     }
 
     private ClusterService createClusterService(SettingsModule settingsModule, ThreadPool threadPool, TaskManager taskManager) {

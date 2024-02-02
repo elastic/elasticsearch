@@ -23,8 +23,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -608,10 +608,10 @@ public class RollupJobTaskTests extends ESTestCase {
             assertTrue(threadContext.getHeaders().isEmpty());
             SearchResponse r = mock(SearchResponse.class);
             when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
-            CompositeAggregation compositeAgg = mock(CompositeAggregation.class);
+            InternalComposite compositeAgg = mock(InternalComposite.class);
             when(compositeAgg.getBuckets()).thenReturn(Collections.emptyList());
             when(compositeAgg.getName()).thenReturn(RollupField.NAME);
-            Aggregations aggs = new Aggregations(Collections.singletonList(compositeAgg));
+            InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(compositeAgg));
             when(r.getAggregations()).thenReturn(aggs);
 
             // Wait before progressing
@@ -717,10 +717,10 @@ public class RollupJobTaskTests extends ESTestCase {
 
             SearchResponse r = mock(SearchResponse.class);
             when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
-            CompositeAggregation compositeAgg = mock(CompositeAggregation.class);
+            InternalComposite compositeAgg = mock(InternalComposite.class);
             when(compositeAgg.getBuckets()).thenReturn(Collections.emptyList());
             when(compositeAgg.getName()).thenReturn(RollupField.NAME);
-            Aggregations aggs = new Aggregations(Collections.singletonList(compositeAgg));
+            InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(compositeAgg));
             when(r.getAggregations()).thenReturn(aggs);
 
             // Wait before progressing
@@ -827,10 +827,10 @@ public class RollupJobTaskTests extends ESTestCase {
 
             SearchResponse r = mock(SearchResponse.class);
             when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
-            CompositeAggregation compositeAgg = mock(CompositeAggregation.class);
+            InternalComposite compositeAgg = mock(InternalComposite.class);
             when(compositeAgg.getBuckets()).thenReturn(Collections.emptyList());
             when(compositeAgg.getName()).thenReturn(RollupField.NAME);
-            Aggregations aggs = new Aggregations(Collections.singletonList(compositeAgg));
+            InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(compositeAgg));
             when(r.getAggregations()).thenReturn(aggs);
 
             // Wait before progressing

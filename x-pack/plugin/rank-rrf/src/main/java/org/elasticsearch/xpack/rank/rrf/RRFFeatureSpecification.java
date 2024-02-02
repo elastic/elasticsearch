@@ -12,6 +12,9 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+/**
+ * A set of features specifically for the rrf plugin.
+ */
 public class RRFFeatureSpecification implements FeatureSpecification {
 
     @Override

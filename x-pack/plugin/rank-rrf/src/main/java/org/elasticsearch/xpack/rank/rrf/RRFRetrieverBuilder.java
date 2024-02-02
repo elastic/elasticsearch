@@ -22,6 +22,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * An rrf retriever is used to represent an rrf rank element, but
+ * as a tree-like structure. This retriever is a compound retriever
+ * meaning it has a set of child retrievers that each return a set of
+ * top docs that will then be combined and ranked according to the rrf
+ * formula.
+ */
 public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuilder> {
 
     public static final NodeFeature NODE_FEATURE = new NodeFeature(RRFRankPlugin.NAME + "_retriever");
@@ -36,15 +43,15 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
     );
 
     static {
-        PARSER.declareObjectArray((v, l) -> v.retrieverBuilders = l, (p, c) -> {
+        PARSER.declareObjectArray((r, v) -> r.retrieverBuilders = v, (p, c) -> {
             p.nextToken();
             String name = p.currentName();
             RetrieverBuilder<?> retrieverBuilder = (RetrieverBuilder<?>) p.namedObject(RetrieverBuilder.class, name, c);
             p.nextToken();
             return retrieverBuilder;
         }, RETRIEVERS_FIELD);
-        PARSER.declareInt((b, v) -> b.windowSize = v, WINDOW_SIZE_FIELD);
-        PARSER.declareInt((b, v) -> b.rankConstant = v, RANK_CONSTANT_FIELD);
+        PARSER.declareInt((r, v) -> r.windowSize = v, WINDOW_SIZE_FIELD);
+        PARSER.declareInt((r, v) -> r.rankConstant = v, RANK_CONSTANT_FIELD);
 
         RetrieverBuilder.declareBaseParserFields(RRFRankPlugin.NAME, PARSER);
     }
@@ -64,13 +71,13 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
     private int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
 
     @Override
-    public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+    public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
         for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
             if (preFilterQueryBuilders.isEmpty() == false) {
-                retrieverBuilder.preFilterQueryBuilders().addAll(preFilterQueryBuilders);
+                retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
             }
 
-            retrieverBuilder.doExtractToSearchSourceBuilder(searchSourceBuilder);
+            retrieverBuilder.extractToSearchSourceBuilder(searchSourceBuilder);
         }
 
         if (searchSourceBuilder.rankBuilder() == null) {

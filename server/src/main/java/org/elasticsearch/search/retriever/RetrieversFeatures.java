@@ -13,6 +13,10 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+/**
+ * Each retriever is given its own {@link NodeFeature} so new
+ * retrievers can be added individually with additional functionality.
+ */
 public class RetrieversFeatures implements FeatureSpecification {
 
     @Override

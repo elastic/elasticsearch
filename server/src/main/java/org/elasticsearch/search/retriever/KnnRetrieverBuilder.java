@@ -24,6 +24,10 @@ import java.util.List;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * A knn retriever is used to represent a knn search
+ * with some elements to specify parameters for that knn search.
+ */
 public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuilder> {
 
     public static final String NAME = "knn";
@@ -106,7 +110,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
     }
 
     @Override
-    public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+    public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
         KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(field, queryVector, queryVectorBuilder, k, numCands, similarity);
         if (preFilterQueryBuilders != null) {
             knnSearchBuilder.addFilterQueries(preFilterQueryBuilders);

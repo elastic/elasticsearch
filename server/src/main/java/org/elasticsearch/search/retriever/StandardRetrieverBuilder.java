@@ -26,6 +26,10 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * A standard retriever is used to represent anything that is a query along
+ * with some elements to specify parameters for that query.
+ */
 public final class StandardRetrieverBuilder extends RetrieverBuilder<StandardRetrieverBuilder> {
 
     public static final String NAME = "standard";
@@ -44,37 +48,37 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder<StandardRet
     );
 
     static {
-        PARSER.declareObject(StandardRetrieverBuilder::queryBuilder, (p, c) -> {
+        PARSER.declareObject((r, v) -> r.queryBuilder = v, (p, c) -> {
             QueryBuilder queryBuilder = AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage);
             c.trackSectionUsage(NAME + ":" + QUERY_FIELD.getPreferredName());
             return queryBuilder;
         }, QUERY_FIELD);
 
-        PARSER.declareField(StandardRetrieverBuilder::searchAfterBuilder, (p, c) -> {
+        PARSER.declareField((r, v) -> r.searchAfterBuilder = v, (p, c) -> {
             SearchAfterBuilder searchAfterBuilder = SearchAfterBuilder.fromXContent(p);
             c.trackSectionUsage(NAME + ":" + SEARCH_AFTER_FIELD.getPreferredName());
             return searchAfterBuilder;
         }, SEARCH_AFTER_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
 
-        PARSER.declareField(StandardRetrieverBuilder::terminateAfter, (p, c) -> {
+        PARSER.declareField((r, v) -> r.terminateAfter = v, (p, c) -> {
             int terminateAfter = p.intValue();
             c.trackSectionUsage(NAME + ":" + TERMINATE_AFTER_FIELD.getPreferredName());
             return terminateAfter;
         }, TERMINATE_AFTER_FIELD, ObjectParser.ValueType.INT);
 
-        PARSER.declareField(StandardRetrieverBuilder::sortBuilders, (p, c) -> {
+        PARSER.declareField((r, v) -> r.sortBuilders = v, (p, c) -> {
             List<SortBuilder<?>> sortBuilders = SortBuilder.fromXContent(p);
             c.trackSectionUsage(NAME + ":" + SORT_FIELD.getPreferredName());
             return sortBuilders;
         }, SORT_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
 
-        PARSER.declareField(StandardRetrieverBuilder::minScore, (p, c) -> {
+        PARSER.declareField((r, v) -> r.minScore = v, (p, c) -> {
             float minScore = p.floatValue();
             c.trackSectionUsage(NAME + ":" + MIN_SCORE_FIELD.getPreferredName());
             return minScore;
         }, MIN_SCORE_FIELD, ObjectParser.ValueType.FLOAT);
 
-        PARSER.declareField(StandardRetrieverBuilder::collapseBuilder, (p, c) -> {
+        PARSER.declareField((r, v) -> r.collapseBuilder = v, (p, c) -> {
             CollapseBuilder collapseBuilder = CollapseBuilder.fromXContent(p);
             if (collapseBuilder.getField() != null) {
                 c.trackSectionUsage(COLLAPSE_FIELD.getPreferredName());
@@ -99,62 +103,9 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder<StandardRet
     private Float minScore;
     private CollapseBuilder collapseBuilder;
 
-    public QueryBuilder queryBuilder() {
-        return queryBuilder;
-    }
-
-    public StandardRetrieverBuilder queryBuilder(QueryBuilder queryBuilder) {
-        this.queryBuilder = queryBuilder;
-        return this;
-    }
-
-    public SearchAfterBuilder searchAfterBuilder() {
-        return searchAfterBuilder;
-    }
-
-    public StandardRetrieverBuilder searchAfterBuilder(SearchAfterBuilder searchAfterBuilder) {
-        this.searchAfterBuilder = searchAfterBuilder;
-        return this;
-    }
-
-    public int terminateAfter() {
-        return terminateAfter;
-    }
-
-    public StandardRetrieverBuilder terminateAfter(int terminateAfter) {
-        this.terminateAfter = terminateAfter;
-        return this;
-    }
-
-    public List<SortBuilder<?>> sortBuilders() {
-        return sortBuilders;
-    }
-
-    public StandardRetrieverBuilder sortBuilders(List<SortBuilder<?>> sortBuilders) {
-        this.sortBuilders = sortBuilders;
-        return this;
-    }
-
-    public Float minScore() {
-        return minScore;
-    }
-
-    public StandardRetrieverBuilder minScore(Float minScore) {
-        this.minScore = minScore;
-        return this;
-    }
-
-    public CollapseBuilder collapseBuilder() {
-        return collapseBuilder;
-    }
-
-    public StandardRetrieverBuilder collapseBuilder(CollapseBuilder collapseBuilder) {
-        this.collapseBuilder = collapseBuilder;
-        return this;
-    }
-
-    public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
-        if (preFilterQueryBuilders().isEmpty() == false) {
+    @Override
+    public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+        if (preFilterQueryBuilders.isEmpty() == false) {
             BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
 
             for (QueryBuilder preFilterQueryBuilder : preFilterQueryBuilders) {

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueue;
@@ -104,6 +105,8 @@ class RequestExecutorService implements RequestExecutor {
     }
 
     private void onCapacityChange(int capacity) {
+        logger.debug(() -> Strings.format("Setting queue capacity to [%s]", capacity));
+
         var enqueuedCapacityCommand = controlQueue.offer(() -> updateCapacity(capacity));
         if (enqueuedCapacityCommand == false) {
             logger.warn("Failed to change request batching service queue capacity. Control queue was full, please try again later.");

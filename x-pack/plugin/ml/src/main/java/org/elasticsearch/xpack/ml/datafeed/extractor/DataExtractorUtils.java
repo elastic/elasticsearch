@@ -57,14 +57,18 @@ public final class DataExtractorUtils {
 
     public static DataExtractor.DataSummary getDataSummary(SearchResponse searchResponse) {
         InternalAggregations aggregations = searchResponse.getAggregations();
-        long totalHits = searchResponse.getHits().getTotalHits().value;
-        if (totalHits == 0) {
+        if (aggregations == null) {
             return new DataExtractor.DataSummary(null, null, 0L);
         } else {
-            long earliestTime = (long) (aggregations.<Min>get(EARLIEST_TIME)).value();
-            long latestTime = (long) (aggregations.<Max>get(LATEST_TIME)).value();
+            Long earliestTime = toLong((aggregations.<Min>get(EARLIEST_TIME)).value());
+            Long latestTime = toLong((aggregations.<Max>get(LATEST_TIME)).value());
+            long totalHits = searchResponse.getHits().getTotalHits().value;
             return new DataExtractor.DataSummary(earliestTime, latestTime, totalHits);
         }
+    }
+
+    private static Long toLong(double x) {
+        return Double.isFinite(x) ? (long) x : null;
     }
 
     /**

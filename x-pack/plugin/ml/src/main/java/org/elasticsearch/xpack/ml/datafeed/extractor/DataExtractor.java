@@ -16,7 +16,7 @@ public interface DataExtractor {
 
     record Result(SearchInterval searchInterval, Optional<InputStream> data) {}
 
-    record DataSummary(Long earliestTime, Long latestTime, Long totalHits) {
+    record DataSummary(Long earliestTime, Long latestTime, long totalHits) {
         public boolean hasData() {
             return earliestTime != null;
         }

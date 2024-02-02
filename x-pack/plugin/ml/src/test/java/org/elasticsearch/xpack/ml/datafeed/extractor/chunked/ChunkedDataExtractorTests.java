@@ -184,7 +184,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
     public void testExtractionGivenAutoChunkAndAggsAndNoData() throws IOException {
         chunkSpan = null;
-        DataExtractor summaryExtractor = new StubSubExtractor(new SearchInterval(100L, 500L), new DataSummary(null, null, null));
+        DataExtractor summaryExtractor = new StubSubExtractor(new SearchInterval(100L, 500L), new DataSummary(null, null, 0L));
         when(dataExtractorFactory.newExtractor(100L, 500L)).thenReturn(summaryExtractor);
 
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createContext(100L, 500L, true, 200L));
@@ -464,7 +464,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     }
 
     public void testNoDataSummaryHasNoData() {
-        DataSummary summary = new DataSummary(null, null, null);
+        DataSummary summary = new DataSummary(null, null, 0L);
         assertFalse(summary.hasData());
     }
 

@@ -39,9 +39,6 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(AbstractAggregationDataExtractor.class);
 
-    private static final String EARLIEST_TIME = "earliest_time";
-    private static final String LATEST_TIME = "latest_time";
-
     protected final Client client;
     protected final AggregationDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;

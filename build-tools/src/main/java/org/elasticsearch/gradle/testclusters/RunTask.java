@@ -214,7 +214,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
                 else if (node.getSettingKeys().contains("telemetry.metrics.enabled") == false) { // metrics
                     node.setting("telemetry.metrics.enabled", "false");
                 } else if (node.getSettingKeys().contains("telemetry.tracing.enabled") == false
-                    && node.getSettingKeys().contains("tracing.apm.enabled") == false) { // tracing
+                    && node.getSettingKeys().contains("telemetry.tracing.enable") == false) { // tracing
                         node.setting("telemetry.tracing.enable", "false");
                     }
 

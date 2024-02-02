@@ -192,11 +192,7 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID
             );
 
-            var parsedModel = service.parsePersistedConfig(randomInferenceEntityId, taskType, settings);
-            assertEquals(
-                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingMlNodeService.NAME, e5ServiceSettings),
-                parsedModel
-            );
+            expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
 
         }
 
@@ -266,10 +262,7 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 )
             );
             settings.put("not_a_valid_config_setting", randomAlphaOfLength(10));
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings)
-            );
+            expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
         }
 
         // Invalid service settings
@@ -289,10 +282,7 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                     )
                 )
             );
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings)
-            );
+            expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
         }
     }
 

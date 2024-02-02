@@ -40,7 +40,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
-// TODO(ES-5727): add a retry mechanism to TransportGetFromTranslogAction
 public class TransportGetFromTranslogAction extends HandledTransportAction<
     TransportGetFromTranslogAction.Request,
     TransportGetFromTranslogAction.Response> {

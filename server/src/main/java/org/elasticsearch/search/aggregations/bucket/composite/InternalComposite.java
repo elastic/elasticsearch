@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -441,7 +440,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -509,14 +508,37 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
         Object formatted = obj;
         Object parsed;
-        if (obj.getClass() == BytesRef.class) {
+        if (obj.getClass() == BytesRef.class && format == DocValueFormat.TIME_SERIES_ID) {
+            BytesRef value = (BytesRef) obj;
+            // NOTE: formatting a tsid returns a Base64 encoding of the tsid BytesRef which we cannot use to get back the original tsid
+            formatted = format.format(value);
+            parsed = format.parseBytesRef(value);
+            // NOTE: we cannot parse the Base64 encoding representation of the tsid and get back the original BytesRef
+            if (parsed.equals(obj) == false) {
+                throw new IllegalArgumentException(
+                    "Format ["
+                        + format
+                        + "] created output it couldn't parse for value ["
+                        + obj
+                        + "] "
+                        + "of type ["
+                        + obj.getClass()
+                        + "]. formatted value: ["
+                        + formatted
+                        + "("
+                        + parsed.getClass()
+                        + ")]"
+                );
+            }
+        }
+        if (obj.getClass() == BytesRef.class && format != DocValueFormat.TIME_SERIES_ID) {
             BytesRef value = (BytesRef) obj;
             if (format == DocValueFormat.RAW) {
                 formatted = value.utf8ToString();
             } else {
                 formatted = format.format(value);
             }
-            parsed = format.parseBytesRef(formatted);
+            parsed = format.parseBytesRef(formatted.toString());
             if (parsed.equals(obj) == false) {
                 throw new IllegalArgumentException(
                     "Format ["

@@ -56,7 +56,6 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            l -> {},
             mock(AllocationService.class)
         );
 
@@ -85,7 +84,6 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            l -> {},
             mock(AllocationService.class)
         );
 

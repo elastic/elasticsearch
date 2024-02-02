@@ -34,7 +34,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGrid;
@@ -136,9 +136,9 @@ public class RestVectorTileAction extends BaseRestHandler {
                     final InternalGeoBounds bounds = searchResponse.getAggregations() != null
                         ? searchResponse.getAggregations().get(BOUNDS_FIELD)
                         : null;
-                    final Aggregations aggsWithoutGridAndBounds = searchResponse.getAggregations() == null
+                    final InternalAggregations aggsWithoutGridAndBounds = searchResponse.getAggregations() == null
                         ? null
-                        : new Aggregations(
+                        : InternalAggregations.from(
                             searchResponse.getAggregations()
                                 .asList()
                                 .stream()

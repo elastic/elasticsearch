@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -24,21 +23,24 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     public void testDefaults() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapperService.documentMapper().mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(source(this::writeField));
+        ParsedDocument doc1 = mapperService.documentMapper().parse(source(this::writeField));
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
 
         // No indexable fields
         assertTrue(fields.isEmpty());
+        assertThat(mapperService.mappingLookup().getFieldsForModels(), equalTo(Map.of("test_model", Map.of("field", List.of("field")))));
     }
 
     public void testModelIdNotPresent() throws IOException {
@@ -49,17 +51,70 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("field [model_id] must be specified"));
     }
 
-    // TODO: Fix multi-field test
-    public void testCannotBeUsedInMultiFields() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+    public void testAsMultiFieldTarget() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "text");
             b.startObject("fields");
             b.startObject("semantic");
             b.field("type", "semantic_text");
+            b.field("model_id", "test_model");
             b.endObject();
             b.endObject();
-        })));
-        assertThat(e.getMessage(), containsString("Field [semantic] of type [semantic_text] can't be used in multifields"));
+        }));
+
+        assertThat(
+            mapperService.mappingLookup().getFieldsForModels(),
+            equalTo(Map.of("test_model", Map.of("field.semantic", List.of("field"))))
+        );
+    }
+
+    public void testAsCopyToTarget() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field1");
+            b.field("type", "text");
+            b.field("copy_to", "field3");
+            b.endObject();
+            b.startObject("field2");
+            b.field("type", "text");
+            b.field("copy_to", "field3");
+            b.endObject();
+            b.startObject("field3");
+            b.field("type", "semantic_text");
+            b.field("model_id", "test_model");
+            b.endObject();
+        }));
+
+        assertThat(
+            mapperService.mappingLookup().getFieldsForModels(),
+            equalTo(Map.of("test_model", Map.of("field3", List.of("field1", "field3", "field2"))))
+        );
+    }
+
+    public void testAsCopyToTargetInMultiField() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field1");
+            b.field("type", "text");
+            b.field("copy_to", "field3");
+            b.endObject();
+            b.startObject("field2");
+            b.field("type", "text");
+            b.field("copy_to", "field3");
+            b.endObject();
+            b.startObject("field3");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("semantic");
+            b.field("type", "semantic_text");
+            b.field("model_id", "test_model");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        assertThat(
+            mapperService.mappingLookup().getFieldsForModels(),
+            equalTo(Map.of("test_model", Map.of("field3.semantic", List.of("field1", "field3", "field2"))))
+        );
     }
 
     public void testUpdatesToModelIdNotSupported() throws IOException {

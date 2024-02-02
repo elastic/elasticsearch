@@ -15,7 +15,7 @@
   <suppress files="plugin[/\\]esql[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]esql[/\\]parser[/\\]EsqlBase(Parser|Lexer).*.java" checks="." />
 
   <!-- JNA requires the no-argument constructor on JnaStaticKernel32Library.SizeT to be public-->
-  <suppress files="libs[/\\]native[/\\]jna[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]nativeaccess[/\\]jna[/\\]JnaStaticKernel32Library.java" checks="RedundantModifier" />
+  <suppress files="libs[/\\]native[/\\]jna[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]nativeaccess[/\\]jna[/\\]JnaKernel32Library.java" checks="RedundantModifier" />
 
 
   <!-- the constructors on some local classes in these tests must be public-->

@@ -8,7 +8,6 @@
 
 import org.elasticsearch.gradle.transform.UnzipTransform
 import org.elasticsearch.gradle.internal.GenerateProviderManifest
-import org.elasticsearch.gradle.internal.util.JavaUtil
 import org.gradle.api.internal.artifacts.ArtifactAttributes
 
 import java.util.stream.Collectors

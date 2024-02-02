@@ -259,14 +259,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return suppliers;
     }
 
-    public record NumericTypeTestConfig(Number min, Number max, BinaryOperator<Number> expected, String evaluatorName) {}
+    public record NumericTypeTestConfig<T>(Number min, Number max, BiFunction<Number, Number, T> expected, String evaluatorName) {}
 
-    public record NumericTypeTestConfigs(
-        NumericTypeTestConfig intStuff,
-        NumericTypeTestConfig longStuff,
-        NumericTypeTestConfig doubleStuff
+    public record NumericTypeTestConfigs<T>(
+        NumericTypeTestConfig<T> intStuff,
+        NumericTypeTestConfig<T> longStuff,
+        NumericTypeTestConfig<T> doubleStuff
     ) {
-        public NumericTypeTestConfig get(DataType type) {
+        public NumericTypeTestConfig<T> get(DataType type) {
             if (type == DataTypes.INTEGER) {
                 return intStuff;
             }
@@ -311,9 +311,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
         throw new IllegalArgumentException("bogus numeric type [" + type + "]");
     }
-
-    public static List<TestCaseSupplier> forBinaryWithWidening(
-        NumericTypeTestConfigs typeStuff,
+    public static List<TestCaseSupplier> forBinaryComparisonWithWidening(
+        NumericTypeTestConfigs<Boolean> typeStuff,
         String lhsName,
         String rhsName,
         List<String> warnings
@@ -324,7 +323,45 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         for (DataType lhsType : numericTypes) {
             for (DataType rhsType : numericTypes) {
                 DataType expected = widen(lhsType, rhsType);
-                NumericTypeTestConfig expectedTypeStuff = typeStuff.get(expected);
+                NumericTypeTestConfig<Boolean> expectedTypeStuff = typeStuff.get(expected);
+                BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
+                    + "["
+                    + lhsName
+                    + "="
+                    + getCastEvaluator("Attribute[channel=0]", lhs, expected)
+                    + ", "
+                    + rhsName
+                    + "="
+                    + getCastEvaluator("Attribute[channel=1]", rhs, expected)
+                    + "]";
+                casesCrossProduct(
+                    (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
+                    getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
+                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
+                    evaluatorToString,
+                    warnings,
+                    suppliers,
+                    DataTypes.BOOLEAN,
+                    true
+                );
+            }
+        }
+        return suppliers;
+    }
+
+    public static List<TestCaseSupplier> forBinaryWithWidening(
+        NumericTypeTestConfigs<Number> typeStuff,
+        String lhsName,
+        String rhsName,
+        List<String> warnings
+    ) {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        List<DataType> numericTypes = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.DOUBLE);
+
+        for (DataType lhsType : numericTypes) {
+            for (DataType rhsType : numericTypes) {
+                DataType expected = widen(lhsType, rhsType);
+                NumericTypeTestConfig<Number> expectedTypeStuff = typeStuff.get(expected);
                 BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
                     + "["
                     + lhsName
@@ -938,17 +975,17 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    private static List<TypedDataSupplier> geoPointCases() {
+    public static List<TypedDataSupplier> geoPointCases() {
         return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint()), EsqlDataTypes.GEO_POINT));
     }
 
-    private static List<TypedDataSupplier> cartesianPointCases() {
+    public static List<TypedDataSupplier> cartesianPointCases() {
         return List.of(
             new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint()), EsqlDataTypes.CARTESIAN_POINT)
         );
     }
 
-    private static List<TypedDataSupplier> geoShapeCases() {
+    public static List<TypedDataSupplier> geoShapeCases() {
         return List.of(
             new TypedDataSupplier(
                 "<geo_shape>",
@@ -958,7 +995,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    private static List<TypedDataSupplier> cartesianShapeCases() {
+    public static List<TypedDataSupplier> cartesianShapeCases() {
         return List.of(
             new TypedDataSupplier(
                 "<cartesian_shape>",

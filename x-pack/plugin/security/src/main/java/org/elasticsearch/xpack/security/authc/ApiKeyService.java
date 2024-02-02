@@ -136,7 +136,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -339,13 +338,13 @@ public class ApiKeyService {
                 );
                 return;
             }
-            List<IllegalArgumentException> failedValidations = Stream.of(
-                validateWorkflowsRestrictionConstraints(transportVersion, request.getRoleDescriptors(), userRoleDescriptors),
-                validateNewExpirationTime(request.getExpiration())
-            ).filter(Objects::nonNull).toList();
-
-            for (IllegalArgumentException exception : failedValidations) {
-                listener.onFailure(exception);
+            final IllegalArgumentException workflowsValidationException = validateWorkflowsRestrictionConstraints(
+                transportVersion,
+                request.getRoleDescriptors(),
+                userRoleDescriptors
+            );
+            if (workflowsValidationException != null) {
+                listener.onFailure(workflowsValidationException);
                 return;
             }
 
@@ -357,13 +356,6 @@ public class ApiKeyService {
 
             createApiKeyAndIndexIt(authentication, request, filteredUserRoleDescriptors, listener);
         }
-    }
-
-    private static IllegalArgumentException validateNewExpirationTime(TimeValue expirationTime) {
-        if (expirationTime != null && expirationTime.nanos() <= 0) {
-            return new IllegalArgumentException("expiration must be in the future");
-        }
-        return null;
     }
 
     private TransportVersion getMinTransportVersion() {
@@ -490,12 +482,6 @@ public class ApiKeyService {
             listener.onFailure(
                 new IllegalArgumentException("authentication via API key not supported: only the owner user can update an API key")
             );
-            return;
-        }
-
-        IllegalArgumentException expirationValidation = validateNewExpirationTime(request.getExpiration());
-        if (expirationValidation != null) {
-            listener.onFailure(expirationValidation);
             return;
         }
 

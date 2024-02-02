@@ -82,6 +82,10 @@ public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
                 validationException = RoleDescriptorRequestValidator.validate(roleDescriptor, validationException);
             }
         }
+        if (expiration != null && expiration.nanos() <= 0) {
+            validationException = addValidationError("API key expiration must be in the future", validationException);
+        }
+
         return validationException;
     }
 

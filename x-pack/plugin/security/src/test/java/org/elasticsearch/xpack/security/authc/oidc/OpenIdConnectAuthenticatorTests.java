@@ -67,6 +67,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.TestLoggers;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -1065,7 +1066,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
         Loggers.addAppender(logger, appender);
-        Loggers.setLevel(logger, Level.DEBUG);
+        TestLoggers.setLevel(logger, Level.DEBUG);
         try {
             appender.addExpectation(
                 new MockLogAppender.PatternSeenEventExpectation(

@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.health.node.HealthInfoTests.mutateHealthInfo;
 import static org.elasticsearch.health.node.HealthInfoTests.randomDslHealthInfo;
 import static org.elasticsearch.health.node.HealthInfoTests.randomRepoHealthInfo;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -101,11 +102,7 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes));
         HealthInfoCache healthInfoCache = getTestHealthInfoCache();
         final FetchHealthInfoCacheAction.Response expectedResponse = new FetchHealthInfoCacheAction.Response(
-            new HealthInfo(
-                healthInfoCache.getHealthInfo().diskInfoByNode(),
-                healthInfoCache.getHealthInfo().dslHealthInfo(),
-                healthInfoCache.getHealthInfo().repositoriesInfoByNode()
-            )
+            healthInfoCache.getHealthInfo()
         );
         ActionTestUtils.execute(
             new FetchHealthInfoCacheAction.TransportAction(
@@ -151,20 +148,6 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
     }
 
     private FetchHealthInfoCacheAction.Response mutateResponse(FetchHealthInfoCacheAction.Response originalResponse) {
-        return new FetchHealthInfoCacheAction.Response(
-            new HealthInfo(
-                mutateMap(
-                    originalResponse.getHealthInfo().diskInfoByNode(),
-                    () -> randomAlphaOfLength(10),
-                    HealthInfoTests::randomDiskHealthInfo
-                ),
-                randomValueOtherThan(originalResponse.getHealthInfo().dslHealthInfo(), HealthInfoTests::randomDslHealthInfo),
-                mutateMap(
-                    originalResponse.getHealthInfo().repositoriesInfoByNode(),
-                    () -> randomAlphaOfLength(10),
-                    HealthInfoTests::randomRepoHealthInfo
-                )
-            )
-        );
+        return new FetchHealthInfoCacheAction.Response(mutateHealthInfo(originalResponse.getHealthInfo()));
     }
 }

@@ -29,10 +29,25 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
 
     @Override
     public HealthInfo mutateInstance(HealthInfo originalHealthInfo) {
+        return mutateHealthInfo(originalHealthInfo);
+    }
+
+    public static HealthInfo mutateHealthInfo(HealthInfo originalHealthInfo) {
+        var randomInt = randomInt(2);
         return new HealthInfo(
-            mutateMap(originalHealthInfo.diskInfoByNode(), () -> randomAlphaOfLength(10), HealthInfoTests::randomDiskHealthInfo),
-            randomValueOtherThan(originalHealthInfo.dslHealthInfo(), HealthInfoTests::randomDslHealthInfo),
-            mutateMap(originalHealthInfo.repositoriesInfoByNode(), () -> randomAlphaOfLength(10), HealthInfoTests::randomRepoHealthInfo)
+            randomInt == 0
+                ? mutateMap(originalHealthInfo.diskInfoByNode(), () -> randomAlphaOfLength(10), HealthInfoTests::randomDiskHealthInfo)
+                : originalHealthInfo.diskInfoByNode(),
+            randomInt == 1
+                ? randomValueOtherThan(originalHealthInfo.dslHealthInfo(), HealthInfoTests::randomDslHealthInfo)
+                : originalHealthInfo.dslHealthInfo(),
+            randomInt == 2
+                ? mutateMap(
+                    originalHealthInfo.repositoriesInfoByNode(),
+                    () -> randomAlphaOfLength(10),
+                    HealthInfoTests::randomRepoHealthInfo
+                )
+                : originalHealthInfo.repositoriesInfoByNode()
         );
     }
 

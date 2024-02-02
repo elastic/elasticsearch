@@ -16,7 +16,7 @@ supported JVM configurations. See https://www.elastic.co/subscriptions[subscript
 
 Compliance with FIPS 140-2 is achieved by using only FIPS approved / NIST recommended cryptographic algorithms. This can be achieved by the following:
 
-- Installation and configuration of a FIPS certified Java Security Provider.
+- Installation and configuration of a FIPS certified Java security provider.
 - Ensuring the configuration of {es} is FIPS 140-2 compliant as documented below.
 - Setting `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`. Note - this setting alone is not sufficient to be compliant
 with FIPS 140-2.
@@ -25,13 +25,13 @@ with FIPS 140-2.
 === Configuring {es} for FIPS 140-2
 
 Detailed instructions for the configuration required for FIPS 140-2 compliance is beyond the scope of this document.  It is the responsibility
-of the user to ensure compliance with FIPS 140-2. {es} has been tested with a specific configuration, but there are other configurations possible to
-achieve compliance. Use of a FIPS certified security provider will ensure that only approved cryptographic algorithms are used.
+of the user to ensure compliance with FIPS 140-2. {es} has been tested with a specific configuration described below. However, there are
+other configurations possible to achieve compliance.
 
 The following is a high-level overview of the steps required to configure a FIPS certified security provider:
 
-* Set ES_JAVA_HOME to a local installation of Java
-* Install the FIPS certified security provider .jar file(s) in {es}'s `lib` directory.
+* Use an externally installed Java installation. The JVM bundled with {es} is not configured for FIPS 140-2.
+* Install a FIPS certified security provider .jar file(s) in {es}'s `lib` directory.
 * Configure Java to use the FIPS certified security provider (xref:java-security-provider[see below]).
 * Configure {es}'s security manager to allow use of the FIPS certified provider (xref:java-security-manager[see below]).
 * Ensure the keystore and truststore are configured correctly (xref:keystore-fips-password[see below]).
@@ -40,6 +40,7 @@ The following is a high-level overview of the steps required to configure a FIPS
 * Ensure the cached password hashing settings are configured correctly (xref:fips-cached-password-hashing[see below]).
 * Set `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`.
 * Verify the security provider is installed and configured correctly (xref:verify-security-provider[see below]).
+* Understand the upgrade considerations (xref:fips-upgrade-considerations[see below]). and limitations (xref:fips-limitations[see below]).
 
 
 [discrete]
@@ -58,23 +59,23 @@ FIPS certified providers may be used. Elasticsearch does not ship with a FIPS ce
 to install and configure the security provider to ensure compliance with FIPS 140-2. Using a FIPS certified provider will ensure that only
 approved cryptographic algorithms are used.
 
-To configure {es} to use additional security provider(s) configure {es}'s JVM property `java.security.properties` to point to a file in {es}'s
-`config` directory (https://raw.githubusercontent.com/elastic/elasticsearch/main/build-tools-internal/src/main/resources/fips_java.security[example]).
-Ensure the FIPS certified security provider is configured with the lowest order. This file should contain the necessary configuration to
-instruct Java to use the FIPS certified security provider.
+To configure {es} to use additional security provider(s) configure {es}'s JVM property `java.security.properties` to point to a file
+(https://raw.githubusercontent.com/elastic/elasticsearch/main/build-tools-internal/src/main/resources/fips_java.security[example]) in {es}'s
+`config` directory. Ensure the FIPS certified security provider is configured with the lowest order. This file should contain the necessary
+configuration to instruct Java to use the FIPS certified security provider.
 
 [discrete]
 [[java-security-manager]]
 ==== Java security manager
 
 All code running in {es} is subject to the security restrictions enforced by the Java security manager.
-The Java security requires explicit grants to perform low level Java operations. The Java security provider is not exempt from the
-restrictions enforced by the security manager and as such it requires explicit grants to perform it's low level Java operations.
+The Java security manager requires explicit grants permissions to perform low level Java operations. The Java security provider is not exempt from the
+restrictions enforced by the security manager and as such it may require explicit grants to perform it's low level Java operations.
 
-To configure {es}'s security manager configure the JVM property `java.security.policy` to point a file in {es}'s
-`config` directory (https://raw.githubusercontent.com/elastic/elasticsearch/main/build-tools-internal/src/main/resources/fips_java.policy[example])
-with the desired permissions. This file should contain the necessary configuration for the Java security manager to grant the required
-permissions needed by the security provider.
+To configure {es}'s security manager configure the JVM property `java.security.policy` to point a file
+(https://raw.githubusercontent.com/elastic/elasticsearch/main/build-tools-internal/src/main/resources/fips_java.policy[example])in {es}'s
+`config` directory with the desired permissions. This file should contain the necessary configuration for the Java security manager
+to grant the required permissions needed by the security provider.
 
 
 [discrete]
@@ -193,24 +194,24 @@ ones will be created using the algorithm you have selected.
 
 To verify that the security provider is installed and in use, you can use any of the following steps:
 
-* Verify: the required security providers are configured with the lowest order in the file pointed to by `java.security.properties`.
+* Verify the required security providers are configured with the lowest order in the file pointed to by `java.security.properties`.
 For example, `security.provider.1` is a lower order than `security.provider.2`
-* Set: `xpack.security.fips_mode.required_providers` in `elasticsearch.yml` to the list of required security providers.
+* Set `xpack.security.fips_mode.required_providers` in `elasticsearch.yml` to the list of required security providers.
 This setting is used to ensure that the correct security provider is installed and configured.
-If the security provider is not installed or configured correctly, {es} will fail to start. `["BCFIPS", "BCJSSE"]` are the values to
-use for Bouncy Castle's FIPS certified provider.
-* Set: `logger.org.elasticsearch.xpack.security` to `trace` in `elasticsearch.yml` and check the logs for the algorithms and providers that are in use.
+If the security provider is not installed correctly, {es} will fail to start. `["BCFIPS", "BCJSSE"]` are the values to
+use for Bouncy Castle's FIPS JCE and JSSE certified provider.
+* Set `logger.org.elasticsearch.xpack.security` to `trace` in `elasticsearch.yml` and check the logs for the algorithms and providers that are in use.
 
 [discrete]
+[[fips-upgrade-considerations]]
 === Upgrade considerations
 include::fips-java17.asciidoc[]
 
 [IMPORTANT]
 ====
 Some encryption algorithms may no longer be available by default in updated FIPS 140-2 security providers.
-Notably, Triple DES and PKCS1.5 RSA are now discouraged and Bouncy Castle's
-https://www.bouncycastle.org/fips-java/RELEASE_NOTES.md[BC-FJA 1.0.2.4] now requires explicit configuration
-to continue using these algorithms.
+Notably, Triple DES and PKCS1.5 RSA are now discouraged and https://www.bouncycastle.org/fips-java[Bouncy Castle] now
+requires explicit configuration to continue using these algorithms.
 ====
 
 If you plan to upgrade your existing cluster to a version that can be run in
@@ -234,6 +235,7 @@ in addition to the necessary configuration changes outlined below, before
 starting each node.
 
 [discrete]
+[[fips-limitations]]
 === Limitations
 
 Due to the limitations that FIPS 140-2 compliance enforces, a small number of

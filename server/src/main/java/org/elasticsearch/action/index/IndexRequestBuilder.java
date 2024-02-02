@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -227,6 +228,16 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      */
     public IndexRequestBuilder setRequireDataStream(boolean requireDataStream) {
         request.setRequireDataStream(requireDataStream);
+        return this;
+    }
+
+    public long ramBytesUsed() {
+        // TODO once we've merged the new IndexRequestBuilder
+        return 0;
+    }
+
+    public IndexRequestBuilder setParentTask(TaskId taskId) {
+        // TODO once we've merged the new IndexRequestBuilder
         return this;
     }
 }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -69,7 +70,7 @@ public class RestBulkAction extends BaseRestHandler {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type");
         }
-        BulkRequest bulkRequest = new BulkRequest();
+        final BulkRequest bulkRequest = new BulkRequest();
         String defaultIndex = request.param("index");
         String defaultRouting = request.param("routing");
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
@@ -97,7 +98,10 @@ public class RestBulkAction extends BaseRestHandler {
             request.getRestApiVersion()
         );
 
-        return channel -> client.bulk(bulkRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+        return channel -> client.bulk(
+            bulkRequest,
+            ActionListener.runAfter(new RestRefCountedChunkedToXContentListener<>(channel), bulkRequest::decRef)
+        );
     }
 
     @Override

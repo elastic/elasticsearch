@@ -17,6 +17,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
@@ -73,10 +74,8 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -480,10 +479,11 @@ public class ExecutionService {
                 ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)
             ) {
                 watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
-                IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM).id(watchRecord.id().value())
-                    .source(builder)
-                    .opType(IndexRequest.OpType.CREATE);
-                client.index(request).get(30, TimeUnit.SECONDS);
+                IndexRequestBuilder request = client.prepareIndex(HistoryStoreField.DATA_STREAM)
+                    .setId(watchRecord.id().value())
+                    .setSource(builder)
+                    .setOpType(IndexRequest.OpType.CREATE);
+                request.get(TimeValue.timeValueSeconds(30));
                 logger.debug("indexed watch history record [{}]", watchRecord.id().value());
             } catch (VersionConflictEngineException vcee) {
                 watchRecord = new WatchRecord.MessageWatchRecord(
@@ -495,13 +495,14 @@ public class ExecutionService {
                     XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
                     ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)
                 ) {
-                    IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM).id(watchRecord.id().value())
-                        .source(xContentBuilder.value(watchRecord));
-                    client.index(request).get(30, TimeUnit.SECONDS);
+                    IndexRequestBuilder request = client.prepareIndex(HistoryStoreField.DATA_STREAM)
+                        .setId(watchRecord.id().value())
+                        .setSource(xContentBuilder.value(watchRecord));
+                    request.get(TimeValue.timeValueSeconds(30));
                 }
                 logger.debug("overwrote watch history record [{}]", watchRecord.id().value());
             }
-        } catch (InterruptedException | ExecutionException | TimeoutException | IOException ioe) {
+        } catch (IOException ioe) {
             final WatchRecord wr = watchRecord;
             logger.error(() -> "failed to persist watch record [" + wr + "]", ioe);
         }

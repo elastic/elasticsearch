@@ -19,6 +19,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
@@ -26,6 +28,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -59,9 +62,11 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     private IndexRequest destination;
 
     private RemoteInfo remoteInfo;
+    private final RefCounted refCounted;
 
     public ReindexRequest() {
         this(new SearchRequest(), new IndexRequest(), true);
+        destination.decRef();
     }
 
     ReindexRequest(SearchRequest search, IndexRequest destination) {
@@ -70,13 +75,17 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     private ReindexRequest(SearchRequest search, IndexRequest destination, boolean setDefaults) {
         super(search, setDefaults);
+        assert destination != null : "Destination index cannot be null";
         this.destination = destination;
+        this.destination.incRef();
+        this.refCounted = LeakTracker.wrap(new ReindexRequestRefCounted());
     }
 
     public ReindexRequest(StreamInput in) throws IOException {
         super(in);
         destination = new IndexRequest(in);
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
+        this.refCounted = LeakTracker.wrap(new ReindexRequestRefCounted());
     }
 
     @Override
@@ -508,5 +517,37 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     private static void failOnSizeSpecified() {
         throw new IllegalArgumentException("invalid parameter [size], use [max_docs] instead");
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        boolean success = refCounted.decRef();
+        if (refCounted.hasReferences() == false) {
+            success = destination.decRef() && success;
+        }
+        return success;
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    private static class ReindexRequestRefCounted extends AbstractRefCounted {
+
+        @Override
+        protected void closeInternal() {
+            // nothing to close
+        }
     }
 }

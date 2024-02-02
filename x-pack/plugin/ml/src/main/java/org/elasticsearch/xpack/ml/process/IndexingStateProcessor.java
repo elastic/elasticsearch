@@ -8,10 +8,11 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -58,15 +59,18 @@ public class IndexingStateProcessor implements StateProcessor {
 
     private static final int READ_BUF_SIZE = 8192;
 
+    private final Client client;
     private final String jobId;
     private final AbstractAuditor<? extends AbstractAuditMessage> auditor;
     private final ResultsPersisterService resultsPersisterService;
 
     public IndexingStateProcessor(
+        Client client,
         String jobId,
         ResultsPersisterService resultsPersisterService,
         AbstractAuditor<? extends AbstractAuditMessage> auditor
     ) {
+        this.client = client;
         this.jobId = jobId;
         this.resultsPersisterService = resultsPersisterService;
         this.auditor = auditor;
@@ -140,9 +144,10 @@ public class IndexingStateProcessor implements StateProcessor {
     }
 
     void persist(String indexOrAlias, BytesReference bytes) throws IOException {
-        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .requireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias));
-        bulkRequest.add(bytes, indexOrAlias, XContentType.JSON);
+        BulkRequestBuilder bulkRequest = client.prepareBulk()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setRequireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias));
+        bulkRequest.add(bytes.array(), 0, bytes.length(), indexOrAlias, XContentType.JSON);
         if (bulkRequest.numberOfActions() > 0) {
             LOGGER.trace("[{}] Persisting job state document: index [{}], length [{}]", jobId, indexOrAlias, bytes.length());
             try {

@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -40,7 +41,10 @@ import java.util.Map;
 import java.util.function.LongSupplier;
 
 /**
- * Helper for translating an update request to an index, delete request or update response.
+ * Prepares an update request by converting it into an index or delete request or an update response (no action). The caller must be
+ * very careful with the response from this method, because sometimes it contains a new index request that must be decRef'd when the
+ * client is finished with it, and sometimes it contains a reference to an index request already referenced from the update request.
+ * It is unfortunately on the client to check whether or not this IndexRequest is the same as one already on the input UpdateRequest.
  */
 public class UpdateHelper {
 
@@ -78,6 +82,29 @@ public class UpdateHelper {
             // The request has a script (or empty script), execute the script and prepare a new index request
             return prepareUpdateScriptRequest(shardId, request, getResult, nowInMillis);
         }
+    }
+
+    /**
+     * This is a helper for the prepare* methods of this class. The prepare* methods return a Result that might contain a newly-created
+     * IndexRequest, or might return an IndexRequest that already existed on the UpdateRequest as the doc or upsertRequest. If the
+     * former, then the caller needs to make sure to decRef the IndexRequest in the Result once done with it. This method returns a
+     * Runnable that will decref the IndexRequest if needed.
+     * @param request The UpdateRequest previously passed to a prepare* method on this class
+     * @param result The Result previously returned by a prepare* method on this class
+     * @return A Runnable that can be used to decref any IndexRequests created by the prepare* method in this class (possibly a no-op).
+     */
+    public static Runnable getMaybeDecRefUpdateHelerResult(UpdateRequest request, Result result) {
+        final Runnable maybeDecRefIndexRequest;
+        if (result.action instanceof RefCounted refCounted) {
+            if (refCounted != request && refCounted != request.doc() && refCounted != request.upsertRequest()) {
+                maybeDecRefIndexRequest = refCounted::decRef;
+            } else {
+                maybeDecRefIndexRequest = () -> {};
+            }
+        } else {
+            maybeDecRefIndexRequest = () -> {};
+        }
+        return maybeDecRefIndexRequest;
     }
 
     /**

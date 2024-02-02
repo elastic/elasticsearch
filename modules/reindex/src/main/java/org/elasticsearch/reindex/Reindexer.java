@@ -296,62 +296,66 @@ public class Reindexer {
         @Override
         protected RequestWrapper<IndexRequest> buildRequest(ScrollableHitSource.Hit doc) {
             IndexRequest index = new IndexRequest();
+            try {
+                // Copy the index from the request so we always write where it asked to write
+                index.index(mainRequest.getDestination().index());
 
-            // Copy the index from the request so we always write where it asked to write
-            index.index(mainRequest.getDestination().index());
-
-            /*
-             * Internal versioning can just use what we copied from the destination request. Otherwise we assume we're using external
-             * versioning and use the doc's version.
-             */
-            index.versionType(mainRequest.getDestination().versionType());
-            if (index.versionType() == INTERNAL) {
-                assert doc.getVersion() == -1 : "fetched version when we didn't have to";
-                index.version(mainRequest.getDestination().version());
-            } else {
-                index.version(doc.getVersion());
-            }
-
-            // id and source always come from the found doc. Scripts can change them but they operate on the index request.
-            index.id(destinationIndexIdMapper.reindexId(doc.getId()));
-
-            // the source xcontent type and destination could be different
-            final XContentType sourceXContentType = doc.getXContentType();
-            final XContentType mainRequestXContentType = mainRequest.getDestination().getContentType();
-            if (mainRequestXContentType != null && doc.getXContentType() != mainRequestXContentType) {
-                // we need to convert
-                try (
-                    XContentParser parser = XContentHelper.createParserNotCompressed(
-                        XContentParserConfiguration.EMPTY,
-                        doc.getSource(),
-                        sourceXContentType
-                    );
-                    XContentBuilder builder = XContentBuilder.builder(mainRequestXContentType.xContent())
-                ) {
-                    parser.nextToken();
-                    builder.copyCurrentStructure(parser);
-                    index.source(BytesReference.bytes(builder), builder.contentType());
-                } catch (IOException e) {
-                    throw new UncheckedIOException(
-                        "failed to convert hit from " + sourceXContentType + " to " + mainRequestXContentType,
-                        e
-                    );
+                /*
+                 * Internal versioning can just use what we copied from the destination request. Otherwise we assume we're using external
+                 * versioning and use the doc's version.
+                 */
+                index.versionType(mainRequest.getDestination().versionType());
+                if (index.versionType() == INTERNAL) {
+                    assert doc.getVersion() == -1 : "fetched version when we didn't have to";
+                    index.version(mainRequest.getDestination().version());
+                } else {
+                    index.version(doc.getVersion());
                 }
-            } else {
-                index.source(doc.getSource(), doc.getXContentType());
-            }
 
-            /*
-             * The rest of the index request just has to be copied from the template. It may be changed later from scripts or the superclass
-             * here on out operates on the index request rather than the template.
-             */
-            index.routing(mainRequest.getDestination().routing());
-            index.setPipeline(mainRequest.getDestination().getPipeline());
-            if (mainRequest.getDestination().opType() == DocWriteRequest.OpType.CREATE) {
-                index.opType(mainRequest.getDestination().opType());
-            }
+                // id and source always come from the found doc. Scripts can change them but they operate on the index request.
+                index.id(destinationIndexIdMapper.reindexId(doc.getId()));
 
-            return wrap(index);
+                // the source xcontent type and destination could be different
+                final XContentType sourceXContentType = doc.getXContentType();
+                final XContentType mainRequestXContentType = mainRequest.getDestination().getContentType();
+                if (mainRequestXContentType != null && doc.getXContentType() != mainRequestXContentType) {
+                    // we need to convert
+                    try (
+                        XContentParser parser = XContentHelper.createParserNotCompressed(
+                            XContentParserConfiguration.EMPTY,
+                            doc.getSource(),
+                            sourceXContentType
+                        );
+                        XContentBuilder builder = XContentBuilder.builder(mainRequestXContentType.xContent())
+                    ) {
+                        parser.nextToken();
+                        builder.copyCurrentStructure(parser);
+                        index.source(BytesReference.bytes(builder), builder.contentType());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(
+                            "failed to convert hit from " + sourceXContentType + " to " + mainRequestXContentType,
+                            e
+                        );
+                    }
+                } else {
+                    index.source(doc.getSource(), doc.getXContentType());
+                }
+
+                /*
+                 * The rest of the index request just has to be copied from the template. It may be changed later from scripts or the
+                 * superclass here on out operates on the index request rather than the template.
+                 */
+                index.routing(mainRequest.getDestination().routing());
+                index.setPipeline(mainRequest.getDestination().getPipeline());
+                if (mainRequest.getDestination().opType() == DocWriteRequest.OpType.CREATE) {
+                    index.opType(mainRequest.getDestination().opType());
+                }
+
+                return wrap(index);
+            } catch (Exception e) {
+                index.decRef();
+                throw e;
+            }
         }
 
         /**

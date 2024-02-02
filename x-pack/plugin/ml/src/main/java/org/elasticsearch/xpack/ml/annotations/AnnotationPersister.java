@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.ml.annotations;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContent;
@@ -33,6 +34,8 @@ public class AnnotationPersister {
 
     private static final int DEFAULT_BULK_LIMIT = 10_000;
 
+    private final Client client;
+
     private final ResultsPersisterService resultsPersisterService;
 
     /**
@@ -40,12 +43,13 @@ public class AnnotationPersister {
      */
     private final int bulkLimit;
 
-    public AnnotationPersister(ResultsPersisterService resultsPersisterService) {
-        this(resultsPersisterService, DEFAULT_BULK_LIMIT);
+    public AnnotationPersister(Client client, ResultsPersisterService resultsPersisterService) {
+        this(client, resultsPersisterService, DEFAULT_BULK_LIMIT);
     }
 
     // For testing
-    AnnotationPersister(ResultsPersisterService resultsPersisterService, int bulkLimit) {
+    AnnotationPersister(Client client, ResultsPersisterService resultsPersisterService, int bulkLimit) {
+        this.client = client;
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.bulkLimit = bulkLimit;
     }
@@ -60,28 +64,32 @@ public class AnnotationPersister {
     public Tuple<String, Annotation> persistAnnotation(@Nullable String annotationId, Annotation annotation) {
         Objects.requireNonNull(annotation);
         String jobId = annotation.getJobId();
-        BulkResponse bulkResponse = bulkPersisterBuilder(jobId).persistAnnotation(annotationId, annotation).executeRequest();
+        Builder builder = bulkPersisterBuilder(jobId);
+        BulkResponse bulkResponse = builder.persistAnnotation(annotationId, annotation).executeRequest();
         assert bulkResponse.getItems().length == 1;
         return Tuple.tuple(bulkResponse.getItems()[0].getId(), annotation);
     }
 
     public Builder bulkPersisterBuilder(String jobId) {
-        return new Builder(jobId, () -> true);
+        return new Builder(client, jobId, () -> true);
     }
 
     public Builder bulkPersisterBuilder(String jobId, Supplier<Boolean> shouldRetry) {
-        return new Builder(jobId, shouldRetry);
+        return new Builder(client, jobId, shouldRetry);
     }
 
     public class Builder {
 
         private final String jobId;
-        private BulkRequest bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+        private final Client client;
+        private BulkRequestBuilder bulkRequestBuilder;
         private final Supplier<Boolean> shouldRetry;
 
-        private Builder(String jobId, Supplier<Boolean> shouldRetry) {
+        private Builder(Client client, String jobId, Supplier<Boolean> shouldRetry) {
             this.jobId = Objects.requireNonNull(jobId);
+            this.client = client;
             this.shouldRetry = Objects.requireNonNull(shouldRetry);
+            bulkRequestBuilder = client.prepareBulk(AnnotationIndex.WRITE_ALIAS_NAME);
         }
 
         public Builder persistAnnotation(Annotation annotation) {
@@ -91,12 +99,17 @@ public class AnnotationPersister {
         public Builder persistAnnotation(@Nullable String annotationId, Annotation annotation) {
             Objects.requireNonNull(annotation);
             try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-                bulkRequest.add(new IndexRequest().id(annotationId).source(xContentBuilder).setRequireAlias(true));
+                IndexRequest indexRequest = new IndexRequest();
+                try {
+                    bulkRequestBuilder.add(indexRequest.id(annotationId).source(xContentBuilder).setRequireAlias(true));
+                } finally {
+                    indexRequest.decRef();
+                }
             } catch (IOException e) {
                 logger.error(() -> "[" + jobId + "] Error serialising annotation", e);
             }
 
-            if (bulkRequest.numberOfActions() >= bulkLimit) {
+            if (bulkRequestBuilder.numberOfActions() >= bulkLimit) {
                 executeRequest();
             }
             return this;
@@ -106,17 +119,18 @@ public class AnnotationPersister {
          * Execute the bulk action
          */
         public BulkResponse executeRequest() {
-            if (bulkRequest.numberOfActions() == 0) {
+            if (bulkRequestBuilder.numberOfActions() == 0) {
                 return null;
             }
-            logger.trace("[{}] ES API CALL: bulk request with {} actions", () -> jobId, () -> bulkRequest.numberOfActions());
-            BulkResponse bulkResponse = resultsPersisterService.bulkIndexWithRetry(
-                bulkRequest,
+            BulkResponse bulkResponse;
+            logger.trace("[{}] ES API CALL: bulk request with {} actions", () -> jobId, () -> bulkRequestBuilder.numberOfActions());
+            bulkResponse = resultsPersisterService.bulkIndexWithRetry(
+                bulkRequestBuilder,
                 jobId,
                 shouldRetry,
                 retryMessage -> logger.debug("[{}] Bulk indexing of annotations failed {}", jobId, retryMessage)
             );
-            bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+            bulkRequestBuilder = client.prepareBulk();
             return bulkResponse;
         }
     }

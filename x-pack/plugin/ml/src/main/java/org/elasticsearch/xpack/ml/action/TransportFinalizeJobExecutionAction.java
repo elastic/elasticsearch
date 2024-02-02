@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -85,18 +86,21 @@ public class TransportFinalizeJobExecutionAction extends AcknowledgedTransportMa
         Map<String, Object> update = Collections.singletonMap(Job.FINISHED_TIME.getPreferredName(), new Date());
 
         for (String jobId : request.getJobIds()) {
-            UpdateRequest updateRequest = new UpdateRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
-            updateRequest.retryOnConflict(3);
-            updateRequest.doc(update);
-            updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
+            UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(MlConfigIndex.indexName(), Job.documentId(jobId));
+            updateRequestBuilder.setRetryOnConflict(3);
+            updateRequestBuilder.setDoc(update);
+            updateRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            UpdateRequest updateRequest = updateRequestBuilder.request();
             voidChainTaskExecutor.add(chainedListener -> {
                 executeAsyncWithOrigin(
                     client,
                     ML_ORIGIN,
                     TransportUpdateAction.TYPE,
                     updateRequest,
-                    chainedListener.delegateFailureAndWrap((l, updateResponse) -> l.onResponse(null))
+                    ActionListener.runAfter(
+                        chainedListener.delegateFailureAndWrap((l, updateResponse) -> l.onResponse(null)),
+                        updateRequest::decRef
+                    )
                 );
             });
         }

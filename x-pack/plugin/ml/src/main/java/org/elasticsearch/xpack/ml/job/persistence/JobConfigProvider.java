@@ -121,24 +121,26 @@ public class JobConfigProvider {
     public void putJob(Job job, ActionListener<DocWriteResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = job.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(Job.documentId(job.getId()))
-                .source(source)
-                .opType(DocWriteRequest.OpType.CREATE)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            IndexRequest indexRequest = client.prepareIndex(MlConfigIndex.indexName())
+                .setId(Job.documentId(job.getId()))
+                .setSource(source)
+                .setOpType(DocWriteRequest.OpType.CREATE)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .request();
 
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
                 TransportIndexAction.TYPE,
                 indexRequest,
-                ActionListener.wrap(listener::onResponse, e -> {
+                ActionListener.runAfter(ActionListener.wrap(listener::onResponse, e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         // the job already exists
                         listener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
                     } else {
                         listener.onFailure(e);
                     }
-                })
+                }), indexRequest::decRef)
             );
 
         } catch (IOException e) {
@@ -337,16 +339,24 @@ public class JobConfigProvider {
     private void indexUpdatedJob(Job updatedJob, long seqNo, long primaryTerm, ActionListener<Job> updatedJobListener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedJob.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(Job.documentId(updatedJob.getId()))
-                .source(updatedSource)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            indexRequest.setIfSeqNo(seqNo);
-            indexRequest.setIfPrimaryTerm(primaryTerm);
+            IndexRequest indexRequest = client.prepareIndex(MlConfigIndex.indexName())
+                .setId(Job.documentId(updatedJob.getId()))
+                .setSource(updatedSource)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .setIfSeqNo(seqNo)
+                .setIfPrimaryTerm(primaryTerm)
+                .request();
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, ActionListener.wrap(indexResponse -> {
-                assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                updatedJobListener.onResponse(updatedJob);
-            }, updatedJobListener::onFailure));
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportIndexAction.TYPE,
+                indexRequest,
+                ActionListener.runAfter(ActionListener.wrap(indexResponse -> {
+                    assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                    updatedJobListener.onResponse(updatedJob);
+                }, updatedJobListener::onFailure), indexRequest::decRef)
+            );
 
         } catch (IOException e) {
             updatedJobListener.onFailure(

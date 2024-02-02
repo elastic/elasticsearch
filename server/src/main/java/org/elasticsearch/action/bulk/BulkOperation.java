@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -175,6 +176,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 BulkItemResponse bulkItemResponse = BulkItemResponse.failure(i, docWriteRequest.opType(), failure);
                 responses.set(i, bulkItemResponse);
                 // make sure the request gets never processed again
+                if (docWriteRequest instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
                 bulkRequest.requests.set(i, null);
             }
         }
@@ -208,19 +212,23 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     bulkRequest.getRefreshPolicy(),
                     requests.toArray(new BulkItemRequest[0])
                 );
+                for (BulkItemRequest request : requests) {
+                    // The BulkShardRequest constructor has incremented the ref, and we are no longer directly referencing this object
+                    request.decRef();
+                }
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());
                 bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                executeBulkShardRequest(bulkShardRequest, bulkItemRequestCompleteRefCount.acquire());
+                executeBulkShardRequest(bulkShardRequest, bulkShardRequest, bulkItemRequestCompleteRefCount.acquire());
             }
         }
     }
 
-    private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {
-        client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
+    private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, RefCounted decRefOnFinish, Releasable releaseOnFinish) {
+        client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(BulkShardResponse bulkShardResponse) {
                 for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
@@ -244,7 +252,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 }
                 releaseOnFinish.close();
             }
-        });
+        }, () -> {
+            decRefOnFinish.decRef();
+            releaseOnFinish.close();
+        }));
     }
 
     private boolean handleBlockExceptions(ClusterState state) {
@@ -349,6 +360,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         BulkItemResponse bulkItemResponse = BulkItemResponse.failure(idx, request.opType(), failure);
         responses.set(idx, bulkItemResponse);
         // make sure the request gets never processed again
+        if (request instanceof RefCounted refCounted) {
+            refCounted.decRef();
+        }
         bulkRequest.requests.set(idx, null);
     }
 

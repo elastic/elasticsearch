@@ -17,6 +17,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -235,29 +236,30 @@ public class DataFrameAnalyticsConfigProvider {
     ) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             config.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(DataFrameAnalyticsConfig.documentId(config.getId()))
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(MlConfigIndex.indexName())
+                .setId(DataFrameAnalyticsConfig.documentId(config.getId()))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(builder);
+                .setSource(builder);
             if (getResponse == null) {
-                indexRequest.opType(DocWriteRequest.OpType.CREATE);
+                indexRequestBuilder.setOpType(DocWriteRequest.OpType.CREATE);
             } else {
-                indexRequest.opType(DocWriteRequest.OpType.INDEX)
+                indexRequestBuilder.setOpType(DocWriteRequest.OpType.INDEX)
                     .setIfSeqNo(getResponse.getSeqNo())
                     .setIfPrimaryTerm(getResponse.getPrimaryTerm());
             }
-
+            IndexRequest indexRequest = indexRequestBuilder.request();
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
                 TransportIndexAction.TYPE,
                 indexRequest,
-                ActionListener.wrap(indexResponse -> listener.onResponse(config), e -> {
+                ActionListener.runAfter(ActionListener.wrap(indexResponse -> listener.onResponse(config), e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         listener.onFailure(ExceptionsHelper.dataFrameAnalyticsAlreadyExists(config.getId()));
                     } else {
                         listener.onFailure(e);
                     }
-                })
+                }), indexRequest::decRef)
             );
         } catch (IOException e) {
             listener.onFailure(

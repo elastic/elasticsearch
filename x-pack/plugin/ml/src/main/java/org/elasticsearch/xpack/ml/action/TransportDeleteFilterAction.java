@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -90,11 +91,12 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     }
 
     private void deleteFilter(String filterId, ActionListener<AcknowledgedResponse> listener) {
-        DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.indexName(), MlFilter.documentId(filterId));
+        DeleteRequestBuilder deleteRequestBuilder = client.prepareDelete(MlMetaIndex.indexName(), MlFilter.documentId(filterId));
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-        bulkRequestBuilder.add(deleteRequest);
+        bulkRequestBuilder.add(deleteRequestBuilder);
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(), new ActionListener<BulkResponse>() {
+        BulkRequest bulkRequest = bulkRequestBuilder.request();
+        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequest, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(BulkResponse bulkResponse) {
                 if (bulkResponse.getItems()[0].status() == RestStatus.NOT_FOUND) {
@@ -110,6 +112,6 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
             public void onFailure(Exception e) {
                 listener.onFailure(ExceptionsHelper.serverError("Could not delete filter with ID [" + filterId + "]", e));
             }
-        });
+        }, bulkRequest::decRef));
     }
 }

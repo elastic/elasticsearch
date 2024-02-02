@@ -370,6 +370,9 @@ public class BulkProcessor implements Closeable {
                 onClose.run();
             }
         } finally {
+            if (bulkRequest.hasReferences()) {
+                bulkRequest.decRef();
+            }
             lock.unlock();
         }
     }

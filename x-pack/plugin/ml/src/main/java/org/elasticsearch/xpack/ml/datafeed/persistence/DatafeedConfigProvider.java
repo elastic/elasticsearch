@@ -20,6 +20,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -130,26 +131,26 @@ public class DatafeedConfigProvider {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = finalConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(DatafeedConfig.documentId(datafeedId))
-                .source(source)
-                .opType(DocWriteRequest.OpType.CREATE)
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(MlConfigIndex.indexName())
+                .setId(DatafeedConfig.documentId(datafeedId))
+                .setSource(source)
+                .setOpType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
+            IndexRequest indexRequest = indexRequestBuilder.request();
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
                 TransportIndexAction.TYPE,
                 indexRequest,
-                ActionListener.wrap(r -> listener.onResponse(Tuple.tuple(finalConfig, r)), e -> {
+                ActionListener.runAfter(ActionListener.wrap(r -> listener.onResponse(Tuple.tuple(finalConfig, r)), e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         // the datafeed already exists
                         listener.onFailure(ExceptionsHelper.datafeedAlreadyExists(datafeedId));
                     } else {
                         listener.onFailure(e);
                     }
-                })
+                }), indexRequest::decRef)
             );
-
         } catch (IOException e) {
             listener.onFailure(new ElasticsearchParseException("Failed to serialise datafeed config with id [" + datafeedId + "]", e));
         }
@@ -367,14 +368,21 @@ public class DatafeedConfigProvider {
     private void indexUpdatedConfig(DatafeedConfig updatedConfig, long seqNo, long primaryTerm, ActionListener<DocWriteResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(DatafeedConfig.documentId(updatedConfig.getId()))
-                .source(updatedSource)
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(MlConfigIndex.indexName())
+                .setId(DatafeedConfig.documentId(updatedConfig.getId()))
+                .setSource(updatedSource)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            indexRequest.setIfSeqNo(seqNo);
-            indexRequest.setIfPrimaryTerm(primaryTerm);
-
-            executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, listener);
+            indexRequestBuilder.setIfSeqNo(seqNo);
+            indexRequestBuilder.setIfPrimaryTerm(primaryTerm);
+            IndexRequest indexRequest = indexRequestBuilder.request();
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportIndexAction.TYPE,
+                indexRequest,
+                ActionListener.runAfter(listener, indexRequest::decRef)
+            );
 
         } catch (IOException e) {
             listener.onFailure(

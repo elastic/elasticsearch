@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -38,6 +39,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -1721,6 +1723,7 @@ public class JobResultsProvider {
                 )
             );
 
+        // TODO: updat this once the new builders are merged
         UpdateByQueryRequest request = new UpdateByQueryRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).setQuery(forecastQuery)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
@@ -1864,20 +1867,23 @@ public class JobResultsProvider {
             currentJobs.removeAll(jobIdsToRemove);
             Calendar updatedCalendar = new Calendar(calendar.getId(), new ArrayList<>(currentJobs), calendar.getDescription());
 
-            UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.indexName(), updatedCalendar.documentId());
-            updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(MlMetaIndex.indexName(), updatedCalendar.documentId())
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                updateRequest.doc(updatedCalendar.toXContent(builder, ToXContent.EMPTY_PARAMS));
+                updateRequestBuilder.setDoc(updatedCalendar.toXContent(builder, ToXContent.EMPTY_PARAMS));
             } catch (IOException e) {
                 throw new IllegalStateException("Failed to serialise calendar with id [" + updatedCalendar.getId() + "]", e);
             }
-
+            UpdateRequest updateRequest = updateRequestBuilder.request();
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 ML_ORIGIN,
                 updateRequest,
-                ActionListener.<UpdateResponse>wrap(response -> handler.accept(updatedCalendar), errorHandler),
+                ActionListener.runAfter(
+                    ActionListener.<UpdateResponse>wrap(response -> handler.accept(updatedCalendar), errorHandler),
+                    updateRequest::decRef
+                ),
                 client::update
             );
 
@@ -1925,22 +1931,29 @@ public class JobResultsProvider {
         );
 
         ActionListener<QueryPage<Calendar>> getCalendarsListener = ActionListener.wrap(r -> {
-            BulkRequestBuilder bulkUpdate = client.prepareBulk();
-            bulkUpdate.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            BulkRequestBuilder bulkUpdateBuilder = client.prepareBulk();
+            bulkUpdateBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (Calendar calendar : r.results()) {
                 List<String> ids = calendar.getJobIds().stream().filter(jId -> jobId.equals(jId) == false).collect(Collectors.toList());
                 Calendar newCalendar = new Calendar(calendar.getId(), ids, calendar.getDescription());
-                UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.indexName(), newCalendar.documentId());
+                UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(MlMetaIndex.indexName(), newCalendar.documentId());
                 try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    updateRequest.doc(newCalendar.toXContent(builder, ToXContent.EMPTY_PARAMS));
+                    updateRequestBuilder.setDoc(newCalendar.toXContent(builder, ToXContent.EMPTY_PARAMS));
                 } catch (IOException e) {
                     listener.onFailure(new IllegalStateException("Failed to serialise calendar with id [" + newCalendar.getId() + "]", e));
                     return;
                 }
-                bulkUpdate.add(updateRequest);
+                bulkUpdateBuilder.add(updateRequestBuilder);
             }
-            if (bulkUpdate.numberOfActions() > 0) {
-                executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkUpdate.request(), updateCalendarsListener);
+            if (bulkUpdateBuilder.numberOfActions() > 0) {
+                BulkRequest bulkUpdate = bulkUpdateBuilder.request();
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    BulkAction.INSTANCE,
+                    bulkUpdate,
+                    ActionListener.runAfter(updateCalendarsListener, bulkUpdate::decRef)
+                );
             } else {
                 listener.onResponse(true);
             }

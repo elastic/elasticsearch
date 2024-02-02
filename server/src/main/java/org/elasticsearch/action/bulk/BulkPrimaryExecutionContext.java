@@ -321,7 +321,14 @@ class BulkPrimaryExecutionContext {
         assert translatedResponse.getItemId() == getCurrentItem().id();
 
         if (translatedResponse.isFailed() == false && requestToExecute != null && requestToExecute != getCurrent()) {
-            request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
+            BulkItemRequest oldBulkItemRequest = request.items()[currentIndex];
+            try {
+                request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
+            } finally {
+                if (oldBulkItemRequest != null) {
+                    oldBulkItemRequest.decRef();
+                }
+            }
         }
         getCurrentItem().setPrimaryResponse(translatedResponse);
         currentItemState = ItemProcessingState.COMPLETED;

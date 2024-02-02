@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -122,31 +123,41 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         IndexRequest indexRequest = new IndexRequest(request.param("index"));
-        indexRequest.id(request.param("id"));
-        indexRequest.routing(request.param("routing"));
-        indexRequest.setPipeline(request.param("pipeline"));
-        indexRequest.source(request.requiredContent(), request.getXContentType());
-        indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
-        indexRequest.setRefreshPolicy(request.param("refresh"));
-        indexRequest.version(RestActions.parseVersion(request));
-        indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
-        indexRequest.setIfSeqNo(request.paramAsLong("if_seq_no", indexRequest.ifSeqNo()));
-        indexRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", indexRequest.ifPrimaryTerm()));
-        indexRequest.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, indexRequest.isRequireAlias()));
-        indexRequest.setRequireDataStream(request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, indexRequest.isRequireDataStream()));
-        String sOpType = request.param("op_type");
-        String waitForActiveShards = request.param("wait_for_active_shards");
-        if (waitForActiveShards != null) {
-            indexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
-        }
-        if (sOpType != null) {
-            indexRequest.opType(sOpType);
-        }
+        try {
+            indexRequest.id(request.param("id"));
+            indexRequest.routing(request.param("routing"));
+            indexRequest.setPipeline(request.param("pipeline"));
+            indexRequest.source(request.requiredContent(), request.getXContentType());
+            indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
+            indexRequest.setRefreshPolicy(request.param("refresh"));
+            indexRequest.version(RestActions.parseVersion(request));
+            indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
+            indexRequest.setIfSeqNo(request.paramAsLong("if_seq_no", indexRequest.ifSeqNo()));
+            indexRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", indexRequest.ifPrimaryTerm()));
+            indexRequest.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, indexRequest.isRequireAlias()));
+            indexRequest.setRequireDataStream(
+                request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, indexRequest.isRequireDataStream())
+            );
+            String sOpType = request.param("op_type");
+            String waitForActiveShards = request.param("wait_for_active_shards");
+            if (waitForActiveShards != null) {
+                indexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
+            }
+            if (sOpType != null) {
+                indexRequest.opType(sOpType);
+            }
 
-        return channel -> client.index(
-            indexRequest,
-            new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing()))
-        );
+            return channel -> client.index(
+                indexRequest,
+                ActionListener.runAfter(
+                    new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing())),
+                    indexRequest::decRef
+                )
+            );
+        } catch (Exception e) {
+            indexRequest.decRef();
+            throw e;
+        }
     }
 
 }

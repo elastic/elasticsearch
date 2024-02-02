@@ -483,6 +483,7 @@ public class AnalyticsProcessManager {
             DataFrameDataExtractorFactory dataExtractorFactory
         ) {
             DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(
+                client,
                 config.getId(),
                 settings,
                 task.getParentTaskId(),

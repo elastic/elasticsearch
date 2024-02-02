@@ -18,7 +18,10 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
@@ -27,20 +30,29 @@ import java.util.Set;
 public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest>
     implements
         Accountable,
-        RawIndexingDataTransportRequest {
+        RawIndexingDataTransportRequest,
+        RefCounted {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
     private final BulkItemRequest[] items;
+    private final RefCounted refCounted;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
+        this.refCounted = LeakTracker.wrap(new BulkShardRequestRefCounted());
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
         super(shardId);
         this.items = items;
+        for (BulkItemRequest item : items) {
+            if (item != null) {
+                item.incRef();
+            }
+        }
+        this.refCounted = LeakTracker.wrap(new BulkShardRequestRefCounted());
         setRefreshPolicy(refreshPolicy);
     }
 
@@ -153,5 +165,41 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             sum += item.ramBytesUsed();
         }
         return sum;
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        assert refCounted.hasReferences() : "Attempt to decRef BulkShardRequest that is already closed";
+        boolean droppedToZero = refCounted.decRef();
+        if (droppedToZero) {
+            for (BulkItemRequest item : items) {
+                if (item != null) {
+                    item.decRef();
+                }
+            }
+        }
+        return droppedToZero;
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    private static class BulkShardRequestRefCounted extends AbstractRefCounted {
+        @Override
+        protected void closeInternal() {
+            // nothing to close
+        }
     }
 }

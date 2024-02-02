@@ -15,23 +15,28 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class BulkItemRequest implements Writeable, Accountable {
+public class BulkItemRequest implements Writeable, Accountable, RefCounted {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);
 
     private final int id;
     private final DocWriteRequest<?> request;
     private volatile BulkItemResponse primaryResponse;
+    private final RefCounted refCounted;
 
     BulkItemRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         id = in.readVInt();
         request = DocWriteRequest.readDocumentRequest(shardId, in);
+        this.refCounted = LeakTracker.wrap(new BulkItemRequestRefCounted());
         if (in.readBoolean()) {
             if (shardId == null) {
                 primaryResponse = new BulkItemResponse(in);
@@ -45,6 +50,10 @@ public class BulkItemRequest implements Writeable, Accountable {
     public BulkItemRequest(int id, DocWriteRequest<?> request) {
         this.id = id;
         this.request = request;
+        this.refCounted = LeakTracker.wrap(new BulkItemRequestRefCounted());
+        if (this.request instanceof RefCounted refCountedRequest) {
+            refCountedRequest.incRef();
+        }
     }
 
     public int id() {
@@ -110,5 +119,37 @@ public class BulkItemRequest implements Writeable, Accountable {
     @Override
     public long ramBytesUsed() {
         return SHALLOW_SIZE + request.ramBytesUsed();
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        assert refCounted.hasReferences() : "Attempt to decRef BulkItemRequest that is already closed";
+        boolean droppedToZero = refCounted.decRef();
+        if (droppedToZero && this.request instanceof RefCounted refCountedRequest) {
+            refCountedRequest.decRef();
+        }
+        return droppedToZero;
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    private static class BulkItemRequestRefCounted extends AbstractRefCounted {
+        @Override
+        protected void closeInternal() {
+            // nothing to close
+        }
     }
 }

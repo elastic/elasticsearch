@@ -167,7 +167,7 @@ class BulkByScrollParallelizationHelper {
                 r -> worker.onSliceResponse(listener, slice.source().slice().getId(), r),
                 e -> worker.onSliceFailure(listener, slice.source().slice().getId(), e)
             );
-            client.execute(action, requestForSlice, sliceListener);
+            client.execute(action, requestForSlice, ActionListener.runAfter(sliceListener, requestForSlice::decRef));
         }
     }
 

@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.watcher.transport.actions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -116,21 +118,22 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                 watch.toXContent(builder, DEFAULT_PARAMS);
 
                 if (isUpdate) {
-                    UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, request.getId());
+                    UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(Watch.INDEX, request.getId());
                     if (request.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                        updateRequest.setIfSeqNo(request.getIfSeqNo());
-                        updateRequest.setIfPrimaryTerm(request.getIfPrimaryTerm());
+                        updateRequestBuilder.setIfSeqNo(request.getIfSeqNo());
+                        updateRequestBuilder.setIfPrimaryTerm(request.getIfPrimaryTerm());
                     } else {
-                        updateRequest.version(request.getVersion());
+                        updateRequestBuilder.setVersion(request.getVersion());
                     }
-                    updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                    updateRequest.doc(builder);
+                    updateRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    updateRequestBuilder.setDoc(builder);
 
+                    UpdateRequest updateRequest = updateRequestBuilder.request();
                     executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),
                         WATCHER_ORIGIN,
                         updateRequest,
-                        ActionListener.<UpdateResponse>wrap(response -> {
+                        ActionListener.runAfter(ActionListener.<UpdateResponse>wrap(response -> {
                             boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
                             listener.onResponse(
                                 new PutWatchResponse(
@@ -141,18 +144,19 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                                     created
                                 )
                             );
-                        }, listener::onFailure),
+                        }, listener::onFailure), updateRequest::decRef),
                         client::update
                     );
                 } else {
-                    IndexRequest indexRequest = new IndexRequest(Watch.INDEX).id(request.getId());
-                    indexRequest.source(builder);
-                    indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    IndexRequestBuilder indexRequestBuilder = client.prepareIndex(Watch.INDEX).setId(request.getId());
+                    indexRequestBuilder.setSource(builder);
+                    indexRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    IndexRequest indexRequest = indexRequestBuilder.request();
                     executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),
                         WATCHER_ORIGIN,
                         indexRequest,
-                        ActionListener.<DocWriteResponse>wrap(response -> {
+                        ActionListener.runAfter(ActionListener.<DocWriteResponse>wrap(response -> {
                             boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
                             listener.onResponse(
                                 new PutWatchResponse(
@@ -163,7 +167,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                                     created
                                 )
                             );
-                        }, listener::onFailure),
+                        }, listener::onFailure), indexRequest::decRef),
                         client::index
                     );
                 }

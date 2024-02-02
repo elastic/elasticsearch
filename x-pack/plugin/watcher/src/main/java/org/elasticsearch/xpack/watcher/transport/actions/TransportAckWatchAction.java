@@ -14,6 +14,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.routing.Preference;
@@ -118,11 +119,11 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                                 return;
                             }
 
-                            UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, request.getWatchId());
+                            UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(Watch.INDEX, request.getWatchId());
                             // this may reject this action, but prevents concurrent updates from a watch execution
-                            updateRequest.setIfSeqNo(getResponse.getSeqNo());
-                            updateRequest.setIfPrimaryTerm(getResponse.getPrimaryTerm());
-                            updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                            updateRequestBuilder.setIfSeqNo(getResponse.getSeqNo());
+                            updateRequestBuilder.setIfPrimaryTerm(getResponse.getPrimaryTerm());
+                            updateRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                             XContentBuilder builder = jsonBuilder();
                             builder.startObject().startObject(WatchField.STATUS.getPreferredName()).startObject("actions");
 
@@ -137,15 +138,19 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                             }
 
                             builder.endObject().endObject().endObject();
-                            updateRequest.doc(builder);
+                            updateRequestBuilder.setDoc(builder);
 
+                            UpdateRequest updateRequest = updateRequestBuilder.request();
                             executeAsyncWithOrigin(
                                 client.threadPool().getThreadContext(),
                                 WATCHER_ORIGIN,
                                 updateRequest,
-                                ActionListener.<UpdateResponse>wrap(
-                                    (updateResponse) -> listener.onResponse(new AckWatchResponse(watch.status())),
-                                    listener::onFailure
+                                ActionListener.runAfter(
+                                    ActionListener.<UpdateResponse>wrap(
+                                        (updateResponse) -> listener.onResponse(new AckWatchResponse(watch.status())),
+                                        listener::onFailure
+                                    ),
+                                    updateRequest::decRef
                                 ),
                                 client::update
                             );

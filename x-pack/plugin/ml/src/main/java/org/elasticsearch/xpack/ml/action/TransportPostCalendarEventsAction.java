@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -76,11 +77,10 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
 
         ActionListener<Calendar> calendarListener = ActionListener.wrap(calendar -> {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-
             for (ScheduledEvent event : events) {
-                IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName());
+                IndexRequestBuilder indexRequestBuilder = client.prepareIndex(MlMetaIndex.indexName());
                 try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    indexRequest.source(
+                    indexRequestBuilder.setSource(
                         event.toXContent(
                             builder,
                             new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))
@@ -89,34 +89,25 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
                 } catch (IOException e) {
                     throw new IllegalStateException("Failed to serialise event", e);
                 }
-                bulkRequestBuilder.add(indexRequest);
+                bulkRequestBuilder.add(indexRequestBuilder);
             }
 
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
-            executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                BulkAction.INSTANCE,
-                bulkRequestBuilder.request(),
-                new ActionListener<BulkResponse>() {
-                    @Override
-                    public void onResponse(BulkResponse response) {
-                        jobManager.updateProcessOnCalendarChanged(
-                            calendar.getJobIds(),
-                            ActionListener.wrap(
-                                r -> listener.onResponse(new PostCalendarEventsAction.Response(events)),
-                                listener::onFailure
-                            )
-                        );
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(ExceptionsHelper.serverError("Error indexing event", e));
-                    }
+            BulkRequest bulkRequest = bulkRequestBuilder.request();
+            executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequest, ActionListener.runAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(BulkResponse response) {
+                    jobManager.updateProcessOnCalendarChanged(
+                        calendar.getJobIds(),
+                        ActionListener.wrap(r -> listener.onResponse(new PostCalendarEventsAction.Response(events)), listener::onFailure)
+                    );
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(ExceptionsHelper.serverError("Error indexing event", e));
+                }
+            }, bulkRequest::decRef));
         }, listener::onFailure);
 
         jobResultsProvider.calendar(request.getCalendarId(), calendarListener);

@@ -25,10 +25,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -79,7 +82,11 @@ public class BulkRequest extends ActionRequest
 
     private long sizeInBytes = 0;
 
-    public BulkRequest() {}
+    private RefCounted refCounted;
+
+    public BulkRequest() {
+        this.refCounted = LeakTracker.wrap(new BulkRequestRefCounted());
+    }
 
     public BulkRequest(StreamInput in) throws IOException {
         super(in);
@@ -87,10 +94,12 @@ public class BulkRequest extends ActionRequest
         requests.addAll(in.readCollectionAsList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
+        this.refCounted = LeakTracker.wrap(new BulkRequestRefCounted());
     }
 
     public BulkRequest(@Nullable String globalIndex) {
         this.globalIndex = globalIndex;
+        this.refCounted = LeakTracker.wrap(new BulkRequestRefCounted());
     }
 
     /**
@@ -148,7 +157,7 @@ public class BulkRequest extends ActionRequest
     BulkRequest internalAdd(IndexRequest request) {
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
-
+        request.incRef();
         requests.add(request);
         // lack of source is validated in validate() method
         sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
@@ -164,6 +173,7 @@ public class BulkRequest extends ActionRequest
     }
 
     BulkRequest internalAdd(UpdateRequest request) {
+        request.incRef();
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
 
@@ -198,7 +208,7 @@ public class BulkRequest extends ActionRequest
      * The list of requests in this bulk request.
      */
     public List<DocWriteRequest<?>> requests() {
-        return this.requests;
+        return Collections.unmodifiableList(this.requests);
     }
 
     /**
@@ -342,11 +352,11 @@ public class BulkRequest extends ActionRequest
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
      *
-      - {@link BulkRequest#add(IndexRequest)}
-      - {@link BulkRequest#add(UpdateRequest)}
-      - {@link BulkRequest#add(DocWriteRequest)}
-      - {@link BulkRequest#add(DocWriteRequest[])} )}
-      - {@link BulkRequest#add(Iterable)}
+     - {@link BulkRequest#add(IndexRequest)}
+     - {@link BulkRequest#add(UpdateRequest)}
+     - {@link BulkRequest#add(DocWriteRequest)}
+     - {@link BulkRequest#add(DocWriteRequest[])} )}
+     - {@link BulkRequest#add(Iterable)}
      * @param globalRouting the global default setting
      * @return Bulk request with global setting set
      */
@@ -469,5 +479,41 @@ public class BulkRequest extends ActionRequest
 
     public Set<String> getIndices() {
         return Collections.unmodifiableSet(indices);
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        boolean droppedToZero = refCounted.decRef();
+        if (droppedToZero) {
+            for (DocWriteRequest<?> request : requests) {
+                if (request instanceof RefCounted refCountedRequest) {
+                    refCountedRequest.decRef();
+                }
+            }
+        }
+        return droppedToZero;
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    private static class BulkRequestRefCounted extends AbstractRefCounted {
+
+        @Override
+        protected void closeInternal() {
+            // nothing to close
+        }
     }
 }

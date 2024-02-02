@@ -31,13 +31,16 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -140,6 +143,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     private Object rawTimestamp;
     private boolean pipelinesHaveRun = false;
+    private final RefCounted refCounted;
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -147,13 +151,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
+        this.refCounted = LeakTracker.wrap(new IndexRequestRefCounted());
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             String type = in.readOptionalString();
             assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
         }
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        source = in.readBytesReference();
+        source = in.readReleasableBytesReference();
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
@@ -201,6 +206,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public IndexRequest() {
         super(NO_SHARD_ID);
+        this.refCounted = LeakTracker.wrap(new IndexRequestRefCounted());
     }
 
     /**
@@ -210,6 +216,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public IndexRequest(String index) {
         super(NO_SHARD_ID);
         this.index = index;
+        this.refCounted = LeakTracker.wrap(new IndexRequestRefCounted());
     }
 
     private static final StringLiteralDeduplicator pipelineNameDeduplicator = new StringLiteralDeduplicator();
@@ -903,6 +910,34 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             return List.of();
         } else {
             return Collections.unmodifiableList(executedPipelines);
+        }
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        assert hasReferences() : "Attempt to decRef IndexRequest that is already closed";
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    private static class IndexRequestRefCounted extends AbstractRefCounted {
+        @Override
+        protected void closeInternal() {
+            // nothing to close
         }
     }
 }

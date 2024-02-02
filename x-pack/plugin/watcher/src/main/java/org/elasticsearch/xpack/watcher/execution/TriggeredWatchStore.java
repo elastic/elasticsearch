@@ -12,10 +12,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -79,7 +80,7 @@ public class TriggeredWatchStore {
             return;
         }
 
-        client.bulk(createBulkRequest(triggeredWatches), listener);
+        createBulkRequest(client, triggeredWatches).execute(listener);
     }
 
     public BulkResponse putAll(final List<TriggeredWatch> triggeredWatches) throws IOException {
@@ -94,15 +95,15 @@ public class TriggeredWatchStore {
      * @return                  The bulk request for the triggered watches
      * @throws IOException      If a triggered watch could not be parsed to JSON, this exception is thrown
      */
-    private static BulkRequest createBulkRequest(final List<TriggeredWatch> triggeredWatches) throws IOException {
-        BulkRequest request = new BulkRequest();
+    private static BulkRequestBuilder createBulkRequest(Client client, final List<TriggeredWatch> triggeredWatches) throws IOException {
+        BulkRequestBuilder request = client.prepareBulk();
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
-            IndexRequest indexRequest = new IndexRequest(TriggeredWatchStoreField.INDEX_NAME).id(triggeredWatch.id().value());
+            IndexRequestBuilder indexRequest = client.prepareIndex(TriggeredWatchStoreField.INDEX_NAME).setId(triggeredWatch.id().value());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 triggeredWatch.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                indexRequest.source(builder);
+                indexRequest.setSource(builder);
             }
-            indexRequest.opType(IndexRequest.OpType.CREATE);
+            indexRequest.setOpType(IndexRequest.OpType.CREATE);
             request.add(indexRequest);
         }
         return request;

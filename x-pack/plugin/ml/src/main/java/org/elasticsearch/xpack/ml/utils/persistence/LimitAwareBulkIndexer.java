@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexingPressure;
 
@@ -29,25 +30,28 @@ public class LimitAwareBulkIndexer implements AutoCloseable {
     private static final int BATCH_SIZE = 1000;
 
     private final long bytesLimit;
-    private final Consumer<BulkRequest> executor;
-    private BulkRequest currentBulkRequest = new BulkRequest();
+    private final Consumer<BulkRequestBuilder> executor;
+    private final Client client;
+    private BulkRequestBuilder currentBulkRequest;
     private long currentRamBytes;
 
-    public LimitAwareBulkIndexer(Settings settings, Consumer<BulkRequest> executor) {
-        this((long) Math.ceil(0.5 * IndexingPressure.MAX_INDEXING_BYTES.get(settings).getBytes()), executor);
+    public LimitAwareBulkIndexer(Client client, Settings settings, Consumer<BulkRequestBuilder> executor) {
+        this(client, (long) Math.ceil(0.5 * IndexingPressure.MAX_INDEXING_BYTES.get(settings).getBytes()), executor);
     }
 
-    LimitAwareBulkIndexer(long bytesLimit, Consumer<BulkRequest> executor) {
+    LimitAwareBulkIndexer(Client client, long bytesLimit, Consumer<BulkRequestBuilder> executor) {
         this.bytesLimit = bytesLimit;
         this.executor = Objects.requireNonNull(executor);
+        this.client = client;
+        this.currentBulkRequest = client.prepareBulk();
     }
 
-    public void addAndExecuteIfNeeded(IndexRequest indexRequest) {
-        if (currentRamBytes + indexRequest.ramBytesUsed() > bytesLimit || currentBulkRequest.numberOfActions() == BATCH_SIZE) {
+    public void addAndExecuteIfNeeded(IndexRequestBuilder indexRequestBuilder) {
+        if (currentRamBytes + indexRequestBuilder.ramBytesUsed() > bytesLimit || currentBulkRequest.numberOfActions() == BATCH_SIZE) {
             execute();
         }
-        currentBulkRequest.add(indexRequest);
-        currentRamBytes += indexRequest.ramBytesUsed();
+        currentBulkRequest.add(indexRequestBuilder);
+        currentRamBytes += indexRequestBuilder.ramBytesUsed();
     }
 
     private void execute() {
@@ -59,7 +63,7 @@ public class LimitAwareBulkIndexer implements AutoCloseable {
                 currentBulkRequest.numberOfActions()
             );
             executor.accept(currentBulkRequest);
-            currentBulkRequest = new BulkRequest();
+            currentBulkRequest = client.prepareBulk();
             currentRamBytes = 0;
         }
     }

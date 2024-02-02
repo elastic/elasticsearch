@@ -14,8 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -147,11 +147,11 @@ public class ResultsPersisterService {
         Supplier<Boolean> shouldRetry,
         Consumer<String> retryMsgHandler
     ) throws IOException {
-        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk().setRefreshPolicy(refreshPolicy);
         try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
-            bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
+            bulkRequestBuilder.add(client.prepareIndex(indexName).setId(id).setSource(content).setRequireAlias(requireAlias));
         }
-        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler);
+        return bulkIndexWithRetry(bulkRequestBuilder, jobId, shouldRetry, retryMsgHandler);
     }
 
     public void indexWithRetry(
@@ -166,24 +166,24 @@ public class ResultsPersisterService {
         Consumer<String> retryMsgHandler,
         ActionListener<BulkResponse> finalListener
     ) throws IOException {
-        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk().setRefreshPolicy(refreshPolicy);
         try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
-            bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
+            bulkRequestBuilder.add(client.prepareIndex(indexName).setId(id).setSource(content).setRequireAlias(requireAlias));
         }
-        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, finalListener);
+        bulkIndexWithRetry(bulkRequestBuilder, jobId, shouldRetry, retryMsgHandler, finalListener);
     }
 
     public BulkResponse bulkIndexWithRetry(
-        BulkRequest bulkRequest,
+        BulkRequestBuilder bulkRequestBuilder,
         String jobId,
         Supplier<Boolean> shouldRetry,
         Consumer<String> retryMsgHandler
     ) {
-        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, client::bulk);
+        return bulkIndexWithRetry(bulkRequestBuilder, jobId, shouldRetry, retryMsgHandler, client::bulk);
     }
 
     public void bulkIndexWithRetry(
-        BulkRequest bulkRequest,
+        BulkRequestBuilder bulkRequestBuilder,
         String jobId,
         Supplier<Boolean> shouldRetry,
         Consumer<String> retryMsgHandler,
@@ -199,18 +199,18 @@ public class ResultsPersisterService {
             );
             return;
         }
-        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, client::bulk, finalListener);
+        bulkIndexWithRetry(bulkRequestBuilder, jobId, shouldRetry, retryMsgHandler, client::bulk, finalListener);
     }
 
     public BulkResponse bulkIndexWithHeadersWithRetry(
         Map<String, String> headers,
-        BulkRequest bulkRequest,
+        BulkRequestBuilder bulkRequestBuilder,
         String jobId,
         Supplier<Boolean> shouldRetry,
         Consumer<String> retryMsgHandler
     ) {
         return bulkIndexWithRetry(
-            bulkRequest,
+            bulkRequestBuilder,
             jobId,
             shouldRetry,
             retryMsgHandler,
@@ -226,7 +226,7 @@ public class ResultsPersisterService {
     }
 
     private BulkResponse bulkIndexWithRetry(
-        BulkRequest bulkRequest,
+        BulkRequestBuilder bulkRequestBuilder,
         String jobId,
         Supplier<Boolean> shouldRetry,
         Consumer<String> retryMsgHandler,
@@ -240,12 +240,12 @@ public class ResultsPersisterService {
             );
         }
         final PlainActionFuture<BulkResponse> getResponseFuture = new PlainActionFuture<>();
-        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, actionExecutor, getResponseFuture);
+        bulkIndexWithRetry(bulkRequestBuilder, jobId, shouldRetry, retryMsgHandler, actionExecutor, getResponseFuture);
         return getResponseFuture.actionGet();
     }
 
     private void bulkIndexWithRetry(
-        BulkRequest bulkRequest,
+        BulkRequestBuilder bulkRequestBuilder,
         String jobId,
         Supplier<Boolean> shouldRetry,
         Consumer<String> retryMsgHandler,
@@ -257,13 +257,14 @@ public class ResultsPersisterService {
             finalListener,
             () -> onGoingRetryableBulkActions.remove(key)
         );
+        BulkRequest bulkRequest = bulkRequestBuilder.request();
         BulkRetryableAction bulkRetryableAction = new BulkRetryableAction(
             jobId,
             new BulkRequestRewriter(bulkRequest),
             () -> (isShutdown == false && isResetMode == false) && shouldRetry.get(),
             retryMsgHandler,
             actionExecutor,
-            removeListener
+            ActionListener.runAfter(removeListener, bulkRequest::decRef)
         );
         onGoingRetryableBulkActions.put(key, bulkRetryableAction);
         bulkRetryableAction.run();

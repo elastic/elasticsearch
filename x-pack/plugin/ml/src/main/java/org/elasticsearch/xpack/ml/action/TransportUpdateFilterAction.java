@@ -13,6 +13,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -119,19 +120,19 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         UpdateFilterAction.Request request,
         ActionListener<PutFilterAction.Response> listener
     ) {
-        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(filter.documentId());
-        indexRequest.setIfSeqNo(seqNo);
-        indexRequest.setIfPrimaryTerm(primaryTerm);
-        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex(MlMetaIndex.indexName()).setId(filter.documentId());
+        indexRequestBuilder.setIfSeqNo(seqNo);
+        indexRequestBuilder.setIfPrimaryTerm(primaryTerm);
+        indexRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
-            indexRequest.source(filter.toXContent(builder, params));
+            indexRequestBuilder.setSource(filter.toXContent(builder, params));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
         }
-
-        executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, new ActionListener<>() {
+        IndexRequest indexRequest = indexRequestBuilder.request();
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse indexResponse) {
                 jobManager.notifyFilterChanged(
@@ -155,7 +156,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
                 }
                 listener.onFailure(reportedException);
             }
-        });
+        }, indexRequest::decRef));
     }
 
     private void getFilterWithVersion(String filterId, ActionListener<FilterWithSeqNo> listener) {

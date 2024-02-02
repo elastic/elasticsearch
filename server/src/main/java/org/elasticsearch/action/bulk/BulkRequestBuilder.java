@@ -26,6 +26,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -54,6 +55,8 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     private String globalRouting;
     private WriteRequest.RefreshPolicy refreshPolicy;
     private String refreshPolicyString;
+    private Boolean requireAlias;
+    private TaskId parentTaskId;
 
     public BulkRequestBuilder(ElasticsearchClient client, @Nullable String globalIndex) {
         super(client, BulkAction.INSTANCE);
@@ -131,8 +134,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType)
-        throws Exception {
+    public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType) {
         framedData.add(new FramedData(data, from, length, defaultIndex, xContentType));
         return this;
     }
@@ -200,6 +202,16 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
         return this;
     }
 
+    public BulkRequestBuilder setRequireAlias(boolean requireAlias) {
+        this.requireAlias = requireAlias;
+        return this;
+    }
+
+    public BulkRequestBuilder setParentTask(TaskId taskId) {
+        this.parentTaskId = taskId;
+        return this;
+    }
+
     @Override
     public BulkRequest request() {
         validate();
@@ -238,6 +250,12 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
         }
         if (refreshPolicyString != null) {
             request.setRefreshPolicy(refreshPolicyString);
+        }
+        if (requireAlias != null) {
+            request.requireAlias(requireAlias);
+        }
+        if (parentTaskId != null) {
+            request.setParentTask(parentTaskId);
         }
         return request;
     }

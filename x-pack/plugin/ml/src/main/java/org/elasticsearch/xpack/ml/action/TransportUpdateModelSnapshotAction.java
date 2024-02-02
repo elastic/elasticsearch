@@ -11,9 +11,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -103,18 +104,20 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<
     }
 
     private void indexModelSnapshot(Result<ModelSnapshot> modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
-        IndexRequest indexRequest = new IndexRequest(modelSnapshot.index).id(ModelSnapshot.documentId(modelSnapshot.result));
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex(modelSnapshot.index)
+            .setId(ModelSnapshot.documentId(modelSnapshot.result));
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             modelSnapshot.result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            indexRequest.source(builder);
+            indexRequestBuilder.setSource(builder);
         } catch (IOException e) {
             errorHandler.accept(e);
             return;
         }
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-        bulkRequestBuilder.add(indexRequest);
+        bulkRequestBuilder.add(indexRequestBuilder);
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(), new ActionListener<BulkResponse>() {
+        BulkRequest bulkRequest = bulkRequestBuilder.request();
+        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequest, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(BulkResponse indexResponse) {
                 handler.accept(true);
@@ -124,6 +127,6 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<
             public void onFailure(Exception e) {
                 errorHandler.accept(e);
             }
-        });
+        }, bulkRequest::decRef));
     }
 }

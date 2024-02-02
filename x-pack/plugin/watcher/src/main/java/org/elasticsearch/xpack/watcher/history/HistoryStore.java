@@ -42,9 +42,14 @@ public class HistoryStore {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
-            IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM).id(watchRecord.id().value()).source(builder);
-            request.opType(IndexRequest.OpType.CREATE);
-            bulkProcessor.add(request);
+            IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM);
+            try {
+                request.id(watchRecord.id().value()).source(builder);
+                request.opType(IndexRequest.OpType.CREATE);
+                bulkProcessor.add(request);
+            } finally {
+                request.decRef();
+            }
         } catch (IOException ioe) {
             throw ioException("failed to persist watch record [{}]", ioe, watchRecord);
         }
@@ -58,9 +63,14 @@ public class HistoryStore {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
-            IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM).id(watchRecord.id().value()).source(builder);
-            request.opType(DocWriteRequest.OpType.CREATE);
-            bulkProcessor.add(request);
+            IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM);
+            try {
+                request.id(watchRecord.id().value()).source(builder);
+                request.opType(DocWriteRequest.OpType.CREATE);
+                bulkProcessor.add(request);
+            } finally {
+                request.decRef();
+            }
         } catch (IOException ioe) {
             final WatchRecord wr = watchRecord;
             logger.error(() -> "failed to persist watch record [" + wr + "]", ioe);

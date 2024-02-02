@@ -259,7 +259,18 @@ public abstract class TransportInstanceSingleOperationAction<
     }
 
     private void handleShardRequest(Request request, TransportChannel channel, Task task) {
-        threadPool.executor(executor(request.shardId))
-            .execute(ActionRunnable.wrap(new ChannelActionListener<Response>(channel), l -> shardOperation(request, l)));
+        request.incRef();
+        try {
+            threadPool.executor(executor(request.shardId))
+                .execute(
+                    ActionRunnable.wrap(
+                        ActionListener.runAfter(new ChannelActionListener<Response>(channel), request::decRef),
+                        l -> shardOperation(request, l)
+                    )
+                );
+        } catch (Exception e) {
+            request.decRef();
+            throw e;
+        }
     }
 }

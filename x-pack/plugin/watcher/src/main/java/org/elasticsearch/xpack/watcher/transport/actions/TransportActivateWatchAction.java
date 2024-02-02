@@ -13,6 +13,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.routing.Preference;
@@ -68,20 +69,21 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
     protected void doExecute(ActivateWatchRequest request, ActionListener<ActivateWatchResponse> listener) {
         try {
             ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
-            UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, request.getWatchId());
-            updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(Watch.INDEX, request.getWatchId());
+            updateRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             XContentBuilder builder = activateWatchBuilder(request.isActivate(), now);
-            updateRequest.doc(builder);
+            updateRequestBuilder.setDoc(builder);
             // a watch execution updates the status in between, we still want this want to override the active state
             // two has been chosen arbitrary, maybe one would make more sense, as a watch would not execute more often than
             // once per second?
-            updateRequest.retryOnConflict(2);
+            updateRequestBuilder.setRetryOnConflict(2);
 
+            UpdateRequest updateRequest = updateRequestBuilder.request();
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 WATCHER_ORIGIN,
                 updateRequest,
-                ActionListener.<UpdateResponse>wrap(updateResponse -> {
+                ActionListener.runAfter(ActionListener.<UpdateResponse>wrap(updateResponse -> {
                     GetRequest getRequest = new GetRequest(Watch.INDEX, request.getWatchId()).preference(Preference.LOCAL.type())
                         .realtime(true);
 
@@ -110,7 +112,7 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
                         }, listener::onFailure),
                         client::get
                     );
-                }, listener::onFailure),
+                }, listener::onFailure), updateRequest::decRef),
                 client::update
             );
         } catch (IOException e) {

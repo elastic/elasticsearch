@@ -46,6 +46,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -275,10 +276,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     private void forkAndExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> releasingListener) {
-        threadPool.executor(Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
+        bulkRequest.incRef();
+        ActionListener<BulkResponse> listener = ActionListener.runAfter(releasingListener, bulkRequest::decRef);
+        threadPool.executor(Names.WRITE).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
-                doInternalExecute(task, bulkRequest, executorName, releasingListener);
+                doInternalExecute(task, bulkRequest, executorName, listener);
             }
         });
     }
@@ -453,6 +456,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> request = bulkRequest.requests.get(i);
             if (request != null && setResponseFailureIfIndexMatches(responses, i, request, target, error)) {
+                if (bulkRequest.requests.get(i) instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
                 bulkRequest.requests.set(i, null);
             }
         }
@@ -640,6 +646,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 } else {
                     long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
                     BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
+                    boolean bulkRequestNeedsClosing = bulkRequest != original;
                     ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(
                         ingestTookInMillis,
                         listener
@@ -649,11 +656,20 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // so we stop and send an empty response back to the client.
                         // (this will happen if pre-processing all items in the bulk failed)
                         actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
+                        if (bulkRequestNeedsClosing) {
+                            bulkRequest.decRef();
+                        }
                     } else {
                         ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                             @Override
                             protected void doRun() {
-                                doInternalExecute(task, bulkRequest, executorName, actionListener);
+                                final ActionListener<BulkResponse> listener1;
+                                if (bulkRequestNeedsClosing) {
+                                    listener1 = ActionListener.runAfter(actionListener, bulkRequest::decRef);
+                                } else {
+                                    listener1 = actionListener;
+                                }
+                                doInternalExecute(task, bulkRequest, executorName, listener1);
                             }
 
                             @Override

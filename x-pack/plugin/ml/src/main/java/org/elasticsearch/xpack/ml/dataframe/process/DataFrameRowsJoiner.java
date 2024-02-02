@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
@@ -37,6 +38,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
 
     private static final int RESULTS_BATCH_SIZE = 1000;
 
+    private final Client client;
     private final String analyticsId;
     private final Settings settings;
     private final TaskId parentTaskId;
@@ -48,12 +50,14 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private volatile boolean isCancelled;
 
     DataFrameRowsJoiner(
+        Client client,
         String analyticsId,
         Settings settings,
         TaskId parentTaskId,
         DataFrameDataExtractor dataExtractor,
         ResultsPersisterService resultsPersisterService
     ) {
+        this.client = client;
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.settings = Objects.requireNonNull(settings);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
@@ -95,7 +99,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
     }
 
     private void joinCurrentResults() {
-        try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(settings, this::executeBulkRequest)) {
+        try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(client, settings, this::executeBulkRequest)) {
             while (currentResults.isEmpty() == false) {
                 RowResults result = currentResults.pop();
                 DataFrameDataExtractor.Row row = dataFrameRowsIterator.next();
@@ -107,11 +111,11 @@ class DataFrameRowsJoiner implements AutoCloseable {
         currentResults = new LinkedList<>();
     }
 
-    private void executeBulkRequest(BulkRequest bulkRequest) {
-        bulkRequest.setParentTask(parentTaskId);
+    private void executeBulkRequest(BulkRequestBuilder bulkRequestBuilder) {
+        bulkRequestBuilder.setParentTask(parentTaskId);
         resultsPersisterService.bulkIndexWithHeadersWithRetry(
             dataExtractor.getHeaders(),
-            bulkRequest,
+            bulkRequestBuilder,
             analyticsId,
             () -> isCancelled == false,
             retryMessage -> {}
@@ -128,15 +132,15 @@ class DataFrameRowsJoiner implements AutoCloseable {
         }
     }
 
-    private IndexRequest createIndexRequest(RowResults result, SearchHit hit) {
+    private IndexRequestBuilder createIndexRequest(RowResults result, SearchHit hit) {
         Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
         source.putAll(result.getResults());
-        IndexRequest indexRequest = new IndexRequest(hit.getIndex());
-        indexRequest.id(hit.getId());
-        indexRequest.source(source);
-        indexRequest.opType(DocWriteRequest.OpType.INDEX);
-        indexRequest.setParentTask(parentTaskId);
-        return indexRequest;
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex(hit.getIndex());
+        indexRequestBuilder.setId(hit.getId());
+        indexRequestBuilder.setSource(source);
+        indexRequestBuilder.setOpType(DocWriteRequest.OpType.INDEX);
+        indexRequestBuilder.setParentTask(parentTaskId);
+        return indexRequestBuilder;
     }
 
     @Override

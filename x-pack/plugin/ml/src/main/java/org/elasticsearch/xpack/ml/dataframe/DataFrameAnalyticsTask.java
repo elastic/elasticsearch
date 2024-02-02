@@ -12,6 +12,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -254,15 +255,22 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
                 return;
             }
 
-            IndexRequest indexRequest = new IndexRequest(indexOrAlias).id(progressDocId)
-                .setRequireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias))
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(indexOrAlias).setId(progressDocId);
+            indexRequestBuilder.setRequireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
                 LOGGER.debug(() -> format("[%s] Persisting progress is: %s", jobId, progress));
                 storedProgress.get().toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
-                indexRequest.source(jsonBuilder);
+                indexRequestBuilder.setSource(jsonBuilder);
             }
-            executeAsyncWithOrigin(clientToUse, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, indexProgressDocListener);
+            IndexRequest indexRequest = indexRequestBuilder.request();
+            executeAsyncWithOrigin(
+                clientToUse,
+                ML_ORIGIN,
+                TransportIndexAction.TYPE,
+                indexRequest,
+                ActionListener.runAfter(indexProgressDocListener, indexRequest::decRef)
+            );
         }, e -> {
             LOGGER.error(
                 () -> format("[%s] cannot persist progress as an error occurred while retrieving former progress document", jobId),

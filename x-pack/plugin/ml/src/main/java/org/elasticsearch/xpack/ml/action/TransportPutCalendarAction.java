@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -49,9 +50,10 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
     protected void doExecute(Task task, PutCalendarAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
         Calendar calendar = request.getCalendar();
 
-        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(calendar.documentId());
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex(MlMetaIndex.indexName());
+        indexRequestBuilder.setId(calendar.documentId());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            indexRequest.source(
+            indexRequestBuilder.setSource(
                 calendar.toXContent(
                     builder,
                     new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))
@@ -62,10 +64,10 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
         }
 
         // Make it an error to overwrite an existing calendar
-        indexRequest.opType(DocWriteRequest.OpType.CREATE);
-        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
-        executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, new ActionListener<>() {
+        indexRequestBuilder.setOpType(DocWriteRequest.OpType.CREATE);
+        indexRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexRequest indexRequest = indexRequestBuilder.request();
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse indexResponse) {
                 listener.onResponse(new PutCalendarAction.Response(calendar));
@@ -83,6 +85,6 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
                     listener.onFailure(ExceptionsHelper.serverError("Error putting calendar with id [" + calendar.getId() + "]", e));
                 }
             }
-        });
+        }, indexRequest::decRef));
     }
 }

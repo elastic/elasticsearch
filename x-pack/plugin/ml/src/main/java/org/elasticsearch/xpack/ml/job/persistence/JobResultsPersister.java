@@ -14,9 +14,10 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -112,7 +113,7 @@ public class JobResultsPersister {
     }
 
     public class Builder {
-        private final Map<String, IndexRequest> items;
+        private final Map<String, IndexRequestBuilder> items;
         private final String jobId;
         private final String indexName;
         private final Supplier<Boolean> shouldRetry;
@@ -270,7 +271,7 @@ public class JobResultsPersister {
 
         private void indexResult(String id, ToXContent resultDoc, ToXContent.Params params, String resultType) {
             try (XContentBuilder content = toXContentBuilder(resultDoc, params)) {
-                items.put(id, new IndexRequest(indexName).id(id).source(content));
+                items.put(id, client.prepareIndex(indexName).setId(id).setSource(content));
             } catch (IOException e) {
                 logger.error(() -> format("[%s] Error serialising %s", jobId, resultType), e);
             }
@@ -297,12 +298,12 @@ public class JobResultsPersister {
             clear();
         }
 
-        private BulkRequest buildBulkRequest() {
-            BulkRequest bulkRequest = new BulkRequest();
-            for (IndexRequest item : items.values()) {
-                bulkRequest.add(item);
+        private BulkRequestBuilder buildBulkRequest() {
+            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            for (IndexRequestBuilder item : items.values()) {
+                bulkRequestBuilder.add(item);
             }
-            return bulkRequest;
+            return bulkRequestBuilder;
         }
 
         public synchronized void clear() {
@@ -310,7 +311,7 @@ public class JobResultsPersister {
         }
 
         // for testing
-        synchronized BulkRequest getBulkRequest() {
+        synchronized BulkRequestBuilder getBulkRequest() {
             return buildBulkRequest();
         }
     }
@@ -582,11 +583,19 @@ public class JobResultsPersister {
             logCall();
 
             try (XContentBuilder content = toXContentBuilder(object, params)) {
-                IndexRequest indexRequest = new IndexRequest(indexName).id(id)
-                    .source(content)
+                IndexRequestBuilder indexRequestBuilder = client.prepareIndex(indexName)
+                    .setId(id)
+                    .setSource(content)
                     .setRefreshPolicy(refreshPolicy)
                     .setRequireAlias(requireAlias);
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest, listener, client::index);
+                IndexRequest indexRequest = indexRequestBuilder.request();
+                executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    ML_ORIGIN,
+                    indexRequest,
+                    ActionListener.runAfter(listener, indexRequest::decRef),
+                    client::index
+                );
             } catch (IOException e) {
                 logger.error(() -> format("[%s] Error writing [%s]", jobId, (id == null) ? "auto-generated ID" : id), e);
                 IndexResponse.Builder notCreatedResponse = new IndexResponse.Builder();

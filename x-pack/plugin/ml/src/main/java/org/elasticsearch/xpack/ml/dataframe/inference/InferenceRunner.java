@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -180,7 +180,7 @@ public class InferenceRunner {
         long totalDocCount = 0;
         long processedDocCount = processedTestDocsCount;
 
-        try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(settings, this::executeBulkRequest)) {
+        try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(client, settings, this::executeBulkRequest)) {
             while (testDocsIterator.hasNext()) {
                 if (isCancelled) {
                     break;
@@ -220,24 +220,24 @@ public class InferenceRunner {
         return features;
     }
 
-    private IndexRequest createIndexRequest(SearchHit hit, InferenceResults results, String resultField) {
+    private IndexRequestBuilder createIndexRequest(SearchHit hit, InferenceResults results, String resultField) {
         Map<String, Object> resultsMap = new LinkedHashMap<>(results.asMap());
         resultsMap.put(DestinationIndex.IS_TRAINING, false);
 
         Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
         source.put(resultField, resultsMap);
-        IndexRequest indexRequest = new IndexRequest(hit.getIndex());
-        indexRequest.id(hit.getId());
-        indexRequest.source(source);
-        indexRequest.opType(DocWriteRequest.OpType.INDEX);
-        indexRequest.setParentTask(parentTaskId);
-        return indexRequest;
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex(hit.getIndex());
+        indexRequestBuilder.setId(hit.getId());
+        indexRequestBuilder.setSource(source);
+        indexRequestBuilder.setOpType(DocWriteRequest.OpType.INDEX);
+        indexRequestBuilder.setParentTask(parentTaskId);
+        return indexRequestBuilder;
     }
 
-    private void executeBulkRequest(BulkRequest bulkRequest) {
+    private void executeBulkRequest(BulkRequestBuilder bulkRequestBuilder) {
         resultsPersisterService.bulkIndexWithHeadersWithRetry(
             config.getHeaders(),
-            bulkRequest,
+            bulkRequestBuilder,
             config.getId(),
             () -> isCancelled == false,
             retryMessage -> {}

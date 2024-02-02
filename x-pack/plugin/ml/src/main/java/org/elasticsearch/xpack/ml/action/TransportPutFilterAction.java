@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -49,17 +50,17 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
     @Override
     protected void doExecute(Task task, PutFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
         MlFilter filter = request.getFilter();
-        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(filter.documentId());
-        indexRequest.opType(DocWriteRequest.OpType.CREATE);
-        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex(MlMetaIndex.indexName()).setId(filter.documentId());
+        indexRequestBuilder.setOpType(DocWriteRequest.OpType.CREATE);
+        indexRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
-            indexRequest.source(filter.toXContent(builder, params));
+            indexRequestBuilder.setSource(filter.toXContent(builder, params));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
         }
-
-        executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, new ActionListener<>() {
+        IndexRequest indexRequest = indexRequestBuilder.request();
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse indexResponse) {
                 listener.onResponse(new PutFilterAction.Response(filter));
@@ -75,6 +76,6 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
                 }
                 listener.onFailure(reportedException);
             }
-        });
+        }, indexRequest::decRef));
     }
 }

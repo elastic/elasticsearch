@@ -10,12 +10,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -209,10 +210,10 @@ public class TrainedModelStatsService {
         if (stats.isEmpty()) {
             return;
         }
-        BulkRequest bulkRequest = new BulkRequest();
-        stats.stream().map(TrainedModelStatsService::buildUpdateRequest).filter(Objects::nonNull).forEach(bulkRequest::add);
+        BulkRequestBuilder bulkRequest = client.prepareBulk();
+        stats.stream().map(stat -> buildUpdateRequest(client, stat)).filter(Objects::nonNull).forEach(bulkRequest::add);
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        if (bulkRequest.requests().isEmpty()) {
+        if (bulkRequest.numberOfActions() == 0) {
             return;
         }
         if (shouldStop()) {
@@ -274,7 +275,7 @@ public class TrainedModelStatsService {
         logger.debug("Created stats index");
     }
 
-    static UpdateRequest buildUpdateRequest(InferenceStats stats) {
+    static UpdateRequestBuilder buildUpdateRequest(Client client, InferenceStats stats) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             Map<String, Object> params = new HashMap<>();
             params.put(InferenceStats.FAILURE_COUNT.getPreferredName(), stats.getFailureCount());
@@ -283,14 +284,14 @@ public class TrainedModelStatsService {
             params.put(InferenceStats.INFERENCE_COUNT.getPreferredName(), stats.getInferenceCount());
             params.put(InferenceStats.CACHE_MISS_COUNT.getPreferredName(), stats.getCacheMissCount());
             stats.toXContent(builder, FOR_INTERNAL_STORAGE_PARAMS);
-            UpdateRequest updateRequest = new UpdateRequest();
-            updateRequest.upsert(builder)
-                .index(MlStatsIndex.writeAlias())
+            UpdateRequestBuilder updateRequest = client.prepareUpdate();
+            updateRequest.setUpsert(builder)
+                .setIndex(MlStatsIndex.writeAlias())
                 // Usually, there shouldn't be a conflict, but if there is, only around a single update should have happened
                 // out of band. If there is MANY more than that, something strange is happening and it should fail.
-                .retryOnConflict(3)
-                .id(InferenceStats.docId(stats.getModelId(), stats.getNodeId()))
-                .script(new Script(ScriptType.INLINE, "painless", STATS_UPDATE_SCRIPT, params))
+                .setRetryOnConflict(3)
+                .setId(InferenceStats.docId(stats.getModelId(), stats.getNodeId()))
+                .setScript(new Script(ScriptType.INLINE, "painless", STATS_UPDATE_SCRIPT, params))
                 .setRequireAlias(true);
             return updateRequest;
         } catch (IOException ex) {

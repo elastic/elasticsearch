@@ -282,7 +282,11 @@ public final class MappingLookup {
     }
 
     boolean exceedsLimit(long limit, int additionalFieldsToAdd) {
-        return getTotalFieldsCount() + additionalFieldsToAdd - mapping.getSortedMetadataMappers().length > limit;
+        return remainingFieldsUntilLimit(limit) < additionalFieldsToAdd;
+    }
+
+    long remainingFieldsUntilLimit(long mappingTotalFieldsLimit) {
+        return mappingTotalFieldsLimit - getTotalFieldsCount() + mapping.getSortedMetadataMappers().length;
     }
 
     private void checkDimensionFieldLimit(long limit) {

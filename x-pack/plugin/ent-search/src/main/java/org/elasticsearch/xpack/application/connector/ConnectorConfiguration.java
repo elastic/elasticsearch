@@ -402,12 +402,12 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
         }
 
         public Builder setRequired(Boolean required) {
-            this.required = required != null && required;
+            this.required = Objects.requireNonNullElse(required, false);
             return this;
         }
 
         public Builder setSensitive(Boolean sensitive) {
-            this.sensitive = sensitive != null && sensitive;
+            this.sensitive = Objects.requireNonNullElse(sensitive, false);
             return this;
         }
 

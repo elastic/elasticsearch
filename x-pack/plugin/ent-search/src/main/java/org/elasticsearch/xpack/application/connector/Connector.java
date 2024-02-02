@@ -711,9 +711,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         }
 
         public Builder setSyncNow(Boolean syncNow) {
-            if (syncNow != null) {
-                this.syncNow = syncNow;
-            }
+            this.syncNow = Objects.requireNonNullElse(syncNow, false);
             return this;
         }
 

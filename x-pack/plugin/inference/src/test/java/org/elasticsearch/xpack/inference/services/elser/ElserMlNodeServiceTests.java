@@ -3,11 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.services.elser;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
@@ -57,17 +59,24 @@ public class ElserMlNodeServiceTests extends ESTestCase {
         );
         settings.put(ModelConfigurations.TASK_SETTINGS, Map.of());
 
-        ElserMlNodeModel parsedModel = service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of());
+        var expectedModel = new ElserMlNodeModel(
+            "foo",
+            TaskType.SPARSE_EMBEDDING,
+            ElserMlNodeService.NAME,
+            new ElserMlNodeServiceSettings(1, 4, ".elser_model_1"),
+            ElserMlNodeTaskSettings.DEFAULT
+        );
 
-        assertEquals(
-            new ElserMlNodeModel(
-                "foo",
-                TaskType.SPARSE_EMBEDDING,
-                ElserMlNodeService.NAME,
-                new ElserMlNodeServiceSettings(1, 4, ".elser_model_1"),
-                ElserMlNodeTaskSettings.DEFAULT
-            ),
-            parsedModel
+        var modelVerificationListener = getModelVerificationListener(expectedModel);
+
+        service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), modelVerificationListener);
+
+    }
+
+    private static ActionListener<Model> getModelVerificationListener(ElserMlNodeModel expectedModel) {
+        return ActionListener.<Model>wrap(
+            (model) -> { assertEquals(expectedModel, model); },
+            (e) -> fail("Model verification should not fail " + e.getMessage())
         );
     }
 
@@ -80,18 +89,18 @@ public class ElserMlNodeServiceTests extends ESTestCase {
             new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
         );
 
-        ElserMlNodeModel parsedModel = service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of());
-
-        assertEquals(
-            new ElserMlNodeModel(
-                "foo",
-                TaskType.SPARSE_EMBEDDING,
-                ElserMlNodeService.NAME,
-                new ElserMlNodeServiceSettings(1, 4, ElserMlNodeService.ELSER_V2_MODEL),
-                ElserMlNodeTaskSettings.DEFAULT
-            ),
-            parsedModel
+        var expectedModel = new ElserMlNodeModel(
+            "foo",
+            TaskType.SPARSE_EMBEDDING,
+            ElserMlNodeService.NAME,
+            new ElserMlNodeServiceSettings(1, 4, ElserMlNodeService.ELSER_V2_MODEL),
+            ElserMlNodeTaskSettings.DEFAULT
         );
+
+        var modelVerificationListener = getModelVerificationListener(expectedModel);
+
+        service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), modelVerificationListener);
+
     }
 
     public void testParseConfigStrictWithUnknownSettings() {
@@ -117,22 +126,33 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 settings.put(ModelConfigurations.TASK_SETTINGS, Map.of());
                 settings.put("foo", "bar");
 
-                if (throwOnUnknown) {
-                    var e = expectThrows(
-                        ElasticsearchStatusException.class,
-                        () -> service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of())
-                    );
-                    assertThat(
-                        e.getMessage(),
-                        containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser] service")
-                    );
-                } else {
+                ActionListener<Model> errorVerificationListener = ActionListener.wrap((model) -> {
+                    if (throwOnUnknown == false) {
+
+                    } else {
+                        fail("Model verification should fail when throwOnUnknown is true");
+                    }
+                }, (e) -> {
+                    if (throwOnUnknown) {
+                        assertThat(
+                            e.getMessage(),
+                            containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser] service")
+                        );
+                    } else {
+                        fail("Model verification should not fail when throwOnUnknown is false");
+                    }
+                });
+
+                if (throwOnUnknown == false) {
                     var parsed = service.parsePersistedConfigWithSecrets(
                         "foo",
                         TaskType.SPARSE_EMBEDDING,
                         settings,
                         Collections.emptyMap()
                     );
+                } else {
+
+                    service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), errorVerificationListener);
                 }
             }
 
@@ -153,22 +173,29 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 );
                 settings.put(ModelConfigurations.TASK_SETTINGS, Map.of("foo", "bar"));
 
-                if (throwOnUnknown) {
-                    var e = expectThrows(
-                        ElasticsearchStatusException.class,
-                        () -> service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of())
-                    );
-                    assertThat(
-                        e.getMessage(),
-                        containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser] service")
-                    );
-                } else {
+                ActionListener<Model> errorVerificationListener = ActionListener.wrap((model) -> {
+                    if (throwOnUnknown == false) {} else {
+                        fail("Model verification should fail when throwOnUnknown is true");
+                    }
+                }, (e) -> {
+                    if (throwOnUnknown) {
+                        assertThat(
+                            e.getMessage(),
+                            containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser] service")
+                        );
+                    } else {
+                        fail("Model verification should not fail when throwOnUnknown is false");
+                    }
+                });
+                if (throwOnUnknown == false) {
                     var parsed = service.parsePersistedConfigWithSecrets(
                         "foo",
                         TaskType.SPARSE_EMBEDDING,
                         settings,
                         Collections.emptyMap()
                     );
+                } else {
+                    service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), errorVerificationListener);
                 }
             }
 
@@ -189,23 +216,31 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                         )
                     )
                 );
+                settings.put(ModelConfigurations.TASK_SETTINGS, Map.of("foo", "bar"));
 
-                if (throwOnUnknown) {
-                    var e = expectThrows(
-                        ElasticsearchStatusException.class,
-                        () -> service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of())
-                    );
-                    assertThat(
-                        e.getMessage(),
-                        containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser] service")
-                    );
-                } else {
+                ActionListener<Model> errorVerificationListener = ActionListener.wrap((model) -> {
+                    if (throwOnUnknown == false) {} else {
+                        fail("Model verification should fail when throwOnUnknown is true");
+                    }
+                }, (e) -> {
+                    if (throwOnUnknown) {
+                        assertThat(
+                            e.getMessage(),
+                            containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser] service")
+                        );
+                    } else {
+                        fail("Model verification should not fail when throwOnUnknown is false");
+                    }
+                });
+                if (throwOnUnknown == false) {
                     var parsed = service.parsePersistedConfigWithSecrets(
                         "foo",
                         TaskType.SPARSE_EMBEDDING,
                         settings,
                         Collections.emptyMap()
                     );
+                } else {
+                    service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), errorVerificationListener);
                 }
             }
         }
@@ -220,9 +255,11 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
             );
 
-            ElserMlNodeModel parsedModel = service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of());
+            ActionListener<Model> modelActionListener = ActionListener.<Model>wrap((model) -> {
+                assertEquals(".elser_model_2", ((ElserMlNodeModel) model).getServiceSettings().getModelVariant());
+            }, (e) -> { fail("Model verification should not fail"); });
 
-            assertEquals(".elser_model_2", parsedModel.getServiceSettings().getModelVariant());
+            service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), modelActionListener);
         }
         {
             var settings = new HashMap<String, Object>();
@@ -231,9 +268,11 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
             );
 
-            ElserMlNodeModel parsedModel = service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of("linux-x86_64"));
+            ActionListener<Model> modelActionListener = ActionListener.<Model>wrap((model) -> {
+                assertEquals(".elser_model_2_linux-x86_64", ((ElserMlNodeModel) model).getServiceSettings().getModelVariant());
+            }, (e) -> { fail("Model verification should not fail"); });
 
-            assertEquals(".elser_model_2_linux-x86_64", parsedModel.getServiceSettings().getModelVariant());
+            service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of("linux-x86_64"), modelActionListener);
         }
     }
 

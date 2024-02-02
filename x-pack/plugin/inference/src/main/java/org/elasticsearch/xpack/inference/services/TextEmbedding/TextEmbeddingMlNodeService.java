@@ -57,37 +57,44 @@ public class TextEmbeddingMlNodeService implements InferenceService {
     }
 
     @Override
-    public TextEmbeddingModel parseRequestConfig(
+    public void parseRequestConfig(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures
+        Set<String> platformArchitectures,
+        ActionListener<Model> modelListener
     ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        try {
+            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
-        var e5ServiceSettings = MultilingualE5SmallMlNodeServiceSettings.fromMap(serviceSettingsMap);
+            var e5ServiceSettings = MultilingualE5SmallMlNodeServiceSettings.fromMap(serviceSettingsMap);
 
-        if (e5ServiceSettings.getModelVariant() == null) {
-            e5ServiceSettings.setModelVariant(selectDefaultModelVersionBasedOnClusterArchitecture(platformArchitectures));
-        }
+            if (e5ServiceSettings.getModelVariant() == null) {
+                e5ServiceSettings.setModelVariant(selectDefaultModelVersionBasedOnClusterArchitecture(platformArchitectures));
+            }
 
-        if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, e5ServiceSettings)) {
-            throw new IllegalArgumentException(
-                "Error parsing request config, model id does not match any models versions available on this platform. Was ["
-                    + e5ServiceSettings.getModelVariant()
-                    + "]"
+            if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, e5ServiceSettings)) {
+                throw new IllegalArgumentException(
+                    "Error parsing request config, model id does not match any models versions available on this platform. Was ["
+                        + e5ServiceSettings.getModelVariant()
+                        + "]"
+                );
+            }
+
+            throwIfNotEmptyMap(config, name());
+            throwIfNotEmptyMap(serviceSettingsMap, name());
+
+            modelListener.onResponse(
+                new MultilingualE5SmallModel(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    (MultilingualE5SmallMlNodeServiceSettings) e5ServiceSettings.build()
+                )
             );
+        } catch (Exception e) {
+            modelListener.onFailure(e);
         }
-
-        throwIfNotEmptyMap(config, name());
-        throwIfNotEmptyMap(serviceSettingsMap, name());
-
-        return new MultilingualE5SmallModel(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            (MultilingualE5SmallMlNodeServiceSettings) e5ServiceSettings.build()
-        );
     }
 
     private static boolean modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(

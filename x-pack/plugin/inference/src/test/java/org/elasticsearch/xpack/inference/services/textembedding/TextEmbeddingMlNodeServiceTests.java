@@ -10,6 +10,7 @@
 package org.elasticsearch.xpack.inference.services.textembedding;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
@@ -51,16 +52,9 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID
             );
 
-            MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parseRequestConfig(
-                randomInferenceEntityId,
-                taskType,
-                settings,
-                Set.of()
-            );
-            assertEquals(
-                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingMlNodeService.NAME, e5ServiceSettings),
-                parsedModel
-            );
+            var modelListener = getModelVerificationActionListener(e5ServiceSettings);
+
+            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
         }
 
         // Invalid model variant
@@ -80,10 +74,14 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                     )
                 )
             );
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of())
+
+            var modelListener = ActionListener.<Model>wrap(
+                model -> fail("Model parsing should have failed"),
+                e -> assertTrue(e instanceof IllegalArgumentException)
             );
+
+            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
+
         }
 
         // Valid model variant
@@ -110,15 +108,12 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID
             );
 
-            MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parseRequestConfig(
+            service.parseRequestConfig(
                 randomInferenceEntityId,
                 taskType,
                 settings,
-                Set.of()
-            );
-            assertEquals(
-                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingMlNodeService.NAME, e5ServiceSettings),
-                parsedModel
+                Set.of(),
+                getModelVerificationActionListener(e5ServiceSettings)
             );
         }
 
@@ -133,10 +128,13 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 )
             );
             settings.put("not_a_valid_config_setting", randomAlphaOfLength(10));
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of())
+
+            ActionListener<Model> modelListener = ActionListener.<Model>wrap(
+                model -> fail("Model parsing should have failed"),
+                e -> assertTrue(e instanceof ElasticsearchStatusException)
             );
+
+            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
         }
 
         // Invalid service settings
@@ -156,11 +154,23 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                     )
                 )
             );
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of())
+
+            ActionListener<Model> modelListener = ActionListener.<Model>wrap(
+                model -> fail("Model parsing should have failed"),
+                e -> assertTrue(e instanceof ElasticsearchStatusException)
             );
+
+            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
         }
+    }
+
+    private ActionListener<Model> getModelVerificationActionListener(MultilingualE5SmallMlNodeServiceSettings e5ServiceSettings) {
+        return ActionListener.<Model>wrap(model -> {
+            assertEquals(
+                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingMlNodeService.NAME, e5ServiceSettings),
+                model
+            );
+        }, e -> { fail("Model parsing failed " + e.getMessage()); });
     }
 
     public void testParsePersistedConfig() {
@@ -182,16 +192,14 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID
             );
 
-            MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parseRequestConfig(
+            service.parseRequestConfig(
                 randomInferenceEntityId,
                 taskType,
                 settings,
-                Set.of()
+                Set.of(),
+                getModelVerificationActionListener(e5ServiceSettings)
             );
-            assertEquals(
-                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingMlNodeService.NAME, e5ServiceSettings),
-                parsedModel
-            );
+
         }
 
         // Invalid model variant
@@ -248,46 +256,6 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 parsedModel
             );
         }
-
-        // Invalid config map
-        {
-            var service = createService(mock(Client.class));
-            var settings = new HashMap<String, Object>();
-            settings.put(
-                ModelConfigurations.SERVICE_SETTINGS,
-                new HashMap<>(
-                    Map.of(TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingMlNodeServiceSettings.NUM_THREADS, 4)
-                )
-            );
-            settings.put("not_a_valid_config_setting", randomAlphaOfLength(10));
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of())
-            );
-        }
-
-        // Invalid service settings
-        {
-            var service = createService(mock(Client.class));
-            var settings = new HashMap<String, Object>();
-            settings.put(
-                ModelConfigurations.SERVICE_SETTINGS,
-                new HashMap<>(
-                    Map.of(
-                        TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS,
-                        1,
-                        TextEmbeddingMlNodeServiceSettings.NUM_THREADS,
-                        4,
-                        "not_a_valid_service_setting",
-                        randomAlphaOfLength(10)
-                    )
-                )
-            );
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of())
-            );
-        }
     }
 
     private TextEmbeddingMlNodeService createService(Client client) {
@@ -305,7 +273,7 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 inferenceEntityId,
                 TaskType.TEXT_EMBEDDING,
                 TextEmbeddingMlNodeService.NAME,
-                MultilingualE5SmallServiceSettingsTests.createRandom()
+                MultilingualE5SmallMlNodeServiceSettingsTests.createRandom()
             );
             default -> throw new IllegalArgumentException("model " + model + " is not supported for testing");
         };

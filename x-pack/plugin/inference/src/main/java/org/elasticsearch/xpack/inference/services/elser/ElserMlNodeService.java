@@ -73,40 +73,47 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public ElserMlNodeModel parseRequestConfig(
+    public void parseRequestConfig(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> modelArchitectures
+        Set<String> modelArchitectures,
+        ActionListener<Model> parsedModelListener
     ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
+        try {
+            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
 
-        if (serviceSettingsBuilder.getModelVariant() == null) {
-            serviceSettingsBuilder.setModelVariant(selectDefaultModelVersionBasedOnClusterArchitecture(modelArchitectures));
+            if (serviceSettingsBuilder.getModelVariant() == null) {
+                serviceSettingsBuilder.setModelVariant(selectDefaultModelVersionBasedOnClusterArchitecture(modelArchitectures));
+            }
+
+            Map<String, Object> taskSettingsMap;
+            // task settings are optional
+            if (config.containsKey(ModelConfigurations.TASK_SETTINGS)) {
+                taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+            } else {
+                taskSettingsMap = Map.of();
+            }
+
+            var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
+
+            throwIfNotEmptyMap(config, NAME);
+            throwIfNotEmptyMap(serviceSettingsMap, NAME);
+            throwIfNotEmptyMap(taskSettingsMap, NAME);
+
+            parsedModelListener.onResponse(
+                new ElserMlNodeModel(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    (ElserMlNodeServiceSettings) serviceSettingsBuilder.build(),
+                    taskSettings
+                )
+            );
+        } catch (Exception e) {
+            parsedModelListener.onFailure(e);
         }
-
-        Map<String, Object> taskSettingsMap;
-        // task settings are optional
-        if (config.containsKey(ModelConfigurations.TASK_SETTINGS)) {
-            taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
-        } else {
-            taskSettingsMap = Map.of();
-        }
-
-        var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
-
-        throwIfNotEmptyMap(config, NAME);
-        throwIfNotEmptyMap(serviceSettingsMap, NAME);
-        throwIfNotEmptyMap(taskSettingsMap, NAME);
-
-        return new ElserMlNodeModel(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            (ElserMlNodeServiceSettings) serviceSettingsBuilder.build(),
-            taskSettings
-        );
     }
 
     private static String selectDefaultModelVersionBasedOnClusterArchitecture(Set<String> modelArchitectures) {

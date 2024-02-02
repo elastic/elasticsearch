@@ -17,7 +17,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class MultilingualE5SmallServiceSettingsTests extends AbstractWireSerializingTestCase<MultilingualE5SmallMlNodeServiceSettings> {
+public class MultilingualE5SmallMlNodeServiceSettingsTests extends AbstractWireSerializingTestCase<
+    MultilingualE5SmallMlNodeServiceSettings> {
 
     public static MultilingualE5SmallMlNodeServiceSettings createRandom() {
         return new MultilingualE5SmallMlNodeServiceSettings(

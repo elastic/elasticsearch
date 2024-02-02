@@ -8,13 +8,11 @@
 package org.elasticsearch.xpack.inference.services.settings;
 
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
 
 import java.io.IOException;
 import java.util.Objects;

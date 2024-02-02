@@ -43,6 +43,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.internal.DocumentParsingSupplier;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -77,7 +78,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndicesService indicesService,
         AutoCreateIndex autoCreateIndex,
-        NodeClient client
+        NodeClient client,
+        DocumentParsingSupplier documentParsingSupplier
     ) {
         super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, UpdateRequest::new);
         this.updateHelper = updateHelper;

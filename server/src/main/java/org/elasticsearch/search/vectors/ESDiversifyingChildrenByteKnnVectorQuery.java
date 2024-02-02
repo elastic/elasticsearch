@@ -8,16 +8,17 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
-public class ProfilingKnnFloatVectorQuery extends KnnFloatVectorQuery implements ProfilingQuery {
+public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildrenByteKnnVectorQuery implements ProfilingQuery {
     private long vectorOpsCount;
 
-    public ProfilingKnnFloatVectorQuery(String field, float[] target, int k, Query filter) {
-        super(field, target, k, filter);
+    public ESDiversifyingChildrenByteKnnVectorQuery(String field, byte[] query, Query childFilter, int k, BitSetProducer parentsFilter) {
+        super(field, query, childFilter, k, parentsFilter);
     }
 
     @Override

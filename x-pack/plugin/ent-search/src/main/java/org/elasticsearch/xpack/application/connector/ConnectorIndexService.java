@@ -39,6 +39,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNativ
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatusAction;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -674,9 +676,7 @@ public class ConnectorIndexService {
             String connectorId = request.getConnectorId();
             getConnector(connectorId, listener.delegateFailure((l, connector) -> {
 
-                ConnectorStatus prevStatus = ConnectorStatus.connectorStatus(
-                    (String) connector.getResultMap().get(Connector.STATUS_FIELD.getPreferredName())
-                );
+                ConnectorStatus prevStatus = getConnectorStatusFromSearchResult(connector);
                 ConnectorStatus newStatus = prevStatus == ConnectorStatus.CREATED
                     ? ConnectorStatus.CREATED
                     : ConnectorStatus.NEEDS_CONFIGURATION;
@@ -709,6 +709,80 @@ public class ConnectorIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Updates the {@link ConnectorStatus} property of a {@link Connector}.
+     *
+     * @param request  The request for updating the connector's status.
+     * @param listener The listener for handling responses, including successful updates or errors.
+     */
+    public void updateConnectorStatus(UpdateConnectorStatusAction.Request request, ActionListener<UpdateResponse> listener) {
+        try {
+            String connectorId = request.getConnectorId();
+            ConnectorStatus newStatus = request.getStatus();
+            getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+
+                ConnectorStatus prevStatus = getConnectorStatusFromSearchResult(connector);
+
+                try {
+                    ConnectorStateMachine.assertValidStateTransition(prevStatus, newStatus);
+                } catch (ConnectorInvalidStatusTransitionException e) {
+                    l.onFailure(new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e));
+                    return;
+                }
+
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                    new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                        .id(connectorId)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                        .source(Map.of(Connector.STATUS_FIELD.getPreferredName(), request.getStatus()))
+                );
+                clientWithOrigin.update(
+                    updateRequest,
+                    new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (updateListener, updateResponse) -> {
+                        if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                            updateListener.onFailure(new ResourceNotFoundException(connectorId));
+                            return;
+                        }
+                        updateListener.onResponse(updateResponse);
+                    })
+                );
+            }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    public void updateConnectorApiKeyIdOrApiKeySecretId(
+        UpdateConnectorApiKeyIdAction.Request request,
+        ActionListener<UpdateResponse> listener
+    ) {
+        try {
+            String connectorId = request.getConnectorId();
+            final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                    .id(connectorId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .source(request.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
+            );
+            clientWithOrigin.update(
+                updateRequest,
+                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        return;
+                    }
+                    l.onResponse(updateResponse);
+                })
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private ConnectorStatus getConnectorStatusFromSearchResult(ConnectorSearchResult searchResult) {
+        return ConnectorStatus.connectorStatus((String) searchResult.getResultMap().get(Connector.STATUS_FIELD.getPreferredName()));
     }
 
     private static ConnectorIndexService.ConnectorResult mapSearchResponseToConnectorList(SearchResponse response) {

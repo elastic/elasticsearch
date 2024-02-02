@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.application.connector.action.RestGetConnectorActi
 import org.elasticsearch.xpack.application.connector.action.RestListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorFilteringAction;
@@ -64,11 +66,13 @@ import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorN
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorServiceTypeAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorStatusAction;
 import org.elasticsearch.xpack.application.connector.action.TransportDeleteConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportGetConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorFilteringAction;
@@ -80,6 +84,8 @@ import org.elasticsearch.xpack.application.connector.action.TransportUpdateConne
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorServiceTypeAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorStatusAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
@@ -91,6 +97,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNativ
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatusAction;
 import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsFeature;
 import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsIndexService;
 import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretAction;
@@ -170,6 +177,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -247,6 +255,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(ListConnectorAction.INSTANCE, TransportListConnectorAction.class),
                     new ActionHandler<>(PostConnectorAction.INSTANCE, TransportPostConnectorAction.class),
                     new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class),
+                    new ActionHandler<>(UpdateConnectorApiKeyIdAction.INSTANCE, TransportUpdateConnectorApiKeyIdAction.class),
                     new ActionHandler<>(UpdateConnectorConfigurationAction.INSTANCE, TransportUpdateConnectorConfigurationAction.class),
                     new ActionHandler<>(UpdateConnectorErrorAction.INSTANCE, TransportUpdateConnectorErrorAction.class),
                     new ActionHandler<>(UpdateConnectorFilteringAction.INSTANCE, TransportUpdateConnectorFilteringAction.class),
@@ -258,6 +267,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(UpdateConnectorPipelineAction.INSTANCE, TransportUpdateConnectorPipelineAction.class),
                     new ActionHandler<>(UpdateConnectorSchedulingAction.INSTANCE, TransportUpdateConnectorSchedulingAction.class),
                     new ActionHandler<>(UpdateConnectorServiceTypeAction.INSTANCE, TransportUpdateConnectorServiceTypeAction.class),
+                    new ActionHandler<>(UpdateConnectorStatusAction.INSTANCE, TransportUpdateConnectorStatusAction.class),
 
                     // SyncJob API
                     new ActionHandler<>(GetConnectorSyncJobAction.INSTANCE, TransportGetConnectorSyncJobAction.class),
@@ -297,7 +307,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
 
         if (enabled == false) {
@@ -338,6 +349,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestListConnectorAction(),
                     new RestPostConnectorAction(),
                     new RestPutConnectorAction(),
+                    new RestUpdateConnectorApiKeyIdAction(),
                     new RestUpdateConnectorConfigurationAction(),
                     new RestUpdateConnectorErrorAction(),
                     new RestUpdateConnectorFilteringAction(),
@@ -349,6 +361,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestUpdateConnectorPipelineAction(),
                     new RestUpdateConnectorSchedulingAction(),
                     new RestUpdateConnectorServiceTypeAction(),
+                    new RestUpdateConnectorStatusAction(),
 
                     // SyncJob API
                     new RestGetConnectorSyncJobAction(),

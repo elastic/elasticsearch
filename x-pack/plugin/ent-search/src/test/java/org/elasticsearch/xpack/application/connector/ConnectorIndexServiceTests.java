@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -24,6 +25,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNativ
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatusAction;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -346,6 +349,60 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(isNative, equalTo(indexedConnector.isNative()));
     }
 
+    public void testUpdateConnectorStatus() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        ConnectorStatus newStatus = ConnectorTestUtils.getRandomConnectorNextStatus(indexedConnector.getStatus());
+
+        UpdateConnectorStatusAction.Request updateStatusRequest = new UpdateConnectorStatusAction.Request(connectorId, newStatus);
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorStatus(updateStatusRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        indexedConnector = awaitGetConnector(connectorId);
+        assertThat(newStatus, equalTo(indexedConnector.getStatus()));
+    }
+
+    public void testUpdateConnectorStatus_WithInvalidStatus() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        ConnectorStatus newInvalidStatus = ConnectorTestUtils.getRandomInvalidConnectorNextStatus(indexedConnector.getStatus());
+
+        UpdateConnectorStatusAction.Request updateStatusRequest = new UpdateConnectorStatusAction.Request(connectorId, newInvalidStatus);
+
+        expectThrows(ElasticsearchStatusException.class, () -> awaitUpdateConnectorStatus(updateStatusRequest));
+    }
+
+    public void testUpdateConnectorApiKeyIdOrApiKeySecretId() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        UpdateConnectorApiKeyIdAction.Request updateApiKeyIdRequest = new UpdateConnectorApiKeyIdAction.Request(
+            connectorId,
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15)
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorApiKeyIdOrApiKeySecretId(updateApiKeyIdRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(updateApiKeyIdRequest.getApiKeyId(), equalTo(indexedConnector.getApiKeyId()));
+        assertThat(updateApiKeyIdRequest.getApiKeySecretId(), equalTo(indexedConnector.getApiKeySecretId()));
+    }
+
     private DeleteResponse awaitDeleteConnector(String connectorId) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
@@ -572,11 +629,40 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
+
         assertTrue("Timeout waiting for update index name request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
         assertNotNull("Received null response from update index name request", resp.get());
+
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorStatus(UpdateConnectorStatusAction.Request updateStatusRequest) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorStatus(updateStatusRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Timeout waiting for update status request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update status request", resp.get());
+
         return resp.get();
     }
 
@@ -779,6 +865,33 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             throw exc.get();
         }
         assertNotNull("Received null response from update error request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorApiKeyIdOrApiKeySecretId(
+        UpdateConnectorApiKeyIdAction.Request updatedApiKeyIdOrApiKeySecretId
+    ) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorApiKeyIdOrApiKeySecretId(updatedApiKeyIdOrApiKeySecretId, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for update api key id request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update api key id request", resp.get());
         return resp.get();
     }
 

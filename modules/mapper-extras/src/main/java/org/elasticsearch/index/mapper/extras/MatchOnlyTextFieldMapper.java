@@ -259,12 +259,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
-            return toIntervalsSource(Intervals.term(term), new TermQuery(new Term(concreteFieldName(), term)), context);
+            return toIntervalsSource(Intervals.term(term), new TermQuery(new Term(name(), term)), context);
         }
 
         @Override
         public IntervalsSource prefixIntervals(BytesRef term, SearchExecutionContext context) {
-            return toIntervalsSource(Intervals.prefix(term), new PrefixQuery(new Term(concreteFieldName(), term)), context);
+            return toIntervalsSource(Intervals.prefix(term), new PrefixQuery(new Term(name(), term)), context);
         }
 
         @Override

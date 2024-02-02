@@ -56,12 +56,12 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            throw new UnsupportedOperationException("Cannot run exists query on [" + concreteFieldName() + "]");
+            throw new UnsupportedOperationException("Cannot run exists query on [" + name() + "]");
         }
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new UnsupportedOperationException("The [" + concreteFieldName() + "] field may not be queried directly");
+            throw new UnsupportedOperationException("The [" + name() + "] field may not be queried directly");
         }
     }
 

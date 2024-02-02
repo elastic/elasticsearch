@@ -117,7 +117,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             relations.get()
                 .stream()
                 .map(relation -> new ParentIdFieldMapper(name + "#" + relation.parent(), eagerGlobalOrdinals.get()))
-                .forEach(mapper -> parentIdFields.put(mapper.fieldType().name(), mapper));
+                .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
             Joiner joiner = new Joiner(name(), relations.get());
             return new ParentJoinFieldMapper(
                 name,

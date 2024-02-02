@@ -136,7 +136,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.concreteFieldName(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -185,7 +185,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 } else if (token == Token.VALUE_NULL) {
                     // ignore feature, this is consistent with numeric fields
                 } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
-                    final String key = fieldType().concreteFieldName() + "." + feature;
+                    final String key = fieldType().name() + "." + feature;
                     float value = context.parser().floatValue(true);
                     if (context.doc().getByKey(key) != null) {
                         throw new IllegalArgumentException(
@@ -194,7 +194,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                                 + "] in the same document"
                         );
                     }
-                    context.doc().addWithKey(key, new FeatureField(fieldType().concreteFieldName(), feature, value));
+                    context.doc().addWithKey(key, new FeatureField(fieldType().name(), feature, value));
                 } else {
                     throw new IllegalArgumentException(
                         "[sparse_vector] fields take hashes that map a feature to a strictly positive "

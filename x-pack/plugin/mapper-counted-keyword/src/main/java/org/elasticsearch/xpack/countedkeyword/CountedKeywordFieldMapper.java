@@ -125,7 +125,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
             failIfNoDocValues();
 
             return (cache, breakerService) -> new AbstractIndexOrdinalsFieldData(
-                concreteFieldName(),
+                name(),
                 CoreValuesSourceType.KEYWORD,
                 cache,
                 breakerService,
@@ -351,8 +351,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         int i = 0;
         int[] counts = new int[values.size()];
         for (Map.Entry<String, Integer> value : values.entrySet()) {
-            context.doc()
-                .add(new KeywordFieldMapper.KeywordField(fieldType().concreteFieldName(), new BytesRef(value.getKey()), fieldType));
+            context.doc().add(new KeywordFieldMapper.KeywordField(fieldType().name(), new BytesRef(value.getKey()), fieldType));
             counts[i++] = value.getValue();
         }
         BytesStreamOutput streamOutput = new BytesStreamOutput();

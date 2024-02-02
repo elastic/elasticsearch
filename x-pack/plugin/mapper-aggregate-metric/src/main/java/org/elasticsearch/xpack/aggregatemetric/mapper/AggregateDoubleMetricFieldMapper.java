@@ -312,7 +312,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 metricFields = new EnumMap<>(AggregateDoubleMetricFieldMapper.Metric.class);
             }
 
-            if (concreteFieldName() == null) {
+            if (name() == null) {
                 throw new IllegalArgumentException("Field of type [" + typeName() + "] must have a name before adding a subfield");
             }
             metricFields.put(m, subfield);
@@ -392,7 +392,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return (cache, breakerService) -> new IndexAggregateDoubleMetricFieldData(
-                concreteFieldName(),
+                name(),
                 AggregateMetricsValuesSourceType.AGGREGATE_METRIC
             ) {
                 @Override
@@ -472,7 +472,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     XFieldComparatorSource.Nested nested,
                     boolean reverse
                 ) {
-                    return new SortedNumericSortField(delegateFieldType().concreteFieldName(), SortField.Type.DOUBLE, reverse);
+                    return new SortedNumericSortField(delegateFieldType().name(), SortField.Type.DOUBLE, reverse);
                 }
 
                 @Override
@@ -635,7 +635,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             // Check that there aren't any duplicates already parsed
             for (Metric m : metricsParsed.keySet()) {
                 NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(m);
-                if (context.doc().getByKey(delegateFieldMapper.fieldType().concreteFieldName()) != null) {
+                if (context.doc().getByKey(delegateFieldMapper.fieldType().name()) != null) {
                     throw new IllegalArgumentException(
                         "Field ["
                             + name()
@@ -651,7 +651,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     // close the subParser so we advance to the end of the object
                     subParser.close();
                 }
-                context.addIgnoredField(fieldType().concreteFieldName());
+                context.addIgnoredField(fieldType().name());
                 context.path().remove();
                 return;
             }
@@ -678,7 +678,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed numbers"
             );
         }
-        return new AggregateMetricSyntheticFieldLoader(fieldType().concreteFieldName(), simpleName(), metrics);
+        return new AggregateMetricSyntheticFieldLoader(fieldType().name(), simpleName(), metrics);
     }
 
     public static class AggregateMetricSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {

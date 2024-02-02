@@ -289,7 +289,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         if (adaptedSource != null) {
             final BytesRef ref = adaptedSource.toBytesRef();
-            context.doc().add(new StoredField(fieldType().concreteFieldName(), ref.bytes, ref.offset, ref.length));
+            context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
 
         if (originalSource != null && adaptedSource != originalSource) {

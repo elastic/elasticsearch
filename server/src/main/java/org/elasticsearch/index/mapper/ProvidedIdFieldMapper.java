@@ -114,7 +114,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 }
                 return Uid.encodeId(idObject.toString());
             }).toArray(BytesRef[]::new);
-            return new TermInSetQuery(concreteFieldName(), bytesRefs);
+            return new TermInSetQuery(name(), bytesRefs);
         }
 
         @Override
@@ -132,7 +132,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 );
             }
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
-                concreteFieldName(),
+                name(),
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,

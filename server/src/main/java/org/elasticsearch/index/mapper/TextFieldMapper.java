@@ -454,7 +454,7 @@ public final class TextFieldMapper extends FieldMapper {
                 analyzers.getIndexAnalyzer().analyzer(),
                 analyzers.positionIncrementGap.get()
             );
-            return new SubFieldInfo(parent.concreteFieldName() + FAST_PHRASE_SUFFIX, phraseFieldType, a);
+            return new SubFieldInfo(parent.name() + FAST_PHRASE_SUFFIX, phraseFieldType, a);
         }
 
         @Override
@@ -553,14 +553,7 @@ public final class TextFieldMapper extends FieldMapper {
         final TextFieldType parentField;
 
         PrefixFieldType(TextFieldType parentField, int minChars, int maxChars) {
-            super(
-                parentField.concreteFieldName() + FAST_PREFIX_SUFFIX,
-                true,
-                false,
-                false,
-                parentField.getTextSearchInfo(),
-                Collections.emptyMap()
-            );
+            super(parentField.name() + FAST_PREFIX_SUFFIX, true, false, false, parentField.getTextSearchInfo(), Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -605,21 +598,10 @@ public final class TextFieldMapper extends FieldMapper {
             }
             Automaton automaton = Operations.concatenate(automata);
             AutomatonQuery query = method == null
-                ? new AutomatonQuery(
-                    new Term(concreteFieldName(), value + "*"),
-                    automaton,
-                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                    false
-                )
-                : new AutomatonQuery(
-                    new Term(concreteFieldName(), value + "*"),
-                    automaton,
-                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                    false,
-                    method
-                );
+                ? new AutomatonQuery(new Term(name(), value + "*"), automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false)
+                : new AutomatonQuery(new Term(name(), value + "*"), automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
             return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
-                .add(new TermQuery(new Term(parentField.concreteFieldName(), value)), BooleanClause.Occur.SHOULD)
+                .add(new TermQuery(new Term(parentField.name(), value)), BooleanClause.Occur.SHOULD)
                 .build();
         }
 
@@ -631,13 +613,10 @@ public final class TextFieldMapper extends FieldMapper {
                 return Intervals.prefix(term);
             }
             if (term.length >= minChars) {
-                return Intervals.fixField(concreteFieldName(), Intervals.term(term));
+                return Intervals.fixField(name(), Intervals.term(term));
             }
             String wildcardTerm = term.utf8ToString() + "?".repeat(Math.max(0, minChars - term.length));
-            return Intervals.or(
-                Intervals.fixField(concreteFieldName(), Intervals.wildcard(new BytesRef(wildcardTerm))),
-                Intervals.term(term)
-            );
+            return Intervals.or(Intervals.fixField(name(), Intervals.wildcard(new BytesRef(wildcardTerm))), Intervals.term(term));
         }
 
         @Override
@@ -811,13 +790,10 @@ public final class TextFieldMapper extends FieldMapper {
                 && value.length() <= prefixFieldType.maxChars
                 && prefixFieldType.getTextSearchInfo().hasPositions()) {
 
-                return new FieldMaskingSpanQuery(
-                    new SpanTermQuery(new Term(prefixFieldType.concreteFieldName(), indexedValueForSearch(value))),
-                    concreteFieldName()
-                );
+                return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixFieldType.name(), indexedValueForSearch(value))), name());
             } else {
                 SpanMultiTermQueryWrapper<?> spanMulti = new SpanMultiTermQueryWrapper<>(
-                    new PrefixQuery(new Term(concreteFieldName(), indexedValueForSearch(value)))
+                    new PrefixQuery(new Term(name(), indexedValueForSearch(value)))
                 );
                 if (method != null) {
                     spanMulti.setRewriteMethod(method);
@@ -856,7 +832,7 @@ public final class TextFieldMapper extends FieldMapper {
             if (getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }
-            FuzzyQuery fq = new FuzzyQuery(new Term(concreteFieldName(), term), maxDistance, prefixLength, 128, transpositions);
+            FuzzyQuery fq = new FuzzyQuery(new Term(name(), term), maxDistance, prefixLength, 128, transpositions);
             return Intervals.multiterm(fq.getAutomata(), term);
         }
 
@@ -877,7 +853,7 @@ public final class TextFieldMapper extends FieldMapper {
         @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext context)
             throws IOException {
-            String field = concreteFieldName();
+            String field = name();
             checkForPositions();
             // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
             // or if the incoming token stream is the output of a token graph due to
@@ -912,7 +888,7 @@ public final class TextFieldMapper extends FieldMapper {
         @Override
         public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
             throws IOException {
-            String field = concreteFieldName();
+            String field = name();
             if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
@@ -939,9 +915,9 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions) throws IOException {
-            String prefixField = prefixFieldType == null || slop > 0 ? null : prefixFieldType.concreteFieldName();
+            String prefixField = prefixFieldType == null || slop > 0 ? null : prefixFieldType.name();
             IntPredicate usePrefix = (len) -> len >= prefixFieldType.minChars && len <= prefixFieldType.maxChars;
-            return createPhrasePrefixQuery(stream, concreteFieldName(), slop, maxExpansions, prefixField, usePrefix);
+            return createPhrasePrefixQuery(stream, name(), slop, maxExpansions, prefixField, usePrefix);
         }
 
         public static boolean hasGaps(TokenStream stream) throws IOException {
@@ -973,7 +949,7 @@ public final class TextFieldMapper extends FieldMapper {
                 return new BlockLoader.Delegating(syntheticSourceDelegate.blockLoader(blContext)) {
                     @Override
                     protected String delegatingTo() {
-                        return syntheticSourceDelegate.concreteFieldName();
+                        return syntheticSourceDelegate.name();
                     }
                 };
             }
@@ -982,7 +958,7 @@ public final class TextFieldMapper extends FieldMapper {
              * fields will always be slow to load and if the parent is exact then we
              * should use that instead.
              */
-            String parentField = blContext.parentField(concreteFieldName());
+            String parentField = blContext.parentField(name());
             if (parentField != null) {
                 MappedFieldType parent = blContext.lookup().fieldType(parentField);
                 if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
@@ -991,14 +967,14 @@ public final class TextFieldMapper extends FieldMapper {
                         return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
                             @Override
                             protected String delegatingTo() {
-                                return kwd.concreteFieldName();
+                                return kwd.name();
                             }
                         };
                     }
                 }
             }
             if (isStored()) {
-                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(concreteFieldName());
+                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
             if (isSyntheticSource) {
                 /*
@@ -1020,7 +996,7 @@ public final class TextFieldMapper extends FieldMapper {
         private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
             if (isIndexed()) {
                 if (getTextSearchInfo().hasNorms()) {
-                    return BlockSourceReader.lookupFromNorms(concreteFieldName());
+                    return BlockSourceReader.lookupFromNorms(name());
                 }
             } else if (isStored() == false) {
                 return BlockSourceReader.lookupMatchingAll();
@@ -1047,7 +1023,7 @@ public final class TextFieldMapper extends FieldMapper {
                     );
                 }
                 return new PagedBytesIndexFieldData.Builder(
-                    concreteFieldName(),
+                    name(),
                     filter.minFreq,
                     filter.maxFreq,
                     filter.minSegmentSize,
@@ -1065,7 +1041,7 @@ public final class TextFieldMapper extends FieldMapper {
             if (isSyntheticSource) {
                 if (isStored()) {
                     return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
-                        concreteFieldName(),
+                        name(),
                         CoreValuesSourceType.KEYWORD,
                         TextDocValuesField::new
                     ) {
@@ -1190,7 +1166,7 @@ public final class TextFieldMapper extends FieldMapper {
         LegacyTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
             super(name, indexed, stored, tsi, meta);
             // norms are not available, neither are doc-values, so fall back to _source to run exists query
-            existQueryFieldType = KeywordScriptFieldType.sourceOnly(concreteFieldName()).asMappedFieldTypes().findFirst().get();
+            existQueryFieldType = KeywordScriptFieldType.sourceOnly(name()).asMappedFieldTypes().findFirst().get();
         }
 
         @Override
@@ -1264,7 +1240,7 @@ public final class TextFieldMapper extends FieldMapper {
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         Map<String, NamedAnalyzer> analyzersMap = new HashMap<>();
-        analyzersMap.put(fieldType().concreteFieldName(), indexAnalyzer);
+        analyzersMap.put(fieldType().name(), indexAnalyzer);
         if (phraseFieldInfo != null) {
             analyzersMap.put(
                 phraseFieldInfo.field,
@@ -1294,7 +1270,7 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(fieldType().concreteFieldName(), value, fieldType);
+            Field field = new Field(fieldType().name(), value, fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
@@ -1471,7 +1447,7 @@ public final class TextFieldMapper extends FieldMapper {
             );
         }
         if (store) {
-            return new StringStoredFieldFieldLoader(fieldType().concreteFieldName(), simpleName(), null) {
+            return new StringStoredFieldFieldLoader(fieldType().name(), simpleName(), null) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     b.value((String) value);
@@ -1492,7 +1468,7 @@ public final class TextFieldMapper extends FieldMapper {
                 Locale.ROOT,
                 "field [%s] of type [%s] doesn't support synthetic source unless it is stored or has a sub-field of"
                     + " type [keyword] with doc values or stored and without a normalizer",
-                fieldType().concreteFieldName(),
+                fieldType().name(),
                 typeName()
             )
         );

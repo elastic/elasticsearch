@@ -110,7 +110,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     public void preParse(DocumentParserContext context) {
         String routing = context.sourceToParse().routing();
         if (routing != null) {
-            context.doc().add(new StringField(fieldType().concreteFieldName(), routing, Field.Store.YES));
+            context.doc().add(new StringField(fieldType().name(), routing, Field.Store.YES));
             context.addToFieldNames(fieldType().name());
         }
     }

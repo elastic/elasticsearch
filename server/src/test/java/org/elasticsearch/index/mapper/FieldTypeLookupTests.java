@@ -505,7 +505,51 @@ public class FieldTypeLookupTests extends ESTestCase {
         }
     }
 
-    // TODO: Add combined copy_to & multi-field test
+    public void testInferenceModelFieldTypeInMultiFieldWithCopyTo() {
+        MockFieldMapper inferenceModelFieldMapper = new MockFieldMapper(new MockInferenceModelFieldType("field1.semantic", "test_model"));
+        MockFieldMapper.Builder field1MapperBuilder = new MockFieldMapper.Builder("field1").addMultiField(inferenceModelFieldMapper);
+        MockFieldMapper.Builder field2MapperBuilder = new MockFieldMapper.Builder("field2").copyTo("field1");
+        MockFieldMapper.Builder field3MapperBuilder = new MockFieldMapper.Builder("field3").copyTo("field1");
+        MapperBuilderContext context = MapperBuilderContext.root(false, false);
+
+        {
+            FieldTypeLookup lookup = new FieldTypeLookup(
+                List.of(
+                    field1MapperBuilder.build(context),
+                    field2MapperBuilder.build(context),
+                    field3MapperBuilder.build(context),
+                    inferenceModelFieldMapper
+                ),
+                emptyList(),
+                emptyList()
+            );
+
+            assertEquals(Set.of("field1", "field2", "field3"), lookup.sourcePaths("field1.semantic"));
+            assertEquals(
+                Map.of("test_model", Map.of("field1.semantic", List.of("field1", "field3", "field2"))),
+                lookup.getFieldsForModels()
+            );
+        }
+        {
+            // Pass inferenceModelFieldMapper first to test that processing order in FieldTypeLookup constructor does not matter
+            FieldTypeLookup lookup = new FieldTypeLookup(
+                List.of(
+                    inferenceModelFieldMapper,
+                    field1MapperBuilder.build(context),
+                    field2MapperBuilder.build(context),
+                    field3MapperBuilder.build(context)
+                ),
+                emptyList(),
+                emptyList()
+            );
+
+            assertEquals(Set.of("field1", "field2", "field3"), lookup.sourcePaths("field1.semantic"));
+            assertEquals(
+                Map.of("test_model", Map.of("field1.semantic", List.of("field1", "field3", "field2"))),
+                lookup.getFieldsForModels()
+            );
+        }
+    }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {
         return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.root(false, false));

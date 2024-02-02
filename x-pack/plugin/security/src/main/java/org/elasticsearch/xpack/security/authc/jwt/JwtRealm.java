@@ -408,15 +408,13 @@ public class JwtRealm extends Realm implements CachingRealm, ReloadableSecurityC
             this.realmRef().getName()
         ).get(settings);
 
-        // Validate settings' consistency before rotating the secret.
-        // The client shared secret must always be present when the
-        // authentication type is shared_secret.
         JwtUtil.validateClientAuthenticationSettings(
             RealmSettings.getFullSettingKey(this.config, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
             this.clientAuthenticationType,
             RealmSettings.getFullSettingKey(this.config, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
             new RotatableSecret(newClientSharedSecret)
         );
+
         this.clientAuthenticationSharedSecret.rotate(
             newClientSharedSecret,
             config.getSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD)

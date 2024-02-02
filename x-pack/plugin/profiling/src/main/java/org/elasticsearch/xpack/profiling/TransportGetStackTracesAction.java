@@ -266,7 +266,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 new RandomSamplerAggregationBuilder("sample").setSeed(request.hashCode())
                     .setProbability(responseBuilder.getSamplingRate())
                     .subAggregation(
-                        new CountedTermsAggregationBuilder("group_by").size(MAX_TRACE_EVENTS_RESULT_SIZE).field(request.getStackTraceIds())
+                        new CountedTermsAggregationBuilder("group_by").size(MAX_TRACE_EVENTS_RESULT_SIZE)
+                            .field(request.getStackTraceIdsField())
                     )
             )
             .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {

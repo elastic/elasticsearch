@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -45,7 +44,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     /**
      * @return a List of OutOfRangeSpec to test for this number type
      */
-    protected abstract List<OutOfRangeSpec> outOfRangeSpecs();
+    protected abstract List<NumberTypeOutOfRangeSpec> outOfRangeSpecs();
 
     /**
      * @return an appropriate value to use for a missing value for this number type
@@ -234,7 +233,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     public void testOutOfRangeValues() throws IOException {
-        for (OutOfRangeSpec item : outOfRangeSpecs()) {
+        for (NumberTypeOutOfRangeSpec item : outOfRangeSpecs()) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", item.type.typeName())));
             Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(item::write)));
             assertThat(
@@ -317,7 +316,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected final Object generateRandomInputValue(MappedFieldType ft) {
+    protected Object generateRandomInputValue(MappedFieldType ft) {
         Number n = randomNumber();
         return randomBoolean() ? n : n.toString();
     }

@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.equalTo;
 
 public class UpdateHealthInfoCacheActionTests extends ESTestCase {
     private static ThreadPool threadPool;
@@ -106,8 +107,8 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
             listener
         );
         AcknowledgedResponse actualResponse = listener.get();
-        assertEquals(expectedResponse, actualResponse);
-        assertEquals(diskHealthInfo, healthInfoCache.getHealthInfo().diskInfoByNode().get(localNode.getId()));
+        assertThat(actualResponse, equalTo(expectedResponse));
+        assertThat(healthInfoCache.getHealthInfo().diskInfoByNode().get(localNode.getId()), equalTo(diskHealthInfo));
     }
 
     public void testRequestSerialization() {

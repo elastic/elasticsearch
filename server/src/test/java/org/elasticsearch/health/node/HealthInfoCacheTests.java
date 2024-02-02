@@ -23,6 +23,9 @@ import java.util.Set;
 
 import static org.elasticsearch.health.node.HealthInfoTests.randomDslHealthInfo;
 import static org.elasticsearch.health.node.HealthInfoTests.randomRepoHealthInfo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class HealthInfoCacheTests extends ESTestCase {
@@ -52,10 +55,10 @@ public class HealthInfoCacheTests extends ESTestCase {
         // Ensure that HealthInfoCache#getHealthInfo() returns a copy of the health info.
         healthInfoCache.updateNodeHealth(node1.getId(), RED, null, null);
 
-        assertEquals(diskHealthInfo.get(node1.getId()), GREEN);
-        assertEquals(diskHealthInfo.get(node2.getId()), RED);
+        assertThat(diskHealthInfo.get(node1.getId()), equalTo(GREEN));
+        assertThat(diskHealthInfo.get(node2.getId()), equalTo(RED));
         // dsl health info has not changed as a new value has not been reported
-        assertEquals(healthInfoCache.getHealthInfo().dslHealthInfo(), latestDslHealthInfo);
+        assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(latestDslHealthInfo));
     }
 
     public void testRemoveNodeFromTheCluster() {
@@ -70,11 +73,11 @@ public class HealthInfoCacheTests extends ESTestCase {
         healthInfoCache.clusterChanged(new ClusterChangedEvent("test", current, previous));
 
         Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
-        assertEquals(diskHealthInfo.get(node1.getId()), GREEN);
-        assertNull(diskHealthInfo.get(node2.getId()));
+        assertThat(diskHealthInfo.get(node1.getId()), equalTo(GREEN));
+        assertThat(diskHealthInfo.get(node2.getId()), nullValue());
         // the dsl info is not removed when the node that reported it leaves the cluster as the next DSL run will report it and
         // override it (if the health node stops being the designated health node the health cache nullifies the existing DSL info)
-        assertEquals(healthInfoCache.getHealthInfo().dslHealthInfo(), latestDslHealthInfo);
+        assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(latestDslHealthInfo));
     }
 
     public void testNotAHealthNode() {
@@ -87,7 +90,7 @@ public class HealthInfoCacheTests extends ESTestCase {
         healthInfoCache.clusterChanged(new ClusterChangedEvent("test", current, previous));
 
         Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
-        assertTrue(diskHealthInfo.isEmpty());
-        assertNull(healthInfoCache.getHealthInfo().dslHealthInfo());
+        assertThat(diskHealthInfo.isEmpty(), equalTo(true));
+        assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(nullValue()));
     }
 }

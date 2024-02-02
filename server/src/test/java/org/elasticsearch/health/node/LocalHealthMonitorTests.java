@@ -41,6 +41,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -131,16 +133,16 @@ public class LocalHealthMonitorTests extends ESTestCase {
         doAnswer(invocation -> {
             DiskHealthInfo diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            assertEquals(GREEN, diskHealthInfo);
+            assertThat(diskHealthInfo, equalTo(GREEN));
             listener.onResponse(null);
             return null;
         }).when(client).execute(any(), any(), any());
 
         // We override the poll interval like this to avoid the min value set by the setting which is too high for this test
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
-        assertNull(mockHealthTracker.getLastReportedValue());
+        assertThat(mockHealthTracker.getLastReportedValue(), nullValue());
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertEquals(GREEN, mockHealthTracker.getLastReportedValue()));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedValue(), equalTo(GREEN)));
     }
 
     @SuppressWarnings("unchecked")
@@ -154,8 +156,8 @@ public class LocalHealthMonitorTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
 
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertTrue(clientCalled.get()));
-        assertNull(mockHealthTracker.getLastReportedValue());
+        assertBusy(() -> assertThat(clientCalled.get(), equalTo(true)));
+        assertThat(mockHealthTracker.getLastReportedValue(), nullValue());
     }
 
     @SuppressWarnings("unchecked")
@@ -169,7 +171,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         doAnswer(invocation -> {
             DiskHealthInfo diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            assertEquals(GREEN, diskHealthInfo);
+            assertThat(diskHealthInfo, equalTo(GREEN));
             counter.incrementAndGet();
             listener.onResponse(null);
             return null;
@@ -177,9 +179,9 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         when(clusterService.state()).thenReturn(previous);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertEquals(GREEN, mockHealthTracker.getLastReportedValue()));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedValue(), equalTo(GREEN)));
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
-        assertBusy(() -> assertEquals(2, counter.get()));
+        assertBusy(() -> assertThat(counter.get(), equalTo(2)));
     }
 
     @SuppressWarnings("unchecked")
@@ -193,7 +195,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         doAnswer(invocation -> {
             DiskHealthInfo diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            assertEquals(GREEN, diskHealthInfo);
+            assertThat(diskHealthInfo, equalTo(GREEN));
             counter.incrementAndGet();
             listener.onResponse(null);
             return null;
@@ -201,9 +203,9 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         when(clusterService.state()).thenReturn(previous);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertEquals(GREEN, mockHealthTracker.getLastReportedValue()));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedValue(), equalTo(GREEN)));
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
-        assertBusy(() -> assertEquals(2, counter.get()));
+        assertBusy(() -> assertThat(counter.get(), equalTo(2)));
     }
 
     @SuppressWarnings("unchecked")
@@ -219,13 +221,13 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         // Ensure that there are no issues if the cluster state hasn't been initialized yet
         localHealthMonitor.setEnabled(true);
-        assertNull(mockHealthTracker.getLastReportedValue());
-        assertEquals(0, clientCalledCount.get());
+        assertThat(mockHealthTracker.getLastReportedValue(), nullValue());
+        assertThat(clientCalledCount.get(), equalTo(0));
 
         when(clusterService.state()).thenReturn(clusterState);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertEquals(GREEN, mockHealthTracker.getLastReportedValue()));
-        assertEquals(1, clientCalledCount.get());
+        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedValue(), equalTo(GREEN)));
+        assertThat(clientCalledCount.get(), equalTo(1));
 
         DiskHealthInfo nextHealthStatus = new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD);
 
@@ -233,11 +235,11 @@ public class LocalHealthMonitorTests extends ESTestCase {
         localHealthMonitor.setEnabled(false);
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(1));
         mockHealthTracker.setHealthInfo(nextHealthStatus);
-        assertEquals(1, clientCalledCount.get());
+        assertThat(clientCalledCount.get(), equalTo(1));
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueSeconds(30));
 
         localHealthMonitor.setEnabled(true);
-        assertBusy(() -> assertEquals(nextHealthStatus, mockHealthTracker.getLastReportedValue()));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedValue(), equalTo(nextHealthStatus)));
     }
 
     private static class MockHealthTracker extends HealthTracker<DiskHealthInfo> {

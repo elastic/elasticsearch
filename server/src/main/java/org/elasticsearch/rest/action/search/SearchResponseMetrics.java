@@ -8,13 +8,10 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 public class SearchResponseMetrics {
-    private static final Logger logger = LogManager.getLogger(SearchResponseMetrics.class);
     public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
     public static final String FAILED_SHARDS_HISTOGRAM_NAME = "es.search_response.failed_shards.histogram";
 

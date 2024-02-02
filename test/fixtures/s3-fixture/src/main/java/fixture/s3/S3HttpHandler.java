@@ -81,7 +81,7 @@ public class S3HttpHandler implements HttpHandler {
         final RequestComponents requestComponents = parseRequestComponents(
             exchange.getRequestMethod() + " " + exchange.getRequestURI().toString()
         );
-        final String request = requestComponents.request;
+        final String request = requestComponents.request();
         onCustomQueryParameters(requestComponents.customQueryParameters);
 
         if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
@@ -189,7 +189,7 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("PUT /" + path + "/*", request)) {
                 final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                blobs.put(requestComponents.uri, blob.v2());
+                blobs.put(requestComponents.uri(), blob.v2());
                 exchange.getResponseHeaders().add("ETag", blob.v1());
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
@@ -244,7 +244,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (Regex.simpleMatch("GET /" + path + "/*", request)) {
-                final BytesReference blob = blobs.get(requestComponents.uri);
+                final BytesReference blob = blobs.get(requestComponents.uri());
                 if (blob != null) {
                     final String range = exchange.getRequestHeaders().getFirst("Range");
                     if (range == null) {
@@ -275,7 +275,7 @@ public class S3HttpHandler implements HttpHandler {
                 int deletions = 0;
                 for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext();) {
                     Map.Entry<String, BytesReference> blob = iterator.next();
-                    if (blob.getKey().startsWith(requestComponents.uri)) {
+                    if (blob.getKey().startsWith(requestComponents.uri())) {
                         iterator.remove();
                         deletions++;
                     }
@@ -325,7 +325,7 @@ public class S3HttpHandler implements HttpHandler {
         // AWS s3 allows the same custom query parameter to be specified multiple times
         final Map<String, List<String>> customQueryParameters = new HashMap<>();
         if (questsionMarkPos == -1) {
-            return new RequestComponents(method + " " + uriString, uriString, uriString, customQueryParameters);
+            return new RequestComponents(method, uriString, "", customQueryParameters);
         } else {
             final String queryString = uriString.substring(questsionMarkPos + 1);
             final ArrayList<String> queryParameters = new ArrayList<>();
@@ -338,19 +338,17 @@ public class S3HttpHandler implements HttpHandler {
                     queryParameters.add(param);
                 }
             });
-            final String path = uriString.substring(0, questsionMarkPos);
-            final String finalQueryString = Strings.collectionToDelimitedString(queryParameters, "&");
-            final String finalUriString = path + (finalQueryString.isEmpty() ? "" : "?" + finalQueryString);
-            return new RequestComponents(method + " " + finalUriString, finalUriString, path, customQueryParameters);
+            return new RequestComponents(
+                method,
+                uriString.substring(0, questsionMarkPos),
+                Strings.collectionToDelimitedString(queryParameters, "&"),
+                customQueryParameters
+            );
         }
     }
 
     public static String getRawRequestString(final HttpExchange exchange) {
         return exchange.getRequestMethod() + " " + exchange.getRequestURI();
-    }
-
-    public static String getCleanedRequestString(final String rawRequest) {
-        return parseRequestComponents(rawRequest).request;
     }
 
     private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-z]+);chunk-signature=([^\\r\\n]*)$");
@@ -518,5 +516,18 @@ public class S3HttpHandler implements HttpHandler {
         return uploads.get(uploadId);
     }
 
-    public record RequestComponents(String request, String uri, String path, Map<String, List<String>> customQueryParameters) {}
+    public record RequestComponents(String method, String path, String query, Map<String, List<String>> customQueryParameters) {
+
+        public String request() {
+            return method + " " + uri();
+        }
+
+        public String uri() {
+            if (query.isEmpty()) {
+                return path;
+            } else {
+                return path + "?" + query;
+            }
+        }
+    }
 }

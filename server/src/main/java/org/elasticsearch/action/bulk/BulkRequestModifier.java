@@ -153,9 +153,9 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
             .collect(Collectors.toSet());
         assert Sets.haveEmptyIntersection(failedIds, responseIds)
             : "bulk item response slots cannot have failed and been processed in the subsequent bulk request, failed ids: "
-            + failedIds
-            + ", response ids: "
-            + responseIds;
+                + failedIds
+                + ", response ids: "
+                + responseIds;
 
         // check for the correct number of responses
         final int expectedResponseCount = bulkRequest.requests.size();
@@ -217,7 +217,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
             // Assert false for development, but if we somehow find ourselves here, default to failure logic.
             assert false
                 : "Attempting to route a failed write request type to a failure store but the failure store is not enabled! "
-                + "This should be guarded against in TransportBulkAction#shouldStoreFailure()";
+                    + "This should be guarded against in TransportBulkAction#shouldStoreFailure()";
             markItemAsFailed(slot, e);
         } else {
             // We get the index write request to find the source of the failed document
@@ -228,11 +228,11 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
                 // as normal, and log the info for later debugging if needed.
                 assert false
                     : "Attempting to mark invalid write request type for failure store. Only IndexRequest or UpdateRequest allowed. "
-                    + "type: ["
-                    + bulkRequest.requests().get(slot).getClass().getName()
-                    + "], index: ["
-                    + targetIndexName
-                    + "]";
+                        + "type: ["
+                        + bulkRequest.requests().get(slot).getClass().getName()
+                        + "], index: ["
+                        + targetIndexName
+                        + "]";
                 markItemAsFailed(slot, e);
                 logger.debug(
                     () -> "Attempted to redirect an invalid write operation after ingest failure - type: ["

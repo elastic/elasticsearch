@@ -134,6 +134,15 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             listener.onResponse(new Response(Collections.emptyList()));
             return;
         }
+
+        if (request.isBasic()) {
+            ActionListener.completeWith(
+                listener,
+                () -> new Response(Collections.singletonList(deriveStats(transformTask, transformTask.deriveBasicCheckpointingInfo())))
+            );
+            return;
+        }
+
         transformTask.getCheckpointingInfo(
             transformCheckpointService,
             new ParentTaskAssigningClient(client, parentTaskId),
@@ -301,7 +310,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             List<TransformStats> allStateAndStats = new ArrayList<>(response.getTransformsStats());
             addCheckpointingInfoForTransformsWithoutTasks(
                 parentTaskId,
-                request.getTimeout(),
+                request,
                 allStateAndStats,
                 statsForTransformsWithoutTasks,
                 transformsWaitingForAssignment,
@@ -337,26 +346,33 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     private void populateSingleStoppedTransformStat(
         TransformStoredDoc transform,
         TaskId parentTaskId,
-        TimeValue timeout,
+        Request request,
         ActionListener<TransformCheckpointingInfo> listener
     ) {
-        transformCheckpointService.getCheckpointingInfo(
-            new ParentTaskAssigningClient(client, parentTaskId),
-            timeout,
-            transform.getId(),
-            transform.getTransformState().getCheckpoint(),
-            transform.getTransformState().getPosition(),
-            transform.getTransformState().getProgress(),
-            ActionListener.wrap(infoBuilder -> listener.onResponse(infoBuilder.build()), e -> {
-                logger.warn("Failed to retrieve checkpointing info for transform [" + transform.getId() + "]", e);
-                listener.onResponse(TransformCheckpointingInfo.EMPTY);
-            })
-        );
+        if (request.isBasic()) {
+            ActionListener.completeWith(
+                listener,
+                () -> TransformCheckpointService.deriveBasicCheckpointingInfo(transform.getTransformState())
+            );
+        } else {
+            transformCheckpointService.getCheckpointingInfo(
+                new ParentTaskAssigningClient(client, parentTaskId),
+                request.getTimeout(),
+                transform.getId(),
+                transform.getTransformState().getCheckpoint(),
+                transform.getTransformState().getPosition(),
+                transform.getTransformState().getProgress(),
+                ActionListener.wrap(infoBuilder -> listener.onResponse(infoBuilder.build()), e -> {
+                    logger.warn("Failed to retrieve checkpointing info for transform [" + transform.getId() + "]", e);
+                    listener.onResponse(TransformCheckpointingInfo.EMPTY);
+                })
+            );
+        }
     }
 
     private void addCheckpointingInfoForTransformsWithoutTasks(
         TaskId parentTaskId,
-        TimeValue timeout,
+        Request request,
         List<TransformStats> allStateAndStats,
         List<TransformStoredDoc> statsForTransformsWithoutTasks,
         Set<String> transformsWaitingForAssignment,
@@ -373,7 +389,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         AtomicBoolean isExceptionReported = new AtomicBoolean(false);
 
         statsForTransformsWithoutTasks.forEach(
-            stat -> populateSingleStoppedTransformStat(stat, parentTaskId, timeout, ActionListener.wrap(checkpointingInfo -> {
+            stat -> populateSingleStoppedTransformStat(stat, parentTaskId, request, ActionListener.wrap(checkpointingInfo -> {
                 synchronized (allStateAndStats) {
                     if (transformsWaitingForAssignment.contains(stat.getId())) {
                         Assignment assignment = TransformNodes.getAssignment(stat.getId(), clusterState);

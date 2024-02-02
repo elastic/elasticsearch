@@ -16,8 +16,10 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -85,7 +87,8 @@ public final class TransportRankEvalActionTests extends ESTestCase {
             transportService,
             mock(ScriptService.class),
             NamedXContentRegistry.EMPTY,
-            nf -> false
+            mock(ClusterService.class),
+            mock(FeatureService.class)
         );
         action.doExecute(null, rankEvalRequest, null);
     }

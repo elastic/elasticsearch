@@ -24,7 +24,7 @@ import java.util.List;
 public class RetrieverBuilderVersionTests extends ESTestCase {
 
     public void testRetrieverVersions() throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"retriever\":{\"standard\":{}}}")) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"retriever\":{\"blah\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> false));
             assertEquals("[standard] retriever is not a supported feature", iae.getMessage());

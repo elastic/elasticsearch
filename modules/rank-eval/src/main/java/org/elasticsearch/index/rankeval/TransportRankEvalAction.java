@@ -17,11 +17,14 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -72,12 +75,16 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         TransportService transportService,
         ScriptService scriptService,
         NamedXContentRegistry namedXContentRegistry,
-        Predicate<NodeFeature> clusterSupportsFeature
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
         super(RankEvalPlugin.ACTION.name(), transportService, actionFilters, RankEvalRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
-        this.clusterSupportsFeature = clusterSupportsFeature;
+        this.clusterSupportsFeature = f -> {
+            ClusterState state = clusterService.state();
+            return state.clusterRecovered() && featureService.clusterHasFeature(state, f);
+        };
         this.client = client;
     }
 

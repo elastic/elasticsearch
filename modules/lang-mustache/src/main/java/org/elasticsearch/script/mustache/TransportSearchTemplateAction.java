@@ -13,10 +13,13 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
@@ -55,9 +58,10 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         ActionFilters actionFilters,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
-        Predicate<NodeFeature> clusterSupportsFeature,
         NodeClient client,
-        UsageService usageService
+        UsageService usageService,
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
         super(
             MustachePlugin.SEARCH_TEMPLATE_ACTION.name(),
@@ -68,7 +72,10 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         );
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
-        this.clusterSupportsFeature = clusterSupportsFeature;
+        this.clusterSupportsFeature = f -> {
+            ClusterState state = clusterService.state();
+            return state.clusterRecovered() && featureService.clusterHasFeature(state, f);
+        };
         this.client = client;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
     }

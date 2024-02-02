@@ -230,13 +230,13 @@ dynamic templates:
         refresh: true
         body:
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "attributes.dim": "A", "attributes.another.dim": "C" }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "attributes.dim": "A", "attributes.another.dim": 10 }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "attributes.dim": "A", "attributes.another.dim": "C" }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "attributes.dim": "A", "attributes.another.dim": 10 }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "attributes.dim": "B", "attributes.another.dim": "D" }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "attributes.dim": "B", "attributes.another.dim": 20 }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "attributes.dim": "B", "attributes.another.dim": "D" }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "attributes.dim": "B", "attributes.another.dim": 20 }'
 
   - do:
       search:
@@ -274,7 +274,7 @@ dynamic templates:
             filterA:
               filter:
                 term:
-                  another.dim: C
+                  another.dim: 10
               aggs:
                 tsids:
                   terms:

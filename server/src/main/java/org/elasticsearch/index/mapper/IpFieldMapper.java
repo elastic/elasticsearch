@@ -468,6 +468,28 @@ public class IpFieldMapper extends FieldMapper {
         public boolean isDimension() {
             return isDimension;
         }
+
+        public void validateMatchedRoutingPath(final String routingPath) {
+            if (false == isDimension) {
+                throw new IllegalArgumentException(
+                    "All fields that match routing_path "
+                        + "must be keywords with [time_series_dimension: true] "
+                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                        + "without the [script] parameter. ["
+                        + name()
+                        + "] was not a dimension."
+                );
+            }
+            if (scriptValues != null) {
+                throw new IllegalArgumentException(
+                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                        + "without the [script] parameter. ["
+                        + name()
+                        + "] has a [script] parameter."
+                );
+            }
+        }
     }
 
     private final boolean indexed;

@@ -1025,72 +1025,72 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
-        return "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-            + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-            + "without the [script] parameter. ["
-            + mapper.name()
-            + "] was ["
-            + mapper.typeName()
-            + "].";
+    String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
+        if (mapper instanceof KeywordFieldMapper || mapper instanceof NumberFieldMapper || mapper instanceof IpFieldMapper) {
+            return "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                + "without the [script] parameter. ["
+                + mapper.name()
+                + "] was not a dimension.";
+        }
+        return"All fields that match routing_path must be keywords with [time_series_dimension: true] "+"or flattened fields with a list of dimensions in [time_series_dimensions] and "+"without the [script] parameter. ["+mapper.name()+"] was ["+mapper.typeName()+"].";
+}
+
+public record SyntheticSourceExample(
+    CheckedConsumer<XContentBuilder, IOException> inputValue,
+    CheckedConsumer<XContentBuilder, IOException> expectedForSyntheticSource,
+    CheckedConsumer<XContentBuilder, IOException> expectedForBlockLoader,
+    CheckedConsumer<XContentBuilder, IOException> mapping
+) {
+    public SyntheticSourceExample(Object inputValue, Object result, CheckedConsumer<XContentBuilder, IOException> mapping) {
+        this(b -> b.value(inputValue), b -> b.value(result), b -> b.value(result), mapping);
     }
 
-    public record SyntheticSourceExample(
-        CheckedConsumer<XContentBuilder, IOException> inputValue,
-        CheckedConsumer<XContentBuilder, IOException> expectedForSyntheticSource,
-        CheckedConsumer<XContentBuilder, IOException> expectedForBlockLoader,
+    /**
+     * Create an example that returns different results from doc values
+     * than from synthetic source.
+     */
+    public SyntheticSourceExample(
+        Object inputValue,
+        Object result,
+        Object blockLoaderResults,
         CheckedConsumer<XContentBuilder, IOException> mapping
     ) {
-        public SyntheticSourceExample(Object inputValue, Object result, CheckedConsumer<XContentBuilder, IOException> mapping) {
-            this(b -> b.value(inputValue), b -> b.value(result), b -> b.value(result), mapping);
-        }
-
-        /**
-         * Create an example that returns different results from doc values
-         * than from synthetic source.
-         */
-        public SyntheticSourceExample(
-            Object inputValue,
-            Object result,
-            Object blockLoaderResults,
-            CheckedConsumer<XContentBuilder, IOException> mapping
-        ) {
-            this(b -> b.value(inputValue), b -> b.value(result), b -> b.value(blockLoaderResults), mapping);
-        }
-
-        private void buildInput(XContentBuilder b) throws IOException {
-            b.field("field");
-            inputValue.accept(b);
-        }
-
-        private String expected() throws IOException {
-            XContentBuilder b = JsonXContent.contentBuilder().startObject().field("field");
-            expectedForSyntheticSource.accept(b);
-            return Strings.toString(b.endObject());
-        }
-
-        private Object expectedParsedForBlockLoader() throws IOException {
-            XContentBuilder b = JsonXContent.contentBuilder().startObject().field("field");
-            expectedForBlockLoader.accept(b);
-            String str = Strings.toString(b.endObject());
-            return XContentHelper.convertToMap(JsonXContent.jsonXContent, str, false).get("field");
-        }
+        this(b -> b.value(inputValue), b -> b.value(result), b -> b.value(blockLoaderResults), mapping);
     }
 
-    public record SyntheticSourceInvalidExample(Matcher<String> error, CheckedConsumer<XContentBuilder, IOException> mapping) {}
-
-    public interface SyntheticSourceSupport {
-        /**
-         * Examples that should work when source is generated from doc values.
-         */
-        SyntheticSourceExample example(int maxValues) throws IOException;
-
-        /**
-         * Examples of mappings that should be rejected when source is configured to
-         * be loaded from doc values.
-         */
-        List<SyntheticSourceInvalidExample> invalidExample() throws IOException;
+    private void buildInput(XContentBuilder b) throws IOException {
+        b.field("field");
+        inputValue.accept(b);
     }
+
+    private String expected() throws IOException {
+        XContentBuilder b = JsonXContent.contentBuilder().startObject().field("field");
+        expectedForSyntheticSource.accept(b);
+        return Strings.toString(b.endObject());
+    }
+
+    private Object expectedParsedForBlockLoader() throws IOException {
+        XContentBuilder b = JsonXContent.contentBuilder().startObject().field("field");
+        expectedForBlockLoader.accept(b);
+        String str = Strings.toString(b.endObject());
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, str, false).get("field");
+    }
+}
+
+public record SyntheticSourceInvalidExample(Matcher<String> error, CheckedConsumer<XContentBuilder, IOException> mapping) {}
+
+public interface SyntheticSourceSupport {
+    /**
+     * Examples that should work when source is generated from doc values.
+     */
+    SyntheticSourceExample example(int maxValues) throws IOException;
+
+    /**
+     * Examples of mappings that should be rejected when source is configured to
+     * be loaded from doc values.
+     */
+    List<SyntheticSourceInvalidExample> invalidExample() throws IOException;}
 
     protected abstract SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed);
 

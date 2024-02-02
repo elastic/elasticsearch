@@ -199,22 +199,14 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         );
     }
 
-    public void testRoutingPathMatchesNonKeyword() {
+    public void testRoutingPathMatchesNonKeyword() throws IOException {
         Settings s = getSettings(randomBoolean() ? "dim.non_kwd" : "dim.*");
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
+        createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             b.startObject("non_kwd").field("type", "integer").field("time_series_dimension", true).endObject();
             b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.endObject().endObject();
-        })));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                    + "without the [script] parameter. [dim.non_kwd] was [integer]."
-            )
-        );
+        }));
     }
 
     public void testRoutingPathMatchesScriptedKeyword() {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -50,7 +51,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
 
     public static RRFRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         if (context.clusterSupportsFeature(NODE_FEATURE) == false) {
-            throw new IllegalArgumentException("[" + RRFRankPlugin.NAME + "] retriever is not a supported feature");
+            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + RRFRankPlugin.NAME + "]");
         }
         if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");

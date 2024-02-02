@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.retriever;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -86,7 +87,7 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder<StandardRet
 
     public static StandardRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         if (context.clusterSupportsFeature(NODE_FEATURE) == false) {
-            throw new IllegalArgumentException("[" + NAME + "] retriever is not a supported feature");
+            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
         }
         return PARSER.apply(parser, context);
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.search.SearchModule;
@@ -28,9 +29,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
     public void testRetrieverVersions() throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"retriever\":{\"rrf\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> false));
-            assertEquals("[rrf] retriever is not a supported feature", iae.getMessage());
-            ssb.parseXContent(parser, false, nf -> nf == RRFRetrieverBuilder.NODE_FEATURE);
+            ParsingException iae = expectThrows(
+                ParsingException.class,
+                () -> ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.NODE_FEATURE)
+            );
+            assertEquals("unknown retriever [rrf]", iae.getMessage());
         }
     }
 

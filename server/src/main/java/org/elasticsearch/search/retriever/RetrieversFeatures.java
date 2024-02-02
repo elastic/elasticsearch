@@ -17,6 +17,6 @@ public class RetrieversFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(StandardRetrieverBuilder.NODE_FEATURE, KnnRetrieverBuilder.NODE_FEATURE);
+        return Set.of(RetrieverBuilder.NODE_FEATURE, StandardRetrieverBuilder.NODE_FEATURE, KnnRetrieverBuilder.NODE_FEATURE);
     }
 }

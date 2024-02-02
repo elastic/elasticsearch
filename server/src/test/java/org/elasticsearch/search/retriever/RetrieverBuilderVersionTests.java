@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.retriever;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.search.SearchModule;
@@ -24,18 +25,43 @@ import java.util.List;
 public class RetrieverBuilderVersionTests extends ESTestCase {
 
     public void testRetrieverVersions() throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"retriever\":{\"blah\":{}}}")) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"retriever\":{\"standard\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> false));
-            assertEquals("[standard] retriever is not a supported feature", iae.getMessage());
-            ssb.parseXContent(parser, false, nf -> nf == StandardRetrieverBuilder.NODE_FEATURE);
+            ParsingException iae = expectThrows(ParsingException.class, () -> ssb.parseXContent(parser, true, nf -> false));
+            assertEquals("Unknown key for a START_OBJECT in [retriever].", iae.getMessage());
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"retriever\":{\"standard\":{}}}")) {
+            SearchSourceBuilder ssb = new SearchSourceBuilder();
+            ParsingException iae = expectThrows(
+                ParsingException.class,
+                () -> ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.NODE_FEATURE)
+            );
+            assertEquals("unknown retriever [standard]", iae.getMessage());
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"retriever\":{\"standard\":{}}}")) {
+            SearchSourceBuilder ssb = new SearchSourceBuilder();
+            ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.NODE_FEATURE || nf == StandardRetrieverBuilder.NODE_FEATURE);
         }
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"retriever\":{\"knn\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> ssb.parseXContent(parser, true, nf -> false));
-            assertEquals("[knn] retriever is not a supported feature", iae.getMessage());
-            ssb.parseXContent(parser, false, nf -> nf == KnnRetrieverBuilder.NODE_FEATURE);
+            ParsingException iae = expectThrows(
+                ParsingException.class,
+                () -> ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.NODE_FEATURE)
+            );
+            assertEquals("unknown retriever [knn]", iae.getMessage());
+        }
+
+        try (
+            XContentParser parser = createParser(
+                JsonXContent.jsonXContent,
+                "{\"retriever\":{\"knn\":{\"field\": \"test\", \"k\": 2, \"num_candidates\": 5, \"query_vector\": [1, 2, 3]}}}"
+            )
+        ) {
+            SearchSourceBuilder ssb = new SearchSourceBuilder();
+            ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.NODE_FEATURE || nf == KnnRetrieverBuilder.NODE_FEATURE);
         }
     }
 

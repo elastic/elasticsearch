@@ -11,7 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
@@ -28,7 +28,7 @@ public class SourceToParse {
     private final XContentType xContentType;
 
     private final Map<String, String> dynamicTemplates;
-    private final DocumentParsingObserver documentParsingObserver;
+    private final DocumentSizeObserver documentSizeObserver;
 
     public SourceToParse(
         @Nullable String id,
@@ -36,7 +36,7 @@ public class SourceToParse {
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
-        DocumentParsingObserver documentParsingObserver
+        DocumentSizeObserver documentSizeObserver
     ) {
         this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -45,11 +45,11 @@ public class SourceToParse {
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
-        this.documentParsingObserver = documentParsingObserver;
+        this.documentSizeObserver = documentSizeObserver;
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of(), DocumentParsingObserver.EMPTY_INSTANCE);
+        this(id, source, xContentType, null, Map.of(), DocumentSizeObserver.EMPTY_INSTANCE);
     }
 
     public BytesReference source() {
@@ -86,7 +86,7 @@ public class SourceToParse {
         return this.xContentType;
     }
 
-    public DocumentParsingObserver getDocumentParsingObserver() {
-        return documentParsingObserver;
+    public DocumentSizeObserver getDocumentSizeObserver() {
+        return documentSizeObserver;
     }
 }

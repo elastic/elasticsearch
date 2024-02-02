@@ -171,7 +171,7 @@ public class IndicesServiceBuilder {
         return this;
     }
 
-    public IndicesServiceBuilder documentParsingObserverSupplier(DocumentParsingSupplier documentParsingSupplier) {
+    public IndicesServiceBuilder documentParsingSupplier(DocumentParsingSupplier documentParsingSupplier) {
         this.documentParsingSupplier = documentParsingSupplier;
         return this;
     }

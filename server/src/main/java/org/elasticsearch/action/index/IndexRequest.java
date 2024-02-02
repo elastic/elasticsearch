@@ -37,7 +37,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -405,8 +405,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return XContentHelper.convertToMap(source, false, contentType).v2();
     }
 
-    public Map<String, Object> sourceAsMap(DocumentParsingObserver documentParsingObserver) {
-        return XContentHelper.convertToMap(source, false, contentType, documentParsingObserver).v2();
+    public Map<String, Object> sourceAsMap(DocumentSizeObserver documentSizeObserver) {
+        return XContentHelper.convertToMap(source, false, contentType, documentSizeObserver).v2();
     }
 
     /**

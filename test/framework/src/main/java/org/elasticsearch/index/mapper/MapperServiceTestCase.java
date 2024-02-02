@@ -58,7 +58,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -290,7 +290,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             XContentType.JSON,
             routing,
             dynamicTemplates,
-            DocumentParsingObserver.EMPTY_INSTANCE
+            DocumentSizeObserver.EMPTY_INSTANCE
         );
     }
 
@@ -723,7 +723,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                         XContentType.JSON,
                         null,
                         Map.of(),
-                        DocumentParsingObserver.EMPTY_INSTANCE
+                        DocumentSizeObserver.EMPTY_INSTANCE
                     )
                 ).rootDoc()
             );

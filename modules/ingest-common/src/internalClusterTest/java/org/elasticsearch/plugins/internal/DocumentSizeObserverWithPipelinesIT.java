@@ -9,6 +9,10 @@
 package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -19,52 +23,54 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class DocumentParsingObserverIT extends ESIntegTestCase {
+public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
 
     private static String TEST_INDEX_NAME = "test-index-name";
-
     // the assertions are done in plugin which is static and will be created by ES server.
     // hence a static flag to make sure it is indeed used
     public static boolean hasWrappedParser;
 
-    public void testDocumentIsReportedUponBulk() throws IOException {
+    public void testDocumentIsReportedWithPipelines() throws IOException {
         hasWrappedParser = false;
-        client().index(
-            new IndexRequest(TEST_INDEX_NAME).id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
-        ).actionGet();
-        assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentParsingObserver
-
-        hasWrappedParser = false;
-        // the format of the request does not matter
-        client().index(
-            new IndexRequest(TEST_INDEX_NAME).id("2").source(cborBuilder().startObject().field("test", "I am sam i am").endObject())
-        ).actionGet();
-        assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentParsingObserver
-
-        hasWrappedParser = false;
-        // white spaces does not matter
-        client().index(new IndexRequest(TEST_INDEX_NAME).id("3").source("""
+        // pipeline adding fields, changing destination is not affecting reporting
+        final BytesReference pipelineBody = new BytesArray("""
             {
-            "test":
-
-            "I am sam i am"
+              "processors": [
+                {
+                   "set": {
+                     "field": "my-text-field",
+                     "value": "xxxx"
+                   }
+                 },
+                 {
+                   "set": {
+                     "field": "my-boolean-field",
+                     "value": true
+                   }
+                 }
+              ]
             }
-            """, XContentType.JSON)).actionGet();
+            """);
+        clusterAdmin().putPipeline(new PutPipelineRequest("pipeline", pipelineBody, XContentType.JSON)).actionGet();
+
+        client().index(
+            new IndexRequest(TEST_INDEX_NAME).setPipeline("pipeline")
+                .id("1")
+                .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
+        ).actionGet();
         assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentParsingObserver
+        // there are more assertions in a TestDocumentSizeObserver
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDocumentParsingSupplierPlugin.class);
+        return List.of(TestDocumentParsingSupplierPlugin.class, IngestCommonPlugin.class);
     }
 
     public static class TestDocumentParsingSupplierPlugin extends Plugin implements DocumentParsingSupplierPlugin, IngestPlugin {
@@ -73,16 +79,16 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
 
         @Override
         public DocumentParsingSupplier getDocumentParsingSupplier() {
+            // returns a static instance, because we want to assert that the wrapping is called only once
             return new DocumentParsingSupplier() {
-
                 @Override
-                public DocumentParsingObserver getDocumentParsingObserver(long normalisedBytesParsed) {
-                    return new TestDocumentParsingObserver();
+                public DocumentSizeObserver getDocumentSizeObserver(long normalisedBytesParsed) {
+                    return new TestDocumentSizeObserver(normalisedBytesParsed);
                 }
 
                 @Override
-                public DocumentParsingObserver getDocumentParsingObserver() {
-                    return new TestDocumentParsingObserver();
+                public DocumentSizeObserver getDocumentSizeObserver() {
+                    return new TestDocumentSizeObserver(0L);
                 }
 
                 @Override
@@ -94,32 +100,39 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
     }
 
     public static class TestDocumentParsingReporter implements DocumentParsingReporter {
-
         @Override
         public void onCompleted(String indexName, long normalizedBytesParsed) {
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
-            assertThat(normalizedBytesParsed, equalTo(5L));
+            assertThat(normalizedBytesParsed, equalTo(1L));
         }
     }
 
-    public static class TestDocumentParsingObserver implements DocumentParsingObserver {
-        long counter = 0;
+    public static class TestDocumentSizeObserver implements DocumentSizeObserver {
+        long mapCounter = 0;
+        long wrapperCounter = 0;
+
+        public TestDocumentSizeObserver(long mapCounter) {
+            this.mapCounter = mapCounter;
+        }
 
         @Override
         public XContentParser wrapParser(XContentParser xContentParser) {
+            wrapperCounter++;
             hasWrappedParser = true;
             return new FilterXContentParserWrapper(xContentParser) {
+
                 @Override
-                public Token nextToken() throws IOException {
-                    counter++;
-                    return super.nextToken();
+                public Map<String, Object> map() throws IOException {
+                    mapCounter++;
+                    return super.map();
                 }
             };
         }
 
         @Override
         public long normalisedBytesParsed() {
-            return counter;
+            return mapCounter;
         }
     }
+
 }

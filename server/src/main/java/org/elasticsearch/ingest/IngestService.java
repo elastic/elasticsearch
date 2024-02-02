@@ -59,8 +59,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingSupplier;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -731,12 +731,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             totalMetrics.postIngest(ingestTimeInNanos);
                             ref.close();
                         });
-                        DocumentParsingObserver documentParsingObserver = documentParsingSupplier.getDocumentParsingObserver();
+                        DocumentSizeObserver documentSizeObserver = documentParsingSupplier.getDocumentSizeObserver();
 
-                        IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
+                        IngestDocument ingestDocument = newIngestDocument(indexRequest, documentSizeObserver);
 
                         executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
-                        indexRequest.setNormalisedBytesParsed(documentParsingObserver.normalisedBytesParsed());
+                        indexRequest.setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
 
                         assert actionRequest.index() != null;
 
@@ -1027,14 +1027,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Builds a new ingest document from the passed-in index request.
      */
-    private static IngestDocument newIngestDocument(final IndexRequest request, DocumentParsingObserver documentParsingObserver) {
+    private static IngestDocument newIngestDocument(final IndexRequest request, DocumentSizeObserver documentSizeObserver) {
         return new IngestDocument(
             request.index(),
             request.id(),
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap(documentParsingObserver)
+            request.sourceAsMap(documentSizeObserver)
         );
     }
 

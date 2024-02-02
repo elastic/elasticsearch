@@ -58,9 +58,9 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.node.NodeClosedException;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingReporter;
 import org.elasticsearch.plugins.internal.DocumentParsingSupplier;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -365,18 +365,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
         } else {
             final IndexRequest request = context.getRequestToExecute();
-            DocumentParsingObserver documentParsingObserver = documentParsingSupplier.getDocumentParsingObserver(
-                request.getNormalisedBytesParsed()
-            );
+            DocumentSizeObserver documentSizeObserver = documentParsingSupplier.getDocumentSizeObserver(request.getNormalisedBytesParsed());
 
-            context.setDocumentParsingObserver(documentParsingObserver);
+            context.setDocumentSizeObserver(documentSizeObserver);
             final SourceToParse sourceToParse = new SourceToParse(
                 request.id(),
                 request.source(),
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
-                documentParsingObserver
+                documentSizeObserver
             );
             result = primary.applyIndexOperationOnPrimary(
                 version,
@@ -476,8 +474,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final boolean isFailed = executionResult.isFailed();
         if (isFailed == false && opType != DocWriteRequest.OpType.DELETE) {
             DocumentParsingReporter documentParsingReporter = documentParsingSupplier.getDocumentParsingReporter();
-            DocumentParsingObserver documentParsingObserver = context.getDocumentParsingObserver();
-            documentParsingReporter.onCompleted(docWriteRequest.index(), documentParsingObserver.normalisedBytesParsed());
+            DocumentSizeObserver documentSizeObserver = context.getDocumentSizeObserver();
+            documentParsingReporter.onCompleted(docWriteRequest.index(), documentSizeObserver.normalisedBytesParsed());
         }
         if (isUpdate
             && isFailed
@@ -675,7 +673,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     indexRequest.getContentType(),
                     indexRequest.routing(),
                     Map.of(),
-                    DocumentParsingObserver.EMPTY_INSTANCE
+                    DocumentSizeObserver.EMPTY_INSTANCE
                 );
                 result = replica.applyIndexOperationOnReplica(
                     primaryResponse.getSeqNo(),

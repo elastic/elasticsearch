@@ -12,13 +12,13 @@ import org.elasticsearch.xcontent.XContentParser;
 
 /**
  * An interface to allow wrapping an XContentParser and observe the events emitted while parsing
- * A default implementation returns a noop DocumentParsingObserver
+ * A default implementation returns a noop DocumentSizeObserver
  */
-public interface DocumentParsingObserver {
+public interface DocumentSizeObserver {
     /**
      * a default noop implementation
      */
-    DocumentParsingObserver EMPTY_INSTANCE = new DocumentParsingObserver() {
+    DocumentSizeObserver EMPTY_INSTANCE = new DocumentSizeObserver() {
         @Override
         public XContentParser wrapParser(XContentParser xContentParser) {
             return xContentParser;

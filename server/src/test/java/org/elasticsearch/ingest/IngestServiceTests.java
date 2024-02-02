@@ -53,9 +53,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingReporter;
 import org.elasticsearch.plugins.internal.DocumentParsingSupplier;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -1166,17 +1166,17 @@ public class IngestServiceTests extends ESTestCase {
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
-    public void testExecuteBulkRequestCallsDocumentParsingObserver() {
+    public void testExecuteBulkRequestCallsDocumentSizeObserver() {
         /*
-         * This test makes sure that for both insert and upsert requests, when we call executeBulkRequest DocumentParsingObserver is
+         * This test makes sure that for both insert and upsert requests, when we call executeBulkRequest DocumentSizeObserver is
          * called using a non-null index name.
          */
         AtomicInteger wrappedObserverWasUsed = new AtomicInteger(0);
         AtomicInteger parsedValueWasUsed = new AtomicInteger(0);
         DocumentParsingSupplier documentParsingSupplier = new DocumentParsingSupplier() {
             @Override
-            public DocumentParsingObserver getDocumentParsingObserver() {
-                return new DocumentParsingObserver() {
+            public DocumentSizeObserver getDocumentSizeObserver() {
+                return new DocumentSizeObserver() {
                     @Override
                     public XContentParser wrapParser(XContentParser xContentParser) {
                         wrappedObserverWasUsed.incrementAndGet();
@@ -1197,7 +1197,7 @@ public class IngestServiceTests extends ESTestCase {
             }
 
             @Override
-            public DocumentParsingObserver getDocumentParsingObserver(long normalisedBytesParsed) {
+            public DocumentSizeObserver getDocumentSizeObserver(long normalisedBytesParsed) {
                 return null;
             }
         };

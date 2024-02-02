@@ -437,7 +437,9 @@ public class EnrichLookupService {
             this.shardId = new ShardId(in);
             this.matchType = in.readString();
             this.matchField = in.readString();
-            this.inputPage = new Page(new BlockStreamInput(in, blockFactory));
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                this.inputPage = new Page(bsi);
+            }
             this.toRelease = inputPage;
             PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
             this.extractFields = planIn.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
@@ -535,7 +537,9 @@ public class EnrichLookupService {
         }
 
         LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
-            this.page = new Page(new BlockStreamInput(in, blockFactory));
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                this.page = new Page(bsi);
+            }
         }
 
         @Override

@@ -70,17 +70,12 @@ final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, Int
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Block.class,
         "ConstantNullBlock",
-        ConstantNullBlock::of
+        in -> ((BlockStreamInput) in).readConstantNullBlock()
     );
 
     @Override
     public String getWriteableName() {
         return "ConstantNullBlock";
-    }
-
-    static Block of(StreamInput in) throws IOException {
-        BlockFactory blockFactory = ((BlockStreamInput) in).blockFactory();
-        return blockFactory.newConstantNullBlock(in.readVInt());
     }
 
     @Override

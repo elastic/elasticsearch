@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.autoscaling.AbstractFrozenAutoscalingIntegTestCase;

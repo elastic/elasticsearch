@@ -1,0 +1,5 @@
+pr: 104996
+summary: "Enhancement: Metrics for Search Took Times using Action Listeners"
+area: Search
+type: enhancement
+issues: []

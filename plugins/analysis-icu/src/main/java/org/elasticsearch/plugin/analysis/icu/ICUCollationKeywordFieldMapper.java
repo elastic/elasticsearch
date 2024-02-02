@@ -543,7 +543,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         if (hasDocValues) {
             context.doc().add(new SortedSetDocValuesField(fieldType().concreteFieldName(), binaryValue));
         } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            context.addToFieldNames(fieldType().concreteFieldName());
+            context.addToFieldNames(fieldType().name());
         }
     }
 

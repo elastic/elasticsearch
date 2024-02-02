@@ -937,7 +937,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
         if (hasDocValues == false && (indexed || store)) {
             // When the field doesn't have doc values so that we can run exists queries, we also need to index the field name separately.
-            context.addToFieldNames(fieldType().concreteFieldName());
+            context.addToFieldNames(fieldType().name());
         }
     }
 

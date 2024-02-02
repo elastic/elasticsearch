@@ -361,7 +361,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.concreteFieldName(), indexAnalyzer);
+        return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
     @Override
@@ -442,7 +442,7 @@ public class CompletionFieldMapper extends FieldMapper {
             }
         }
 
-        context.addToFieldNames(fieldType().concreteFieldName());
+        context.addToFieldNames(fieldType().name());
         for (CompletionInputMetadata metadata : inputMap.values()) {
             multiFields.parse(
                 this,

@@ -515,7 +515,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.concreteFieldName(), indexAnalyzer);
+        return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
     @Override
@@ -530,7 +530,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             Field field = new Field(mappedFieldType.concreteFieldName(), value, fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {
-                context.addToFieldNames(fieldType().concreteFieldName());
+                context.addToFieldNames(fieldType().name());
             }
         }
     }

@@ -821,7 +821,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         if (mappedFieldType.hasDocValues() == false) {
-            context.addToFieldNames(fieldType().concreteFieldName());
+            context.addToFieldNames(fieldType().name());
         }
     }
 

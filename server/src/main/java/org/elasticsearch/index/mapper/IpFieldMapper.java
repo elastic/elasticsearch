@@ -567,7 +567,7 @@ public class IpFieldMapper extends FieldMapper {
         if (hasDocValues) {
             context.doc().add(new SortedSetDocValuesField(fieldType().concreteFieldName(), new BytesRef(InetAddressPoint.encode(address))));
         } else if (stored || indexed) {
-            context.addToFieldNames(fieldType().concreteFieldName());
+            context.addToFieldNames(fieldType().name());
         }
         if (stored) {
             context.doc().add(new StoredField(fieldType().concreteFieldName(), new BytesRef(InetAddressPoint.encode(address))));

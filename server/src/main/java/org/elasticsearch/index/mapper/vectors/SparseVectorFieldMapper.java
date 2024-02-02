@@ -204,7 +204,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 }
             }
             if (context.indexSettings().getIndexVersionCreated().onOrAfter(SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION)) {
-                context.addToFieldNames(fieldType().concreteFieldName());
+                context.addToFieldNames(fieldType().name());
             }
         } finally {
             context.path().setWithinLeafObject(false);

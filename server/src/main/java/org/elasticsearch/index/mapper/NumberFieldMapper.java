@@ -1906,7 +1906,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         if (hasDocValues == false && (stored || indexed)) {
-            context.addToFieldNames(fieldType().concreteFieldName());
+            context.addToFieldNames(fieldType().name());
         }
     }
 

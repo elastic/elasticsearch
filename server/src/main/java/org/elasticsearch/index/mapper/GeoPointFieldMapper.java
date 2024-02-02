@@ -296,7 +296,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         if (fieldType().hasDocValues()) {
             context.doc().add(new LatLonDocValuesField(fieldType().concreteFieldName(), geometry.lat(), geometry.lon()));
         } else if (fieldType().isStored() || fieldType().isIndexed()) {
-            context.addToFieldNames(fieldType().concreteFieldName());
+            context.addToFieldNames(fieldType().name());
         }
         if (fieldType().isStored()) {
             context.doc().add(new StoredField(fieldType().concreteFieldName(), geometry.toString()));

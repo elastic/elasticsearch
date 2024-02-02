@@ -659,7 +659,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         context.doc().addAll(fields);
 
         if (hasDocValues == false && (stored || indexed)) {
-            context.addToFieldNames(fieldType().concreteFieldName());
+            context.addToFieldNames(fieldType().name());
         }
     }
 

@@ -223,7 +223,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             }
             docValuesField.add(fields, geometry);
         } else if (fieldType().isIndexed()) {
-            context.addToFieldNames(fieldType().concreteFieldName());
+            context.addToFieldNames(fieldType().name());
         }
     }
 

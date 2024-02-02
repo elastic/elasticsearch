@@ -430,7 +430,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             // we need to pass the original geometry to compute more precisely the centroid, e.g if lon > 180
             docValuesField.add(fields, geometry);
         } else if (fieldType().isIndexed()) {
-            context.addToFieldNames(fieldType().concreteFieldName());
+            context.addToFieldNames(fieldType().name());
         }
 
         if (fieldType().isStored()) {

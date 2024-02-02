@@ -246,7 +246,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(concreteFieldName());
+            return context.fieldExistsInIndex(name());
         }
 
         @Override
@@ -258,7 +258,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             long scaledValue = Math.round(scale(value));
-            return NumberFieldMapper.NumberType.LONG.termQuery(concreteFieldName(), scaledValue, isIndexed());
+            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, isIndexed());
         }
 
         @Override
@@ -270,7 +270,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     long scaledValue = Math.round(scale(value));
                     scaledValues.add(scaledValue);
                 }
-                return NumberFieldMapper.NumberType.LONG.termsQuery(concreteFieldName(), Collections.unmodifiableList(scaledValues));
+                return NumberFieldMapper.NumberType.LONG.termsQuery(name(), Collections.unmodifiableList(scaledValues));
             } else {
                 return super.termsQuery(values, context);
             }
@@ -301,16 +301,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            return NumberFieldMapper.NumberType.LONG.rangeQuery(
-                concreteFieldName(),
-                lo,
-                hi,
-                true,
-                true,
-                hasDocValues(),
-                context,
-                isIndexed()
-            );
+            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, isIndexed());
         }
 
         @Override
@@ -344,7 +335,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
                 return (cache, breakerService) -> {
                     final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
-                        concreteFieldName(),
+                        name(),
                         IndexNumericFieldData.NumericType.LONG,
                         valuesSourceType,
                         (dv, n) -> {
@@ -357,7 +348,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
-                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(concreteFieldName());
+                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
 
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name(),
@@ -525,7 +516,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 numericValue = parser.doubleValue(coerce.value());
             } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value()) {
-                    context.addIgnoredField(mappedFieldType.concreteFieldName());
+                    context.addIgnoredField(mappedFieldType.name());
                     return;
                 } else {
                     throw e;
@@ -549,7 +540,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         double doubleValue = numericValue.doubleValue();
         if (Double.isFinite(doubleValue) == false) {
             if (ignoreMalformed.value()) {
-                context.addIgnoredField(mappedFieldType.concreteFieldName());
+                context.addIgnoredField(mappedFieldType.name());
                 return;
             } else {
                 // since we encode to a long, we have no way to carry NaNs and infinities
@@ -558,17 +549,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         long scaledValue = encode(doubleValue, scalingFactor);
 
-        NumberFieldMapper.NumberType.LONG.addFields(
-            context.doc(),
-            fieldType().concreteFieldName(),
-            scaledValue,
-            indexed,
-            hasDocValues,
-            stored
-        );
+        NumberFieldMapper.NumberType.LONG.addFields(context.doc(), fieldType().name(), scaledValue, indexed, hasDocValues, stored);
 
         if (hasDocValues == false && (indexed || stored)) {
-            context.addToFieldNames(fieldType().concreteFieldName());
+            context.addToFieldNames(fieldType().name());
         }
     }
 

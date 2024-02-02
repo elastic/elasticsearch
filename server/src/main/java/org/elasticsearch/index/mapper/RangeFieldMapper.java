@@ -439,7 +439,7 @@ public class RangeFieldMapper extends FieldMapper {
             .addAll(fieldType().rangeType.createFields(context, fieldType().concreteFieldName(), range, index, hasDocValues, store));
 
         if (hasDocValues == false && (index || store)) {
-            context.addToFieldNames(fieldType().concreteFieldName());
+            context.addToFieldNames(fieldType().name());
         }
     }
 

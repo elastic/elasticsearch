@@ -61,7 +61,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(
-                concreteFieldName(),
+                name(),
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new DelegateDocValuesField(
                     new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
@@ -93,7 +93,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.concreteFieldName(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -103,7 +103,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
     public void indexValue(DocumentParserContext context, String refId) {
         BytesRef binaryValue = new BytesRef(refId);
-        Field field = new StringField(fieldType().concreteFieldName(), binaryValue, Field.Store.NO);
+        Field field = new StringField(fieldType().name(), binaryValue, Field.Store.NO);
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().concreteFieldName(), binaryValue));
     }

@@ -158,7 +158,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         if (fieldType().hasDocValues()) {
             context.doc().add(new XYDocValuesField(fieldType().concreteFieldName(), (float) point.getX(), (float) point.getY()));
         } else if (fieldType().isStored() || fieldType().isIndexed()) {
-            context.addToFieldNames(fieldType().concreteFieldName());
+            context.addToFieldNames(fieldType().name());
         }
         if (fieldType().isStored()) {
             context.doc().add(new StoredField(fieldType().concreteFieldName(), point.toString()));

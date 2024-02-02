@@ -276,7 +276,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             FuzzyQuery fuzzyQuery = new FuzzyQuery(
-                new Term(concreteFieldName(), term),
+                new Term(name(), term),
                 maxDistance,
                 prefixLength,
                 128,
@@ -392,7 +392,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.concreteFieldName(), indexAnalyzer);
+        return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
     @Override
@@ -408,9 +408,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return;
         }
 
-        Field field = new Field(fieldType().concreteFieldName(), value, fieldType);
+        Field field = new Field(fieldType().name(), value, fieldType);
         context.doc().add(field);
-        context.addToFieldNames(fieldType().concreteFieldName());
+        context.addToFieldNames(fieldType().name());
 
         if (storeSource) {
             context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), value));

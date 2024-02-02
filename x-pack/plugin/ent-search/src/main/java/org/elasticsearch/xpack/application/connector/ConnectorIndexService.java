@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -26,6 +27,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNativ
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatusAction;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -585,9 +588,7 @@ public class ConnectorIndexService {
             String connectorId = request.getConnectorId();
             getConnector(connectorId, listener.delegateFailure((l, connector) -> {
 
-                ConnectorStatus prevStatus = ConnectorStatus.connectorStatus(
-                    (String) connector.getResultMap().get(Connector.STATUS_FIELD.getPreferredName())
-                );
+                ConnectorStatus prevStatus = getConnectorStatusFromSearchResult(connector);
                 ConnectorStatus newStatus = prevStatus == ConnectorStatus.CREATED
                     ? ConnectorStatus.CREATED
                     : ConnectorStatus.NEEDS_CONFIGURATION;
@@ -605,6 +606,49 @@ public class ConnectorIndexService {
                             )
                         )
 
+                );
+                clientWithOrigin.update(
+                    updateRequest,
+                    new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (updateListener, updateResponse) -> {
+                        if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                            updateListener.onFailure(new ResourceNotFoundException(connectorId));
+                            return;
+                        }
+                        updateListener.onResponse(updateResponse);
+                    })
+                );
+            }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Updates the {@link ConnectorStatus} property of a {@link Connector}.
+     *
+     * @param request  The request for updating the connector's status.
+     * @param listener The listener for handling responses, including successful updates or errors.
+     */
+    public void updateConnectorStatus(UpdateConnectorStatusAction.Request request, ActionListener<UpdateResponse> listener) {
+        try {
+            String connectorId = request.getConnectorId();
+            ConnectorStatus newStatus = request.getStatus();
+            getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+
+                ConnectorStatus prevStatus = getConnectorStatusFromSearchResult(connector);
+
+                try {
+                    ConnectorStateMachine.assertValidStateTransition(prevStatus, newStatus);
+                } catch (ConnectorInvalidStatusTransitionException e) {
+                    l.onFailure(new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e));
+                    return;
+                }
+
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                    new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                        .id(connectorId)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                        .source(Map.of(Connector.STATUS_FIELD.getPreferredName(), request.getStatus()))
                 );
                 clientWithOrigin.update(
                     updateRequest,
@@ -647,6 +691,10 @@ public class ConnectorIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private ConnectorStatus getConnectorStatusFromSearchResult(ConnectorSearchResult searchResult) {
+        return ConnectorStatus.connectorStatus((String) searchResult.getResultMap().get(Connector.STATUS_FIELD.getPreferredName()));
     }
 
     private static ConnectorIndexService.ConnectorResult mapSearchResponseToConnectorList(SearchResponse response) {

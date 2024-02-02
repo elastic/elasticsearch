@@ -52,7 +52,7 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>> {
 
             @Override
             public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
-                if (categoryClass.equals(QueryBuilder.class)) {
+                if (categoryClass.equals(RetrieverBuilder.class)) {
                     nestedDepth++;
 
                     if (nestedDepth > 2) {

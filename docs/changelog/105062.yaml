@@ -1,0 +1,5 @@
+pr: 105062
+summary: Nest pass-through objects within objects
+area: TSDB
+type: enhancement
+issues: []

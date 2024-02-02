@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Base class for health trackers that will be executed by the {@link LocalHealthMonitor}. It keeps track of the last
  * reported value and can retrieve the current health status when requested.
  *
- * @param <T> the type of the health check they track
+ * @param <T> the type of the health check result they track
  */
 public abstract class HealthTracker<T> {
     private static final Logger logger = LogManager.getLogger(HealthTracker.class);
@@ -46,12 +46,23 @@ public abstract class HealthTracker<T> {
         return new HealthProgress<>(this, lastReportedValue.get(), checkCurrentHealth());
     }
 
+    /**
+     * Update the last reported health info to <code>current</code>, but only when the value inside <code>lastReportedValue</code>
+     * is equal to <code>previous</code>.
+     *
+     * @param previous the previous value that should be in <code>lastReportedValue</code> at the time of execution.
+     * @param current the value that should be stored in <code>lastReportedValue</code>.
+     */
     public void updateLastReportedHealth(T previous, T current) {
         if (lastReportedValue.compareAndSet(previous, current)) {
             logger.debug("Health info [{}] successfully sent, last reported value: {}.", current, previous);
         }
     }
 
+    /**
+     * Reset the value of <code>lastReportedValue</code> to <code>null</code>.
+     * Should be used when, for example, the master or health node has changed.
+     */
     public void reset() {
         lastReportedValue.set(null);
     }
@@ -80,8 +91,9 @@ public abstract class HealthTracker<T> {
 
         /**
          * Update the reference value of the health tracker with the current health info.
+         * See {@link HealthTracker#updateLastReportedHealth} for more info.
          */
-        public void recordProgress() {
+        public void recordProgressIfRelevant() {
             healthTracker.updateLastReportedHealth(previousHealth, currentHealth);
         }
     }

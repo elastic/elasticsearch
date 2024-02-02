@@ -71,7 +71,7 @@ public class HealthInfoCache implements ClusterStateListener {
             // Processing a delayed update after the cache has been emptied because
             // the node is not the health node anymore has small impact since it will
             // be reset in the next round again.
-        } else {
+        } else if (diskInfoByNode.isEmpty() == false || dslHealthInfo != null || repositoriesInfoByNode.isEmpty() == false) {
             logger.debug("Node [{}][{}] is no longer the health node, emptying the cache.", localNode.getName(), localNode.getId());
             diskInfoByNode = new ConcurrentHashMap<>();
             dslHealthInfo = null;

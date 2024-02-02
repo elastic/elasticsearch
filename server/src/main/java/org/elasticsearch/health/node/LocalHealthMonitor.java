@@ -42,9 +42,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * This class monitors the health of the node. It informs the health
- * node about the local health upon change or when a new node is detected or when the
- * master node changed.
+ * This class monitors the local health of the node, such as the load and any errors that can be specific to a node
+ * (as opposed to errors that are cluster-wide). It informs the health node about the local health upon change, or
+ * when a new node is detected, or when the master node changed.
  */
 public class LocalHealthMonitor implements ClusterStateListener {
 
@@ -72,7 +72,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // List of health trackers to be executed in each monitoring cycle.
     private final List<HealthTracker<?>> healthTrackers;
     // Keeps the last seen health node. We use this variable to ensure that there wasn't a health node
-    // change between the time we send an update until the time we update the references of the health checks.
+    // change between the time we send an update until the time we record the last health state that was successfully reported.
     private final AtomicReference<String> lastSeenHealthNode = new AtomicReference<>();
     // Using a volatile reference to ensure that there is a single instance of monitoring running at all times.
     // No need for extra synchronization because all the writes are executed on the cluster applier thread.
@@ -310,6 +310,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
             return cancelled;
         }
 
+        /**
+         * This method evaluates the health info of this node and if there is a change it sends an update request to the health node.
+         */
         @Override
         public void run() {
             if (cancelled) {
@@ -318,14 +321,14 @@ public class LocalHealthMonitor implements ClusterStateListener {
             boolean nextRunScheduled = false;
             Runnable scheduleNextRun = new RunOnce(this::scheduleNextRunIfNecessary);
             try {
-                var changedHealthInfos = getHealthProgress();
-                if (changedHealthInfos.isEmpty()) {
+                List<HealthTracker.HealthProgress<?>> healthProgresses = getHealthProgresses();
+                if (healthProgresses.isEmpty()) {
                     // Next run will still be scheduled in the `finally` block.
                     return;
                 }
                 // Create builder and add the current value of each (changed) health tracker to the request.
                 var builder = new UpdateHealthInfoCacheAction.Request.Builder().nodeId(clusterService.localNode().getId());
-                changedHealthInfos.forEach(changedHealthInfo -> changedHealthInfo.updateRequestBuilder(builder));
+                healthProgresses.forEach(changedHealthInfo -> changedHealthInfo.updateRequestBuilder(builder));
 
                 var healthNodeId = lastSeenHealthNode.get();
                 var listener = ActionListener.<AcknowledgedResponse>wrap(response -> {
@@ -333,7 +336,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                     if (Objects.equals(healthNodeId, lastSeenHealthNode.get()) == false) {
                         return;
                     }
-                    changedHealthInfos.forEach(HealthTracker.HealthProgress::recordProgress);
+                    healthProgresses.forEach(HealthTracker.HealthProgress::recordProgressIfRelevant);
                 }, e -> {
                     if (e.getCause() instanceof NodeNotConnectedException || e.getCause() instanceof HealthNodeNotDiscoveredException) {
                         logger.debug("Failed to connect to the health node [{}], will try again.", e.getCause().getMessage());
@@ -358,7 +361,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
          *
          * @return a list of changed health info's.
          */
-        private List<HealthTracker.HealthProgress<?>> getHealthProgress() {
+        private List<HealthTracker.HealthProgress<?>> getHealthProgresses() {
             var healthMetadata = HealthMetadata.getFromClusterState(clusterService.state());
             // Don't try to run the health trackers if the HealthMetadata is not available.
             if (healthMetadata == null) {

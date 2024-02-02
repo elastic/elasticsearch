@@ -26,11 +26,16 @@ public class RepositoriesHealthTracker extends HealthTracker<RepositoriesHealthI
         this.repositoriesService = repositoriesService;
     }
 
+    /**
+     * Determine the health of the repositories on this node. Do so by checking the current collection of registered repositories.
+     *
+     * @return the current repositories health on this node.
+     */
     @Override
     public RepositoriesHealthInfo checkCurrentHealth() {
         var unknown = new ArrayList<String>();
         var invalid = new ArrayList<String>();
-        repositoriesService.getRepositories().forEach((name, repository) -> {
+        repositoriesService.getRepositories().values().forEach(repository -> {
             if (repository instanceof UnknownTypeRepository) {
                 unknown.add(repository.getMetadata().name());
             } else if (repository instanceof InvalidRepository) {

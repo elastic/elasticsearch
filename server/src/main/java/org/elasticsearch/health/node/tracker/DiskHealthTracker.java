@@ -42,6 +42,11 @@ public class DiskHealthTracker extends HealthTracker<DiskHealthInfo> {
         this.clusterService = clusterService;
     }
 
+    /**
+     * Determines the disk health of this node by checking if it exceeds the thresholds defined in the health metadata.
+     *
+     * @return the current disk health info.
+     */
     @Override
     public DiskHealthInfo checkCurrentHealth() {
         var clusterState = clusterService.state();

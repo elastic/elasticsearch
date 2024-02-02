@@ -118,7 +118,7 @@ public class NestedObjectMapper extends ObjectMapper {
         final boolean parentIncludedInRoot;
 
         NestedMapperBuilderContext(String path, boolean parentIncludedInRoot) {
-            super(path, false, false);
+            super(path);
             this.parentIncludedInRoot = parentIncludedInRoot;
         }
 

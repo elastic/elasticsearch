@@ -56,7 +56,6 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         return settings.build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99520")
     @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
     public void testDataStreamLifecycleDownsampleRollingRestart() throws Exception {
         final InternalTestCluster cluster = internalCluster();
@@ -132,7 +131,8 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         final String targetIndex = "downsample-5m-" + sourceIndex;
         assertBusy(() -> {
             try {
-                GetSettingsResponse getSettingsResponse = client().admin()
+                GetSettingsResponse getSettingsResponse = cluster.client()
+                    .admin()
                     .indices()
                     .getSettings(new GetSettingsRequest().indices(targetIndex))
                     .actionGet();

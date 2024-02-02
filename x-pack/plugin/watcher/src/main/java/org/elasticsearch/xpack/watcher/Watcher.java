@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
@@ -203,6 +204,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -697,7 +699,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (false == enabled) {
             return emptyList();

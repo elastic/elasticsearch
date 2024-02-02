@@ -149,13 +149,20 @@ public class ComputeService {
         PhysicalPlan coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
         PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
         if (dataNodePlan != null && dataNodePlan instanceof ExchangeSinkExec == false) {
-            listener.onFailure(new IllegalStateException("expect data node plan starts with an ExchangeSink; got " + dataNodePlan));
+            assert false : "expected data node plan starts with an ExchangeSink; got " + dataNodePlan;
+            listener.onFailure(new IllegalStateException("expected data node plan starts with an ExchangeSink; got " + dataNodePlan));
             return;
         }
         Map<String, OriginalIndices> clusterToConcreteIndices = transportService.getRemoteClusterService()
             .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planConcreteIndices(physicalPlan).toArray(String[]::new));
         QueryPragmas queryPragmas = configuration.pragmas();
-        if (dataNodePlan == null || clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0)) {
+        if (dataNodePlan == null) {
+            if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0) == false) {
+                String error = "expected no concrete indices without data node plan; got " + clusterToConcreteIndices;
+                assert false : error;
+                listener.onFailure(new IllegalStateException(error));
+                return;
+            }
             var computeContext = new ComputeContext(
                 sessionId,
                 RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
@@ -171,15 +178,18 @@ public class ComputeService {
                 listener.map(driverProfiles -> new Result(collectedPages, driverProfiles))
             );
             return;
+        } else {
+            if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0)) {
+                var error = "expected concrete indices with data node plan but got empty; data node plan " + dataNodePlan;
+                assert false : error;
+                listener.onFailure(new IllegalStateException(error));
+                return;
+            }
         }
         Map<String, OriginalIndices> clusterToOriginalIndices = transportService.getRemoteClusterService()
             .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planOriginalIndices(physicalPlan));
         var localOriginalIndices = clusterToOriginalIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         var localConcreteIndices = clusterToConcreteIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        if (PlannerUtils.hasUnsupportedEnrich(physicalPlan)) {
-            listener.onFailure(new IllegalArgumentException("Enrich REMOTE mode is not supported yet"));
-            return;
-        }
         final var responseHeadersCollector = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
         listener = ActionListener.runBefore(listener, responseHeadersCollector::finish);
         final AtomicBoolean cancelled = new AtomicBoolean();

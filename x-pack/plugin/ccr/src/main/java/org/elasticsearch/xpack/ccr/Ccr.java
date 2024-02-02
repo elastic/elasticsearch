@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -118,6 +119,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -263,7 +265,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (enabled == false) {
             return emptyList();

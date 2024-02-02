@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestRequest;
@@ -24,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -31,10 +33,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestUpdateByQueryAction(NamedWriteableRegistry namedWriteableRegistry) {
+    public RestUpdateByQueryAction(NamedWriteableRegistry namedWriteableRegistry, Predicate<NodeFeature> clusterSupportsFeature) {
         super(UpdateByQueryAction.INSTANCE);
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     @Override
@@ -74,7 +78,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
         consumers.put("script", o -> internal.setScript(Script.parse(o)));
         consumers.put("max_docs", s -> setMaxDocsValidateIdentical(internal, ((Number) s).intValue()));
 
-        parseInternalRequest(internal, request, namedWriteableRegistry, consumers);
+        parseInternalRequest(internal, request, namedWriteableRegistry, clusterSupportsFeature, consumers);
 
         internal.setPipeline(request.param("pipeline"));
         return internal;

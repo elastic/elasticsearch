@@ -99,7 +99,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return Arrays.asList(
-            new RestRollupSearchAction(namedWriteableRegistry),
+            new RestRollupSearchAction(namedWriteableRegistry, clusterSupportsFeature),
             new RestPutRollupJobAction(),
             new RestStartRollupJobAction(),
             new RestStopRollupJobAction(),

@@ -10,6 +10,7 @@ package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -27,6 +28,8 @@ import java.util.Locale;
 import java.util.Objects;
 
 public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>> {
+
+    public static final NodeFeature NODE_FEATURE = new NodeFeature("retrievers");
 
     public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
 

@@ -412,7 +412,8 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.service.TransportFeatures,
             org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures,
-            org.elasticsearch.indices.IndicesFeatures;
+            org.elasticsearch.indices.IndicesFeatures,
+            org.elasticsearch.search.retriever.RetrieversFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;

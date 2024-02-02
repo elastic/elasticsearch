@@ -21,6 +21,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -65,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
@@ -1234,10 +1236,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @param parser The xContent parser.
      * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
      * @param searchUsageHolder holder for the search usage statistics
+     * @param clusterSupportsFeature used to check if certain features are available on this cluster
      */
-    public SearchSourceBuilder parseXContent(XContentParser parser, boolean checkTrailingTokens, SearchUsageHolder searchUsageHolder)
-        throws IOException {
-        return parseXContent(parser, checkTrailingTokens, searchUsageHolder::updateUsage);
+    public SearchSourceBuilder parseXContent(
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        SearchUsageHolder searchUsageHolder,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
+        return parseXContent(parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
     }
 
     /**
@@ -1247,13 +1254,22 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      *
      * @param parser The xContent parser.
      * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
+     * @param clusterSupportsFeature used to check if certain features are available on this cluster
      */
-    public SearchSourceBuilder parseXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
-        return parseXContent(parser, checkTrailingTokens, s -> {});
+    public SearchSourceBuilder parseXContent(
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
+        return parseXContent(parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
     }
 
-    private SearchSourceBuilder parseXContent(XContentParser parser, boolean checkTrailingTokens, Consumer<SearchUsage> searchUsageConsumer)
-        throws IOException {
+    private SearchSourceBuilder parseXContent(
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        Consumer<SearchUsage> searchUsageConsumer,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
@@ -1332,12 +1348,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (RETRIEVER.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (clusterSupportsFeature.test(RetrieverBuilder.NODE_FEATURE) == false) {
+                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a START_OBJECT in [retriever].");
+                    }
                     retrieverBuilder = RetrieverBuilder.parseTopLevelRetrieverBuilder(
                         parser,
                         new RetrieverParserContext(
                             searchUsage::trackSectionUsage,
                             searchUsage::trackQueryUsage,
-                            searchUsage::trackRescorerUsage
+                            searchUsage::trackRescorerUsage,
+                            clusterSupportsFeature
                         )
                     );
                 } else if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

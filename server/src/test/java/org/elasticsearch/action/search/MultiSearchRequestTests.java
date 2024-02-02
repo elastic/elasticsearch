@@ -97,7 +97,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder())
+            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder(), nf -> false)
         );
         assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
     }
@@ -111,7 +111,13 @@ public class MultiSearchRequestTests extends ESTestCase {
             new BytesArray(requestContent),
             XContentType.JSON
         ).build();
-        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder());
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(
+            restRequest,
+            null,
+            true,
+            new UsageService().getSearchUsageHolder(),
+            nf -> false
+        );
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(
@@ -129,7 +135,13 @@ public class MultiSearchRequestTests extends ESTestCase {
             new BytesArray(requestContent),
             XContentType.JSON
         ).withParams(Collections.singletonMap("ignore_unavailable", "true")).build();
-        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder());
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(
+            restRequest,
+            null,
+            true,
+            new UsageService().getSearchUsageHolder(),
+            nf -> false
+        );
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(
@@ -238,7 +250,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException expectThrows = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder())
+            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder(), nf -> false)
         );
         assertEquals("The msearch request must be terminated by a newline [\n]", expectThrows.getMessage());
 
@@ -251,7 +263,8 @@ public class MultiSearchRequestTests extends ESTestCase {
             restRequestWithNewLine,
             null,
             true,
-            new UsageService().getSearchUsageHolder()
+            new UsageService().getSearchUsageHolder(),
+            nf -> false
         );
         assertEquals(3, msearchRequest.requests().size());
     }
@@ -268,7 +281,9 @@ public class MultiSearchRequestTests extends ESTestCase {
 
         MultiSearchRequest request = new MultiSearchRequest();
         RestMultiSearchAction.parseMultiLineRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS, true, (searchRequest, parser) -> {
-            searchRequest.source(new SearchSourceBuilder().parseXContent(parser, false, new UsageService().getSearchUsageHolder()));
+            searchRequest.source(
+                new SearchSourceBuilder().parseXContent(parser, false, new UsageService().getSearchUsageHolder(), nf -> false)
+            );
             request.add(searchRequest);
         });
         return request;
@@ -318,7 +333,8 @@ public class MultiSearchRequestTests extends ESTestCase {
                 SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(
                     p,
                     false,
-                    new UsageService().getSearchUsageHolder()
+                    new UsageService().getSearchUsageHolder(),
+                    nf -> false
                 );
                 if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
                     r.source(searchSourceBuilder);

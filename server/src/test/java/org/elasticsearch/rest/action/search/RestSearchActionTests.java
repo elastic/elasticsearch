@@ -37,7 +37,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestSearchAction(new UsageService().getSearchUsageHolder(), mock(NamedWriteableRegistry.class));
+        action = new RestSearchAction(new UsageService().getSearchUsageHolder(), mock(NamedWriteableRegistry.class), nf -> false);
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> mock(SearchResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(SearchResponse.class));

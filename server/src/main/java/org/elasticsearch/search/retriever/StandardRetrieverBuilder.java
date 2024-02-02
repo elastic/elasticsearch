@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.retriever;
 
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -27,6 +29,7 @@ import java.util.List;
 public final class StandardRetrieverBuilder extends RetrieverBuilder<StandardRetrieverBuilder> {
 
     public static final String NAME = "standard";
+    public static final NodeFeature NODE_FEATURE = new NodeFeature(NAME + "_retriever");
 
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SEARCH_AFTER_FIELD = new ParseField("search_after");
@@ -83,6 +86,9 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder<StandardRet
     }
 
     public static StandardRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
+        if (context.clusterSupportsFeature(NODE_FEATURE) == false) {
+            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
+        }
         return PARSER.apply(parser, context);
     }
 

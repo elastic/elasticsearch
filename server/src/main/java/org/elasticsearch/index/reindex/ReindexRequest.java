@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
@@ -39,6 +40,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
@@ -316,10 +318,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return builder;
     }
 
-    static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
+    static final ObjectParser<ReindexRequest, Predicate<NodeFeature>> PARSER = new ObjectParser<>("reindex");
 
     static {
-        ObjectParser.Parser<ReindexRequest, Void> sourceParser = (parser, request, context) -> {
+        ObjectParser.Parser<ReindexRequest, Predicate<NodeFeature>> sourceParser = (parser, request, context) -> {
             // Funky hack to work around Search not having a proper ObjectParser and us wanting to extract query if using remote.
             Map<String, Object> source = parser.map();
             String[] indices = extractStringArray(source, "index");
@@ -337,7 +339,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                     parser.contentType()
                 )
             ) {
-                request.getSearchRequest().source().parseXContent(innerParser, false);
+                request.getSearchRequest().source().parseXContent(innerParser, false, context);
             }
         };
 
@@ -349,7 +351,11 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
         PARSER.declareField(sourceParser, new ParseField("source"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            (p, v, c) -> destParser.parse(p, v.getDestination(), null),
+            new ParseField("dest"),
+            ObjectParser.ValueType.OBJECT
+        );
 
         PARSER.declareInt(
             ReindexRequest::setMaxDocsValidateIdentical,
@@ -370,9 +376,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
 
-    public static ReindexRequest fromXContent(XContentParser parser) throws IOException {
+    public static ReindexRequest fromXContent(XContentParser parser, Predicate<NodeFeature> clusterSupportsFeature) throws IOException {
         ReindexRequest reindexRequest = new ReindexRequest();
-        PARSER.parse(parser, reindexRequest, null);
+        PARSER.parse(parser, reindexRequest, clusterSupportsFeature);
         return reindexRequest;
     }
 

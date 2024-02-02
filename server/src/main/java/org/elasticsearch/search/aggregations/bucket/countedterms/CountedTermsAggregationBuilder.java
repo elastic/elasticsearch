@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.countedkeyword;
+package org.elasticsearch.search.aggregations.bucket.countedterms;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -56,7 +57,7 @@ public class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuild
         super(name);
     }
 
-    protected CountedTermsAggregationBuilder(
+    public CountedTermsAggregationBuilder(
         ValuesSourceAggregationBuilder<CountedTermsAggregationBuilder> clone,
         AggregatorFactories.Builder factoriesBuilder,
         Map<String, Object> metadata
@@ -64,7 +65,7 @@ public class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuild
         super(clone, factoriesBuilder, metadata);
     }
 
-    protected CountedTermsAggregationBuilder(StreamInput in) throws IOException {
+    public CountedTermsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
     }

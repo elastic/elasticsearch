@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -428,10 +429,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         for (HttpHandler h : handlers.values()) {
             while (h instanceof DelegatingHttpHandler) {
                 if (h instanceof S3StatsCollectorHttpHandler s3StatsCollectorHttpHandler) {
-                    return s3StatsCollectorHttpHandler.getMetricsCount()
-                        .entrySet()
-                        .stream()
-                        .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().get()));
+                    return Maps.transformValues(s3StatsCollectorHttpHandler.getMetricsCount(), AtomicLong::get);
                 }
                 h = ((DelegatingHttpHandler) h).getDelegate();
             }
@@ -574,6 +572,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             final S3HttpHandler.RequestComponents requestComponents = S3HttpHandler.parseRequestComponents(rawRequest);
             final String request = requestComponents.request();
             final OperationPurpose purpose;
+            // TODO: Remove the condition once ES-7810 is resolved
             if (false == request.startsWith("HEAD ")) {
                 purpose = OperationPurpose.parse(
                     requestComponents.customQueryParameters().get(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE).get(0)

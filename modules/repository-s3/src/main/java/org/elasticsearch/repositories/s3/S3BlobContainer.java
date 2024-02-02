@@ -90,7 +90,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public boolean blobExists(OperationPurpose purpose, String blobName) {
-        // TODO: the exists request is not recorded with metrics
+        // TODO: Exists request needs to be include for metrics as well, see ES-7810
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             return SocketAccess.doPrivileged(() -> clientReference.client().doesObjectExist(blobStore.bucket(), buildKey(blobName)));
         } catch (final Exception e) {

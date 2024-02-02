@@ -96,7 +96,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public static final String THREAD_POOL_METRIC_NAME_QUEUE = ".threads.queue.size";
     public static final String THREAD_POOL_METRIC_NAME_ACTIVE = ".threads.active.current";
     public static final String THREAD_POOL_METRIC_NAME_LARGEST = ".threads.largest.current";
-    public static final String THREAD_POOL_METRIC_NAME_REJECTED= ".threads.rejected.total";
+    public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
 
     public enum ThreadPoolType {
         DIRECT("direct"),

@@ -16,6 +16,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
+/**
+ * Allows loading native library mappings.
+ */
 public abstract class NativeLibraryProvider {
 
     private final Map<Class<?>, Supplier<?>> libraries;
@@ -24,10 +27,18 @@ public abstract class NativeLibraryProvider {
         this.libraries = libraries;
     }
 
-    public static NativeLibraryProvider getInstance() {
+    /**
+     * Get the one and only instance of {@link NativeLibraryProvider} that is specific to the running JDK version.
+     */
+    public static NativeLibraryProvider instance() {
         return Holder.INSTANCE;
     }
 
+    /**
+     * Construct an instance of the given library class.
+     * @param cls The library class to create
+     * @return An instance of the class
+     */
     public <T> T getLibrary(Class<T> cls) {
         Supplier<?> libraryCtor = libraries.get(cls);
         Object library = libraryCtor.get();

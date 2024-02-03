@@ -11,8 +11,6 @@ import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 module org.elasticsearch.nativeaccess {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
-    // to get
-    requires java.management;
 
     exports org.elasticsearch.nativeaccess;
     // TODO: fix embedded loader to allow qualified exports to modules on modulepath

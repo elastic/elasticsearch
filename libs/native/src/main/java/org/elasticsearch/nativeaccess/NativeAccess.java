@@ -8,14 +8,22 @@
 
 package org.elasticsearch.nativeaccess;
 
-// TODO: doc
+/**
+ * Provides access to native functionality needed by Elastisearch.
+ */
 public interface NativeAccess {
 
-    // TODO: doc
+    /**
+     * Get the one and only instance of {@link NativeAccess} which is specific to the running platform and JVM.
+     */
     static NativeAccess instance() {
         return NativeAccessHolder.INSTANCE;
     }
 
-    // TODO: dco
+    /**
+     * Determine whether this JVM is running as the root user.
+     *
+     * @return true if running as root, or false if unsure
+     */
     boolean definitelyRunningAsRoot();
 }

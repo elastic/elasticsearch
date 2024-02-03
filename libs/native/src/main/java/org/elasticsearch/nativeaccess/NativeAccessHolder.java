@@ -19,8 +19,8 @@ class NativeAccessHolder {
     static final NativeAccess INSTANCE;
 
     static {
-        var libraryProvider = NativeLibraryProvider.getInstance();
-        logger.info("Using native provider: " + libraryProvider.getClass().getSimpleName());
+        var libraryProvider = NativeLibraryProvider.instance();
+
         var os = System.getProperty("os.name");
         NativeAccess inst = null;
         try {
@@ -39,6 +39,8 @@ class NativeAccessHolder {
         if (inst == null) {
             inst = new NoopNativeAccess();
         }
+        logger.info("Using native provider [" + libraryProvider.getClass().getSimpleName() +
+            "] and native access [" + inst.getClass().getSimpleName() + "]");
         INSTANCE = inst;
     }
 }

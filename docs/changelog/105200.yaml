@@ -1,4 +1,4 @@
-pr: 105200
+pr: 105098
 summary: "add Merging mappings subobjects:false check"
 area: ES|QL
 type: bug

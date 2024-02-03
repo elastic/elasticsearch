@@ -568,6 +568,15 @@ public class ObjectMapper extends Mapper {
                         merged = truncateObjectMapper(reason, objectMergeContext, om);
                     }
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
+                    if (((ObjectMapper) mergeIntoMapper).subobjects() == false && mergeWithMapper.typeName().equals(ObjectMapper.CONTENT_TYPE)) {
+                        throw new MapperParsingException(
+                            "Tried to add subobject ["
+                                + mergeWithMapper.name()
+                                + "] to object ["
+                                + mergeIntoMapper.name()
+                                + "] which does not support subobjects"
+                        );
+                    }
                     merged = objectMapper.merge(mergeWithMapper, reason, objectMergeContext);
                 } else {
                     assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;

@@ -1,0 +1,6 @@
+pr: 104911
+summary: "add Merging mappings subobjects:false check"
+area: Mapping
+type: bug
+issues:
+ - 103497

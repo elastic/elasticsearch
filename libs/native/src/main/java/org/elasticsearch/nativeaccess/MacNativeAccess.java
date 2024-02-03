@@ -13,6 +13,6 @@ import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 class MacNativeAccess extends PosixNativeAccess {
 
     MacNativeAccess(NativeLibraryProvider libraryProvider) {
-        super(libraryProvider);
+        super("MacOS", libraryProvider);
     }
 }

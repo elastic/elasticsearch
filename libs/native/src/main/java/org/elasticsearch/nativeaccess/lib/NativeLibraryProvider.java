@@ -21,9 +21,11 @@ import java.util.function.Supplier;
  */
 public abstract class NativeLibraryProvider {
 
+    private final String name;
     private final Map<Class<?>, Supplier<?>> libraries;
 
-    protected NativeLibraryProvider(Map<Class<?>, Supplier<?>> libraries) {
+    protected NativeLibraryProvider(String name, Map<Class<?>, Supplier<?>> libraries) {
+        this.name = name;
         this.libraries = libraries;
     }
 
@@ -32,6 +34,11 @@ public abstract class NativeLibraryProvider {
      */
     public static NativeLibraryProvider instance() {
         return Holder.INSTANCE;
+    }
+
+    /** Returns a human-understandable name for this provider */
+    public String getName() {
+        return name;
     }
 
     /**

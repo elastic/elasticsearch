@@ -12,6 +12,6 @@ import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
 class LinuxNativeAccess extends PosixNativeAccess {
     LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
-        super(libraryProvider);
+        super("Linux", libraryProvider);
     }
 }

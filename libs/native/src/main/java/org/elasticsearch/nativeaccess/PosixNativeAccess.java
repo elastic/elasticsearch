@@ -11,11 +11,12 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
-abstract class PosixNativeAccess implements NativeAccess {
+abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     protected final PosixCLibrary libc;
 
-    PosixNativeAccess(NativeLibraryProvider libraryProvider) {
+    PosixNativeAccess(String name, NativeLibraryProvider libraryProvider) {
+        super(name);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
     }
 

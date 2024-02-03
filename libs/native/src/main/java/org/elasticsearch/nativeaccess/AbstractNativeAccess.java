@@ -8,15 +8,20 @@
 
 package org.elasticsearch.nativeaccess;
 
-class NoopNativeAccess extends AbstractNativeAccess {
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
-    NoopNativeAccess() {
-        super("noop");
+abstract class AbstractNativeAccess implements NativeAccess {
+
+    protected static final Logger logger = LogManager.getLogger(NativeAccess.class);
+
+    private final String name;
+
+    protected AbstractNativeAccess(String name) {
+        this.name = name;
     }
 
-    @Override
-    public boolean definitelyRunningAsRoot() {
-        logger.warn("Cannot check if running as root because native access is not available");
-        return false;
+    String getName() {
+        return name;
     }
 }

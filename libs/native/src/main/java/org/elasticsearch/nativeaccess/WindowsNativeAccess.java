@@ -10,9 +10,11 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
-class WindowsNativeAccess implements NativeAccess {
+class WindowsNativeAccess extends AbstractNativeAccess {
 
-    WindowsNativeAccess(NativeLibraryProvider libraryProvider) {}
+    WindowsNativeAccess(NativeLibraryProvider libraryProvider) {
+        super("Windows");
+    }
 
     @Override
     public boolean definitelyRunningAsRoot() {

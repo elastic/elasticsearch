@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.ffi;
+package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -25,7 +25,7 @@ import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.RuntimeHelper.downcallHandle;
 
 class JdkPosixCLibrary implements PosixCLibrary {
 

@@ -47,7 +47,7 @@ public abstract class NativeLibraryProvider {
     private static NativeLibraryProvider loadJdkImpl(int runtimeVersion) {
         try {
             var lookup = MethodHandles.lookup();
-            var clazz = lookup.findClass("org.elasticsearch.nativeaccess.ffi.JdkNativeLibraryProvider");
+            var clazz = lookup.findClass("org.elasticsearch.nativeaccess.jdk.JdkNativeLibraryProvider");
             var constructor = lookup.findConstructor(clazz, MethodType.methodType(void.class));
             try {
                 return (NativeLibraryProvider) constructor.invoke();

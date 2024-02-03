@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.ffi;
+package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.nativeaccess.NativeAccess.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
@@ -30,9 +30,9 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_CHAR;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
-import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.upcallHandle;
-import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.upcallStub;
+import static org.elasticsearch.nativeaccess.jdk.RuntimeHelper.downcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.RuntimeHelper.upcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.RuntimeHelper.upcallStub;
 
 class JdkKernel32Library implements Kernel32Library {
 

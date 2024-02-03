@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.ffi;
+package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
 
@@ -25,10 +25,10 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
-import static org.elasticsearch.nativeaccess.ffi.JdkPosixCLibrary.CAPTURE_ERRNO_OPTION;
-import static org.elasticsearch.nativeaccess.ffi.JdkPosixCLibrary.downcallHandleWithErrno;
-import static org.elasticsearch.nativeaccess.ffi.JdkPosixCLibrary.errnoState;
-import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.JdkPosixCLibrary.CAPTURE_ERRNO_OPTION;
+import static org.elasticsearch.nativeaccess.jdk.JdkPosixCLibrary.downcallHandleWithErrno;
+import static org.elasticsearch.nativeaccess.jdk.JdkPosixCLibrary.errnoState;
+import static org.elasticsearch.nativeaccess.jdk.RuntimeHelper.downcallHandle;
 
 class JdkLinuxCLibrary implements LinuxCLibrary {
 

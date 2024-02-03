@@ -107,7 +107,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
             builder.map(source);
             return setSource(builder);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new ElasticsearchGenerationException("Failed to generate", e);
         }
     }
 

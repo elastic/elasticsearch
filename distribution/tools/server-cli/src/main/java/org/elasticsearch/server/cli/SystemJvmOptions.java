@@ -60,7 +60,7 @@ final class SystemJvmOptions {
              * parsing will break in an incompatible way for some date patterns and locales.
              */
             "-Djava.locale.providers=SPI,COMPAT",
-            "--enable-native-access=org.elasticsearch.nativeaccess",
+            maybeEnableNativeAccess(),
             maybeOverrideDockerCgroup(),
             maybeSetActiveProcessorCount(nodeSettings),
             // Pass through distribution type
@@ -97,6 +97,13 @@ final class SystemJvmOptions {
         if (EsExecutors.NODE_PROCESSORS_SETTING.exists(nodeSettings)) {
             int allocated = EsExecutors.allocatedProcessors(nodeSettings);
             return "-XX:ActiveProcessorCount=" + allocated;
+        }
+        return "";
+    }
+
+    private static String maybeEnableNativeAccess() {
+        if (Runtime.version().feature() >= 21) {
+            return "--enable-native-access=org.elasticsearch.nativeaccess";
         }
         return "";
     }

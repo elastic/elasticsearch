@@ -248,13 +248,21 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     public void testEnrichSpecialTypes() throws IOException {
         final String mapping = """
-              "properties": {
-               "keyword_field": { "type": "keyword" },
-               "content_embedding": { "type": "sparse_vector" },
-               "arbitrary_sparse_vector": { "type": "sparse_vector" }
-              }
+
             """;
-        createIndex("source-enrich-vector", Settings.EMPTY, mapping);
+        var createIndexRequest = new Request("PUT", "source-enrich-vector");
+        createIndexRequest.setJsonEntity("""
+            {
+                "mappings": {
+                    "properties": {
+                    "keyword_field": { "type": "keyword" },
+                    "content_embedding": { "type": "sparse_vector" },
+                    "arbitrary_sparse_vector": { "type": "sparse_vector" }
+                  }
+                }
+            }
+            """);
+        assertOK(adminClient().performRequest(createIndexRequest));
         var indexRequest = new Request("PUT", "/source-enrich-vector/_doc/1");
         indexRequest.setJsonEntity("""
             {
@@ -263,7 +271,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
              "keyword_field": 1214
             }
             """);
-        assertOK(client().performRequest(indexRequest));
+        assertOK(adminClient().performRequest(indexRequest));
 
         var putEnrich = new Request("PUT", "/_enrich/policy/vector_policy");
         putEnrich.setJsonEntity("""
@@ -275,13 +283,13 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
                  }
                 }
             """);
-        assertOK(client().performRequest(putEnrich));
+        assertOK(adminClient().performRequest(putEnrich));
         try {
             var executeEnrich = new Request("PUT", "/_enrich/policy/vector_policy/_execute");
-            assertOK(client().performRequest(executeEnrich));
+            assertOK(adminClient().performRequest(executeEnrich));
         } finally {
             var deleteEnrich = new Request("DELETE", "/_enrich/policy/vector_policy");
-            assertOK(client().performRequest(deleteEnrich));
+            assertOK(adminClient().performRequest(deleteEnrich));
         }
     }
 

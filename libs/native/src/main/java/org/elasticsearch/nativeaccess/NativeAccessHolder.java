@@ -20,8 +20,8 @@ class NativeAccessHolder {
 
     static {
         var libraryProvider = NativeLibraryProvider.instance();
-
         var os = System.getProperty("os.name");
+
         NativeAccess inst = null;
         try {
             if (os.startsWith("Linux")) {

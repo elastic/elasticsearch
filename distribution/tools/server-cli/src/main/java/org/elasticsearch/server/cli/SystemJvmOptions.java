@@ -104,4 +104,11 @@ final class SystemJvmOptions {
         }
         return "";
     }
+
+    private static String maybeEnableNativeAccess() {
+        if (Runtime.version().feature() >= 21) {
+            return "--enable-native-access=org.elasticsearch.nativeaccess";
+        }
+        return "";
+    }
 }

@@ -8,6 +8,7 @@
 
 import org.elasticsearch.gradle.transform.UnzipTransform
 import org.elasticsearch.gradle.internal.GenerateProviderManifest
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 import org.gradle.api.internal.artifacts.ArtifactAttributes
 
 import java.util.stream.Collectors
@@ -63,7 +64,7 @@ def generateProviderImpl = tasks.register("generateProviderImpl", Sync) {
 }
 sourceSets.main.output.dir(generateProviderImpl)
 
-tasks.named('forbiddenApisMain').configure {
+tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
 

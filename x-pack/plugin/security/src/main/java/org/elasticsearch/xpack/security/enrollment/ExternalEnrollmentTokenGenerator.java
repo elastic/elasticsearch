@@ -46,7 +46,7 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
     private final SSLService sslService;
     private final CommandLineHttpClient client;
 
-    public ExternalEnrollmentTokenGenerator(Environment environment) throws MalformedURLException {
+    public ExternalEnrollmentTokenGenerator(Environment environment) {
         this(environment, new CommandLineHttpClient(environment));
     }
 
@@ -138,9 +138,7 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         final int httpCode = httpResponseApiKey.getHttpStatus();
 
         if (httpCode != HttpURLConnection.HTTP_OK) {
-            logger.error(
-                "Error " + httpCode + " when calling GET " + createApiKeyUrl + ". ResponseBody: " + httpResponseApiKey.getResponseBody()
-            );
+            logger.error("Error {} when calling POST {}. ResponseBody: {}", httpCode, createApiKeyUrl, httpResponseApiKey.getResponseBody());
             throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling POST " + createApiKeyUrl);
         }
 
@@ -158,19 +156,16 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         final int httpCode = httpResponseHttp.getHttpStatus();
 
         if (httpCode != HttpURLConnection.HTTP_OK) {
-            logger.error(
-                "Error " + httpCode + " when calling GET " + httpInfoUrl + ". ResponseBody: " + httpResponseHttp.getResponseBody()
-            );
+            logger.error("Error {} when calling GET {}. ResponseBody: {}", httpCode, httpInfoUrl, httpResponseHttp.getResponseBody());
             throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling GET " + httpInfoUrl);
         }
 
         final List<String> addresses = getBoundAddresses(httpResponseHttp.getResponseBody());
         if (addresses.isEmpty()) {
             logger.error(
-                "No bound addresses found in response from calling GET "
-                    + httpInfoUrl
-                    + ". ResponseBody: "
-                    + httpResponseHttp.getResponseBody()
+                "No bound addresses found in response from calling GET {}. ResponseBody: {}",
+                httpInfoUrl,
+                httpResponseHttp.getResponseBody()
             );
             throw new IllegalStateException("No bound addresses found in response from calling GET " + httpInfoUrl);
         }

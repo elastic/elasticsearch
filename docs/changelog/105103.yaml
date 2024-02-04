@@ -1,0 +1,5 @@
+pr: 105103
+summary: Do not record s3 http request time when it is not available
+area: Snapshot/Restore
+type: bug
+issues: []

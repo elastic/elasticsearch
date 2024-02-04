@@ -230,20 +230,6 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private static long getTotalTimeInMicros(List<TimingInfo> requestTimesIncludingRetries) {
-        // Here we calculate the timing in Microseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
-        // (time to first byte). We calculate the time in micros for later use with an APM style counter (exposed as a long), rather than
-        // using the default double exposed by getTimeTakenMillisIfKnown().
-        long totalTimeInMicros = 0;
-        for (TimingInfo timingInfo : requestTimesIncludingRetries) {
-            var endTimeInNanos = timingInfo.getEndTimeNanoIfKnown();
-            if (endTimeInNanos != null) {
-                totalTimeInMicros += TimeUnit.NANOSECONDS.toMicros(endTimeInNanos - timingInfo.getStartTimeNano());
-            }
-        }
-        return totalTimeInMicros;
-    }
-
     private static long getCountForMetric(TimingInfo info, AWSRequestMetrics.Field field) {
         var count = info.getCounter(field.name());
         if (count == null) {
@@ -256,6 +242,20 @@ class S3BlobStore implements BlobStore {
         } else {
             return count.longValue();
         }
+    }
+
+    private static long getTotalTimeInMicros(List<TimingInfo> requestTimesIncludingRetries) {
+        // Here we calculate the timing in Microseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
+        // (time to first byte). We calculate the time in micros for later use with an APM style counter (exposed as a long), rather than
+        // using the default double exposed by getTimeTakenMillisIfKnown().
+        long totalTimeInMicros = 0;
+        for (TimingInfo timingInfo : requestTimesIncludingRetries) {
+            var endTimeInNanos = timingInfo.getEndTimeNanoIfKnown();
+            if (endTimeInNanos != null) {
+                totalTimeInMicros += TimeUnit.NANOSECONDS.toMicros(endTimeInNanos - timingInfo.getStartTimeNano());
+            }
+        }
+        return totalTimeInMicros;
     }
 
     @Override

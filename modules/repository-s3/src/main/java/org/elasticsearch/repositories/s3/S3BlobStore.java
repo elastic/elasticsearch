@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.Request;
 import com.amazonaws.Response;
 import com.amazonaws.metrics.RequestMetricCollector;
@@ -54,6 +55,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 
 class S3BlobStore implements BlobStore {
+
+    public static final String CUSTOM_QUERY_PARAMETER_PURPOSE = "x-purpose";
 
     /**
      * Maximum number of deletes in a {@link DeleteObjectsRequest}.
@@ -344,9 +347,11 @@ class S3BlobStore implements BlobStore {
     }
 
     private static DeleteObjectsRequest bulkDelete(OperationPurpose purpose, S3BlobStore blobStore, List<String> blobs) {
-        return new DeleteObjectsRequest(blobStore.bucket()).withKeys(blobs.toArray(Strings.EMPTY_ARRAY))
-            .withQuiet(true)
-            .withRequestMetricCollector(blobStore.getMetricCollector(Operation.DELETE_OBJECTS, purpose));
+        final DeleteObjectsRequest deleteObjectsRequest = new DeleteObjectsRequest(blobStore.bucket()).withKeys(
+            blobs.toArray(Strings.EMPTY_ARRAY)
+        ).withQuiet(true);
+        configureRequestForMetrics(deleteObjectsRequest, blobStore, Operation.DELETE_OBJECTS, purpose);
+        return deleteObjectsRequest;
     }
 
     @Override
@@ -459,5 +464,15 @@ class S3BlobStore implements BlobStore {
         IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation, OperationPurpose purpose) {
             return new IgnoreNoResponseMetricsCollector(operation, purpose);
         }
+    }
+
+    static void configureRequestForMetrics(
+        AmazonWebServiceRequest request,
+        S3BlobStore blobStore,
+        Operation operation,
+        OperationPurpose purpose
+    ) {
+        request.setRequestMetricCollector(blobStore.getMetricCollector(operation, purpose));
+        request.putCustomQueryParameter(CUSTOM_QUERY_PARAMETER_PURPOSE, purpose.getKey());
     }
 }

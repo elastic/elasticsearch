@@ -559,6 +559,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 trackRequest("DeleteObjects");
             } else if (Regex.simpleMatch("DELETE /*/*?uploadId=*", request)) {
                 trackRequest("AbortMultipartObject");
+            } else if (Regex.simpleMatch("HEAD /*/*", request)) {
+                trackRequest("HeadObject");
             }
         }
 

@@ -8,11 +8,9 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestLazyBuilder;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.RequestBuilder;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
@@ -46,7 +44,8 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      */
     private final List<DocWriteRequest<?>> requests = new ArrayList<>();
     private final List<FramedData> framedData = new ArrayList<>();
-    private final List<RequestBuilder<? extends ActionRequest, ? extends ActionResponse>> requestBuilders = new ArrayList<>();
+    private final List<ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse>> requestBuilders =
+        new ArrayList<>();
     private ActiveShardCount waitForActiveShards;
     private TimeValue timeout;
     private String timeoutString;
@@ -204,9 +203,9 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     public BulkRequest request() {
         validate();
         BulkRequest request = new BulkRequest(globalIndex);
-        for (RequestBuilder<? extends ActionRequest, ? extends ActionResponse> requestBuilder : requestBuilders) {
-            ActionRequest childRequest = requestBuilder.request();
-            request.add((DocWriteRequest<?>) childRequest);
+        for (ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse> requestBuilder : requestBuilders) {
+            DocWriteRequest<?> childRequest = requestBuilder.request();
+            request.add(childRequest);
         }
         for (DocWriteRequest<?> childRequest : requests) {
             request.add(childRequest);

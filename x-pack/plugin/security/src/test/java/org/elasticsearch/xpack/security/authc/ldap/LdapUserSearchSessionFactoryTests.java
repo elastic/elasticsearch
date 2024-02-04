@@ -146,14 +146,14 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         try {
             // auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
-                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.getBindRequest());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
 
             // lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.getBindRequest());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
@@ -291,14 +291,14 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         try {
             // auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
-                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.getBindRequest());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
 
             // lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.getBindRequest());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
@@ -378,14 +378,14 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         try {
             // auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
-                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.getBindRequest());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
 
             // lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.getBindRequest());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
@@ -451,14 +451,14 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         try {
             // auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
-                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.getBindRequest());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString("William Bush"));
             }
 
             // lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.getBindRequest());
                 String dn = ldap.userDn();
                 assertThat(dn, containsString("William Bush"));
             }
@@ -600,8 +600,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             new ThreadContext(globalSettings)
         );
         try (LdapUserSearchSessionFactory searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
-            assertThat(searchSessionFactory.bindCredentials, notNullValue());
-            assertThat(searchSessionFactory.bindCredentials.getBindDN(), is(emptyString()));
+            assertThat(searchSessionFactory.getBindRequest(), notNullValue());
+            assertThat(searchSessionFactory.getBindRequest().getBindDN(), is(emptyString()));
         }
         assertDeprecationWarnings(config.identifier(), false, useLegacyBindPassword);
     }
@@ -622,8 +622,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             new ThreadContext(globalSettings)
         );
         try (LdapUserSearchSessionFactory searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
-            assertThat(searchSessionFactory.bindCredentials, notNullValue());
-            assertThat(searchSessionFactory.bindCredentials.getBindDN(), is("cn=ironman"));
+            assertThat(searchSessionFactory.getBindRequest(), notNullValue());
+            assertThat(searchSessionFactory.getBindRequest().getBindDN(), is("cn=ironman"));
         }
         assertDeprecationWarnings(config.identifier(), false, useLegacyBindPassword);
     }

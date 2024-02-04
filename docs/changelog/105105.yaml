@@ -1,0 +1,5 @@
+pr: 105105
+summary: Add s3 `HeadObject` request to request stats
+area: Snapshot/Restore
+type: enhancement
+issues: []

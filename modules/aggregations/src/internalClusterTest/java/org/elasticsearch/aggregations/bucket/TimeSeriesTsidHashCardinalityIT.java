@@ -8,6 +8,7 @@
 
 package org.elasticsearch.aggregations.bucket;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -43,6 +44,7 @@ import java.util.TreeSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105104")
 public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
     private static final String START_TIME = "2021-01-01T00:00:00Z";
     private static final String END_TIME = "2021-12-31T23:59:59Z";

@@ -295,18 +295,12 @@ public class ObjectMapper extends Mapper {
                         }
                     }
 
-                    if (objBuilder.subobjects.value() == false && type.equals(ObjectMapper.CONTENT_TYPE)) {
+                    if (objBuilder.subobjects.value() == false
+                        && (type.equals(ObjectMapper.CONTENT_TYPE)
+                            || type.equals(NestedObjectMapper.CONTENT_TYPE)
+                            || type.equals(PassThroughObjectMapper.CONTENT_TYPE))) {
                         throw new MapperParsingException(
                             "Tried to add subobject ["
-                                + fieldName
-                                + "] to object ["
-                                + objBuilder.name()
-                                + "] which does not support subobjects"
-                        );
-                    }
-                    if (objBuilder.subobjects.value() == false && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
-                        throw new MapperParsingException(
-                            "Tried to add nested object ["
                                 + fieldName
                                 + "] to object ["
                                 + objBuilder.name()
@@ -318,7 +312,7 @@ public class ObjectMapper extends Mapper {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
                     Mapper.Builder fieldBuilder;
-                    if (objBuilder.subobjects.value() == false) {
+                    if (objBuilder.subobjects.value() == false || type.equals(FieldAliasMapper.CONTENT_TYPE)) {
                         fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
                     } else {
                         String[] fieldNameParts = fieldName.split("\\.");

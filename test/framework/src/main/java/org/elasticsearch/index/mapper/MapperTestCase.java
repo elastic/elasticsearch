@@ -1025,8 +1025,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
-        if (mapper instanceof KeywordFieldMapper || mapper instanceof NumberFieldMapper || mapper instanceof IpFieldMapper) {
+    protected boolean fieldMapperSupportsDimension() {
+        return false;
+    }
+
+    private String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
+        if (fieldMapperSupportsDimension()) {
             return "All fields that match routing_path must be keywords with [time_series_dimension: true] "
                 + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                 + "without the [script] parameter. ["

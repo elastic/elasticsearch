@@ -63,6 +63,11 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean fieldMapperSupportsDimension() {
+        return true;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));

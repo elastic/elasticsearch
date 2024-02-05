@@ -44,6 +44,11 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean fieldMapperSupportsDimension() {
+        return true;
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "ip");
     }

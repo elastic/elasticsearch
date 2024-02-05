@@ -51,14 +51,6 @@ public class ResolveClusterInfo implements Writeable {
     }
 
     public ResolveClusterInfo(StreamInput in) throws IOException {
-        if (in.getTransportVersion().before(TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED)) {
-            throw new UnsupportedOperationException(
-                "ResolveClusterAction requires at least Transport Version "
-                    + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED
-                    + " but was "
-                    + in.getTransportVersion()
-            );
-        }
         this.connected = in.readBoolean();
         this.skipUnavailable = in.readOptionalBoolean();
         this.matchingIndices = in.readOptionalBoolean();

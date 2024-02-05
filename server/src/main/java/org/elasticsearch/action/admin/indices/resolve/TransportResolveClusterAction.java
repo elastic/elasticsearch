@@ -17,11 +17,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -55,8 +56,12 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
     private static final String TRANSPORT_VERSION_ERROR_MESSAGE = "ResolveClusterAction requires at least Transport Version";
 
     public static final String NAME = "indices:admin/resolve/cluster";
-    public static final ActionType<ResolveClusterActionResponse> TYPE = new ActionType<>(NAME, ResolveClusterActionResponse::new);
-    private final ThreadPool threadPool;
+    public static final ActionType<ResolveClusterActionResponse> TYPE = new ActionType<>(NAME);
+    public static final RemoteClusterActionType<ResolveClusterActionResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        NAME,
+        ResolveClusterActionResponse::new
+    );
+
     private final Executor searchCoordinationExecutor;
     private final ClusterService clusterService;
     private final RemoteClusterService remoteClusterService;
@@ -72,7 +77,6 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(NAME, transportService, actionFilters, ResolveClusterActionRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.threadPool = threadPool;
         this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.clusterService = clusterService;
         this.remoteClusterService = transportService.getRemoteClusterService();
@@ -141,10 +145,10 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                 String clusterAlias = remoteIndices.getKey();
                 OriginalIndices originalIndices = remoteIndices.getValue();
                 boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
-                Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                    threadPool,
+                RemoteClusterClient remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                     clusterAlias,
-                    searchCoordinationExecutor
+                    searchCoordinationExecutor,
+                    true
                 );
                 var remoteRequest = new ResolveClusterActionRequest(originalIndices.indices(), request.indicesOptions());
                 // allow cancellation requests to propagate to remote clusters
@@ -216,12 +220,11 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                                         );
                                     }
                                 };
-                                remoteClusterClient.admin()
-                                    .indices()
-                                    .resolveIndex(
-                                        resolveIndexRequest,
-                                        ActionListener.releaseAfter(resolveIndexActionListener, refs.acquire())
-                                    );
+                                remoteClusterClient.execute(
+                                    ResolveIndexAction.REMOTE_TYPE,
+                                    resolveIndexRequest,
+                                    ActionListener.releaseAfter(resolveIndexActionListener, refs.acquire())
+                                );
                             } else {
                                 // it is not clear that this error indicates that the cluster is disconnected, but it is hard to
                                 // determine based on the error, so we default to false in the face of any error and report it
@@ -238,13 +241,11 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                         }
                     }
                 };
-                remoteClusterClient.admin()
-                    .indices()
-                    .execute(
-                        TransportResolveClusterAction.TYPE,
-                        remoteRequest,
-                        ActionListener.releaseAfter(remoteListener, refs.acquire())
-                    );
+                remoteClusterClient.execute(
+                    TransportResolveClusterAction.REMOTE_TYPE,
+                    remoteRequest,
+                    ActionListener.releaseAfter(remoteListener, refs.acquire())
+                );
             }
         }
     }

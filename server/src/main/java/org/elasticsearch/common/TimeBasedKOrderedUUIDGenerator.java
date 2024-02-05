@@ -15,7 +15,7 @@ package org.elasticsearch.common;
  * come first so that large sequences of document ids share the same prefix. This should result
  * in a more compact term dictionary.
  */
-public class ReverseTimeBasedUUIDGenerator extends TimeBasedUUIDGenerator {
+public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
     @Override
     public String getBase64UUID() {
         final int sequenceId = sequenceNumber.incrementAndGet() & 0x00FF_FFFF;

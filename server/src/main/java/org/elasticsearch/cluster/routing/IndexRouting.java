@@ -21,6 +21,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -131,9 +133,11 @@ public abstract class IndexRouting {
 
     private abstract static class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
+        private final IndexVersion creationVersion;
 
         IdAndRoutingOnly(IndexMetadata metadata) {
             super(metadata);
+            this.creationVersion = metadata.getCreationVersion();
             MappingMetadata mapping = metadata.mapping();
             this.routingRequired = mapping == null ? false : mapping.routingRequired();
         }
@@ -148,7 +152,12 @@ public abstract class IndexRouting {
 
             // generate id if not already provided
             if (indexRequest.id() == null) {
-                indexRequest.autoGenerateId();
+                if (creationVersion.onOrAfter(IndexVersions.TIME_SERIES_ID_HASHING)) {
+                    indexRequest.autoGenerateTimeBasedId();
+                    ;
+                } else {
+                    indexRequest.autoGenerateId();
+                }
             }
         }
 

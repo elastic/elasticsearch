@@ -101,7 +101,7 @@ public class IndexVersions {
     public static final IndexVersion NEW_INDEXVERSION_FORMAT = def(8_501_00_0, Version.LUCENE_9_9_1);
     public static final IndexVersion UPGRADE_LUCENE_9_9_2 = def(8_502_00_0, Version.LUCENE_9_9_2);
     public static final IndexVersion TIME_SERIES_ID_HASHING = def(8_502_00_1, Version.LUCENE_9_9_2);
-
+    public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID = def(8_502_00_3, Version.LUCENE_9_9_2);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -1,0 +1,5 @@
+pr: 105044
+summary: Expose `OperationPurpose` via `CustomQueryParameter` to s3 logs
+area: Snapshot/Restore
+type: enhancement
+issues: []

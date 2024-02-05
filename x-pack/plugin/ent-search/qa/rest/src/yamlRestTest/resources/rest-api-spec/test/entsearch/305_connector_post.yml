@@ -88,3 +88,18 @@ setup:
           is_native: false
           service_type: super-connector
 
+---
+'Create Connector - Index name used by another connector':
+  - do:
+      connector.post:
+        body:
+          index_name: search-test
+
+  - set:  { id: id }
+  - match: { id: $id }
+
+  - do:
+      catch: "bad_request"
+      connector.post:
+        body:
+          index_name: search-test

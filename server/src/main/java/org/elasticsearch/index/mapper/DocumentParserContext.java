@@ -111,7 +111,7 @@ public abstract class DocumentParserContext {
     private final ObjectMapper.Dynamic dynamic;
     private String id;
     private Field version;
-    private SeqNoFieldMapper.SequenceIDFields seqID;
+    private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
     private final Set<String> copyToFields;
 
@@ -189,7 +189,7 @@ public abstract class DocumentParserContext {
             new HashMap<>(),
             null,
             null,
-            null,
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
             DocumentDimensions.fromIndexSettings(mappingParserContext.getIndexSettings()),
             parent,
             dynamic,
@@ -280,10 +280,6 @@ public abstract class DocumentParserContext {
 
     public final SeqNoFieldMapper.SequenceIDFields seqID() {
         return this.seqID;
-    }
-
-    public final void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
-        this.seqID = seqID;
     }
 
     /**

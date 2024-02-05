@@ -26,7 +26,10 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -40,6 +43,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKe
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorIndexNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNativeAction;
@@ -84,6 +88,9 @@ public class ConnectorIndexService {
      */
     public void createConnectorWithDocId(PutConnectorAction.Request request, ActionListener<DocWriteResponse> listener) {
 
+        String indexName = request.getIndexName();
+        String connectorId = request.getConnectorId();
+
         Connector connector = createConnectorWithDefaultValues(
             request.getDescription(),
             request.getIndexName(),
@@ -94,11 +101,26 @@ public class ConnectorIndexService {
         );
 
         try {
-            final IndexRequest indexRequest = new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
-                .id(request.getConnectorId())
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
-            clientWithOrigin.index(indexRequest, listener);
+            isDataIndexNameAlreadyInUse(indexName, connectorId, listener.delegateFailure((l, isIndexNameInUse) -> {
+                if (isIndexNameInUse) {
+                    l.onFailure(
+                        new ElasticsearchStatusException(
+                            "Index name [" + indexName + "] is used by another connector.",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
+                }
+                try {
+                    final IndexRequest indexRequest = new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                        .id(connectorId)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                        .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
+                    clientWithOrigin.index(indexRequest, listener);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -115,9 +137,11 @@ public class ConnectorIndexService {
         ActionListener<PostConnectorAction.Response> listener
     ) {
 
+        String indexName = request.getIndexName();
+
         Connector connector = createConnectorWithDefaultValues(
             request.getDescription(),
-            request.getIndexName(),
+            indexName,
             request.getIsNative(),
             request.getLanguage(),
             request.getName(),
@@ -125,14 +149,31 @@ public class ConnectorIndexService {
         );
 
         try {
-            final IndexRequest indexRequest = new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
+            isDataIndexNameAlreadyInUse(indexName, null, listener.delegateFailure((l, isIndexNameInUse) -> {
+                if (isIndexNameInUse) {
+                    l.onFailure(
+                        new ElasticsearchStatusException(
+                            "Index name [" + indexName + "] is used by another connector.",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
+                }
+                try {
+                    final IndexRequest indexRequest = new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                        .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
 
-            clientWithOrigin.index(
-                indexRequest,
-                listener.delegateFailureAndWrap((l, indexResponse) -> l.onResponse(new PostConnectorAction.Response(indexResponse.getId())))
-            );
+                    clientWithOrigin.index(
+                        indexRequest,
+                        listener.delegateFailureAndWrap(
+                            (ll, indexResponse) -> ll.onResponse(new PostConnectorAction.Response(indexResponse.getId()))
+                        )
+                    );
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -548,6 +589,53 @@ public class ConnectorIndexService {
     }
 
     /**
+     * Updates the index name property of a {@link Connector}.
+     *
+     * @param request  The request for updating the connector's index name.
+     * @param listener The listener for handling responses, including successful updates or errors.
+     */
+    public void updateConnectorIndexName(UpdateConnectorIndexNameAction.Request request, ActionListener<UpdateResponse> listener) {
+        try {
+            String connectorId = request.getConnectorId();
+            String indexName = request.getIndexName();
+
+            isDataIndexNameAlreadyInUse(indexName, connectorId, listener.delegateFailure((l, isIndexNameInUse) -> {
+
+                if (isIndexNameInUse) {
+                    l.onFailure(
+                        new ElasticsearchStatusException(
+                            "Index name [" + indexName + "] is used by another connector.",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
+                }
+
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                    new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                        .id(connectorId)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                        .source(Map.of(Connector.INDEX_NAME_FIELD.getPreferredName(), request.getIndexName()))
+
+                );
+                clientWithOrigin.update(
+                    updateRequest,
+                    new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
+                        if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                            ll.onFailure(new ResourceNotFoundException(connectorId));
+                            return;
+                        }
+                        ll.onResponse(updateResponse);
+                    })
+                );
+            }));
+
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
      * Updates the {@link ConnectorScheduling} property of a {@link Connector}.
      *
      * @param request  The request for updating the connector's scheduling.
@@ -712,6 +800,49 @@ public class ConnectorIndexService {
             .setResultBytes(searchHit.getSourceRef())
             .setResultMap(searchHit.getSourceAsMap())
             .build();
+    }
+
+    /**
+     * This method determines if any documents in the connector index have the same index name as the one specified,
+     * excluding the document with the given _id if it is provided.
+     *
+     * @param indexName    The name of the index to check for existence in the connector index.
+     * @param connectorId  The ID of the {@link Connector} to exclude from the search. Can be null if no document should be excluded.
+     * @param listener     The listener for handling boolean responses and errors.
+     */
+    private void isDataIndexNameAlreadyInUse(String indexName, String connectorId, ActionListener<Boolean> listener) {
+        try {
+            BoolQueryBuilder boolFilterQueryBuilder = new BoolQueryBuilder();
+
+            boolFilterQueryBuilder.must().add(new TermQueryBuilder(Connector.INDEX_NAME_FIELD.getPreferredName(), indexName));
+
+            // If we know the connector _id, exclude this from search query
+            if (connectorId != null) {
+                boolFilterQueryBuilder.mustNot(new IdsQueryBuilder().addIds(connectorId));
+            }
+
+            final SearchSourceBuilder searchSource = new SearchSourceBuilder().query(boolFilterQueryBuilder);
+
+            final SearchRequest searchRequest = new SearchRequest(CONNECTOR_INDEX_NAME).source(searchSource);
+            clientWithOrigin.search(searchRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    boolean indexNameIsInUse = searchResponse.getHits().getTotalHits().value > 0L;
+                    listener.onResponse(indexNameIsInUse);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof IndexNotFoundException) {
+                        listener.onResponse(false);
+                        return;
+                    }
+                    listener.onFailure(e);
+                }
+            });
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     public record ConnectorResult(List<ConnectorSearchResult> connectors, long totalResults) {}

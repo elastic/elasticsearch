@@ -377,9 +377,18 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
+            b.startObject("attributes").field("type", "passthrough");
+            {
+                b.startObject("properties");
+                b.startObject("another.dim").field("type", "keyword").endObject();
+                b.endObject();
+            }
+            b.endObject();
         }));
         assertThat(mapperService.mappingLookup().getMapper("dim"), instanceOf(FieldAliasMapper.class));
         assertThat(mapperService.mappingLookup().getMapper("resource.attributes.dim"), instanceOf(KeywordFieldMapper.class));
+        assertThat(mapperService.mappingLookup().getMapper("another.dim"), instanceOf(FieldAliasMapper.class));
+        assertThat(mapperService.mappingLookup().getMapper("attributes.another.dim"), instanceOf(KeywordFieldMapper.class));
     }
 
     public void testAliasMappersCreatesAlias() throws Exception {

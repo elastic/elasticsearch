@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -666,7 +667,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     private String randomCidrBlock() {
         boolean ipv4 = randomBoolean();
 
-        String address = randomIp(ipv4).getHostAddress();
+        String address = NetworkAddress.format(randomIp(ipv4));
         int cidrPrefixLength = ipv4 ? randomIntBetween(0, 32) : randomIntBetween(0, 128);
 
         return format(null, "{}/{}", address, cidrPrefixLength);

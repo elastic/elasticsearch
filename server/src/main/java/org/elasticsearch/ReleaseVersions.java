@@ -19,14 +19,16 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
+import java.util.OptionalInt;
 import java.util.ServiceLoader;
 import java.util.TreeMap;
-import java.util.function.IntFunction;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class ReleaseVersions {
 
@@ -40,9 +42,7 @@ public class ReleaseVersions {
 
     private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)");
 
-    public static IntFunction<String> generateVersionsLookup(Class<?> versionContainer) {
-        if (USES_VERSIONS == false) return Integer::toString;
-
+    public static VersionLookup generateVersionsLookup(Class<?> versionContainer) {
         try {
             String versionsFileName = versionContainer.getSimpleName() + ".csv";
             InputStream versionsFile = versionContainer.getResourceAsStream(versionsFileName);
@@ -50,7 +50,7 @@ public class ReleaseVersions {
                 throw new FileNotFoundException(Strings.format("Could not find versions file for class [%s]", versionContainer));
             }
 
-            NavigableMap<Integer, List<Version>> versions = new TreeMap<>();
+            Map<Version, Integer> versions = new HashMap<>();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(versionsFile, StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
@@ -61,7 +61,10 @@ public class ReleaseVersions {
                     try {
                         Integer id = Integer.valueOf(matcher.group(2));
                         Version version = Version.fromString(matcher.group(1));
-                        versions.computeIfAbsent(id, k -> new ArrayList<>()).add(version);
+                        var existing = versions.putIfAbsent(version, id);
+                        if (existing != null) throw new IOException(
+                            Strings.format("Duplicated version [%s] in [%s]", version, versionsFileName)
+                        );
                     } catch (IllegalArgumentException e) {
                         // cannot happen??? regex is wrong...
                         assert false : "Regex allowed non-integer id or incorrect version through: " + e;
@@ -70,8 +73,45 @@ public class ReleaseVersions {
                 }
             }
 
+            return USES_VERSIONS ? new Lookup(versions) : new IdLookup(versions);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static class IdLookup implements VersionLookup {
+        private final Map<Version, Integer> versionToId;
+
+        private IdLookup(Map<Version, Integer> versionToId) {
+            this.versionToId = versionToId;
+        }
+
+        @Override
+        public OptionalInt findId(Version version) {
+            Integer id = versionToId.get(version);
+            return id != null ? OptionalInt.of(id) : OptionalInt.empty();
+        }
+
+        @Override
+        public String inferVersion(int id) {
+            return Integer.toString(id);
+        }
+    }
+
+    private static class Lookup implements VersionLookup {
+        private final Map<Version, Integer> versionToId;
+        private final NavigableMap<Integer, List<Version>> idToVersion;
+
+        private Lookup(Map<Version, Integer> versionToId) {
+            this.versionToId = versionToId;
+
+            idToVersion = versionToId.entrySet()
+                .stream()
+                .collect(
+                    Collectors.groupingBy(Map.Entry::getValue, TreeMap::new, Collectors.mapping(Map.Entry::getKey, Collectors.toList()))
+                );
             // replace all version lists with the smallest & greatest versions
-            versions.replaceAll((k, v) -> {
+            idToVersion.replaceAll((k, v) -> {
                 if (v.size() == 1) {
                     return List.of(v.get(0));
                 } else {
@@ -79,19 +119,17 @@ public class ReleaseVersions {
                     return List.of(v.get(0), v.get(v.size() - 1));
                 }
             });
-
-            return lookupFunction(versions);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
-    }
 
-    private static IntFunction<String> lookupFunction(NavigableMap<Integer, List<Version>> versions) {
-        assert versions.values().stream().allMatch(vs -> vs.size() == 1 || vs.size() == 2)
-            : "Version ranges have not been properly processed: " + versions;
+        @Override
+        public OptionalInt findId(Version version) {
+            Integer id = versionToId.get(version);
+            return id != null ? OptionalInt.of(id) : OptionalInt.empty();
+        }
 
-        return id -> {
-            List<Version> versionRange = versions.get(id);
+        @Override
+        public String inferVersion(int id) {
+            List<Version> versionRange = idToVersion.get(id);
 
             String lowerBound, upperBound;
             if (versionRange != null) {
@@ -99,7 +137,7 @@ public class ReleaseVersions {
                 upperBound = lastItem(versionRange).toString();
             } else {
                 // infer the bounds from the surrounding entries
-                var lowerRange = versions.lowerEntry(id);
+                var lowerRange = idToVersion.lowerEntry(id);
                 if (lowerRange != null) {
                     // the next version is just a guess - might be a newer revision, might be a newer minor or major...
                     lowerBound = nextVersion(lastItem(lowerRange.getValue())).toString();
@@ -109,7 +147,7 @@ public class ReleaseVersions {
                     lowerBound = "snapshot[" + id + "]";
                 }
 
-                var upperRange = versions.higherEntry(id);
+                var upperRange = idToVersion.higherEntry(id);
                 if (upperRange != null) {
                     // too hard to guess what version this id might be for using the next version - just use it directly
                     upperBound = upperRange.getValue().get(0).toString();
@@ -120,7 +158,7 @@ public class ReleaseVersions {
             }
 
             return lowerBound.equals(upperBound) ? lowerBound : lowerBound + "-" + upperBound;
-        };
+        }
     }
 
     private static <T> T lastItem(List<T> list) {

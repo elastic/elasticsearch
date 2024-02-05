@@ -22,14 +22,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.NavigableSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 public class Version implements VersionId<Version>, ToXContentFragment {
     /*
@@ -341,7 +341,7 @@ public class Version implements VersionId<Version>, ToXContentFragment {
      * lazily once.
      */
     private static class DeclaredVersionsHolder {
-        static final List<Version> DECLARED_VERSIONS = List.copyOf(getDeclaredVersions(Version.class));
+        static final NavigableSet<Version> DECLARED_VERSIONS = Collections.unmodifiableNavigableSet(getDeclaredVersions(Version.class));
     }
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
@@ -375,8 +375,7 @@ public class Version implements VersionId<Version>, ToXContentFragment {
             // all major versions from 8 onwards are compatible with last minor series of the previous major
             Version bwcVersion = null;
 
-            for (int i = DeclaredVersionsHolder.DECLARED_VERSIONS.size() - 1; i >= 0; i--) {
-                final Version candidateVersion = DeclaredVersionsHolder.DECLARED_VERSIONS.get(i);
+            for (Version candidateVersion : DeclaredVersionsHolder.DECLARED_VERSIONS.descendingSet()) {
                 if (candidateVersion.major == major - 1 && after(candidateVersion)) {
                     if (bwcVersion != null && candidateVersion.minor < bwcVersion.minor) {
                         break;
@@ -455,9 +454,9 @@ public class Version implements VersionId<Version>, ToXContentFragment {
      * The argument would normally be Version.class but is exposed for
      * testing with other classes-containing-version-constants.
      */
-    public static List<Version> getDeclaredVersions(final Class<?> versionClass) {
+    public static NavigableSet<Version> getDeclaredVersions(final Class<?> versionClass) {
         final Field[] fields = versionClass.getFields();
-        final List<Version> versions = new ArrayList<>(fields.length);
+        final NavigableSet<Version> versions = new TreeSet<>();
         for (final Field field : fields) {
             final int mod = field.getModifiers();
             if (false == Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
@@ -478,7 +477,6 @@ public class Version implements VersionId<Version>, ToXContentFragment {
                 throw new RuntimeException(e);
             }
         }
-        Collections.sort(versions);
         return versions;
     }
 }

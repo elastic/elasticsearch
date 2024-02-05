@@ -8,6 +8,7 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -172,6 +173,15 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testCURRENTIsLatest() {
         assertThat(Collections.max(TransportVersions.getAllVersions()), is(TransportVersion.current()));
+    }
+
+    @UpdateForV9    // minimum compatibility version will likely go away
+    public void testMinCompatMatches() {
+        Version minCompatVersion = Version.CURRENT.minimumCompatibilityVersion();
+        assertThat(
+            TransportVersions.MINIMUM_COMPATIBLE.id(),
+            equalTo(TransportVersions.VERSION_LOOKUP.findId(minCompatVersion).getAsInt())
+        );
     }
 
     public void testToString() {

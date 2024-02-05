@@ -148,7 +148,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      * if applicable for this deployment, otherwise the raw version number.
      */
     public String toReleaseVersion() {
-        return IndexVersions.VERSION_LOOKUP.apply(id);
+        return IndexVersions.VERSION_LOOKUP.inferVersion(id);
     }
 
     @Override

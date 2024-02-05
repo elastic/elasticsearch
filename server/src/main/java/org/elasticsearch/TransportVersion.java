@@ -106,7 +106,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      * if applicable for this deployment, otherwise the raw version number.
      */
     public String toReleaseVersion() {
-        return TransportVersions.VERSION_LOOKUP.apply(id);
+        return TransportVersions.VERSION_LOOKUP.inferVersion(id);
     }
 
     @Override

@@ -16,6 +16,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class BertTokenizationTests extends AbstractBWCSerializationTestCase<BertTokenization> {
 
     private boolean lenient;
@@ -68,6 +70,49 @@ public class BertTokenizationTests extends AbstractBWCSerializationTestCase<Bert
         assertEquals(Tokenization.Truncate.NONE, update.getTruncate());
         assertEquals(50, update.maxSequenceLength());
         assertEquals(20, update.getSpan());
+    }
+
+    public void testUpdateWindowSettings() {
+        var tokenization = new BertTokenization(true, true, 100, Tokenization.Truncate.FIRST, -1);
+        {
+            var update = tokenization.updateWindowSettings(new Tokenization.SpanSettings((Integer) null));
+            // settings not changed
+            assertEquals(tokenization.getMaxSequenceLength(), update.getMaxSequenceLength());
+            assertEquals(tokenization.getSpan(), update.getSpan());
+        }
+        {
+            var update = tokenization.updateWindowSettings(new Tokenization.SpanSettings(20));
+            assertEquals(20, update.getMaxSequenceLength());
+            assertEquals(tokenization.getSpan(), update.getSpan());
+        }
+        {
+            var update = tokenization.updateWindowSettings(new Tokenization.SpanSettings(null, 10));
+            assertEquals(tokenization.getMaxSequenceLength(), update.getMaxSequenceLength());
+            assertEquals(10, update.getSpan());
+        }
+        {
+            var update = tokenization.updateWindowSettings(new Tokenization.SpanSettings(20, 10));
+            assertEquals(20, update.getMaxSequenceLength());
+            assertEquals(10, update.getSpan());
+        }
+    }
+
+    public void testUpdateWindowSettings_InvalidSpan() {
+        var tokenization = new BertTokenization(true, true, 100, Tokenization.Truncate.FIRST, -1);
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> tokenization.updateWindowSettings(new Tokenization.SpanSettings(32, 64))
+        );
+        assertThat(e.getMessage(), containsString("[span] provided [64] must not be greater than [max_sequence_length] provided [32]"));
+    }
+
+    public void testUpdateWindowSettings_InvalidWindowSize() {
+        var tokenization = new BertTokenization(true, true, 100, Tokenization.Truncate.FIRST, -1);
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> tokenization.updateWindowSettings(new Tokenization.SpanSettings(32, 64))
+        );
+        assertThat(e.getMessage(), containsString("[span] provided [64] must not be greater than [max_sequence_length] provided [32]"));
     }
 
     public static BertTokenization createRandom() {

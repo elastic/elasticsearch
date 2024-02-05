@@ -1,0 +1,5 @@
+pr: 104982
+summary: "[Connectors API] Add new field `api_key_secret_id` to Connector"
+area: Application
+type: enhancement
+issues: []

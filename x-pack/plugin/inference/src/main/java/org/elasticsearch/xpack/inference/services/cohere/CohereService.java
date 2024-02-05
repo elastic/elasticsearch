@@ -13,7 +13,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -123,6 +126,7 @@ public class CohereService extends SenderService {
         Model model,
         List<String> input,
         Map<String, Object> taskSettings,
+        InputType inputType,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof CohereModel == false) {
@@ -133,8 +137,20 @@ public class CohereService extends SenderService {
         CohereModel cohereModel = (CohereModel) model;
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
-        var action = cohereModel.accept(actionCreator, taskSettings);
+        var action = cohereModel.accept(actionCreator, taskSettings, inputType);
         action.execute(input, listener);
+    }
+
+    @Override
+    protected void doChunkedInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ChunkingOptions chunkingOptions,
+        ActionListener<ChunkedInferenceServiceResults> listener
+    ) {
+        listener.onFailure(new ElasticsearchStatusException("Chunking not supported by the {} service", RestStatus.BAD_REQUEST, NAME));
     }
 
     /**
@@ -174,6 +190,6 @@ public class CohereService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED;
+        return TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED;
     }
 }

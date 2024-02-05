@@ -27,7 +27,7 @@ import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
-import java.util.ArrayDeque;
+import java.util.LinkedList;
 import java.util.Queue;
 
 /**
@@ -38,7 +38,7 @@ import java.util.Queue;
 public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
 
     public static final int MAX_BYTES_PER_WRITE = 1 << 18;
-    private final Queue<WriteOperation> queuedWrites = new ArrayDeque<>();
+    private final Queue<WriteOperation> queuedWrites = new LinkedList<>();
 
     private final ThreadContext threadContext;
     private WriteOperation currentWrite;

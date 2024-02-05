@@ -169,13 +169,16 @@ public class Netty4WriteThrottlingHandlerTests extends ESTestCase {
         if (message instanceof ByteBuf buf) {
             assertSame(expected, buf);
         } else {
-            assertEquals(expected, Netty4Utils.toByteBuf((BytesReference) message));
+            assertEquals(expected, Netty4Utils.toByteBuf(asInstanceOf(BytesReference.class, message)));
         }
     }
 
     private static void assertSliceEquals(ByteBuf expected, Object message, int index, int length) {
         assertEquals(
-            (message instanceof ByteBuf buf ? buf : Netty4Utils.toByteBuf((BytesReference) message)).slice(index, length),
+            (message instanceof ByteBuf buf ? buf : Netty4Utils.toByteBuf(asInstanceOf(BytesReference.class, message))).slice(
+                index,
+                length
+            ),
             expected
         );
     }

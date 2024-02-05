@@ -100,10 +100,8 @@ class DateTimeParser {
         for (pos = 20; pos < len && pos < 29; pos++) {
             char c = str.charAt(pos);
             if (c < ZERO || c > NINE) break;
-            nanos = (nanos << 1) + (nanos << 3);
-            nanos -= c - ZERO;
+            nanos = nanos * 10 + (c - ZERO);
         }
-        nanos = -nanos;
 
         if (pos == 20) return Result.error(20);   // didn't find a number at all
 
@@ -182,9 +180,8 @@ class DateTimeParser {
         for (int i = startInclusive; i < endExclusive; i++) {
             char c = str.charAt(i);
             if (c < ZERO || c > NINE) return null;
-            result = (result << 1) + (result << 3);
-            result -= c - ZERO;
+            result = result * 10 + (c - ZERO);
         }
-        return -result;
+        return result;
     }
 }

@@ -47,7 +47,7 @@ class PumpThread extends Thread {
     }
 
     /**
-     * Waits for the stderr pump thread to exit.
+     * Waits for the pump thread to exit.
      */
     void drain() {
         nonInterruptibleVoid(this::join);

@@ -126,16 +126,20 @@ public class Loggers {
         setLevel(logger, level, RESTRICTED_LOGGERS);
     }
 
-    static void setLevel(Logger logger, String level, List<String> restrictedLoggers) {
-        setLevel(logger, level == null ? null : Level.valueOf(level), restrictedLoggers);
-    }
-
     // visible for testing
     static void setLevel(Logger logger, Level level, List<String> restrictedLoggers) {
         // If configuring an ancestor / root, the restriction has to be explicitly set afterward.
         boolean setRestriction = false;
 
-        if (isRootLogger(logger.getName()) == false) {
+        if (isRootLogger(logger.getName())) {
+            assert level != null : "Log level is required when configuring the root logger";
+            final LoggerContext ctx = LoggerContext.getContext(false);
+            final Configuration config = ctx.getConfiguration();
+            final LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
+            loggerConfig.setLevel(level);
+            ctx.updateLoggers();
+            setRestriction = level.isMoreSpecificThan(Level.INFO) == false;
+        } else {
             Level actual = level != null ? level : parentLoggerLevel(logger);
             if (actual.isMoreSpecificThan(Level.INFO) == false) {
                 for (String restricted : restrictedLoggers) {
@@ -149,14 +153,6 @@ public class Loggers {
                 }
             }
             Configurator.setLevel(logger.getName(), level);
-        } else {
-            assert level != null : "Log level is required when configuring the root logger";
-            final LoggerContext ctx = LoggerContext.getContext(false);
-            final Configuration config = ctx.getConfiguration();
-            final LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
-            loggerConfig.setLevel(level);
-            ctx.updateLoggers();
-            setRestriction = level.isMoreSpecificThan(Level.INFO) == false;
         }
 
         // we have to descend the hierarchy

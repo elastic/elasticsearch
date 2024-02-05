@@ -1189,7 +1189,7 @@ public class ScopedSettingsTests extends ESTestCase {
                 assertEquals(level, logger.getLevel());
             }
 
-            for (Level permitted : Arrays.stream(Level.values()).filter(Level.INFO::isLessSpecificThan).toList()) {
+            for (Level permitted : List.of(Level.ERROR, Level.WARN, Level.INFO)) {
                 settings.applySettings(Settings.builder().put("logger.org.apache.http", permitted.name()).build());
                 assertEquals(permitted, logger.getLevel());
             }

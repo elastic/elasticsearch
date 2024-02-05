@@ -20,6 +20,7 @@ import java.util.List;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LoggersTests extends ESTestCase {
@@ -103,7 +104,7 @@ public class LoggersTests extends ESTestCase {
 
     private static void assertHasINFO(Logger... loggers) {
         for (Logger log : loggers) {
-            assertEquals("Log level of [" + log.getName() + "]", Level.INFO, log.getLevel());
+            assertThat("Unexpected log level for [" + log.getName() + "]", log.getLevel(), is(Level.INFO));
         }
     }
 }

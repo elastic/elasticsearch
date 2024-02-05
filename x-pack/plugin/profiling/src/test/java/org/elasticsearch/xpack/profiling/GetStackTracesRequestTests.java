@@ -50,7 +50,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             assertEquals("@timestamp", ((RangeQueryBuilder) request.getQuery()).fieldName());
             // Expect the default values
             assertNull(request.getIndices());
-            assertNull(request.getStackTraceIds());
+            assertNull(request.getStackTraceIdsField());
             assertNull(request.getAwsCostFactor());
             assertNull(request.getCustomCO2PerKWH());
             assertNull(request.getCustomDatacenterPUE());
@@ -66,7 +66,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             .startObject()
                 .field("sample_size", 2000)
                 .field("indices", "my-traces")
-                .field("stacktrace_ids", "stacktraces")
+                .field("stacktrace_ids_field", "stacktraces")
                 .startObject("query")
                     .startObject("range")
                         .startObject("@timestamp")
@@ -83,7 +83,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
 
             assertEquals(2000, request.getSampleSize());
             assertEquals("my-traces", request.getIndices());
-            assertEquals("stacktraces", request.getStackTraceIds());
+            assertEquals("stacktraces", request.getStackTraceIdsField());
             // a basic check suffices here
             assertEquals("@timestamp", ((RangeQueryBuilder) request.getQuery()).fieldName());
 
@@ -138,7 +138,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
 
             // Expect the default values
             assertNull(request.getIndices());
-            assertNull(request.getStackTraceIds());
+            assertNull(request.getStackTraceIdsField());
         }
     }
 
@@ -217,7 +217,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
         );
         List<String> validationErrors = request.validate().validationErrors();
         assertEquals(1, validationErrors.size());
-        assertEquals("[stacktrace_ids] must not be set", validationErrors.get(0));
+        assertEquals("[stacktrace_ids_field] must not be set", validationErrors.get(0));
     }
 
     public void testValidateIndicesWithoutStacktraces() {
@@ -236,7 +236,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
         );
         List<String> validationErrors = request.validate().validationErrors();
         assertEquals(1, validationErrors.size());
-        assertEquals("[stacktrace_ids] is mandatory", validationErrors.get(0));
+        assertEquals("[stacktrace_ids_field] is mandatory", validationErrors.get(0));
     }
 
     public void testConsidersCustomIndicesInRelatedIndices() {

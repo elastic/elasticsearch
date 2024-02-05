@@ -1,0 +1,5 @@
+pr: 104909
+summary: "[Connectors API] Relax strict response parsing for get/list operations"
+area: Application
+type: enhancement
+issues: []

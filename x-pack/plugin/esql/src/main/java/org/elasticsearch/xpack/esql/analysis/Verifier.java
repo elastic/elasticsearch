@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equa
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -29,8 +30,10 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunctio
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -134,6 +137,7 @@ public class Verifier {
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
         });
+        checkRemoteEnrich(plan, failures);
 
         // gather metrics
         if (failures.isEmpty()) {
@@ -350,5 +354,47 @@ public class Verifier {
             );
         }
         return null;
+    }
+
+    /**
+     * Ensure that no remote enrich is allowed after a reduction or an enrich with coordinator mode.
+     * <p>
+     * TODO:
+     * For Limit and TopN, we can insert the same node after the remote enrich (also needs to move projections around)
+     * to eliminate this limitation. Otherwise, we force users to write queries that might not perform well.
+     * For example, `FROM test | ORDER @timestamp | LIMIT 10 | ENRICH[ccq.mode:remote]` doesn't work.
+     * In that case, users have to write it as `FROM test | ENRICH[ccq.mode:remote] | ORDER @timestamp | LIMIT 10`,
+     * which is equivalent to bringing all data to the coordinating cluster.
+     * We might consider implementing the actual remote enrich on the coordinating cluster, however, this requires
+     * retaining the originating cluster and restructing pages for routing, which might be complicated.
+     */
+    private static void checkRemoteEnrich(LogicalPlan plan, Set<Failure> failures) {
+        boolean[] agg = { false };
+        boolean[] limit = { false };
+        boolean[] enrichCoord = { false };
+
+        plan.forEachUp(UnaryPlan.class, u -> {
+            if (u instanceof Limit) {
+                limit[0] = true; // TODO: Make Limit then enrich_remote work
+            }
+            if (u instanceof Aggregate) {
+                agg[0] = true;
+            } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
+                enrichCoord[0] = true;
+            }
+            if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
+                if (limit[0]) {
+                    failures.add(fail(enrich, "enrich with [ccq.mode:remote] can't be executed after LIMIT"));
+                }
+                if (agg[0]) {
+                    failures.add(fail(enrich, "enrich with [ccq.mode:remote] can't be executed after STATS"));
+                }
+                if (enrichCoord[0]) {
+                    failures.add(
+                        fail(enrich, "enrich with [ccq.mode:remote] can't be executed after another enrich with [ccq.mode:coordinator]")
+                    );
+                }
+            }
+        });
     }
 }

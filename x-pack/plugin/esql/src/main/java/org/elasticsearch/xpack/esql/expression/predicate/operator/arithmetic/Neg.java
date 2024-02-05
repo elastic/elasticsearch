@@ -99,7 +99,7 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() || isTemporalAmount(dt),
+            dt -> dt != DataTypes.UNSIGNED_LONG && (dt.isNumeric() || isTemporalAmount(dt)),
             sourceText(),
             DEFAULT,
             "numeric",

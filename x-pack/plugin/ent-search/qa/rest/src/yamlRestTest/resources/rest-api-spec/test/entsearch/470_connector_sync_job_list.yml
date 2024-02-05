@@ -166,6 +166,66 @@ setup:
   - match: { count: 1 }
   - match: { results.0.id: $sync-job-one-id }
 
+---
+"List Connector Sync Jobs - with invalid job status":
+  - do:
+      catch: bad_request
+      connector_sync_job.list:
+        status: invalid_job_status
+
+---
+"List Connector Sync Jobs - Get jobs with single job type":
+  - do:
+      connector_sync_job.post:
+        body:
+          id: connector-one
+          job_type: full
+          trigger_method: scheduled
+  - set: { id: sync-job-one-id }
+  - do:
+      connector_sync_job.post:
+        body:
+          id: connector-one
+          job_type: incremental
+          trigger_method: scheduled
+  - set: { id: sync-job-two-id }
+  - do:
+      connector_sync_job.list:
+        connector_id: connector-one
+        job_type: full
+  - match: { count: 1 }
+  - match: { results.0.id: $sync-job-one-id }
+
+---
+"List Connector Sync Jobs - Get jobs with multiple job types":
+  - do:
+      connector_sync_job.post:
+        body:
+          id: connector-one
+          job_type: full
+          trigger_method: scheduled
+  - set: { id: sync-job-one-id }
+  - do:
+      connector_sync_job.post:
+        body:
+          id: connector-one
+          job_type: incremental
+          trigger_method: scheduled
+  - set: { id: sync-job-two-id }
+  - do:
+      connector_sync_job.list:
+        connector_id: connector-one
+        job_type: full,incremental
+  - match: { count: 2 }
+  - match: { results.0.id: $sync-job-one-id }
+  - match: { results.1.id: $sync-job-two-id }
+
+---
+"List Connector Sync Jobs - with invalid job type":
+  - do:
+      catch: bad_request
+      connector_sync_job.list:
+        job_type: invalid_job_type,incremental
 
 ---
 "List Connector Sync Jobs - empty list":

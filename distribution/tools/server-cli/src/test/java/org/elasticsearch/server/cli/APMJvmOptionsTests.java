@@ -108,7 +108,6 @@ public class APMJvmOptionsTests extends ESTestCase {
 
     public void testExtractSettings() throws UserException {
         Function<String, Settings.Builder> buildSettings = (prefix) -> Settings.builder()
-            .put("tracing.apm.enabled", true)
             .put(prefix + "server_url", "https://myurl:443")
             .put(prefix + "service_node_name", "instance-0000000001");
 
@@ -158,7 +157,6 @@ public class APMJvmOptionsTests extends ESTestCase {
             IllegalStateException.class,
             () -> APMJvmOptions.extractApmSettings(
                 Settings.builder()
-                    .put("tracing.apm.enabled", true)
                     .put("tracing.apm.agent.server_url", "https://myurl:443")
                     .put("telemetry.agent.server_url", "https://myurl-2:443")
                     .build()

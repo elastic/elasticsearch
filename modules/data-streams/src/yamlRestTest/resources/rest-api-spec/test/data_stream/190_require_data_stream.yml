@@ -60,10 +60,8 @@
 ---
 "Testing require_data_stream in bulk requests":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/104774"
-      #version: " - 8.12.99"
-      #reason: "require_data_stream was introduced in 8.13.0"
+      version: " - 8.12.99"
+      reason: "require_data_stream was introduced in 8.13.0"
       features: allowed_warnings
 
   - do:
@@ -109,7 +107,7 @@
 
   - do:
       allowed_warnings:
-        - "index template [other-template] has index patterns [ds-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [other-template] will take precedence during new index creation"
+        - "index template [other-template] has index patterns [other-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [other-template] will take precedence during new index creation"
       indices.put_index_template:
         name: other-template
         body:

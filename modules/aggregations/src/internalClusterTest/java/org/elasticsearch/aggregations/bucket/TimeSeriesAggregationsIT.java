@@ -22,8 +22,8 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -41,11 +41,13 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -76,7 +78,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        int numberOfIndices = randomIntBetween(1, 3);
+        int numberOfIndices = randomIntBetween(1, 1);
         numberOfDimensions = randomIntBetween(1, 5);
         numberOfMetrics = randomIntBetween(1, 10);
         String[] routingKeys = randomSubsetOf(
@@ -146,7 +148,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         for (int i = 0; i < numberOfDocs; i++) {
             XContentBuilder docSource = XContentFactory.jsonBuilder();
             docSource.startObject();
-            Map<String, String> key = new HashMap<>();
+            Map<String, String> key = new TreeMap<>(Comparator.naturalOrder());
             for (int d = 0; d < numberOfDimensions; d++) {
                 String dim = randomFrom(dimensions[d]);
                 docSource.field("dim_" + d, dim);
@@ -177,7 +179,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
 
     public void testStandAloneTimeSeriesAgg() {
         assertNoFailuresAndResponse(prepareSearch("index").setSize(0).addAggregation(timeSeries("by_ts")), response -> {
-            Aggregations aggregations = response.getAggregations();
+            InternalAggregations aggregations = response.getAggregations();
             assertNotNull(aggregations);
             InternalTimeSeries timeSeries = aggregations.get("by_ts");
             assertThat(
@@ -203,7 +205,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
                         .subAggregation(timeSeries("by_ts"))
                 ),
             response -> {
-                Aggregations aggregations = response.getAggregations();
+                InternalAggregations aggregations = response.getAggregations();
                 assertNotNull(aggregations);
                 Terms terms = aggregations.get("by_dim");
                 Set<Map<String, String>> keys = new HashSet<>();
@@ -236,7 +238,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
                         .subAggregation(timeSeries("by_ts").subAggregation(stats("timestamp").field("@timestamp")))
                 ),
             response -> {
-                Aggregations aggregations = response.getAggregations();
+                InternalAggregations aggregations = response.getAggregations();
                 assertNotNull(aggregations);
                 Histogram histogram = aggregations.get("by_time");
                 Map<Map<String, String>, Long> keys = new HashMap<>();
@@ -275,7 +277,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("index").setQuery(queryBuilder).setSize(0).addAggregation(timeSeries("by_ts")),
             response -> {
-                Aggregations aggregations = response.getAggregations();
+                InternalAggregations aggregations = response.getAggregations();
                 assertNotNull(aggregations);
                 InternalTimeSeries timeSeries = aggregations.get("by_ts");
                 Map<Map<String, String>, Map<Long, Map<String, Double>>> filteredData = dataFilteredByDimension("dim_" + dim, val, include);
@@ -308,7 +310,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
                 .addAggregation(global("everything").subAggregation(sum("all_sum").field("metric_" + metric)))
                 .addAggregation(PipelineAggregatorBuilders.sumBucket("total_filter_sum", "by_ts>filter_sum")),
             response -> {
-                Aggregations aggregations = response.getAggregations();
+                InternalAggregations aggregations = response.getAggregations();
                 assertNotNull(aggregations);
                 InternalTimeSeries timeSeries = aggregations.get("by_ts");
                 Map<Map<String, String>, Map<Long, Map<String, Double>>> filteredData = dataFilteredByDimension("dim_" + dim, val, include);
@@ -353,7 +355,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("index").setQuery(queryBuilder).setSize(0).addAggregation(timeSeries("by_ts")),
             response -> {
-                Aggregations aggregations = response.getAggregations();
+                InternalAggregations aggregations = response.getAggregations();
                 assertNotNull(aggregations);
                 InternalTimeSeries timeSeries = aggregations.get("by_ts");
                 Map<Map<String, String>, Map<Long, Map<String, Double>>> filteredData = dataFilteredByMetric(

@@ -166,10 +166,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> CROSS_CLUSTER_SEARCH_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
         RemoteClusterNodesAction.TYPE.name(),
-        XPackInfoAction.NAME,
-        // "cluster:monitor/xpack/enrich/*",
-        // "cluster:admin/xpack/enrich/get",
-        "cluster:monitor/xpack/enrich/esql/resolve_policy"
+        XPackInfoAction.NAME
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,

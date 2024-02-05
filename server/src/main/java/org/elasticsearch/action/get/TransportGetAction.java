@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
@@ -194,6 +193,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         ShardId shardId = indexShard.shardId();
         if (request.refresh()) {
             var node = getCurrentNodeOfPrimary(clusterService.state(), shardId);
+            if (node == null) {
+                listener.onFailure(new NoShardAvailableActionException(shardId, "primary shard is not active"));
+                return;
+            }
             logger.trace("send refresh action for shard {} to node {}", shardId, node.getId());
             var refreshRequest = new BasicReplicationRequest(shardId);
             refreshRequest.setParentTask(request.getParentTask());
@@ -230,10 +233,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         tryGetFromTranslog(request, indexShard, state, listener.delegateResponse((l, e) -> {
             final var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("get_from_translog failed", cause);
-            if (cause instanceof ShardNotFoundException
-                || cause instanceof IndexNotFoundException
-                || cause instanceof NoShardAvailableActionException
-                || cause instanceof UnavailableShardsException) {
+            if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
                 logger.debug("retrying get_from_translog");
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -260,6 +260,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     private void tryGetFromTranslog(GetRequest request, IndexShard indexShard, ClusterState state, ActionListener<GetResponse> listener) {
         ShardId shardId = indexShard.shardId();
         var node = getCurrentNodeOfPrimary(state, shardId);
+        if (node == null) {
+            listener.onFailure(new NoShardAvailableActionException(shardId, "primary shard is not active"));
+            return;
+        }
         TransportGetFromTranslogAction.Request getFromTranslogRequest = new TransportGetFromTranslogAction.Request(request, shardId);
         getFromTranslogRequest.setParentTask(request.getParentTask());
         transportService.sendRequest(
@@ -296,7 +300,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     static DiscoveryNode getCurrentNodeOfPrimary(ClusterState clusterState, ShardId shardId) {
         var shardRoutingTable = clusterState.routingTable().shardRoutingTable(shardId);
         if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
-            throw new NoShardAvailableActionException(shardId, "primary shard is not active");
+            return null;
         }
         DiscoveryNode node = clusterState.nodes().get(shardRoutingTable.primaryShard().currentNodeId());
         assert node != null;

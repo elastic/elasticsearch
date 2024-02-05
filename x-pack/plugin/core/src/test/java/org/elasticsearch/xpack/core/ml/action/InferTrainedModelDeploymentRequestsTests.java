@@ -61,6 +61,7 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
         }
         request.setHighPriority(randomBoolean());
         request.setPrefixType(randomFrom(TrainedModelPrefixStrings.PrefixType.values()));
+        request.setChunkResults(randomBoolean());
         return request;
     }
 

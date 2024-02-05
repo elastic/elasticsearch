@@ -68,7 +68,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.mockito.Mockito.mock;
@@ -78,7 +77,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
     public void testAuditOnFinishFrequency() {
         ClientTransformIndexer indexer = createTestIndexer();
-        List<Boolean> shouldAudit = IntStream.range(0, 100_000).boxed().map(indexer::shouldAuditOnFinish).collect(Collectors.toList());
+        List<Boolean> shouldAudit = IntStream.range(0, 100_000).boxed().map(indexer::shouldAuditOnFinish).toList();
 
         // Audit every checkpoint for the first 10
         assertTrue(shouldAudit.get(0));

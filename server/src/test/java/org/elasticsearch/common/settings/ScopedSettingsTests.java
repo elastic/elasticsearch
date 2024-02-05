@@ -20,6 +20,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.NetworkTraceFlag;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
@@ -1174,6 +1175,8 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testLoggingUpdateForRestrictedLogger() {
+        assumeFalse("Skipped, if TRACE_ENABLED restricted loggers are permitted", NetworkTraceFlag.TRACE_ENABLED);
+
         // 'org.apache.http' is an example of a restricted logger
         final Logger logger = LogManager.getLogger("org.apache.http");
         final Level level = logger.getLevel();

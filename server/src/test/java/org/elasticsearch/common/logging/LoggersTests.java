@@ -31,26 +31,28 @@ public class LoggersTests extends ESTestCase {
         Logger apacheHttpLogger = LogManager.getLogger("org.apache.http");
         Logger apacheLogger = LogManager.getLogger("org.apache");
 
-        Loggers.setLevel(apacheHttpLogger, Level.INFO);
+        List<String> restrictedLoggers = List.of(apacheHttpLogger.getName());
+
+        Loggers.setLevel(apacheHttpLogger, Level.INFO, restrictedLoggers);
         assertHasINFO(apacheHttpLogger, apacheHttpClientLogger);
 
         for (Logger log : List.of(apacheHttpClientLogger, apacheHttpLogger)) {
             // DEBUG is rejected due to restriction
-            Loggers.setLevel(log, Level.DEBUG);
+            Loggers.setLevel(log, Level.DEBUG, restrictedLoggers);
             assertHasINFO(apacheHttpClientLogger, apacheHttpLogger);
         }
 
         // OK for parent `org.apache`, but restriction is enforced for restricted descendants
-        Loggers.setLevel(apacheLogger, Level.DEBUG);
+        Loggers.setLevel(apacheLogger, Level.DEBUG, restrictedLoggers);
         assertEquals(Level.DEBUG, apacheLogger.getLevel());
         assertHasINFO(apacheHttpClientLogger, apacheHttpLogger);
 
         // Inheriting DEBUG of parent `org.apache` is rejected
-        Loggers.setLevel(apacheHttpLogger, (Level) null);
+        Loggers.setLevel(apacheHttpLogger, (Level) null, restrictedLoggers);
         assertHasINFO(apacheHttpClientLogger, apacheHttpLogger);
 
         // DEBUG of root logger isn't propagated to restricted loggers
-        Loggers.setLevel(LogManager.getRootLogger(), Level.DEBUG);
+        Loggers.setLevel(LogManager.getRootLogger(), Level.DEBUG, restrictedLoggers);
         assertEquals(Level.DEBUG, LogManager.getRootLogger().getLevel());
         assertHasINFO(apacheHttpClientLogger, apacheHttpLogger);
     }

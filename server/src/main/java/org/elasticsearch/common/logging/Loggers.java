@@ -19,6 +19,7 @@ import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.NetworkTraceFlag;
 
 import java.util.Arrays;
 import java.util.List;
@@ -34,8 +35,13 @@ public class Loggers {
 
     public static final String SPACE = " ";
 
-    /** Restricted loggers can't be set to a level less specific than INFO. */
-    private static final List<String> RESTRICTED_LOGGERS = List.of("org.apache.http");
+    /**
+     * Restricted loggers can't be set to a level less specific than INFO.
+     * For some loggers this might be permitted if {@link NetworkTraceFlag#TRACE_ENABLED} is enabled.
+     */
+    private static final List<String> RESTRICTED_LOGGERS = NetworkTraceFlag.TRACE_ENABLED
+        ? List.of()
+        : List.of("org.apache.http", "com.amazonaws.request");
 
     public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING = new Setting<>(
         "logger.level",

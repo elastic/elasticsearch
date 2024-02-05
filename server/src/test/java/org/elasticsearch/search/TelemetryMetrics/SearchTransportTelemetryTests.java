@@ -95,6 +95,7 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
         ); // getNumShards(indexName).numPrimaries
 
         assertScrollResponsesAndHitCount(
+            client(),
             TimeValue.timeValueSeconds(60),
             prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setSize(1).setQuery(simpleQueryStringQuery("foo")),
             2,

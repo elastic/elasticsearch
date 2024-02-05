@@ -168,6 +168,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -2023,7 +2024,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indexNameExpressionResolver,
                         namedWriteableRegistry,
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                        new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                        new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                        new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
                     )
                 );
                 actions.put(

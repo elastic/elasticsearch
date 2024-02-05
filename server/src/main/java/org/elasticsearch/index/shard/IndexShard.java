@@ -13,12 +13,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -226,7 +224,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReplicationTracker replicationTracker;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final Engine.IndexCommitListener indexCommitListener;
-    private final Map<String, Boolean> fieldHasValue;
+    private FieldInfos fieldInfos;
     // sys prop to disable the field has value feature, defaults to true (enabled) if set to false (disabled) the
     // field caps always returns empty fields ignoring the value of the query param `include_fields_with_no_value`.
     private final boolean enableFieldHasValue = Booleans.parseBoolean(System.getProperty("es.field_has_value", Boolean.TRUE.toString()));
@@ -321,8 +319,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
-        final Engine.IndexCommitListener indexCommitListener,
-        final Map<String, Boolean> fieldHasValue
+        final Engine.IndexCommitListener indexCommitListener
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -408,7 +405,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshFieldHasValueListener = new RefreshFieldHasValueListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.fieldHasValue = fieldHasValue; // fieldHasValue Map is shared between all shards for a certain index in a data node
+        this.fieldInfos = FieldInfos.EMPTY;
     }
 
     public ThreadPool getThreadPool() {
@@ -998,13 +995,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return index(engine, operation);
     }
 
-    public void setFieldHasValue(String fieldName) {
-        fieldHasValue.putIfAbsent(fieldName, true);
+    public void fieldInfos(FieldInfos fieldInfos) {
+        this.fieldInfos = fieldInfos;
     }
 
-    public boolean fieldHasValue(String fieldName) {
-        if (enableFieldHasValue == false) return true; // if we disable the feature we always return that a certain field has value]
-        return fieldHasValue.getOrDefault(fieldName, false);
+    public FieldInfos fieldInfos() {
+        return fieldInfos;
     }
 
     public static Engine.Index prepareIndex(
@@ -3997,13 +3993,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         public void afterRefresh(boolean didRefresh) throws IOException {
             if (enableFieldHasValue && didRefresh) {
                 try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
-                    IndexReader hasValueReader = hasValueSearcher.getIndexReader();
-                    for (LeafReaderContext leaf : hasValueReader.leaves()) {
-                        LeafReader leafReader = leaf.reader();
-                        for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
-                            setFieldHasValue(fieldInfo.getName());
-                        }
-                    }
+                    fieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
                 }
             }
         }

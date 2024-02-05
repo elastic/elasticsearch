@@ -13,7 +13,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -160,7 +159,7 @@ class FieldCapabilitiesFetcher {
                 continue;
             }
             MappedFieldType ft = context.getFieldType(field);
-            boolean includeField = includeFieldsWithNoValue || indexShard.fieldHasValue(ft.name()) || ft instanceof ConstantFieldType;
+            boolean includeField = includeFieldsWithNoValue || ft.fieldHasValue(indexShard.fieldInfos());
             if (includeField && filter.test(ft)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,

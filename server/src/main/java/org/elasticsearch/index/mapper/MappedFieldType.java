@@ -9,6 +9,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
@@ -630,6 +632,22 @@ public abstract class MappedFieldType {
                 + typeName()
                 + "]."
         );
+    }
+
+    /** //TODO-MP check javadoc
+     * This method is used to support _field_caps when include_fields_with_no_value is
+     * set to false. In that case we return only fields with value in an index. This
+     * method gets as input FieldInfos and check if the MappedFieldType#name is present.
+     * @param fieldInfos field information for the current shard
+     * @return {@code true} if field had ever value in the current shard {@code false} otherwise
+     */
+    public boolean fieldHasValue(FieldInfos fieldInfos) {
+        for (FieldInfo fieldInfo : fieldInfos) {
+            if (fieldInfo.getName().equals(name())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

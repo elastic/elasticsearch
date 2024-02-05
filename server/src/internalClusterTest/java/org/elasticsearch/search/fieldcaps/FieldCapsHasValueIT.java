@@ -49,16 +49,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate(INDEX3).setWaitForActiveShards(ActiveShardCount.ALL)
                 .setSettings(indexSettings())
-                .setMapping(
-                    "nested_type",
-                    "type=nested",
-                    "object.sub_field",
-                    "type=keyword,store=true",
-                    "fooRank",
-                    "type=rank_feature",
-                    "barRank",
-                    "type=rank_feature"
-                )
+                .setMapping("nested_type", "type=nested", "object.sub_field", "type=keyword,store=true")
         );
         assertAcked(indicesAdmin().prepareAliases().addAlias(INDEX1, ALIAS1));
     }
@@ -474,7 +465,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         assertNull(response.getField("bar"));
     }
 
-    public void testRuntimeMappingsNotReturned() {
+    public void testRuntimeMappingsAlwaysReturned() {
         Map<String, Object> runtimeFields = new HashMap<>();
         runtimeFields.put("day_of_week", Collections.singletonMap("type", "keyword"));
         FieldCapabilitiesResponse response = client().prepareFieldCaps()
@@ -482,7 +473,16 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
             .setRuntimeFields(runtimeFields)
             .setIncludeFieldsWithNoValue(false)
             .get();
-        assertNull(response.getField("day_of_week"));
+        assertIndices(response, INDEX1, INDEX2, INDEX3);
+        assertThat(response.get(), Matchers.hasKey("day_of_week"));
+        // Check the capabilities for the 'foo' field.
+        Map<String, FieldCapabilities> fooField = response.getField("day_of_week");
+        assertEquals(1, fooField.size());
+        assertThat(fooField, Matchers.hasKey("keyword"));
+        assertEquals(
+            new FieldCapabilities("day_of_week", "keyword", false, true, true, null, null, null, Collections.emptyMap()),
+            fooField.get("keyword")
+        );
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {

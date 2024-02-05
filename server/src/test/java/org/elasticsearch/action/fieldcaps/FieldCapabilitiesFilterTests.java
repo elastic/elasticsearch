@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.apache.lucene.index.FieldInfos;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -18,7 +19,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -235,7 +235,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
 
     private IndexShard getMockIndexShard() {
         IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.fieldHasValue(anyString())).thenReturn(randomBoolean());
+        when(indexShard.fieldInfos()).thenReturn(FieldInfos.EMPTY);
         return indexShard;
     }
 

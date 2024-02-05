@@ -62,6 +62,8 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
+
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
@@ -137,10 +139,10 @@ public final class SearchPhaseController {
         if (request.hasKnnSearch() == false) {
             return null;
         }
-
-        List<List<TopDocs>> topDocsLists = new ArrayList<>(request.source().knnSearch().size());
-        List<SetOnce<String>> nestedPath = new ArrayList<>(request.source().knnSearch().size());
-        for (int i = 0; i < request.source().knnSearch().size(); i++) {
+        SearchSourceBuilder source = request.source();
+        List<List<TopDocs>> topDocsLists = new ArrayList<>(source.knnSearch().size());
+        List<SetOnce<String>> nestedPath = new ArrayList<>(source.knnSearch().size());
+        for (int i = 0; i < source.knnSearch().size(); i++) {
             topDocsLists.add(new ArrayList<>());
             nestedPath.add(new SetOnce<>());
         }
@@ -159,9 +161,9 @@ public final class SearchPhaseController {
             }
         }
 
-        List<DfsKnnResults> mergedResults = new ArrayList<>(request.source().knnSearch().size());
-        for (int i = 0; i < request.source().knnSearch().size(); i++) {
-            TopDocs mergedTopDocs = TopDocs.merge(request.source().knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
+        List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
+        for (int i = 0; i < source.knnSearch().size(); i++) {
+            TopDocs mergedTopDocs = TopDocs.merge(source.knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
             mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
         }
         return mergedResults;
@@ -706,12 +708,10 @@ public final class SearchPhaseController {
      */
     static int getTopDocsSize(SearchRequest request) {
         if (request.source() == null) {
-            return SearchService.DEFAULT_SIZE;
+            return DEFAULT_SIZE;
         }
         SearchSourceBuilder source = request.source();
-        return (source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size()) + (source.from() == -1
-            ? SearchService.DEFAULT_FROM
-            : source.from());
+        return (source.size() == -1 ? DEFAULT_SIZE : source.size()) + (source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
     }
 
     public record ReducedQueryPhase(

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.VerificationException;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
@@ -240,6 +241,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
         enrichResolution.addResolvedPolicy(
+            "departments",
+            Enrich.Mode.REMOTE,
+            new ResolvedEnrichPolicy(
+                "employee_id",
+                EnrichPolicy.MATCH_TYPE,
+                List.of("department"),
+                Map.of("cluster_1", ".enrich-departments-2"),
+                Map.of("department", new EsField("department", DataTypes.KEYWORD, Map.of(), true))
+            )
+        );
+        enrichResolution.addResolvedPolicy(
             "supervisors",
             Enrich.Mode.ANY,
             new ResolvedEnrichPolicy(
@@ -258,6 +270,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("", ".enrich-supervisors-c"),
+                Map.of("supervisor", new EsField("supervisor", DataTypes.KEYWORD, Map.of(), true))
+            )
+        );
+        enrichResolution.addResolvedPolicy(
+            "supervisors",
+            Enrich.Mode.REMOTE,
+            new ResolvedEnrichPolicy(
+                "department",
+                EnrichPolicy.MATCH_TYPE,
+                List.of("supervisor"),
+                Map.of("cluster_1", ".enrich-supervisors-b"),
                 Map.of("supervisor", new EsField("supervisor", DataTypes.KEYWORD, Map.of(), true))
             )
         );
@@ -2758,6 +2781,75 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var eval = as(fragment.fragment(), Eval.class);
             as(eval.child(), EsRelation.class);
         }
+        {
+            var plan = physicalPlan("""
+                from test
+                | eval employee_id = to_str(emp_no)
+                | ENRICH[ccq.mode:remote] departments
+                | STATS size=count(*) BY department""");
+            var limit = as(plan, LimitExec.class);
+            var finalAggs = as(limit.child(), AggregateExec.class);
+            assertThat(finalAggs.getMode(), equalTo(FINAL));
+            var exchange = as(finalAggs.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialAggs = as(fragment.fragment(), Aggregate.class);
+            var enrich = as(partialAggs.child(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), Eval.class);
+            as(eval.child(), EsRelation.class);
+        }
+    }
+
+    public void testEnrichAfterAggregation() {
+        {
+            var plan = physicalPlan("""
+                from test
+                | STATS size=count(*) BY emp_no
+                | eval employee_id = to_str(emp_no)
+                | ENRICH[ccq.mode:any] departments
+                """);
+            var enrich = as(plan, EnrichExec.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.ANY));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), EvalExec.class);
+            var limit = as(eval.child(), LimitExec.class);
+            var finalAggs = as(limit.child(), AggregateExec.class);
+            assertThat(finalAggs.getMode(), equalTo(FINAL));
+            var exchange = as(finalAggs.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialAggs = as(fragment.fragment(), Aggregate.class);
+            as(partialAggs.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                from test
+                | STATS size=count(*) BY emp_no
+                | eval employee_id = to_str(emp_no)
+                | ENRICH[ccq.mode:coordinator] departments
+                """);
+            var enrich = as(plan, EnrichExec.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.COORDINATOR));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-3")));
+            var eval = as(enrich.child(), EvalExec.class);
+            var limit = as(eval.child(), LimitExec.class);
+            var finalAggs = as(limit.child(), AggregateExec.class);
+            assertThat(finalAggs.getMode(), equalTo(FINAL));
+            var exchange = as(finalAggs.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialAggs = as(fragment.fragment(), Aggregate.class);
+            as(partialAggs.child(), EsRelation.class);
+        }
+    }
+
+    public void testAggThenEnrichRemote() {
+        var error = expectThrows(VerificationException.class, () -> physicalPlan("""
+            from test
+            | STATS size=count(*) BY emp_no
+            | eval employee_id = to_str(emp_no)
+            | ENRICH[ccq.mode:remote] departments
+            """));
+        assertThat(error.getMessage(), containsString("line 4:3: enrich with [ccq.mode:remote] can't be executed after STATS"));
     }
 
     public void testEnrichBeforeLimit() {
@@ -2793,6 +2885,69 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var partialLimit = as(fragment.fragment(), Limit.class);
             as(partialLimit.child(), EsRelation.class);
         }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH[ccq.mode:remote] departments
+                | LIMIT 10""");
+            var enrich = as(plan, EnrichExec.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), EvalExec.class);
+            var finalLimit = as(eval.child(), LimitExec.class);
+            var exchange = as(finalLimit.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialLimit = as(fragment.fragment(), Limit.class);
+            as(partialLimit.child(), EsRelation.class);
+        }
+    }
+
+    public void testLimitThenEnrich() {
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | LIMIT 10
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH[ccq.mode:any] departments
+                """);
+            var enrich = as(plan, EnrichExec.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.ANY));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), EvalExec.class);
+            var finalLimit = as(eval.child(), LimitExec.class);
+            var exchange = as(finalLimit.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialLimit = as(fragment.fragment(), Limit.class);
+            as(partialLimit.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | LIMIT 10
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH[ccq.mode:coordinator] departments
+                """);
+            var enrich = as(plan, EnrichExec.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.COORDINATOR));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-3")));
+            var eval = as(enrich.child(), EvalExec.class);
+            var finalLimit = as(eval.child(), LimitExec.class);
+            var exchange = as(finalLimit.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialLimit = as(fragment.fragment(), Limit.class);
+            as(partialLimit.child(), EsRelation.class);
+        }
+    }
+
+    public void testLimitThenEnrichRemote() {
+        var error = expectThrows(VerificationException.class, () -> physicalPlan("""
+            FROM test
+            | LIMIT 10
+            | EVAL employee_id = to_str(emp_no)
+            | ENRICH[ccq.mode:remote] departments
+            """));
+        assertThat(error.getMessage(), containsString("line 4:3: enrich with [ccq.mode:remote] can't be executed after LIMIT"));
     }
 
     public void testEnrichBeforeTopN() {
@@ -2827,6 +2982,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var exchange = as(enrich.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var eval = as(fragment.fragment(), Eval.class);
+            as(eval.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH[ccq.mode:remote] departments
+                | SORT department
+                | LIMIT 10""");
+            var topN = as(plan, TopNExec.class);
+            var exchange = as(topN.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialTopN = as(fragment.fragment(), TopN.class);
+            var enrich = as(partialTopN.child(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), Eval.class);
             as(eval.child(), EsRelation.class);
         }
     }
@@ -2973,6 +3145,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var eval = as(fragment.fragment(), Eval.class);
             as(eval.child(), EsRelation.class);
         }
+    }
+
+    public void testRejectRemoteEnrichAfterCoordinatorEnrich() {
+        var error = expectThrows(VerificationException.class, () -> physicalPlan("""
+            from test
+            | eval employee_id = to_str(emp_no)
+            | ENRICH[ccq.mode:coordinator] departments
+            | ENRICH[ccq.mode:remote] supervisors
+            """));
+        assertThat(
+            error.getMessage(),
+            containsString("enrich with [ccq.mode:remote] can't be executed after another enrich with [ccq.mode:coordinator]")
+        );
     }
 
     @SuppressWarnings("SameParameterValue")

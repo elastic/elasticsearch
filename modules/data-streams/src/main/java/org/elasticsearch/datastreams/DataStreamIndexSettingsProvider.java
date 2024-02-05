@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -152,8 +153,9 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             // Avoid failing because index.routing_path is missing
-            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .putList(INDEX_ROUTING_PATH.getKey(), List.of("path"))
             .build();
 
         tmpIndexMetadata.settings(finalResolvedSettings);
@@ -163,6 +165,13 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             List<String> routingPaths = new ArrayList<>();
             for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
                 extractPath(routingPaths, fieldMapper);
+            }
+            for (var objectMapper : mapperService.documentMapper().mappers().objectMappers().values()) {
+                if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
+                    if (passThroughObjectMapper.containsDimensions()) {
+                        routingPaths.add(passThroughObjectMapper.fullPath() + ".*");
+                    }
+                }
             }
             for (var template : mapperService.getAllDynamicTemplates()) {
                 if (template.pathMatch().isEmpty()) {

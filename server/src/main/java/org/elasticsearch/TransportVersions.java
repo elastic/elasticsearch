@@ -167,6 +167,10 @@ public class TransportVersions {
     public static final TransportVersion DESIRED_NODE_VERSION_OPTIONAL_STRING = def(8_580_00_0);
     public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED = def(8_581_00_0);
     public static final TransportVersion ASYNC_SEARCH_STATUS_SUPPORTS_KEEP_ALIVE = def(8_582_00_0);
+    public static final TransportVersion KNN_QUERY_NUMCANDS_AS_OPTIONAL_PARAM = def(8_583_00_0);
+    public static final TransportVersion TRANSFORM_GET_BASIC_STATS = def(8_584_00_0);
+    public static final TransportVersion NLP_DOCUMENT_CHUNKING_ADDED = def(8_585_00_0);
+    public static final TransportVersion QUERY_PHASE_TIMEOUT_EXCEPTION_ADDED = def(8_586_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

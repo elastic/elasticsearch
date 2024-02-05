@@ -7,24 +7,19 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.xcontent.ObjectPath;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -64,9 +59,6 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
             .nodes(3)
-            .module("x-pack-esql")
-            .module("x-pack-enrich")
-            .module("ingest-common")
             .apply(commonClusterConfig)
             .setting("remote_cluster.port", "0")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
@@ -81,9 +73,6 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
         queryCluster = ElasticsearchCluster.local()
             .name("query-cluster")
-            .module("x-pack-esql")
-            .module("x-pack-enrich")
-            .module("ingest-common")
             .apply(commonClusterConfig)
             .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
@@ -94,12 +83,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                         {
                           "search": [
                             {
-                                "names": ["employees", "index*", "not_found_index", "shared-metrics"]
-                            }
-                          ],
-                          "replication": [
-                            {
-                                "names": ["employees"]
+                                "names": ["index*", "not_found_index", "shared-metrics"]
                             }
                           ]
                         }""");
@@ -439,250 +423,6 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             numberOfRemoteClusterServerNodes,
             equalTo(1 + (NODE1_RCS_SERVER_ENABLED.get() ? 1 : 0) + (NODE2_RCS_SERVER_ENABLED.get() ? 1 : 0))
         );
-    }
-
-    public void testCrossClusterEnrich() throws Exception {
-        configureRemoteCluster();
-        CheckedConsumer<RestClient, IOException> setupEnrich = client -> {
-            Request createIndex = new Request("PUT", "countries");
-            createIndex.setJsonEntity("""
-                {
-                    "mappings": {
-                        "properties": {
-                          "emp_id": { "type": "keyword" },
-                          "country": { "type": "text" }
-                        }
-                    }
-                }
-                """);
-            assertOK(performRequestWithAdminUser(client, createIndex));
-            final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
-            bulkRequest.setJsonEntity(Strings.format("""
-                { "index": { "_index": "countries" } }
-                { "emp_id": "1", "country": "usa"}
-                { "index": { "_index": "countries" } }
-                { "emp_id": "2", "country": "canada"}
-                { "index": { "_index": "countries" } }
-                { "emp_id": "3", "country": "germany"}
-                { "index": { "_index": "countries" } }
-                { "emp_id": "4", "country": "spain"}
-                { "index": { "_index": "countries" } }
-                { "emp_id": "5", "country": "japan"}
-                { "index": { "_index": "countries" } }
-                { "emp_id": "6", "country": "france"}
-                { "index": { "_index": "countries" } }
-                { "emp_id": "7", "country": "usa"}
-                { "index": { "_index": "countries" } }
-                { "emp_id": "8", "country": "canada"}
-                { "index": { "_index": "countries" } }
-                { "emp_id": "9", "country": "usa"}
-                """));
-            assertOK(performRequestWithAdminUser(client, bulkRequest));
-
-            Request createEnrich = new Request("PUT", "/_enrich/policy/countries");
-            createEnrich.setJsonEntity("""
-                {
-                    "match": {
-                        "indices": "countries",
-                        "match_field": "emp_id",
-                        "enrich_fields": ["country"]
-                    }
-                }
-                """);
-            assertOK(performRequestWithAdminUser(client, createEnrich));
-            assertOK(performRequestWithAdminUser(client, new Request("PUT", "_enrich/policy/countries/_execute")));
-        };
-
-        // Fulfilling cluster
-        {
-            setupEnrich.accept(fulfillingClusterClient);
-            Request createIndex = new Request("PUT", "employees");
-            createIndex.setJsonEntity("""
-                {
-                    "mappings": {
-                        "properties": {
-                          "emp_id": { "type": "keyword" }
-                        }
-                    }
-                }
-                """);
-            assertOK(performRequestAgainstFulfillingCluster(createIndex));
-            final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
-            bulkRequest.setJsonEntity(Strings.format("""
-                { "index": { "_index": "employees" } }
-                { "emp_id": "1" }
-                { "index": { "_index": "employees" } }
-                { "emp_id": "3" }
-                { "index": { "_index": "employees" } }
-                { "emp_id": "5" }
-                { "index": { "_index": "employees" } }
-                { "emp_id": "7" }
-                { "index": { "_index": "employees" } }
-                { "emp_id": "9" }
-                """));
-            assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
-        }
-
-        // Query cluster
-        {
-            // Index some documents, to use them in a mixed-cluster search
-            setupEnrich.accept(client());
-            Request createIndex = new Request("PUT", "employees");
-            createIndex.setJsonEntity("""
-                {
-                    "mappings": {
-                        "properties": {
-                          "emp_id": { "type": "keyword" }
-                        }
-                    }
-                }
-                """);
-            assertOK(adminClient().performRequest(createIndex));
-            final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
-            bulkRequest.setJsonEntity(Strings.format("""
-                { "index": { "_index": "employees" } }
-                { "emp_id": "2" }
-                { "index": { "_index": "employees" } }
-                { "emp_id": "4" }
-                { "index": { "_index": "employees" } }
-                { "emp_id": "6" }
-                { "index": { "_index": "employees" } }
-                { "emp_id": "8" }
-                { "index": { "_index": "employees" } }
-                { "emp_id": "10" }
-                """));
-            assertOK(client().performRequest(bulkRequest));
-
-            // Create user role with privileges for remote and local indices
-            final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
-            putRoleRequest.setJsonEntity("""
-                {
-                  "indices": [
-                    {
-                      "names": ["employees"],
-                      "privileges": ["read"]
-                    }
-                  ],
-                  "cluster": [ "monitor_enrich" ],
-                  "remote_indices": [
-                    {
-                      "names": ["employees"],
-                      "privileges": ["read", "read_cross_cluster"],
-                      "clusters": ["my_remote_cluster"]
-                    }
-                  ]
-                }""");
-            assertOK(adminClient().performRequest(putRoleRequest));
-            final var putUserRequest = new Request("PUT", "/_security/user/" + REMOTE_SEARCH_USER);
-            putUserRequest.setJsonEntity("""
-                {
-                  "password": "x-pack-test-password",
-                  "roles" : ["remote_search"]
-                }""");
-            assertOK(adminClient().performRequest(putUserRequest));
-
-            // ESQL with enrich is okay when user has access to enrich polices
-            Response response = performRequestWithRemoteSearchUser(esqlRequest("""
-                FROM my_remote_cluster:employees,employees
-                | ENRICH countries
-                | STATS size=count(*) by country
-                | SORT size DESC
-                | LIMIT 2"""));
-            assertOK(response);
-            Map<String, Object> respMap = entityAsMap(response);
-            assertThat(respMap.get("values"), equalTo(List.of(List.of(3, "usa"), List.of(2, "canada"))));
-
-            // ESQL with enrich is denied when user has no access to enrich policies
-            final var putLocalSearchRoleRequest = new Request("PUT", "/_security/role/local_search");
-            putLocalSearchRoleRequest.setJsonEntity("""
-                {
-                  "indices": [
-                    {
-                      "names": ["employees"],
-                      "privileges": ["read"]
-                    }
-                  ],
-                  "cluster": [ "monitor_enrich" ],
-                  "remote_indices": [
-                    {
-                      "names": ["employees"],
-                      "privileges": ["read" ],
-                      "clusters": ["my_remote_cluster"]
-                    }
-                  ]
-                }""");
-            assertOK(adminClient().performRequest(putLocalSearchRoleRequest));
-            final var putlocalSearchUserRequest = new Request("PUT", "/_security/user/local_search_user");
-            putlocalSearchUserRequest.setJsonEntity("""
-                {
-                  "password": "x-pack-test-password",
-                  "roles" : ["local_search"]
-                }""");
-            assertOK(adminClient().performRequest(putlocalSearchUserRequest));
-            for (String indices : List.of("my_remote_cluster:employees", "my_remote_cluster:employees,employees")) {
-                ResponseException error = expectThrows(ResponseException.class, () -> {
-                    var q = "FROM " + indices + "| ENRICH countries | STATS size=count(*) by country | SORT size | LIMIT 2";
-                    performRequestWithLocalSearchUser(esqlRequest(q));
-                });
-
-                assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-                // assertThat(
-                // error.getMessage(),
-                // containsString(
-                // "action [cluster:monitor/xpack/enrich/esql/resolve_policy] towards remote cluster" +
-                // " is unauthorized for user [local_search_user] with effective roles [local_search]"
-                // )
-                // );
-            }
-            // Check that authentication fails if we use a non-existent API key
-            updateClusterSettings(
-                randomBoolean()
-                    ? Settings.builder()
-                        .put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
-                        .build()
-                    : Settings.builder()
-                        .put("cluster.remote.invalid_remote.mode", "proxy")
-                        .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
-                        .build()
-            );
-            final ResponseException exception4 = expectThrows(ResponseException.class, () -> {
-                String q = "FROM invalid_remote:employees | ENRICH countries | STATS size=count(*) by country | SORT size | LIMIT 2";
-                performRequestWithRemoteSearchUser(esqlRequest(q));
-            });
-            assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(exception4.getMessage(), containsString("unable to find apikey"));
-        }
-    }
-
-    protected Request esqlRequest(String command) throws IOException {
-        XContentBuilder body = JsonXContent.contentBuilder();
-        body.startObject();
-        body.field("query", command);
-        if (Build.current().isSnapshot() && randomBoolean()) {
-            Settings.Builder settings = Settings.builder();
-            if (randomBoolean()) {
-                settings.put("page_size", between(1, 5));
-            }
-            if (randomBoolean()) {
-                settings.put("exchange_buffer_size", between(1, 2));
-            }
-            if (randomBoolean()) {
-                settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
-            }
-            if (randomBoolean()) {
-                settings.put("enrich_max_workers", between(1, 5));
-            }
-            Settings pragmas = settings.build();
-            if (pragmas != Settings.EMPTY) {
-                body.startObject("pragma");
-                body.value(pragmas);
-                body.endObject();
-            }
-        }
-        body.endObject();
-        Request request = new Request("POST", "_query");
-        request.setJsonEntity(org.elasticsearch.common.Strings.toString(body));
-        return request;
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {

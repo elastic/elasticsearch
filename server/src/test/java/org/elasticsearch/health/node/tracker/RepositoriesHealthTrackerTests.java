@@ -42,7 +42,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
         repositoriesHealthTracker = new RepositoriesHealthTracker(repositoriesService);
     }
 
-    public void test_getHealth_noRepos() {
+    public void testGetHealthNoRepos() {
         when(repositoriesService.getRepositories()).thenReturn(Map.of());
 
         var health = repositoriesHealthTracker.checkCurrentHealth();
@@ -51,7 +51,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
         assertTrue(health.invalidRepositories().isEmpty());
     }
 
-    public void test_getHealth_correctRepo() {
+    public void testGetHealthCorrectRepo() {
         var metadata = mock(RepositoryMetadata.class);
         // generation should be != RepositoryData.UNKNOWN_REPO_GEN which is equal to -2.
         when(metadata.generation()).thenReturn(randomNonNegativeLong());
@@ -65,7 +65,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
         assertTrue(health.invalidRepositories().isEmpty());
     }
 
-    public void test_getHealth_unknownType() {
+    public void testGetHealthUnknownType() {
         var repo = createRepositoryMetadata();
         when(repositoriesService.getRepositories()).thenReturn(Map.of(randomAlphaOfLength(10), new UnknownTypeRepository(repo)));
 
@@ -76,7 +76,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
         assertTrue(health.invalidRepositories().isEmpty());
     }
 
-    public void test_getHealth_invalid() {
+    public void testGetHealthInvalid() {
         var repo = createRepositoryMetadata();
         when(repositoriesService.getRepositories()).thenReturn(
             Map.of(repo.name(), new InvalidRepository(repo, new RepositoryException(repo.name(), "Test")))
@@ -89,7 +89,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
         assertEquals(repo.name(), health.invalidRepositories().get(0));
     }
 
-    public void test_setBuilder() {
+    public void testSetBuilder() {
         var builder = mock(UpdateHealthInfoCacheAction.Request.Builder.class);
         var health = new RepositoriesHealthInfo(List.of(), List.of());
 

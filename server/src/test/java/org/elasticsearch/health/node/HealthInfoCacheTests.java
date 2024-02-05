@@ -92,5 +92,7 @@ public class HealthInfoCacheTests extends ESTestCase {
         Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
         assertThat(diskHealthInfo.isEmpty(), equalTo(true));
         assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(nullValue()));
+        Map<String, RepositoriesHealthInfo> repoHealthInfo = healthInfoCache.getHealthInfo().repositoriesInfoByNode();
+        assertThat(repoHealthInfo.isEmpty(), equalTo(true));
     }
 }

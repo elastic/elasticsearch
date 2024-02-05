@@ -112,10 +112,8 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
     }
 
     public void testRequestSerialization() {
-        DiskHealthInfo diskHealthInfo = randomBoolean()
-            ? new DiskHealthInfo(randomFrom(HealthStatus.values()))
-            : new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()));
-        Request request = new Request.Builder().nodeId(randomAlphaOfLength(10)).diskHealthInfo(diskHealthInfo).build();
+        // We start off with an "empty" request (i.e. only nodeId set), and let #mutateRequest change one of the fields at a time.
+        Request request = new Request.Builder().nodeId(randomAlphaOfLength(10)).build();
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             request,
             serializedRequest -> copyWriteable(serializedRequest, writableRegistry(), Request::new),
@@ -126,14 +124,19 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
     private Request mutateRequest(Request request) {
         String nodeId = request.getNodeId();
         DiskHealthInfo diskHealthInfo = request.getDiskHealthInfo();
-        switch (randomIntBetween(1, 2)) {
-            case 1 -> nodeId = randomAlphaOfLength(10);
-            case 2 -> diskHealthInfo = new DiskHealthInfo(
-                randomValueOtherThan(diskHealthInfo.healthStatus(), () -> randomFrom(HealthStatus.values())),
-                randomBoolean() ? null : randomFrom(DiskHealthInfo.Cause.values())
-            );
+        var dslHealthInfo = request.getDslHealthInfo();
+        var repoHealthInfo = request.getRepositoriesHealthInfo();
+        switch (randomInt(4)) {
+            case 0 -> nodeId = randomAlphaOfLength(10);
+            case 1 -> diskHealthInfo = randomValueOtherThan(diskHealthInfo, HealthInfoTests::randomDiskHealthInfo);
+            case 2 -> dslHealthInfo = randomValueOtherThan(dslHealthInfo, HealthInfoTests::randomDslHealthInfo);
+            case 3 -> repoHealthInfo = randomValueOtherThan(repoHealthInfo, HealthInfoTests::randomRepoHealthInfo);
             default -> throw new IllegalStateException();
         }
-        return new Request.Builder().nodeId(nodeId).diskHealthInfo(diskHealthInfo).build();
+        return new Request.Builder().nodeId(nodeId)
+            .diskHealthInfo(diskHealthInfo)
+            .dslHealthInfo(dslHealthInfo)
+            .repositoriesHealthInfo(repoHealthInfo)
+            .build();
     }
 }

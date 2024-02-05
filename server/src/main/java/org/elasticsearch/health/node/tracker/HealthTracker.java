@@ -42,6 +42,11 @@ public abstract class HealthTracker<T> {
      */
     public abstract void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, T healthInfo);
 
+    /**
+     * Create a new {@link HealthProgress} instance by getting the current last reported value and determining the health info at this time.
+     *
+     * @return the new {@link HealthProgress} instance.
+     */
     public HealthProgress<T> trackHealth() {
         return new HealthProgress<>(this, lastReportedValue.get(), checkCurrentHealth());
     }

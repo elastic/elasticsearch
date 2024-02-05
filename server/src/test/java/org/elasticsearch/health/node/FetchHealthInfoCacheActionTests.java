@@ -137,12 +137,10 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
 
     public void testResponseSerialization() {
         var healthInfo = getTestHealthInfoCache().getHealthInfo();
-        FetchHealthInfoCacheAction.Response response = new FetchHealthInfoCacheAction.Response(
-            new HealthInfo(healthInfo.diskInfoByNode(), healthInfo.dslHealthInfo(), healthInfo.repositoriesInfoByNode())
-        );
+        FetchHealthInfoCacheAction.Response response = new FetchHealthInfoCacheAction.Response(healthInfo);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             response,
-            resopnseWritable -> copyWriteable(resopnseWritable, writableRegistry(), FetchHealthInfoCacheAction.Response::new),
+            responseWritable -> copyWriteable(responseWritable, writableRegistry(), FetchHealthInfoCacheAction.Response::new),
             this::mutateResponse
         );
     }

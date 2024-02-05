@@ -1,6 +1,10 @@
 [[add-repository]]
 == Troubleshooting broken repositories
 
+There are several situations where the <<health-api, Health API>> might report an issue
+regarding the integrity of snapshot repositories in the cluster. This page explains
+the recommended actions for diagnosing corrupted, unknown, and invalid repositories.
+
 [[diagnosing-corrupted-repositories]]
 === Diagnosing corrupted repositories
 

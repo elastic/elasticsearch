@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPARATOR;
 import static org.elasticsearch.common.util.CollectionUtils.limitSize;
 import static org.elasticsearch.health.Diagnosis.Resource.Type.SNAPSHOT_REPOSITORY;
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -71,14 +72,14 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         "Multiple clusters are writing to the same repository.",
         "Remove the repository from the other cluster(s), or mark it as read-only in the other cluster(s), and then re-add the repository"
             + " to this cluster.",
-        "https://ela.st/fix-repository-integrity#diagnosing-corrupted-repositories"
+        "https://ela.st/fix-repository-integrity"
     );
     public static final Diagnosis.Definition UNKNOWN_DEFINITION = new Diagnosis.Definition(
         NAME,
         "unknown_repository",
         "The repository uses an unknown type.",
         "Ensure that all required plugins are installed on the affected nodes.",
-        "https://ela.st/fix-repository-integrity#diagnosing-unknown-repositories"
+        "https://ela.st/fix-repository-integrity"
     );
     public static final Diagnosis.Definition INVALID_DEFINITION = new Diagnosis.Definition(
         NAME,
@@ -87,7 +88,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         """
             Make sure all nodes in the cluster are in sync with each other.\
             Refer to the nodes’ logs for detailed information on why the repository initialization failed.""",
-        "https://ela.st/fix-repository-integrity#diagnosing-invalid-repositories"
+        "https://ela.st/fix-repository-integrity"
     );
 
     private final ClusterService clusterService;
@@ -103,28 +104,15 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
 
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-        if (healthInfo.repositoriesInfoByNode().isEmpty()) {
-            return createIndicator(UNKNOWN, NO_REPO_HEALTH_INFO, HealthIndicatorDetails.EMPTY, List.of(), List.of());
-        }
         var clusterState = clusterService.state();
         var snapshotMetadata = RepositoriesMetadata.get(clusterService.state());
-        var totalRepositories = snapshotMetadata.repositories().size();
-        if (totalRepositories == 0) {
+
+        var repositories = snapshotMetadata.repositories();
+        if (repositories.isEmpty()) {
             return createIndicator(GREEN, NO_REPOS_CONFIGURED, HealthIndicatorDetails.EMPTY, List.of(), List.of());
         }
 
-        var corrupted = snapshotMetadata.repositories()
-            .stream()
-            .filter(repository -> repository.generation() == RepositoryData.CORRUPTED_REPO_GEN)
-            .map(RepositoryMetadata::name)
-            .toList();
-
-        var repositoryHealthAnalyzer = new RepositoryHealthAnalyzer(
-            clusterState,
-            totalRepositories,
-            corrupted,
-            healthInfo.repositoriesInfoByNode()
-        );
+        var repositoryHealthAnalyzer = new RepositoryHealthAnalyzer(clusterState, repositories, healthInfo.repositoriesInfoByNode());
         return createIndicator(
             repositoryHealthAnalyzer.getHealthStatus(),
             repositoryHealthAnalyzer.getSymptom(),
@@ -142,33 +130,37 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         private final int totalRepositories;
         private final List<String> corruptedRepositories;
         private final Set<String> unknownRepositories = new HashSet<>();
-        private final Set<String> unknownNodes = new HashSet<>();
+        private final Set<String> nodesWithUnknownRepos = new HashSet<>();
         private final Set<String> invalidRepositories = new HashSet<>();
-        private final Set<String> invalidNodes = new HashSet<>();
+        private final Set<String> nodesWithInvalidRepos = new HashSet<>();
         private final HealthStatus healthStatus;
 
         private RepositoryHealthAnalyzer(
             ClusterState clusterState,
-            int totalRepositories,
-            List<String> corruptedRepositories,
+            List<RepositoryMetadata> repositories,
             Map<String, RepositoriesHealthInfo> repositoriesHealthByNode
         ) {
             this.clusterState = clusterState;
-            this.totalRepositories = totalRepositories;
-            this.corruptedRepositories = corruptedRepositories;
+            this.totalRepositories = repositories.size();
+            this.corruptedRepositories = repositories.stream()
+                .filter(repository -> repository.generation() == RepositoryData.CORRUPTED_REPO_GEN)
+                .map(RepositoryMetadata::name)
+                .toList();
 
             repositoriesHealthByNode.forEach((nodeId, healthInfo) -> {
                 unknownRepositories.addAll(healthInfo.unknownRepositories());
                 if (healthInfo.unknownRepositories().isEmpty() == false) {
-                    unknownNodes.add(nodeId);
+                    nodesWithUnknownRepos.add(nodeId);
                 }
                 invalidRepositories.addAll(healthInfo.invalidRepositories());
                 if (healthInfo.invalidRepositories().isEmpty() == false) {
-                    invalidNodes.add(nodeId);
+                    nodesWithInvalidRepos.add(nodeId);
                 }
             });
 
-            if (corruptedRepositories.isEmpty() == false || unknownRepositories.size() != 0 || invalidRepositories.size() != 0) {
+            if (corruptedRepositories.isEmpty() == false
+                || unknownRepositories.isEmpty() == false
+                || invalidRepositories.isEmpty() == false) {
                 healthStatus = YELLOW;
             } else if (repositoriesHealthByNode.isEmpty()) {
                 healthStatus = UNKNOWN;
@@ -206,12 +198,10 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         }
 
         public HealthIndicatorDetails getDetails(boolean verbose) {
-            if (verbose == false) {
+            if (verbose == false || healthStatus == UNKNOWN) {
                 return HealthIndicatorDetails.EMPTY;
             } else if (healthStatus == GREEN) {
                 return new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories));
-            } else if (healthStatus == UNKNOWN) {
-                return HealthIndicatorDetails.EMPTY;
             }
 
             return new SimpleHealthIndicatorDetails(
@@ -240,18 +230,14 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         public List<Diagnosis> getDiagnoses(int maxAffectedResourcesCount) {
             var diagnoses = new ArrayList<Diagnosis>();
             if (corruptedRepositories.isEmpty() == false) {
-                diagnoses.add(
-                    new Diagnosis(
-                        CORRUPTED_DEFINITION,
-                        List.of(new Diagnosis.Resource(SNAPSHOT_REPOSITORY, limitSize(corruptedRepositories, maxAffectedResourcesCount)))
-                    )
-                );
+                var corrupted = corruptedRepositories.stream().sorted().limit(maxAffectedResourcesCount).toList();
+                diagnoses.add(new Diagnosis(CORRUPTED_DEFINITION, List.of(new Diagnosis.Resource(SNAPSHOT_REPOSITORY, corrupted))));
             }
             if (unknownRepositories.size() > 0) {
-                diagnoses.add(createDiagnosis(UNKNOWN_DEFINITION, unknownRepositories, unknownNodes, maxAffectedResourcesCount));
+                diagnoses.add(createDiagnosis(UNKNOWN_DEFINITION, unknownRepositories, nodesWithUnknownRepos, maxAffectedResourcesCount));
             }
             if (invalidRepositories.size() > 0) {
-                diagnoses.add(createDiagnosis(INVALID_DEFINITION, invalidRepositories, invalidNodes, maxAffectedResourcesCount));
+                diagnoses.add(createDiagnosis(INVALID_DEFINITION, invalidRepositories, nodesWithInvalidRepos, maxAffectedResourcesCount));
             }
             return diagnoses;
         }
@@ -263,7 +249,11 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             int maxAffectedResourcesCount
         ) {
             var reposView = repos.stream().sorted().limit(maxAffectedResourcesCount).toList();
-            var nodesView = nodes.stream().map(nodeId -> clusterState.nodes().get(nodeId)).limit(maxAffectedResourcesCount).toList();
+            var nodesView = nodes.stream()
+                .map(nodeId -> clusterState.nodes().get(nodeId))
+                .sorted(DISCOVERY_NODE_COMPARATOR)
+                .limit(maxAffectedResourcesCount)
+                .toList();
             return new Diagnosis(
                 definition,
                 List.of(new Diagnosis.Resource(SNAPSHOT_REPOSITORY, reposView), new Diagnosis.Resource(nodesView))

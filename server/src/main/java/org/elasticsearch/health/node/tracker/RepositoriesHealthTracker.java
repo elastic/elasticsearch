@@ -15,6 +15,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.UnknownTypeRepository;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Determines the health of repositories on this node.
@@ -33,9 +34,14 @@ public class RepositoriesHealthTracker extends HealthTracker<RepositoriesHealthI
      */
     @Override
     public RepositoriesHealthInfo checkCurrentHealth() {
+        var repositories = repositoriesService.getRepositories();
+        if (repositories.isEmpty()) {
+            return new RepositoriesHealthInfo(List.of(), List.of());
+        }
+
         var unknown = new ArrayList<String>();
         var invalid = new ArrayList<String>();
-        repositoriesService.getRepositories().values().forEach(repository -> {
+        repositories.values().forEach(repository -> {
             if (repository instanceof UnknownTypeRepository) {
                 unknown.add(repository.getMetadata().name());
             } else if (repository instanceof InvalidRepository) {

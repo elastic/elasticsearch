@@ -9,6 +9,8 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -38,6 +40,7 @@ import java.util.Set;
  */
 public class RankFeatureFieldMapper extends FieldMapper {
 
+    public static final String NAME = "_feature";
     public static final String CONTENT_TYPE = "rank_feature";
 
     private static RankFeatureFieldType ft(FieldMapper in) {
@@ -128,7 +131,17 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return new TermQuery(new Term("_feature", name()));
+            return new TermQuery(new Term(NAME, name()));
+        }
+
+        @Override
+        public boolean fieldHasValue(FieldInfos fieldInfos) {
+            for (FieldInfo fieldInfo : fieldInfos) {
+                if (fieldInfo.getName().equals(NAME)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -208,7 +221,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
             value = 1 / value;
         }
 
-        context.doc().addWithKey(name(), new FeatureField("_feature", name(), value));
+        context.doc().addWithKey(name(), new FeatureField(NAME, name(), value));
     }
 
     private static Float objectToFloat(Object value) {

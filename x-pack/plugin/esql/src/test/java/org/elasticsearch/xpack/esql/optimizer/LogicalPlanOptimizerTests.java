@@ -2960,21 +2960,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * Project[[x{r}#1915, y{r}#1919, z{r}#1922]]
-     * \_Eval[[____x_AVG@e03a7a5c_SUM@acf776e3{r}#1939 / ____x_AVG@e03a7a5c_COUNT@39975522{r}#1940 AS __x_AVG@e03a7a5c,
-     *         __x_AVG@e03a7a5c{r}#1933 + __x_MAX@4e09cbd5{r}#1934 AS x,
-     *         __y_MIN@80cee21c{r}#1935 + 10[INTEGER] - __y_MEDIAN@705fccec{r}#1936 AS y,
-     *        languages{f}#1926 % 2[INTEGER] AS z]]
+     * Project[[x{r}#5, y{r}#9, z{r}#12]]
+     * \_Eval[[$$SUM$$$AVG$avg(salary_%_3)>$0$0{r}#29 / $$COUNT$$$AVG$avg(salary_%_3)>$0$1{r}#30 AS $$AVG$avg(salary_%_3)>$0,
+     *   $$AVG$avg(salary_%_3)>$0{r}#23 + $$MAX$avg(salary_%_3)>$1{r}#24 AS x,
+     *   $$MIN$min(emp_no_/_3)>$2{r}#25 + 10[INTEGER] - $$MEDIAN$min(emp_no_/_3)>$3{r}#26 AS y]]
      *   \_Limit[500[INTEGER]]
-     *     \_Aggregate[[z{r}#1922],[SUM(____x_AVG@e03a7a5c_AVG@e03a7a5c{r}#1937) AS ____x_AVG@e03a7a5c_SUM@acf776e3,
-     *     COUNT(____x_AVG@e03a7a5c_AVG@e03a7a5c{r}#1937) AS ____x_AVG@e03a7a5c_COUNT@39975522,
-     *     MAX(emp_no{f}#1923) AS __x_MAX@4e09cbd5,
-     *     MIN(____y_MIN@80cee21c_MIN@80cee21c{r}#1938) AS __y_MIN@80cee21c,
-     *     PERCENTILE(salary{f}#1928,50[INTEGER]) AS __y_MEDIAN@705fccec]]
-     *       \_Eval[[languages{f}#1926 % 2[INTEGER] AS z,
-     *               salary{f}#1928 % 3[INTEGER] AS ____x_AVG@e03a7a5c_AVG@e03a7a5c,
-     *               emp_no{f}#1923 / 3[INTEGER] AS ____y_MIN@80cee21c_MIN@80cee21c]]
-     *         \_EsRelation[test][_meta_field{f}#1929, emp_no{f}#1923, first_name{f}#..]
+     *     \_Aggregate[[z{r}#12],[SUM($$salary_%_3$AVG$0{r}#27) AS $$SUM$$$AVG$avg(salary_%_3)>$0$0,
+     *     COUNT($$salary_%_3$AVG$0{r}#27) AS $$COUNT$$$AVG$avg(salary_%_3)>$0$1,
+     *     MAX(emp_no{f}#13) AS $$MAX$avg(salary_%_3)>$1,
+     *     MIN($$emp_no_/_3$MIN$1{r}#28) AS $$MIN$min(emp_no_/_3)>$2,
+     *     PERCENTILE(salary{f}#18,50[INTEGER]) AS $$MEDIAN$min(emp_no_/_3)>$3, z{r}#12]]
+     *       \_Eval[[languages{f}#16 % 2[INTEGER] AS z,
+     *       salary{f}#18 % 3[INTEGER] AS $$salary_%_3$AVG$0,
+     *       emp_no{f}#13 / 3[INTEGER] AS $$emp_no_/_3$MIN$1]]
+     *         \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      */
     public void testStatsExpOverAggsMulti() {
         var plan = optimizedPlan("""
@@ -3018,20 +3017,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * Project[[x{r}#5, y{r}#9, z{r}#12]]
-     * \_Eval[[____Concat@37ea0155_AVG@17920329_SUM@10a4c762{r}#29 / ____Concat@37ea0155_AVG@17920329_COUNT@f4efa894{r}#30 A
-     * S __Concat@37ea0155_AVG@17920329,
-     *        CONCAT(TOSTRING(__Concat@37ea0155_AVG@17920329{r}#23),TOSTRING(__Concat@37ea0155_MAX@ff22d06{r}#24)) AS x,
-     *        __Div@dc32edf_MIN@9bcd093e{r}#25 + 3.141592653589793[DOUBLE] - __Div@dc32edf_MEDIAN@6869756c{r}#26 / 2.718281828459045[DOUBLE]
-     *        AS y]]
+     * \_Eval[[$$SUM$$$AVG$CONCAT(TO_STRIN>$0$0{r}#29 / $$COUNT$$$AVG$CONCAT(TO_STRIN>$0$1{r}#30 AS $$AVG$CONCAT(TO_STRIN>$0,
+     *        CONCAT(TOSTRING($$AVG$CONCAT(TO_STRIN>$0{r}#23),TOSTRING($$MAX$CONCAT(TO_STRIN>$1{r}#24)) AS x,
+     *        $$MIN$(MIN(emp_no_/_3>$2{r}#25 + 3.141592653589793[DOUBLE] - $$MEDIAN$(MIN(emp_no_/_3>$3{r}#26 / 2.718281828459045[DOUBLE]
+     *         AS y]]
      *   \_Limit[500[INTEGER]]
-     *     \_Aggregate[[z{r}#12],[SUM(__Mod@a2881d3c_AVG@17920329{r}#27) AS ____Concat@37ea0155_AVG@17920329_SUM@10a4c762,
-     *        COUNT(__Mod@a2881d3c_AVG@17920329{r}#27) AS ____Concat@37ea0155_AVG@17920329_COUNT@f4efa894,
-     *        MAX(emp_no{f}#13) AS __Concat@37ea0155_MAX@ff22d06,
-     *        MIN(__Div@fed3eeb8_MIN@9bcd093e{r}#28) AS __Div@dc32edf_MIN@9bcd093e,
-     *        PERCENTILE(salary{f}#18,50[INTEGER]) AS __Div@dc32edf_MEDIAN@6869756c,
-     *        z{r}#12]]
-     *       \_Eval[[languages{f}#16 % 2[INTEGER] AS z, salary{f}#18 % 3[INTEGER] AS __Mod@a2881d3c_AVG@17920329,
-     *              emp_no{f}#13 / 3 [INTEGER] AS __Div@fed3eeb8_MIN@9bcd093e]]
+     *     \_Aggregate[[z{r}#12],[SUM($$salary_%_3$AVG$0{r}#27) AS $$SUM$$$AVG$CONCAT(TO_STRIN>$0$0,
+     *      COUNT($$salary_%_3$AVG$0{r}#27) AS $$COUNT$$$AVG$CONCAT(TO_STRIN>$0$1,
+     *      MAX(emp_no{f}#13) AS $$MAX$CONCAT(TO_STRIN>$1,
+     *      MIN($$emp_no_/_3$MIN$1{r}#28) AS $$MIN$(MIN(emp_no_/_3>$2,
+     *      PERCENTILE(salary{f}#18,50[INTEGER]) AS $$MEDIAN$(MIN(emp_no_/_3>$3, z{r}#12]]
+     *       \_Eval[[languages{f}#16 % 2[INTEGER] AS z,
+     *       salary{f}#18 % 3[INTEGER] AS $$salary_%_3$AVG$0,
+     *       emp_no{f}#13 / 3[INTEGER] AS $$emp_no_/_3$MIN$1]]
      *         \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      */
     public void testStatsExpOverAggsWithScalars() {
@@ -3080,12 +3078,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * Project[[a{r}#5, b{r}#9, __b_COUNT@a31a3f25{r}#46 AS d, __c_MIN@33a7e8da{r}#47 AS e, __a_MAX@3564a755{r}#45 AS g]]
-     * \_Eval[[____a_AVG@ff859ba4_SUM@c0c1a11f{r}#48 / __b_COUNT@a31a3f25{r}#46 AS __a_AVG@ff859ba4, __a_AVG@ff859ba4{r}#44
-     * + __a_MAX@3564a755{r}#45 AS a, __a_MAX@3564a755{r}#45 + 3[INTEGER] + 3.141592653589793[DOUBLE] + __b_COUNT@a31a3f25{r}#46 AS b]]
+     * Project[[a{r}#5, b{r}#9, $$max(salary)_+_3>$COUNT$2{r}#46 AS d, $$count(salary)_->$MIN$3{r}#47 AS e, $$avg(salary)_+_m
+     * >$MAX$1{r}#45 AS g]]
+     * \_Eval[[$$$$avg(salary)_+_m>$AVG$0$SUM$0{r}#48 / $$max(salary)_+_3>$COUNT$2{r}#46 AS $$avg(salary)_+_m>$AVG$0, $$avg(
+     * salary)_+_m>$AVG$0{r}#44 + $$avg(salary)_+_m>$MAX$1{r}#45 AS a, $$avg(salary)_+_m>$MAX$1{r}#45 + 3[INTEGER] +
+     * 3.141592653589793[DOUBLE] + $$max(salary)_+_3>$COUNT$2{r}#46 AS b]]
      *   \_Limit[500[INTEGER]]
-     *     \_Aggregate[[w{r}#28],[SUM(salary{f}#39) AS ____a_AVG@ff859ba4_SUM@c0c1a11f, MAX(salary{f}#39) AS __a_MAX@3564a755, COUNT(s
-     * alary{f}#39) AS __b_COUNT@a31a3f25, MIN(salary{f}#39) AS __c_MIN@33a7e8da]]
+     *     \_Aggregate[[w{r}#28],[SUM(salary{f}#39) AS $$$$avg(salary)_+_m>$AVG$0$SUM$0, MAX(salary{f}#39) AS $$avg(salary)_+_m>$MAX$1
+     * , COUNT(salary{f}#39) AS $$max(salary)_+_3>$COUNT$2, MIN(salary{f}#39) AS $$count(salary)_->$MIN$3]]
      *       \_Eval[[languages{f}#37 % 2[INTEGER] AS w]]
      *         \_EsRelation[test][_meta_field{f}#40, emp_no{f}#34, first_name{f}#35, ..]
      */
@@ -3104,31 +3104,82 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("a", "b", "d", "e", "g"));
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("a", "b", "d", "e", "g"));
+        var refA = Alias.unwrap(projections.get(0));
+        var refB = Alias.unwrap(projections.get(1));
+        var refD = Alias.unwrap(projections.get(2));
+        var refE = Alias.unwrap(projections.get(3));
+        var refG = Alias.unwrap(projections.get(4));
+
         var eval = as(project.child(), Eval.class);
         var fields = eval.fields();
         // avg = Sum/Count
         assertThat(Expressions.name(fields.get(0)), containsString("AVG"));
         assertThat(Alias.unwrap(fields.get(0)), instanceOf(Div.class));
         // avg + max
-        assertThat(Expressions.name(fields.get(1)), containsString("a"));
-        assertThat(Alias.unwrap(fields.get(1)), instanceOf(Add.class));
-        // min + 10 - median
-        assertThat(Expressions.name(fields.get(2)), containsString("b"));
-        assertThat(Alias.unwrap(fields.get(2)), instanceOf(Add.class));
+        assertThat(Expressions.name(fields.get(1)), is("a"));
+        var add = as(Alias.unwrap(fields.get(1)), Add.class);
+        var max_salary = add.right();
+        assertThat(Expressions.attribute(fields.get(1)), is(Expressions.attribute(refA)));
+
+        assertThat(Expressions.name(fields.get(2)), is("b"));
+        assertThat(Expressions.attribute(fields.get(2)), is(Expressions.attribute(refB)));
+
+        add = as(Alias.unwrap(fields.get(2)), Add.class);
+        add = as(add.left(), Add.class);
+        add = as(add.left(), Add.class);
+        assertThat(Expressions.attribute(max_salary), is(Expressions.attribute(add.left())));
 
         var limit = as(eval.child(), Limit.class);
 
         var agg = as(limit.child(), Aggregate.class);
         var aggs = agg.aggregates();
         var sum = as(Alias.unwrap(aggs.get(0)), Sum.class);
-        var count = as(Alias.unwrap(aggs.get(1)), Max.class);
-        var max = as(Alias.unwrap(aggs.get(2)), Count.class);
+
+        assertThat(Expressions.attribute(aggs.get(1)), is(Expressions.attribute(max_salary)));
+        var max = as(Alias.unwrap(aggs.get(1)), Max.class);
+        var count = as(Alias.unwrap(aggs.get(2)), Count.class);
         var min = as(Alias.unwrap(aggs.get(3)), Min.class);
 
         eval = as(agg.child(), Eval.class);
         fields = eval.fields();
         assertThat(Expressions.name(fields.get(0)), is("w"));
+    }
+
+    /**
+     * Expects
+     * Project[[a{r}#5, a{r}#5 AS b, w{r}#12]]
+     * \_Limit[500[INTEGER]]
+     *   \_Aggregate[[w{r}#12],[SUM($$salary_/_2_+_la>$SUM$0{r}#26) AS a, w{r}#12]]
+     *     \_Eval[[emp_no{f}#16 % 2[INTEGER] AS w, salary{f}#21 / 2[INTEGER] + languages{f}#19 AS $$salary_/_2_+_la>$SUM$0]]
+     *       \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     */
+    public void testStatsWithCanonicalAggregate() throws Exception {
+        var plan = optimizedPlan("""
+            from test
+            | stats a = sum(salary / 2 + languages),
+                    b = sum(languages + salary / 2)
+                    by w = emp_no % 2
+            | keep a, b, w
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("a", "b", "w"));
+        assertThat(Expressions.name(Alias.unwrap(project.projections().get(1))), is("a"));
+        var limit = as(project.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var aggregates = aggregate.aggregates();
+        assertThat(Expressions.names(aggregates), contains("a", "w"));
+        var unwrapped = Alias.unwrap(aggregates.get(0));
+        var sum = as(unwrapped, Sum.class);
+        var sum_argument = sum.field();
+        var grouping = aggregates.get(1);
+
+        var eval = as(aggregate.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(Expressions.attribute(fields.get(0)), is(Expressions.attribute(grouping)));
+        assertThat(Expressions.attribute(fields.get(1)), is(Expressions.attribute(sum_argument)));
     }
 
     private LogicalPlan optimizedPlan(String query) {

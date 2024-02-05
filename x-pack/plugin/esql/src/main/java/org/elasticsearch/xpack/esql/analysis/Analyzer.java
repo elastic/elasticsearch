@@ -26,9 +26,11 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -296,6 +298,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
+
             if (plan instanceof Drop d) {
                 return resolveDrop(d, childrenOutput);
             }
@@ -321,6 +324,45 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+        }
+
+        private LogicalPlan resolveAggregate(Aggregate a, List<Attribute> childrenOutput) {
+            // if the grouping is unresolved but the aggs are, use the latter to resolve the former.
+            // e.g. STATS x AS a ... GROUP BY a
+
+            a = (Aggregate) a.transformExpressionsUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+
+            if (a.expressionsResolved() == false && Resolvables.resolved(a.aggregates())) {
+                List<Expression> groupings = a.groupings();
+                List<Expression> newGroupings = new ArrayList<>();
+
+                AttributeMap<Expression> resolved = new AttributeMap();
+                for (NamedExpression ne : a.aggregates()) {
+                    if (ne instanceof Alias as) {
+                        resolved.put(as.toAttribute(), as.child());
+                    }
+                }
+                List<Attribute> keyList = new ArrayList<>(resolved.keySet());
+
+                boolean changed = false;
+                for (Expression grouping : groupings) {
+                    if (grouping instanceof UnresolvedAttribute) {
+                        Attribute maybeResolved = maybeResolveAttribute((UnresolvedAttribute) grouping, keyList);
+                        if (maybeResolved != null) {
+                            changed = true;
+                            if (maybeResolved.resolved()) {
+                                grouping = resolved.get(maybeResolved);
+                            } else {
+                                grouping = maybeResolved;
+                            }
+                        }
+                    }
+                    newGroupings.add(grouping);
+                }
+
+                a = changed ? new Aggregate(a.source(), a.child(), newGroupings, a.aggregates()) : a;
+            }
+            return a;
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -674,7 +716,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return agg;
         }
     }
-
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {

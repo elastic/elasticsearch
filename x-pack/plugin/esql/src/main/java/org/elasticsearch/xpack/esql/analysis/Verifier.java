@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -65,6 +64,8 @@ public class Verifier {
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
         assert partialMetrics != null;
         Set<Failure> failures = new LinkedHashSet<>();
+        // alias map, collected during the first iteration for better error messages
+        AttributeMap<Expression> aliases = new AttributeMap<>();
 
         // quick verification for unresolved attributes
         plan.forEachUp(p -> {
@@ -78,6 +79,7 @@ public class Verifier {
             }
             // p is resolved, skip
             else if (p.resolved()) {
+                p.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
                 return;
             }
             // handle aggregate first to disambiguate between missing fields or incorrect function declaration
@@ -126,7 +128,7 @@ public class Verifier {
                 return;
             }
             checkFilterConditionType(p, failures);
-            checkAggregate(p, failures);
+            checkAggregate(p, failures, aliases);
             checkRegexExtractOnlyOnStrings(p, failures);
 
             checkRow(p, failures);
@@ -144,35 +146,55 @@ public class Verifier {
         return failures;
     }
 
-    private static void checkAggregate(LogicalPlan p, Set<Failure> failures) {
+    private static void checkAggregate(LogicalPlan p, Set<Failure> failures, AttributeMap<Expression> aliases) {
         if (p instanceof Aggregate agg) {
-            // check aggregates
-            agg.aggregates().forEach(e -> {
-                var exp = Alias.unwrap(e);
-                Holder<Boolean> foundAgg = new Holder<>(false);
-                exp.forEachUp(AggregateFunction.class, af -> {
-                    foundAgg.set(true);
-                    af.field().forEachDown(AggregateFunction.class, f -> {
-                        failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
-                    });
-                });
-                if (foundAgg.get() == false && Expressions.match(agg.groupings(), g -> Alias.unwrap(g).semanticEquals(exp)) == false) {
-                    failures.add(
-                        fail(
-                            exp,
-                            "expected an aggregate function or group but got [" + exp.sourceText() + "] of type [" + exp.nodeName() + "]"
-                        )
-                    );
-                }
-            });
 
+            List<Expression> nakedGroups = new ArrayList<>(agg.groupings().size());
             // check grouping
             // The grouping can not be an aggregate function
-            agg.groupings().forEach(e -> e.forEachUp(g -> {
-                if (g instanceof AggregateFunction af) {
-                    failures.add(fail(g, "cannot use an aggregate [{}] for grouping", af));
-                }
-            }));
+            agg.groupings().forEach(e -> {
+                e.forEachUp(g -> {
+                    if (g instanceof AggregateFunction af) {
+                        failures.add(fail(g, "cannot use an aggregate [{}] for grouping", af));
+                    }
+                });
+                nakedGroups.add(Alias.unwrap(e));
+            });
+
+            // check aggregates - accept only aggregate functions or expressions in which each naked attribute is copied as
+            // specified in the grouping clause
+            agg.aggregates().forEach(e -> {
+                var exp = Alias.unwrap(e);
+                // traverse the tree to find invalid matches
+                checkInvalidNamedExpressionUsage(exp, nakedGroups, failures);
+            });
+        }
+    }
+
+    // traverse the expression and look either for an agg function or a grouping match
+    // stop either when no children are left, the leaves are literals or a reference attribute is given
+    private static void checkInvalidNamedExpressionUsage(Expression e, List<Expression> groups, Set<Failure> failures) {
+        // found an aggregate, constant or a group, bail out
+        if (e instanceof AggregateFunction af) {
+            af.field().forEachDown(AggregateFunction.class, f -> {
+                failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
+            });
+            return;
+        }
+        if (e.foldable() || groups.contains(e))
+
+        {
+            return;
+        }
+        // if a reference is found, mark it as an error
+        else if (e instanceof NamedExpression ne) {
+            failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
+        }
+        // other keep on going
+        else {
+            for (Expression child : e.children()) {
+                checkInvalidNamedExpressionUsage(child, groups, failures);
+            }
         }
     }
 

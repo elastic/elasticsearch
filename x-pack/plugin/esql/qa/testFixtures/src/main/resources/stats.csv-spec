@@ -1115,7 +1115,7 @@ ck:l | cb:l | cd:l | ci:l | c:l | csv:l
 
 nestedAggsNoGrouping#[skip:-8.12.99,reason:supported in 8.13+]
 FROM employees
-| STATS x = AVG(salary) /2 + MAX(salary), a = AVG(salary), m = MAX(salary)
+| STATS x = AVG(salary) / 2 + MAX(salary), a = AVG(salary), m = MAX(salary)
 ;
 
 x:d       | a:d      | m:i
@@ -1145,4 +1145,43 @@ x:s        | y:d        | z:i
 1.010029   | -16452.0   | null
 1.010100   | -15260.0   | 0
 1.010097   | -16701.0   | 1
+;
+
+nestedAggsAliasedOverGrouping#[skip:-8.12.99,reason:supported in 8.13]
+FROM employees
+| STATS e = max(languages) + languages by l = languages
+;
+
+e:l | l:i
+0   | 0
+;
+
+nestedAggsAliasedOverGrouping#[skip:-8.12.99,reason:supported in 8.13]
+FROM employees
+| STATS max(languages) + languages by l = languages
+;
+
+max(languages) + languages:l | l:i
+0   | 0
+;
+
+nestedAggsOverGroupingWithMulti#[skip:-8.12.99,reason:supported in 8.13]
+FROM employees
+| STATS max(languages + 1) , m = languages + min(salary + 1) by l = languages, s = salary
+;
+
+max(languages + 1): l | m:l | l:i | s:i
+0                     | 0   | 0   | 0
+;
+
+scalarFunctionOverGroupingColumn
+FROM employees 
+| STATS length(first_name), count(1) by first_name
+| SORT first_name
+| LIMIT 3
+;
+
+// TODO: update results
+length(first_name):i| count(1):i | first_name:s
+12                  | 100        | 0  
 ;

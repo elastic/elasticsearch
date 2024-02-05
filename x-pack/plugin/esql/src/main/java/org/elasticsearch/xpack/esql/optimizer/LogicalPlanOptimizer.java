@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
@@ -77,7 +76,6 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
@@ -189,6 +187,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 }
             }
 
+            int[] counter = new int[] { 0 };
             // 0. check list of surrogate expressions
             for (NamedExpression agg : aggs) {
                 Expression e = Alias.unwrap(agg);
@@ -205,7 +204,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             var attr = aggFuncToAttr.get(af);
                             // the agg doesn't exist in the Aggregate, create an alias for it and save its attribute
                             if (attr == null) {
-                                var temporaryName = temporaryName(agg, af);
+                                var temporaryName = temporaryName(af, agg, counter[0]++);
                                 // create a synthetic alias (so it doesn't clash with a user defined name)
                                 var newAlias = new Alias(agg.source(), temporaryName, null, af, null, true);
                                 attr = newAlias.toAttribute();
@@ -246,11 +245,26 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return plan;
         }
 
-        static String temporaryName(Expression expression, AggregateFunction af) {
-            String name = expression instanceof NamedExpression ne
+        static String temporaryName(Expression inner, Expression outer, int suffix) {
+            String in = toString(inner);
+            String out = toString(outer);
+            return "$$" + in + "$" + out + "$" + suffix;
+        }
+
+        static int TO_STRING_LIMIT = 16;
+
+        static String toString(Expression ex) {
+            return ex instanceof AggregateFunction af ? af.functionName() : extractString(ex);
+        }
+
+        static String extractString(Expression ex) {
+            return ex instanceof NamedExpression ne
                 ? ne.name()
-                : expression.nodeName() + "@" + Integer.toHexString(expression.hashCode());
-            return "__" + name + "_" + af.functionName() + "@" + Integer.toHexString(af.hashCode());
+                : limitToString(ex.sourceText()).replace(' ', '_');
+        }
+
+        static String limitToString(String string) {
+            return string.length() > 16 ? string.substring(0, TO_STRING_LIMIT - 1) + ">" : string;
         }
     }
 
@@ -308,10 +322,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 // but be mindful of aliases to existing aggregates that we don't want to duplicate to avoid redundant work
                 if (child instanceof Aggregate a) {
                     var aggs = a.aggregates();
-                    var tuple = projectAggregations(project.projections(), aggs);
+                    var newAggs = projectAggregations(project.projections(), aggs);
                     // project can be fully removed
-                    if (tuple.v1().isEmpty()) {
-                        var newAggs = tuple.v2();
+                    if (newAggs != null) {
                         var newGroups = replacePrunedAliasesUsedInGroupBy(a.groupings(), aggs, newAggs);
                         plan = new Aggregate(a.source(), a.child(), newGroups, newAggs);
                     }
@@ -333,7 +346,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         // this method tries to combine the projections by paying attention to:
         // - aggregations that are projected away - remove them
         // - aliases in the project that point to aggregates - keep them in place (to avoid duplicating the aggs)
-        private Tuple<List<? extends NamedExpression>, List<? extends NamedExpression>> projectAggregations(
+        private static List<? extends NamedExpression> projectAggregations(
             List<? extends NamedExpression> upperProjection,
             List<? extends NamedExpression> lowerAggregations
         ) {
@@ -342,33 +355,28 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 lowerAliases.put(ne.toAttribute(), Alias.unwrap(ne));
             }
 
-            // flag indicating if the projection introduces at least one extra alias
-            boolean keepProject = false;
             AttributeSet seen = new AttributeSet();
             for (NamedExpression upper : upperProjection) {
                 Expression unwrapped = Alias.unwrap(upper);
                 // projection contains an inner alias (point to an existing fields inside the projection)
                 if (seen.contains(unwrapped)) {
-                    keepProject = true;
-                    break;
+                    return null;
                 }
                 seen.add(Expressions.attribute(unwrapped));
             }
 
-            // remove lower aggs that are not referenced in the upper projections
-            List<? extends NamedExpression> keptProjections = upperProjection;
-            if (keepProject == false) {
-                keptProjections = emptyList();
-                lowerAggregations = combineProjections(upperProjection, lowerAggregations);
-            }
+            lowerAggregations = combineProjections(upperProjection, lowerAggregations);
 
-            return new Tuple<>(keptProjections, lowerAggregations);
+            return lowerAggregations;
         }
 
         // normally only the upper projections should survive but since the lower list might have aliases definitions
         // that might be reused by the upper one, these need to be replaced.
         // for example an alias defined in the lower list might be referred in the upper - without replacing it the alias becomes invalid
-        private List<NamedExpression> combineProjections(List<? extends NamedExpression> upper, List<? extends NamedExpression> lower) {
+        private static List<NamedExpression> combineProjections(
+            List<? extends NamedExpression> upper,
+            List<? extends NamedExpression> lower
+        ) {
 
             // collect aliases in the lower list
             AttributeMap<NamedExpression> aliases = new AttributeMap<>();
@@ -1156,6 +1164,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 expToAttribute.put(a.child().canonical(), a.toAttribute());
             }
 
+            int[] counter = new int[] { 0 };
             // for the aggs make sure to unwrap the agg function and check the existing groupings
             for (NamedExpression agg : aggs) {
                 NamedExpression a = (NamedExpression) agg.transformDown(Alias.class, as -> {
@@ -1183,7 +1192,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         if (field instanceof Attribute == false && field.foldable() == false) {
                             // 3. create a new alias if one doesn't exist yet no reference
                             Attribute attr = expToAttribute.computeIfAbsent(field.canonical(), k -> {
-                                Alias newAlias = new Alias(k.source(), temporaryName(k, af), null, k, null, true);
+                                Alias newAlias = new Alias(k.source(), syntheticName(k, af, counter[0]++), null, k, null, true);
                                 evals.add(newAlias);
                                 aggsChanged.set(true);
                                 return newAlias.toAttribute();
@@ -1213,8 +1222,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return aggregate;
         }
 
-        static String temporaryName(Expression expression, AggregateFunction af) {
-            return SubstituteSurrogates.temporaryName(expression, af);
+        static String syntheticName(Expression expression, AggregateFunction af, int counter) {
+            return SubstituteSurrogates.temporaryName(expression, af, counter);
         }
     }
 
@@ -1242,7 +1251,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             // break down each aggregate into AggregateFunction
             // preserve the projection at the end
-            Holder<Boolean> aggsChanged = new Holder<>(false);
             List<? extends NamedExpression> aggs = aggregate.aggregates();
 
             // root/naked aggs
@@ -1254,6 +1262,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             List<NamedExpression> newAggs = new ArrayList<>();
 
             Holder<Boolean> changed = new Holder<>(false);
+            int[] counter = new int[] { 0 };
 
             for (NamedExpression agg : aggs) {
                 if (agg instanceof Alias as) {
@@ -1294,7 +1303,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             Alias alias = rootAggs.get(canonical);
                             if (alias == null) {
                                 // create synthetic alias ove the found agg function
-                                alias = new Alias(af.source(), temporaryName(child, canonical), as.qualifier(), canonical, null, true);
+                                alias = new Alias(
+                                    af.source(),
+                                    syntheticName(canonical, child, counter[0]++),
+                                    as.qualifier(),
+                                    canonical,
+                                    null,
+                                    true
+                                );
                                 // and remember it to remove duplicates
                                 rootAggs.put(canonical, alias);
                                 // add it to the list of aggregates and continue
@@ -1339,8 +1355,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return plan;
         }
 
-        static String temporaryName(Expression expression, AggregateFunction af) {
-            return SubstituteSurrogates.temporaryName(expression, af);
+        static String syntheticName(Expression expression, Expression af, int counter) {
+            return SubstituteSurrogates.temporaryName(expression, af, counter);
         }
     }
 

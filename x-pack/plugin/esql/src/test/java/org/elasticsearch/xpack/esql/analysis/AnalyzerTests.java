@@ -1,9 +1,3 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
- */
 
 package org.elasticsearch.xpack.esql.analysis;
 
@@ -12,6 +6,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -1199,6 +1194,18 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(agg.groupings(), agg.aggregates());
     }
 
+    public void testAggsWithPartialGrouping() {
+        analyze("from test| stats max(languages) by l = languages + 1 + 2 + 3");
+    }
+
+    public void testAggsWithExpressionOverAggs() {
+        analyze("from test | stats max(languages + 1) , m = languages + min(salary + 1) by l = languages, s = salary");
+    }
+
+    public void testAggScalarOverGroupingColumn() {
+        analyze("from test | stats length(first_name), count(1) by first_name");
+    }
+
     public void testEmptyEsRelationOnLimitZeroWithCount() throws IOException {
         var query = """
             from test*
@@ -1554,13 +1561,22 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [bar]"));
     }
 
+    public void testRegularStats() {
+        var plan = analyze("""
+            from tests
+            | stats by salary
+            """);
+
+        var limit = as(plan, Limit.class);
+    }
+
     public void testLiteralInAggregateNoGrouping() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
              from test
             |stats 1
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+        assertThat(e.getMessage(), containsString("expected an aggregate function but got [1]"));
     }
 
     public void testLiteralBehindEvalInAggregateNoGrouping() {
@@ -1570,7 +1586,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats x
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+        assertThat(e.getMessage(), containsString("expected an aggregate function but got [x] referencing [1]"));
     }
 
     public void testLiteralsInAggregateNoGrouping() {
@@ -1579,7 +1595,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats 1 + 2
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+        assertThat(e.getMessage(), containsString("expected an aggregate function but got [1 + 2]"));
     }
 
     public void testLiteralsBehindEvalInAggregateNoGrouping() {
@@ -1589,7 +1605,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats x
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+        assertThat(e.getMessage(), containsString("expected an aggregate function but got [x]"));
     }
 
     public void testFoldableInAggregateWithGrouping() {
@@ -1598,7 +1614,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats 1 + 2 by languages
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+        assertThat(e.getMessage(), containsString("expected an aggregate function but got [1 + 2]"));
     }
 
     public void testLiteralsInAggregateWithGrouping() {
@@ -1607,7 +1623,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats "a" by languages
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+        assertThat(e.getMessage(), containsString("expected an aggregate function but got [\"a\"] of type [Literal]"));
     }
 
     public void testFoldableBehindEvalInAggregateWithGrouping() {
@@ -1617,7 +1633,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats x by languages
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+        assertThat(e.getMessage(), containsString("expected an aggregate function but got [x] referencing [1 + 2]"));
     }
 
     public void testFoldableInGrouping() {
@@ -1626,23 +1642,33 @@ public class AnalyzerTests extends ESTestCase {
             |stats x by 1
             """));
 
-        assertThat(e.getMessage(), containsString("aggregate function"));
+        assertThat(e.getMessage(), containsString("[x] is not an aggregate function"));
     }
 
-    public void testScalarsInStats() {
+    public void testScalarFunctionsInStats() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
              from test
             |stats salary % 3 by languages
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+        assertThat(e.getMessage(), containsString("expected an aggregate function but got [salary % 3] of type [Mod]"));
     }
 
-    public void testScalarsIn() {
+    public void testGroupingInAggs() {
         assertProjection("""
              from test
             |stats e = salary + max(salary) by languages
             """, "e", "languages");
+    }
+
+    public void testDeferredGroupingInStats() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+             |eval x = first_name
+             |stats x by first_name
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function but got [x] referencing [first_name]"));
     }
 
     public void testUnsupportedTypesInStats() {
@@ -1744,5 +1770,10 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation esRelation = (EsRelation) plan;
         assertThat(esRelation.output(), equalTo(NO_FIELDS));
         assertTrue(esRelation.index().mapping().isEmpty());
+    }
+
+    @Override
+    protected IndexAnalyzers createDefaultIndexAnalyzers() {
+        return super.createDefaultIndexAnalyzers();
     }
 }

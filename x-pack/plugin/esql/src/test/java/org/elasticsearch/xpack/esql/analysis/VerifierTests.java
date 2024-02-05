@@ -62,12 +62,8 @@ public class VerifierTests extends ESTestCase {
 
     public void testAggsExpressionsInStatsAggs() {
         assertEquals(
-            "1:44: expected an aggregate function or group but got [salary] of type [FieldAttribute]",
+            "1:44: column [salary] must appear in the STATS BY clause or be used in an aggregate function",
             error("from test | eval z = 2 | stats x = avg(z), salary by emp_no")
-        );
-        assertEquals(
-            "1:19: expected an aggregate function or group but got [length(first_name)] of type [Length]",
-            error("from test | stats length(first_name), count(1) by first_name")
         );
         assertEquals(
             "1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]",
@@ -91,6 +87,30 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:36: cannot use an aggregate [max(languages)] for grouping",
             error("from test| stats max(languages) by max(languages)")
+        );
+    }
+
+    public void testAggsWithInvalidGrouping() {
+        assertEquals(
+            "1:35: column [languages] must appear in the STATS BY clause or be used in an aggregate function",
+            error("from test| stats max(languages) + languages by l = languages % 3")
+        );
+    }
+
+    public void testAggsIgnoreCanonicalGrouping() {
+        // the grouping column should appear verbatim - ignore canonical representation as they complicate things significantly
+        // for no real benefit (1+languages != languages + 1)
+        assertEquals(
+            "1:39: column [languages] must appear in the STATS BY clause or be used in an aggregate function",
+            error("from test| stats max(languages) + 1 + languages by l = languages + 1")
+        );
+    }
+
+    public void testAggsWithoutAgg() {
+        // should work
+        assertEquals(
+            "1:35: column [salary] must appear in the STATS BY clause or be used in an aggregate function",
+            error("from test| stats max(languages) + salary by l = languages + 1")
         );
     }
 

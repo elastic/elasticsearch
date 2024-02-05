@@ -60,6 +60,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -429,15 +430,16 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *         "cidr_match(ip, \"127.0.0.0/24\")@1:19"}}][_doc{f}#21], limit[500], sort[] estimatedRowSize[389]
      */
     public void testCidrMatchPushdownFilter() {
-        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+        var allTypeMappingAnalyzer = makeAnalyzer("mapping-ip.json", new EnrichResolution());
+        final String fieldName = "ip_addr";
 
         int cidrBlockCount = randomIntBetween(1, 10);
         ArrayList<String> cidrBlocks = new ArrayList<>();
         for (int i = 0; i < cidrBlockCount; i++) {
-            cidrBlocks.add("127.0." + i + ".0/24");
+            cidrBlocks.add(randomCidrBlock());
         }
         String cidrBlocksString = cidrBlocks.stream().map((s) -> "\"" + s + "\"").collect(Collectors.joining(","));
-        String cidrMatch = "cidr_match(ip, " + cidrBlocksString + ")";
+        String cidrMatch = format(null, "cidr_match({}, {})", fieldName, cidrBlocksString);
 
         var query = "from test | where " + cidrMatch;
         var plan = plan(query, EsqlTestUtils.TEST_SEARCH_STATS, allTypeMappingAnalyzer);
@@ -449,13 +451,9 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var queryExec = as(field.child(), EsQueryExec.class);
         assertThat(queryExec.limit().fold(), is(500));
 
-        assertThat(queryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
-        var actualLuceneQuery = (SingleValueQuery.Builder) queryExec.query();
-        assertThat(actualLuceneQuery.field(), equalTo("ip"));
-        assertThat(actualLuceneQuery.source().text(), equalTo(cidrMatch));
-
-        var expectedInnerQuery = QueryBuilders.termsQuery("ip", cidrBlocks);
-        assertThat(actualLuceneQuery.next(), equalTo(expectedInnerQuery));
+        var expectedInnerQuery = QueryBuilders.termsQuery(fieldName, cidrBlocks);
+        var expectedQuery = wrapWithSingleQuery(expectedInnerQuery, fieldName, new Source(1, 18, cidrMatch));
+        assertThat(queryExec.query().toString(), is(expectedQuery.toString()));
     }
 
     private record OutOfRangeTestCase(String fieldName, String tooLow, String tooHigh) {};
@@ -663,5 +661,14 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
+    }
+
+    private String randomCidrBlock() {
+        boolean ipv4 = randomBoolean();
+
+        String address = randomIp(ipv4).getHostAddress();
+        int cidrPrefixLength = ipv4 ? randomIntBetween(0, 32) : randomIntBetween(0, 128);
+
+        return format(null, "{}/{}", address, cidrPrefixLength);
     }
 }

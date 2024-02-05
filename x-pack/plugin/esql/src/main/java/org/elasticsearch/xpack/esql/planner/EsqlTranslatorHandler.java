@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
@@ -44,10 +43,10 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Check;
-import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -259,14 +258,9 @@ public final class EsqlTranslatorHandler extends QlTranslatorHandler {
 
         public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
             if (f instanceof CIDRMatch cm) {
-                if (cm.ipField() instanceof FieldAttribute && Expressions.foldable(cm.matches())) {
-                    String targetFieldName = handler.nameOf(((FieldAttribute) cm.ipField()).exactAttribute());
-
-                    Set<Object> set = Sets.newLinkedHashSetWithExpectedSize(CollectionUtils.mapSize(cm.matches().size()));
-
-                    for (Expression e : cm.matches()) {
-                        set.add(e.fold());
-                    }
+                if (cm.ipField() instanceof FieldAttribute fa && Expressions.foldable(cm.matches())) {
+                    String targetFieldName = handler.nameOf(fa.exactAttribute());
+                    Set<Object> set = new LinkedHashSet<>(Expressions.fold(cm.matches()));
 
                     Query query = new TermsQuery(f.source(), targetFieldName, set);
                     // CIDR_MATCH applies only to single values.

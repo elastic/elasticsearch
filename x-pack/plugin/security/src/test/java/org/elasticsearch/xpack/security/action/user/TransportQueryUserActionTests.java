@@ -175,8 +175,8 @@ public class TransportQueryUserActionTests extends ESTestCase {
 
         if (profileIndexExists && withProfileUid) {
             assertEquals(
-                storeUsers.stream().map(user -> "u_profile_" + user.principal()),
-                Arrays.stream(responseRef.get().getItems()).map(QueryUserResponse.Item::profileUid)
+                storeUsers.stream().map(user -> "u_profile_" + user.principal()).toList(),
+                Arrays.stream(responseRef.get().getItems()).map(QueryUserResponse.Item::profileUid).toList()
             );
         } else {
             for (QueryUserResponse.Item item : responseRef.get().getItems()) {

@@ -564,7 +564,15 @@ is usually simplest to collect these logs and provide them to the supplier of
 your storage system for further analysis. If the incompatibility is not clear
 from the logs emitted by the storage system, configure {es} to log every
 request it makes to the S3 API by <<configuring-logging-levels,setting the
-logging level>> of the `com.amazonaws.request` logger to `DEBUG`:
+logging level>> of the `com.amazonaws.request` logger to `DEBUG`.
+
+To prevent leaking sensitive information such as credentials and keys in logs,
+{es} rejects configuring this logger at high verbosity unless
+<<http-rest-request-tracer,insecure network trace logging>> is enabled.
+To do so, you must explicitly enable it on each node by setting the system
+property `es.insecure_network_trace_enabled` to `true`.
+
+Once enabled, you can configure the `com.amazonaws.request` logger:
 
 [source,console]
 ----
@@ -585,8 +593,9 @@ https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/java-dg-logging.html
 documentation for further information, including details about other loggers
 that can be used to obtain even more verbose logs. When you have finished
 collecting the logs needed by your supplier, set the logger settings back to
-`null` to return to the default logging configuration. See <<cluster-logger>>
-and <<cluster-update-settings>> for more information.
+`null` to return to the default logging configuration and disable insecure network
+trace logging again. See <<cluster-logger>> and <<cluster-update-settings>> for
+more information.
 
 [[repository-s3-linearizable-registers]]
 ==== Linearizable register implementation

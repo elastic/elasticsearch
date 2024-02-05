@@ -547,8 +547,8 @@ public class JwtRestIT extends ESRestTestCase {
             assertThat(
                 responseAsMap(reloadResponse).toString(),
                 containsString(
-                    "Missing setting for [xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret]. " +
-                        "It is required when setting [xpack.security.authc.realms.jwt.jwt2.client_authentication.type] is [shared_secret]"
+                    "Missing setting for [xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret]. "
+                        + "It is required when setting [xpack.security.authc.realms.jwt.jwt2.client_authentication.type] is [shared_secret]"
                 )
             );
             getSecurityClient(buildAndSignJwtForRealm2(principal), Optional.of(newValidSharedSecret)).authenticate();

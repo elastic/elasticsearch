@@ -76,7 +76,7 @@ public class LazyRolloverDataStreamIT extends ESRestTestCase {
     }
 
     @Before
-    public void setUpTemplate() throws IOException {
+    public void setUpDataStreamAsAdmin() throws IOException {
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/lazy-ds-template");
         putComposableIndexTemplateRequest.setJsonEntity("""
             {
@@ -85,6 +85,7 @@ public class LazyRolloverDataStreamIT extends ESRestTestCase {
             }
             """);
         assertOK(adminClient().performRequest(putComposableIndexTemplateRequest));
+        assertOK(adminClient().performRequest(new Request("PUT", "/_data_stream/" + DATA_STREAM_NAME)));
     }
 
     @SuppressWarnings("unchecked")
@@ -213,7 +214,6 @@ public class LazyRolloverDataStreamIT extends ESRestTestCase {
     public void testLazyRolloverWithConditions() throws Exception {
         Request createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc?refresh=true");
         createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
-
         assertOK(client().performRequest(createDocRequest));
 
         Request rolloverRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_rollover?lazy");

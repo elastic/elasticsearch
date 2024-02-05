@@ -31,14 +31,14 @@ import java.util.Map;
  * Api that automatically rolls over a data stream that has the flag {@link DataStream#rolloverOnWrite()} enabled. These requests always
  * originate from requests that write into the data stream.
  */
-public final class AutoRolloverAction extends ActionType<RolloverResponse> {
+public final class LazyRolloverAction extends ActionType<RolloverResponse> {
 
-    public static final NodeFeature DATA_STREAM_AUTO_ROLLOVER = new NodeFeature("data_stream.rollover.auto");
+    public static final NodeFeature DATA_STREAM_LAZY_ROLLOVER = new NodeFeature("data_stream.rollover.lazy");
 
-    public static final AutoRolloverAction INSTANCE = new AutoRolloverAction();
-    public static final String NAME = "indices:admin/data_stream/auto_rollover";
+    public static final LazyRolloverAction INSTANCE = new LazyRolloverAction();
+    public static final String NAME = "indices:admin/data_stream/lazy_rollover";
 
-    private AutoRolloverAction() {
+    private LazyRolloverAction() {
         super(NAME);
     }
 
@@ -62,7 +62,7 @@ public final class AutoRolloverAction extends ActionType<RolloverResponse> {
             Client client
         ) {
             super(
-                AutoRolloverAction.INSTANCE,
+                LazyRolloverAction.INSTANCE,
                 transportService,
                 clusterService,
                 threadPool,
@@ -114,7 +114,7 @@ public final class AutoRolloverAction extends ActionType<RolloverResponse> {
                 false
             );
 
-            String source = "auto_rollover source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
+            String source = "lazy_rollover source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
             // We create a new rollover request to ensure that it doesn't contain any other parameters apart from the data stream name
             // This will provide a more resilient user experience
             RolloverTask rolloverTask = new RolloverTask(

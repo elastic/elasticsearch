@@ -16,4 +16,3 @@ not_privileged:
         - read
         - write
         - view_index_metadata
-        - auto_configure

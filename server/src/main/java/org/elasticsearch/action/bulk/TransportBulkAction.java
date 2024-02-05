@@ -20,7 +20,7 @@ import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.rollover.AutoRolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -79,6 +80,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
+    public static final String LAZY_ROLLOVER_ORIGIN = "lazy_rollover";
 
     private final ActionType<BulkResponse> bulkAction;
     private final ThreadPool threadPool;
@@ -91,6 +93,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
+    private final OriginSettingClient rolloverClient;
 
     @Inject
     public TransportBulkAction(
@@ -179,6 +182,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
         clusterService.addStateApplier(this.ingestForwarder);
+        this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
     }
 
     /**
@@ -361,7 +365,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().isRequireDataStream));
 
         // Step 3: Collect all the data streams that need to be rolled over before writing
-        Set<String> dataStreamsToBeRolledOver = featureService.clusterHasFeature(state, AutoRolloverAction.DATA_STREAM_AUTO_ROLLOVER)
+        Set<String> dataStreamsToBeRolledOver = featureService.clusterHasFeature(state, LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER)
             ? indices.keySet().stream().filter(target -> {
                 DataStream dataStream = state.metadata().dataStreams().get(target);
                 return dataStream != null && dataStream.rolloverOnWrite();
@@ -569,9 +573,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     void autoRolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
         rolloverRequest.masterNodeTimeout(timeout);
-        // We are executing an auto-rollover because it can be executed with the auto_configure privilege, while
-        // RolloverAction requires higher privileges that a user who is just writing a document might not have.
-        client.execute(AutoRolloverAction.INSTANCE, rolloverRequest, listener);
+        // We are executing a lazy rollover because it is an action specialised for this situation, when we want an
+        // unconditional and performant rollover.
+        rolloverClient.execute(LazyRolloverAction.INSTANCE, rolloverRequest, listener);
     }
 
     private static boolean setResponseFailureIfIndexMatches(

@@ -11,7 +11,7 @@ Supported types:
 
 include::types/equals.asciidoc[]
 
-==== Case Insensitive Equals `=~`
+==== Case insensitive equality `=~`
 [.text-center]
 //image::esql/functions/signature/case_insensitive_equals.svg[Embedded,opts=inline]
 

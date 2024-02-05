@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.client.internal.Client;
@@ -98,7 +98,7 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(mockClient).execute(eq(GetAction.INSTANCE), any(GetRequest.class), any(ActionListener.class));
+        }).when(mockClient).execute(eq(TransportGetAction.TYPE), any(GetRequest.class), any(ActionListener.class));
 
         BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
         blobCacheService.start();
@@ -130,7 +130,7 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(mockClient).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+        }).when(mockClient).execute(eq(TransportIndexAction.TYPE), any(IndexRequest.class), any(ActionListener.class));
 
         BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
         blobCacheService.start();
@@ -168,7 +168,7 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(mockClient).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+        }).when(mockClient).execute(eq(TransportIndexAction.TYPE), any(IndexRequest.class), any(ActionListener.class));
 
         final BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
         blobCacheService.start();

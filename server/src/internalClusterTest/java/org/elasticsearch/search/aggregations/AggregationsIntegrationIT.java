@@ -18,7 +18,8 @@ import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class AggregationsIntegrationIT extends ESIntegTestCase {
@@ -38,32 +39,23 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
 
     public void testScroll() {
         final int size = randomIntBetween(1, 4);
-        final String[] scroll = new String[1];
-        final int[] total = new int[1];
-        assertNoFailuresAndResponse(
-            prepareSearch("index").setSize(size).setScroll(TimeValue.timeValueMinutes(1)).addAggregation(terms("f").field("f")),
-            response -> {
-                Aggregations aggregations = response.getAggregations();
-                assertNotNull(aggregations);
-                Terms terms = aggregations.get("f");
-                assertEquals(Math.min(numDocs, 3L), terms.getBucketByKey("0").getDocCount());
-                scroll[0] = response.getScrollId();
-                total[0] = response.getHits().getHits().length;
+        assertScrollResponsesAndHitCount(
+            client(),
+            TimeValue.timeValueSeconds(60),
+            prepareSearch("index").setSize(size).addAggregation(terms("f").field("f")),
+            numDocs,
+            (respNum, response) -> {
+                assertNoFailures(response);
+
+                if (respNum == 1) { // initial response.
+                    InternalAggregations aggregations = response.getAggregations();
+                    assertNotNull(aggregations);
+                    Terms terms = aggregations.get("f");
+                    assertEquals(Math.min(numDocs, 3L), terms.getBucketByKey("0").getDocCount());
+                } else {
+                    assertNull(response.getAggregations());
+                }
             }
         );
-        int currentTotal = 0;
-        while (total[0] - currentTotal > 0) {
-            currentTotal = total[0];
-            assertNoFailuresAndResponse(
-                client().prepareSearchScroll(scroll[0]).setScroll(TimeValue.timeValueMinutes(1)),
-                scrollResponse -> {
-                    assertNull(scrollResponse.getAggregations());
-                    total[0] += scrollResponse.getHits().getHits().length;
-                    scroll[0] = scrollResponse.getScrollId();
-                }
-            );
-        }
-        clearScroll(scroll[0]);
-        assertEquals(numDocs, total[0]);
     }
 }

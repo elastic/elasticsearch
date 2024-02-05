@@ -54,7 +54,6 @@ import org.elasticsearch.transport.TransportSettings;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -191,7 +190,7 @@ public class MockNode extends Node {
                     interceptor,
                     localNodeFactory,
                     clusterSettings,
-                    new HashSet<>(taskManager.getTaskHeaders())
+                    taskManager.getTaskHeaders()
                 );
             }
         }

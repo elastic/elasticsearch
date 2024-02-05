@@ -13,7 +13,7 @@ import org.junit.ClassRule;
 
 public class FieldExtractorIT extends FieldExtractorTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
 
     @Override
     protected String getTestRestCluster() {

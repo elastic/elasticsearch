@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -82,13 +82,11 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<
         ActionListener<EvaluateDataFrameAction.Response> listener
     ) {
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        ActionListener<List<Void>> resultsListener = ActionListener.wrap(unused -> {
-            EvaluateDataFrameAction.Response response = new EvaluateDataFrameAction.Response(
-                request.getEvaluation().getName(),
-                request.getEvaluation().getResults()
-            );
-            listener.onResponse(response);
-        }, listener::onFailure);
+        ActionListener<List<Void>> resultsListener = listener.delegateFailureAndWrap(
+            (delegate, unused) -> delegate.onResponse(
+                new EvaluateDataFrameAction.Response(request.getEvaluation().getName(), request.getEvaluation().getResults())
+            )
+        );
 
         // Create an immutable collection of parameters to be used by evaluation metrics.
         EvaluationParameters parameters = new EvaluationParameters(maxBuckets.get());
@@ -146,13 +144,13 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<
                 SearchRequest searchRequest = new SearchRequest(request.getIndices()).source(searchSourceBuilder);
                 useSecondaryAuthIfAvailable(
                     securityContext,
-                    () -> client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+                    () -> client.execute(TransportSearchAction.TYPE, searchRequest, listener.delegateFailureAndWrap((l, searchResponse) -> {
                         evaluation.process(searchResponse);
                         if (evaluation.hasAllResults() == false) {
                             add(nextTask());
                         }
-                        listener.onResponse(null);
-                    }, listener::onFailure))
+                        l.onResponse(null);
+                    }))
                 );
             };
         }

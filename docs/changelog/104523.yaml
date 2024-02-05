@@ -1,0 +1,5 @@
+pr: 104523
+summary: "ESQL: Allow grouping by null blocks"
+area: ES|QL
+type: bug
+issues: []

@@ -678,7 +678,8 @@ public final class TextFieldMapper extends FieldMapper {
             super(name, indexed, stored, false, tsi, meta);
             fielddata = false;
             this.isSyntheticSource = isSyntheticSource;
-            this.syntheticSourceDelegate = syntheticSourceDelegate;  // TODO rename to "exactDelegate" or something
+            // TODO block loader could use a "fast loading" delegate which isn't always the same - but frequently is.
+            this.syntheticSourceDelegate = syntheticSourceDelegate;
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.indexPhrases = indexPhrases;
         }
@@ -936,9 +937,15 @@ public final class TextFieldMapper extends FieldMapper {
             return fielddata;
         }
 
+        public boolean canUseSyntheticSourceDelegateForQuerying() {
+            return syntheticSourceDelegate != null
+                && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
+                && (syntheticSourceDelegate.isIndexed() || syntheticSourceDelegate.isStored());
+        }
+
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (syntheticSourceDelegate != null) {
+            if (canUseSyntheticSourceDelegateForQuerying()) {
                 return new BlockLoader.Delegating(syntheticSourceDelegate.blockLoader(blContext)) {
                     @Override
                     protected String delegatingTo() {
@@ -946,23 +953,55 @@ public final class TextFieldMapper extends FieldMapper {
                     }
                 };
             }
-            if (isSyntheticSource) {
-                if (isStored()) {
-                    return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
+            /*
+             * If this is a sub-text field try and return the parent's loader. Text
+             * fields will always be slow to load and if the parent is exact then we
+             * should use that instead.
+             */
+            String parentField = blContext.parentField(name());
+            if (parentField != null) {
+                MappedFieldType parent = blContext.lookup().fieldType(parentField);
+                if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                    KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
+                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
+                        return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
+                            @Override
+                            protected String delegatingTo() {
+                                return kwd.name();
+                            }
+                        };
+                    }
                 }
-                /*
-                 * We *shouldn't fall to this exception. The mapping should be
-                 * rejected because we've enabled synthetic source but not configured
-                 * the index properly. But we give it a nice message anyway just in
-                 * case.
-                 */
-                throw new IllegalArgumentException(
-                    "fetching values from a text field ["
-                        + name()
-                        + "] is not supported because synthetic _source is enabled and we don't have a way to load the fields"
-                );
             }
-            return new BlockSourceReader.BytesRefsBlockLoader(SourceValueFetcher.toString(blContext.sourcePaths(name())));
+            if (isStored()) {
+                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
+            }
+            if (isSyntheticSource) {
+                /*
+                 * When we're in synthetic source mode we don't currently
+                 * support text fields that are not stored and are not children
+                 * of perfect keyword fields. We'd have to load from the parent
+                 * field and then convert the result to a string.
+                 */
+                return null;
+            }
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
+        }
+
+        /**
+         * Build an iterator of documents that have the field. This mirrors parseCreateField,
+         * using whatever
+         */
+        private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
+            if (isIndexed()) {
+                if (getTextSearchInfo().hasNorms()) {
+                    return BlockSourceReader.lookupFromNorms(name());
+                }
+            } else if (isStored() == false) {
+                return BlockSourceReader.lookupMatchingAll();
+            }
+            return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
         }
 
         @Override

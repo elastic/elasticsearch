@@ -96,7 +96,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
     private static final Logger logger = LogManager.getLogger(RepositoryAnalyzeAction.class);
 
-    public static final ActionType<RepositoryAnalyzeAction.Response> INSTANCE = ActionType.localOnly("cluster:admin/repository/analyze");
+    public static final ActionType<RepositoryAnalyzeAction.Response> INSTANCE = new ActionType<>("cluster:admin/repository/analyze");
 
     static final String UNCONTENDED_REGISTER_NAME_PREFIX = "test-register-uncontended-";
     static final String CONTENDED_REGISTER_NAME_PREFIX = "test-register-contended-";

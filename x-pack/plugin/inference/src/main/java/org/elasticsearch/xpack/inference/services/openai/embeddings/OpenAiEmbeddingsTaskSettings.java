@@ -21,8 +21,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 /**
  * Defines the task settings for the openai service.
@@ -48,6 +48,23 @@ public record OpenAiEmbeddingsTaskSettings(String model, @Nullable String user) 
         }
 
         return new OpenAiEmbeddingsTaskSettings(model, user);
+    }
+
+    /**
+     * Creates a new {@link OpenAiEmbeddingsTaskSettings} object by overriding the values in originalSettings with the ones
+     * passed in via requestSettings if the fields are not null.
+     * @param originalSettings the original task settings from the inference entity configuration from storage
+     * @param requestSettings the task settings from the request
+     * @return a new {@link OpenAiEmbeddingsTaskSettings}
+     */
+    public static OpenAiEmbeddingsTaskSettings of(
+        OpenAiEmbeddingsTaskSettings originalSettings,
+        OpenAiEmbeddingsRequestTaskSettings requestSettings
+    ) {
+        var modelToUse = requestSettings.model() == null ? originalSettings.model : requestSettings.model();
+        var userToUse = requestSettings.user() == null ? originalSettings.user : requestSettings.user();
+
+        return new OpenAiEmbeddingsTaskSettings(modelToUse, userToUse);
     }
 
     public OpenAiEmbeddingsTaskSettings {
@@ -83,12 +100,5 @@ public record OpenAiEmbeddingsTaskSettings(String model, @Nullable String user) 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(model);
         out.writeOptionalString(user);
-    }
-
-    public OpenAiEmbeddingsTaskSettings overrideWith(OpenAiEmbeddingsRequestTaskSettings requestSettings) {
-        var modelToUse = requestSettings.model() == null ? model : requestSettings.model();
-        var userToUse = requestSettings.user() == null ? user : requestSettings.user();
-
-        return new OpenAiEmbeddingsTaskSettings(modelToUse, userToUse);
     }
 }

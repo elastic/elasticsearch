@@ -91,7 +91,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
 
-    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersions.V_8_500_040;
+    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersions.V_8_10_X;
 
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");

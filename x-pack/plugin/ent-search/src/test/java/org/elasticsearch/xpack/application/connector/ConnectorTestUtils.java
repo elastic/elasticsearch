@@ -7,13 +7,36 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationDependency;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationDisplayType;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationFieldType;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationSelectOption;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationValidation;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationValidationType;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringAdvancedSnippet;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringPolicy;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRule;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRuleCondition;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationInfo;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
+import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
@@ -22,11 +45,23 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomLong;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 public final class ConnectorTestUtils {
     public static PutConnectorAction.Request getRandomPutConnectorActionRequest() {
         return new PutConnectorAction.Request(
             randomAlphaOfLengthBetween(5, 15),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomBoolean()),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomAlphaOfLengthBetween(5, 15))
+        );
+    }
+
+    public static PostConnectorAction.Request getRandomPostConnectorActionRequest() {
+        return new PostConnectorAction.Request(
             randomFrom(randomAlphaOfLengthBetween(5, 15)),
             randomFrom(randomAlphaOfLengthBetween(5, 15)),
             randomFrom(randomBoolean()),
@@ -59,33 +94,31 @@ public final class ConnectorTestUtils {
 
     public static ConnectorSyncInfo getRandomConnectorSyncInfo() {
         return new ConnectorSyncInfo.Builder().setLastAccessControlSyncError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
-            .setLastAccessControlSyncScheduledAt(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
+            .setLastAccessControlSyncScheduledAt(randomFrom(new Instant[] { null, ConnectorTestUtils.randomInstant() }))
             .setLastAccessControlSyncStatus(randomFrom(new ConnectorSyncStatus[] { null, getRandomSyncStatus() }))
-            .setLastDeletedDocumentCount(randomFrom(new Long[] { null, randomLong() }))
-            .setLastIncrementalSyncScheduledAt(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
-            .setLastIndexedDocumentCount(randomFrom(new Long[] { null, randomLong() }))
-            .setLastSeen(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
+            .setLastDeletedDocumentCount(randomLong())
+            .setLastIncrementalSyncScheduledAt(randomFrom(new Instant[] { null, ConnectorTestUtils.randomInstant() }))
+            .setLastIndexedDocumentCount(randomLong())
             .setLastSyncError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
-            .setLastSyncScheduledAt(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
+            .setLastSyncScheduledAt(randomFrom(new Instant[] { null, ConnectorTestUtils.randomInstant() }))
             .setLastSyncStatus(randomFrom(new ConnectorSyncStatus[] { null, getRandomSyncStatus() }))
-            .setLastSynced(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
+            .setLastSynced(randomFrom(new Instant[] { null, ConnectorTestUtils.randomInstant() }))
             .build();
     }
 
     public static ConnectorFeatures getRandomConnectorFeatures() {
-        return new ConnectorFeatures.Builder().setDocumentLevelSecurityEnabled(randomFrom(new Boolean[] { null, randomBoolean() }))
+        return new ConnectorFeatures.Builder().setDocumentLevelSecurityEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
             .setFilteringRules(randomFrom(new Boolean[] { null, randomBoolean() }))
             .setFilteringAdvancedConfig(randomFrom(new Boolean[] { null, randomBoolean() }))
-            .setIncrementalSyncEnabled(randomFrom(new Boolean[] { null, randomBoolean() }))
-            .setSyncRulesAdvancedEnabled(randomFrom(new Boolean[] { null, randomBoolean() }))
-            .setSyncRulesBasicEnabled(randomFrom(new Boolean[] { null, randomBoolean() }))
+            .setIncrementalSyncEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
+            .setSyncRulesFeatures(randomBoolean() ? randomSyncRulesFeatures() : null)
             .build();
     }
 
     public static ConnectorCustomSchedule getRandomConnectorCustomSchedule() {
         return new ConnectorCustomSchedule.Builder().setInterval(getRandomCronExpression())
             .setEnabled(randomBoolean())
-            .setLastSynced(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
+            .setLastSynced(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLongBetween(0, 10000)) }))
             .setName(randomAlphaOfLength(10))
             .setConfigurationOverrides(
                 new ConnectorCustomSchedule.ConfigurationOverrides.Builder().setMaxCrawlDepth(randomInt())
@@ -103,12 +136,15 @@ public final class ConnectorTestUtils {
         Instant currentTimestamp = Instant.now();
 
         return new ConnectorFiltering.Builder().setActive(
-            new ConnectorFiltering.FilteringRules.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
-                .setAdvancedSnippetUpdatedAt(currentTimestamp)
-                .setAdvancedSnippetValue(Collections.emptyMap())
+            new FilteringRules.Builder().setAdvancedSnippet(
+                new FilteringAdvancedSnippet.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
+                    .setAdvancedSnippetUpdatedAt(currentTimestamp)
+                    .setAdvancedSnippetValue(Collections.emptyMap())
+                    .build()
+            )
                 .setRules(
                     List.of(
-                        new ConnectorFiltering.FilteringRule.Builder().setCreatedAt(currentTimestamp)
+                        new FilteringRule.Builder().setCreatedAt(currentTimestamp)
                             .setField(randomAlphaOfLength(10))
                             .setId(randomAlphaOfLength(10))
                             .setOrder(randomInt())
@@ -119,18 +155,24 @@ public final class ConnectorTestUtils {
                             .build()
                     )
                 )
-                .setValidationErrors(Collections.emptyList())
-                .setValidationState(getRandomFilteringValidationState())
+                .setFilteringValidationInfo(
+                    new FilteringValidationInfo.Builder().setValidationErrors(Collections.emptyList())
+                        .setValidationState(getRandomFilteringValidationState())
+                        .build()
+                )
                 .build()
         )
             .setDomain(randomAlphaOfLength(10))
             .setDraft(
-                new ConnectorFiltering.FilteringRules.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
-                    .setAdvancedSnippetUpdatedAt(currentTimestamp)
-                    .setAdvancedSnippetValue(Collections.emptyMap())
+                new FilteringRules.Builder().setAdvancedSnippet(
+                    new FilteringAdvancedSnippet.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
+                        .setAdvancedSnippetUpdatedAt(currentTimestamp)
+                        .setAdvancedSnippetValue(Collections.emptyMap())
+                        .build()
+                )
                     .setRules(
                         List.of(
-                            new ConnectorFiltering.FilteringRule.Builder().setCreatedAt(currentTimestamp)
+                            new FilteringRule.Builder().setCreatedAt(currentTimestamp)
                                 .setField(randomAlphaOfLength(10))
                                 .setId(randomAlphaOfLength(10))
                                 .setOrder(randomInt())
@@ -141,33 +183,125 @@ public final class ConnectorTestUtils {
                                 .build()
                         )
                     )
-                    .setValidationErrors(Collections.emptyList())
-                    .setValidationState(getRandomFilteringValidationState())
+                    .setFilteringValidationInfo(
+                        new FilteringValidationInfo.Builder().setValidationErrors(Collections.emptyList())
+                            .setValidationState(getRandomFilteringValidationState())
+                            .build()
+                    )
                     .build()
             )
             .build();
     }
 
-    public static Connector getRandomConnector() {
+    public static Connector getRandomSyncJobConnectorInfo() {
+        ConnectorFiltering randomFiltering = getRandomConnectorFiltering();
         return new Connector.Builder().setConnectorId(randomAlphaOfLength(10))
-            .setApiKeyId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setSyncJobFiltering(randomFiltering.getActive())
+            .setFiltering(List.of(randomFiltering))
+            .setIndexName(randomAlphaOfLength(10))
+            .setLanguage(randomAlphaOfLength(10))
+            .setServiceType(randomAlphaOfLength(10))
             .setConfiguration(Collections.emptyMap())
-            .setCustomScheduling(randomBoolean() ? getRandomConnectorCustomSchedule() : null)
+            .build();
+    }
+
+    private static ConfigurationDependency getRandomConfigurationDependency() {
+        return new ConfigurationDependency.Builder().setField(randomAlphaOfLength(10)).setValue(randomAlphaOfLength(10)).build();
+    }
+
+    private static ConfigurationSelectOption getRandomConfigurationSelectOption() {
+        return new ConfigurationSelectOption.Builder().setLabel(randomAlphaOfLength(10)).setValue(randomAlphaOfLength(10)).build();
+    }
+
+    private static ConfigurationValidation getRandomConfigurationValidation() {
+        return new ConfigurationValidation.Builder().setConstraint(randomAlphaOfLength(10))
+            .setType(getRandomConfigurationValidationType())
+            .build();
+    }
+
+    public static ConnectorConfiguration getRandomConnectorConfigurationField() {
+        return new ConnectorConfiguration.Builder().setCategory(randomAlphaOfLength(10))
+            .setDefaultValue(randomAlphaOfLength(10))
+            .setDependsOn(List.of(getRandomConfigurationDependency()))
+            .setDisplay(getRandomConfigurationDisplayType())
+            .setLabel(randomAlphaOfLength(10))
+            .setOptions(List.of(getRandomConfigurationSelectOption(), getRandomConfigurationSelectOption()))
+            .setOrder(randomInt())
+            .setPlaceholder(randomAlphaOfLength(10))
+            .setRequired(randomBoolean())
+            .setSensitive(randomBoolean())
+            .setTooltip(randomAlphaOfLength(10))
+            .setType(getRandomConfigurationFieldType())
+            .setUiRestrictions(List.of(randomAlphaOfLength(10), randomAlphaOfLength(10)))
+            .setValidations(List.of(getRandomConfigurationValidation()))
+            .setValue(randomAlphaOfLength(10))
+            .build();
+    }
+
+    public static Map<String, ConnectorConfiguration> getRandomConnectorConfiguration() {
+        Map<String, ConnectorConfiguration> configMap = new HashMap<>();
+        for (int i = 0; i < 3; i++) {
+            configMap.put(randomAlphaOfLength(10), getRandomConnectorConfigurationField());
+        }
+        return configMap;
+    }
+
+    public static Connector getRandomConnector() {
+
+        return new Connector.Builder().setApiKeyId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setApiKeySecretId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setConfiguration(getRandomConnectorConfiguration())
+            .setCustomScheduling(Map.of(randomAlphaOfLengthBetween(5, 10), getRandomConnectorCustomSchedule()))
             .setDescription(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setFeatures(randomBoolean() ? getRandomConnectorFeatures() : null)
-            .setFiltering(randomBoolean() ? List.of(getRandomConnectorFiltering()) : null)
-            .setIndexName(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setFiltering(List.of(getRandomConnectorFiltering()))
+            .setIndexName(randomAlphaOfLength(10))
             .setIsNative(randomBoolean())
             .setLanguage(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setLastSeen(randomFrom(new Instant[] { null, ConnectorTestUtils.randomInstant() }))
             .setSyncInfo(getRandomConnectorSyncInfo())
             .setName(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setPipeline(randomBoolean() ? getRandomConnectorIngestPipeline() : null)
-            .setScheduling(randomBoolean() ? getRandomConnectorScheduling() : null)
-            .setStatus(getRandomConnectorStatus())
-            .setSyncCursor(randomFrom(new Object[] { null, randomAlphaOfLength(1) }))
+            .setScheduling(getRandomConnectorScheduling())
+            .setStatus(getRandomConnectorInitialStatus())
+            .setSyncCursor(randomBoolean() ? Map.of(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)) : null)
             .setSyncNow(randomBoolean())
             .build();
+    }
+
+    private static BytesReference convertConnectorToBytesReference(Connector connector) {
+        try {
+            return XContentHelper.toXContent((builder, params) -> {
+                connector.toInnerXContent(builder, params);
+                return builder;
+            }, XContentType.JSON, null, false);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Map<String, Object> convertConnectorToGenericMap(Connector connector) {
+        return XContentHelper.convertToMap(convertConnectorToBytesReference(connector), true, XContentType.JSON).v2();
+    }
+
+    public static ConnectorSearchResult getRandomConnectorSearchResult() {
+        Connector connector = getRandomConnector();
+
+        return new ConnectorSearchResult.Builder().setResultBytes(convertConnectorToBytesReference(connector))
+            .setResultMap(convertConnectorToGenericMap(connector))
+            .setId(randomAlphaOfLength(10))
+            .build();
+    }
+
+    private static ConnectorFeatures.FeatureEnabled randomConnectorFeatureEnabled() {
+        return new ConnectorFeatures.FeatureEnabled(randomBoolean());
+    }
+
+    private static ConnectorFeatures.SyncRulesFeatures randomSyncRulesFeatures() {
+        return new ConnectorFeatures.SyncRulesFeatures.Builder().setSyncRulesAdvancedEnabled(
+            randomBoolean() ? randomConnectorFeatureEnabled() : null
+        ).setSyncRulesBasicEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null).build();
     }
 
     /**
@@ -187,28 +321,79 @@ public final class ConnectorTestUtils {
         );
     }
 
-    private static ConnectorSyncStatus getRandomSyncStatus() {
+    /**
+     * Generate a random Instant between:
+     * - 1 January 1970 00:00:00+00:00
+     * - 24 January 2065 05:20:00+00:00
+     */
+    public static Instant randomInstant() {
+        Instant lowerBoundInstant = Instant.ofEpochSecond(0L);
+        Instant upperBoundInstant = Instant.ofEpochSecond(3000000000L);
+
+        return Instant.ofEpochSecond(
+            randomLongBetween(lowerBoundInstant.getEpochSecond(), upperBoundInstant.getEpochSecond()),
+            randomLongBetween(0, 999999999)
+        );
+    }
+
+    public static ConnectorSyncStatus getRandomSyncStatus() {
         ConnectorSyncStatus[] values = ConnectorSyncStatus.values();
         return values[randomInt(values.length - 1)];
     }
 
-    private static ConnectorStatus getRandomConnectorStatus() {
+    public static ConnectorSyncJobType getRandomSyncJobType() {
+        ConnectorSyncJobType[] values = ConnectorSyncJobType.values();
+        return values[randomInt(values.length - 1)];
+    }
+
+    public static ConnectorStatus getRandomConnectorInitialStatus() {
+        return randomFrom(ConnectorStatus.CREATED, ConnectorStatus.NEEDS_CONFIGURATION);
+    }
+
+    public static ConnectorStatus getRandomConnectorNextStatus(ConnectorStatus connectorStatus) {
+        return randomFrom(ConnectorStateMachine.validNextStates(connectorStatus));
+    }
+
+    public static ConnectorStatus getRandomInvalidConnectorNextStatus(ConnectorStatus connectorStatus) {
+        Set<ConnectorStatus> validNextStatus = ConnectorStateMachine.validNextStates(connectorStatus);
+        List<ConnectorStatus> invalidStatuses = Arrays.stream(ConnectorStatus.values())
+            .filter(status -> validNextStatus.contains(status) == false)
+            .toList();
+        return randomFrom(invalidStatuses);
+    }
+
+    public static ConnectorStatus getRandomConnectorStatus() {
         ConnectorStatus[] values = ConnectorStatus.values();
         return values[randomInt(values.length - 1)];
     }
 
-    private static ConnectorFiltering.FilteringPolicy getRandomFilteringPolicy() {
-        ConnectorFiltering.FilteringPolicy[] values = ConnectorFiltering.FilteringPolicy.values();
+    private static FilteringPolicy getRandomFilteringPolicy() {
+        FilteringPolicy[] values = FilteringPolicy.values();
         return values[randomInt(values.length - 1)];
     }
 
-    private static ConnectorFiltering.FilteringRuleCondition getRandomFilteringRule() {
-        ConnectorFiltering.FilteringRuleCondition[] values = ConnectorFiltering.FilteringRuleCondition.values();
+    private static FilteringRuleCondition getRandomFilteringRule() {
+        FilteringRuleCondition[] values = FilteringRuleCondition.values();
         return values[randomInt(values.length - 1)];
     }
 
-    private static ConnectorFiltering.FilteringValidationState getRandomFilteringValidationState() {
-        ConnectorFiltering.FilteringValidationState[] values = ConnectorFiltering.FilteringValidationState.values();
+    private static FilteringValidationState getRandomFilteringValidationState() {
+        FilteringValidationState[] values = FilteringValidationState.values();
+        return values[randomInt(values.length - 1)];
+    }
+
+    private static ConfigurationDisplayType getRandomConfigurationDisplayType() {
+        ConfigurationDisplayType[] values = ConfigurationDisplayType.values();
+        return values[randomInt(values.length - 1)];
+    }
+
+    private static ConfigurationFieldType getRandomConfigurationFieldType() {
+        ConfigurationFieldType[] values = ConfigurationFieldType.values();
+        return values[randomInt(values.length - 1)];
+    }
+
+    private static ConfigurationValidationType getRandomConfigurationValidationType() {
+        ConfigurationValidationType[] values = ConfigurationValidationType.values();
         return values[randomInt(values.length - 1)];
     }
 }

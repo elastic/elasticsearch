@@ -11,10 +11,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
@@ -267,7 +267,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            MultiSearchAction.INSTANCE,
+            TransportMultiSearchAction.TYPE,
             multiSearchRequest,
             ActionListener.wrap(multiSearchResponse -> {
                 MultiSearchResponse.Item[] itemResponses = multiSearchResponse.getResponses();

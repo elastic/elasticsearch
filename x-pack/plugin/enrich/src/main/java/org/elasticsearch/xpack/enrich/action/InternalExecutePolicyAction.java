@@ -61,7 +61,7 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
     public static final String NAME = "cluster:admin/xpack/enrich/internal_execute";
 
     private InternalExecutePolicyAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ExecuteEnrichPolicyAction.Request {
@@ -168,10 +168,7 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                 try {
                     ActionListener<ExecuteEnrichPolicyStatus> listener;
                     if (request.isWaitForCompletion()) {
-                        listener = ActionListener.wrap(
-                            result -> actionListener.onResponse(new Response(result)),
-                            actionListener::onFailure
-                        );
+                        listener = actionListener.delegateFailureAndWrap((l, result) -> l.onResponse(new Response(result)));
                     } else {
                         listener = ActionListener.wrap(
                             result -> LOGGER.debug("successfully executed policy [{}]", request.getName()),

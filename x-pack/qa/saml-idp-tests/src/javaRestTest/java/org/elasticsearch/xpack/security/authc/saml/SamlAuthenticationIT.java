@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -42,6 +44,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.fixtures.idp.IdpTestContainer;
+import org.elasticsearch.test.fixtures.idp.OpenLdapTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -52,6 +57,10 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+import org.testcontainers.containers.Network;
+import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -82,13 +91,17 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * An integration test for validating SAML authentication against a real Identity Provider (Shibboleth)
  */
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class SamlAuthenticationIT extends ESRestTestCase {
 
     private static final String SAML_RESPONSE_FIELD = "SAMLResponse";
     private static final String KIBANA_PASSWORD = "K1b@na K1b@na K1b@na";
 
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    private static Network network = Network.newNetwork();
+    private static OpenLdapTestContainer openLdapTestContainer = new OpenLdapTestContainer(network);
+    private static IdpTestContainer idpFixture = new IdpTestContainer(network);
+
+    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
@@ -131,11 +144,24 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         .setting("xpack.security.authc.realms.native.native.order", "4")
         .setting("xpack.ml.enabled", "false")
         .setting("logger.org.elasticsearch.xpack.security", "TRACE")
-        .configFile("sp-signing.key", Resource.fromClasspath("sp-signing.key"))
-        .configFile("idp-metadata.xml", Resource.fromClasspath("idp-metadata.xml"))
-        .configFile("sp-signing.crt", Resource.fromClasspath("sp-signing.crt"))
+        .configFile("sp-signing.key", Resource.fromClasspath("/idp/shibboleth-idp/credentials/sp-signing.key"))
+        .configFile("idp-metadata.xml", Resource.fromString(SamlAuthenticationIT::calculateIdpMetaData))
+        .configFile("sp-signing.crt", Resource.fromClasspath("/idp/shibboleth-idp/credentials/sp-signing.crt"))
         .user("test_admin", "x-pack-test-password")
         .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(network).around(openLdapTestContainer).around(idpFixture).around(cluster);
+
+    private static String calculateIdpMetaData() {
+        Resource resource = Resource.fromClasspath("/idp/shibboleth-idp/metadata/idp-metadata.xml");
+        try (InputStream stream = resource.asStream()) {
+            String metadata = IOUtils.toString(stream, "UTF-8");
+            return metadata.replace("${port}", String.valueOf(idpFixture.getDefaultPort()));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -526,7 +552,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     private SSLContext getClientSslContext() throws Exception {
-        final Path pem = getDataPath("/idp-browser.pem");
+        final Path pem = idpFixture.getBrowserPem();
         final X509ExtendedTrustManager trustManager = CertParsingUtils.getTrustManagerFromPEM(List.of(pem));
         SSLContext context = SSLContext.getInstance("TLS");
         context.init(new KeyManager[0], new TrustManager[] { trustManager }, new SecureRandom());

@@ -25,7 +25,6 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -51,8 +50,7 @@ public class TopNOperator implements Operator, Accountable {
      * multivalues) to reference each position in each block of the Page.
      */
     static final class Row implements Accountable, Releasable {
-        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Row.class) + RamUsageEstimator
-            .shallowSizeOfInstance(BitSet.class);
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Row.class);
 
         /**
          * The sort key.
@@ -64,7 +62,7 @@ public class TopNOperator implements Operator, Accountable {
          * For ex, if a Long is represented as 8 bytes, each of these bytes will have the same value (set/unset) if the respective Long
          * value is used for sorting ascending/descending.
          */
-        final BitSet orderByCompositeKeyAscending = new BitSet();
+        final BytesOrder bytesOrder;
 
         /**
          * Values to reconstruct the row. Sort of. When we reconstruct the row we read
@@ -73,11 +71,12 @@ public class TopNOperator implements Operator, Accountable {
          */
         final BreakingBytesRefBuilder values;
 
-        Row(CircuitBreaker breaker) {
+        Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedKeysSize, int preAllocatedValueSize) {
             boolean success = false;
             try {
-                keys = new BreakingBytesRefBuilder(breaker, "topn");
-                values = new BreakingBytesRefBuilder(breaker, "topn");
+                keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
+                values = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedValueSize);
+                bytesOrder = new BytesOrder(sortOrders, breaker, "topn");
                 success = true;
             } finally {
                 if (success == false) {
@@ -88,12 +87,54 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public long ramBytesUsed() {
-            return SHALLOW_SIZE + keys.ramBytesUsed() + orderByCompositeKeyAscending.size() / Byte.SIZE + values.ramBytesUsed();
+            return SHALLOW_SIZE + keys.ramBytesUsed() + bytesOrder.ramBytesUsed() + values.ramBytesUsed();
         }
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(keys, values);
+            Releasables.closeExpectNoException(keys, values, bytesOrder);
+        }
+    }
+
+    static final class BytesOrder implements Releasable, Accountable {
+        private static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOfInstance(BytesOrder.class);
+        private final CircuitBreaker breaker;
+        final List<SortOrder> sortOrders;
+        final int[] endOffsets;
+
+        BytesOrder(List<SortOrder> sortOrders, CircuitBreaker breaker, String label) {
+            this.breaker = breaker;
+            this.sortOrders = sortOrders;
+            breaker.addEstimateBytesAndMaybeBreak(memoryUsed(sortOrders.size()), label);
+            this.endOffsets = new int[sortOrders.size()];
+        }
+
+        /**
+         * Returns true if the byte at the given position is ordered ascending; otherwise, return false
+         */
+        boolean isByteOrderAscending(int bytePosition) {
+            int index = Arrays.binarySearch(endOffsets, bytePosition);
+            if (index < 0) {
+                index = -1 - index;
+            }
+            return sortOrders.get(index).asc();
+        }
+
+        private long memoryUsed(int numKeys) {
+            // sortOrders is global and its memory is accounted at the top level TopNOperator
+            return BASE_RAM_USAGE + RamUsageEstimator.alignObjectSize(
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * numKeys
+            );
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return memoryUsed(sortOrders.size());
+        }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-ramBytesUsed());
         }
     }
 
@@ -138,14 +179,11 @@ public class TopNOperator implements Operator, Accountable {
 
         private void writeKey(int position, Row row) {
             int orderByCompositeKeyCurrentPosition = 0;
-            for (KeyFactory factory : keyFactories) {
-                int valueAsBytesSize = factory.extractor.writeKey(row.keys, position);
-                row.orderByCompositeKeyAscending.set(
-                    orderByCompositeKeyCurrentPosition,
-                    valueAsBytesSize + orderByCompositeKeyCurrentPosition,
-                    factory.ascending
-                );
+            for (int i = 0; i < keyFactories.length; i++) {
+                int valueAsBytesSize = keyFactories[i].extractor.writeKey(row.keys, position);
+                assert valueAsBytesSize > 0 : valueAsBytesSize;
                 orderByCompositeKeyCurrentPosition += valueAsBytesSize;
+                row.bytesOrder.endOffsets[i] = orderByCompositeKeyCurrentPosition - 1;
             }
         }
 
@@ -189,9 +227,7 @@ public class TopNOperator implements Operator, Accountable {
         List<SortOrder> sortOrders,
         int maxPageSize
     ) implements OperatorFactory {
-        public TopNOperatorFactory
-
-        {
+        public TopNOperatorFactory {
             for (ElementType e : elementTypes) {
                 if (e == null) {
                     throw new IllegalArgumentException("ElementType not known");
@@ -237,6 +273,9 @@ public class TopNOperator implements Operator, Accountable {
     private final List<SortOrder> sortOrders;
 
     private Row spare;
+    private int spareValuesPreAllocSize = 0;
+    private int spareKeysPreAllocSize = 0;
+
     private Iterator<Page> output;
 
     public TopNOperator(
@@ -274,19 +313,20 @@ public class TopNOperator implements Operator, Accountable {
             // the two rows are equal
             return 0;
         }
+
         int length = Math.min(br1.length, br2.length);
         // one value is the prefix of the other
         if (mismatchedByteIndex == length) {
             // the value with the greater length is considered greater than the other
             if (length == br1.length) {// first row is less than the second row
-                return r2.orderByCompositeKeyAscending.get(length) ? 1 : -1;
+                return r2.bytesOrder.isByteOrderAscending(length) ? 1 : -1;
             } else {// second row is less than the first row
-                return r1.orderByCompositeKeyAscending.get(length) ? -1 : 1;
+                return r1.bytesOrder.isByteOrderAscending(length) ? -1 : 1;
             }
         } else {
             // compare the byte that mismatched accounting for that respective byte asc/desc ordering
             int c = Byte.compareUnsigned(br1.bytes[br1.offset + mismatchedByteIndex], br2.bytes[br2.offset + mismatchedByteIndex]);
-            return r1.orderByCompositeKeyAscending.get(mismatchedByteIndex) ? -c : c;
+            return r1.bytesOrder.isByteOrderAscending(mismatchedByteIndex) ? -c : c;
         }
     }
 
@@ -297,8 +337,6 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void addInput(Page page) {
-        RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
-
         /*
          * Since row tracks memory we have to be careful to close any unused rows,
          * including any rows that fail while constructing because they allocate
@@ -310,15 +348,23 @@ public class TopNOperator implements Operator, Accountable {
          * inputQueue or because we hit an allocation failure while building it.
          */
         try {
+            RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
+
             for (int i = 0; i < page.getPositionCount(); i++) {
                 if (spare == null) {
-                    spare = new Row(breaker);
+                    spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
                 } else {
                     spare.keys.clear();
-                    spare.orderByCompositeKeyAscending.clear();
                     spare.values.clear();
                 }
                 rowFiller.row(i, spare);
+
+                // When rows are very long, appending the values one by one can lead to lots of allocations.
+                // To avoid this, pre-allocate at least as much size as in the last seen row.
+                // Let the pre-allocation size decay in case we only have 1 huge row and smaller rows otherwise.
+                spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
+                spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+
                 spare = inputQueue.insertWithOverflow(spare);
             }
         } finally {

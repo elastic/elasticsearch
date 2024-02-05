@@ -17,8 +17,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 final class StackTrace implements ToXContentObject {
+    private static final String[] PATH_FRAME_IDS = new String[] { "Stacktrace", "frame", "ids" };
+    private static final String[] PATH_FRAME_TYPES = new String[] { "Stacktrace", "frame", "types" };
+
+    static final int NATIVE_FRAME_TYPE = 3;
+    static final int KERNEL_FRAME_TYPE = 4;
     List<Integer> addressOrLines;
     List<String> fileIds;
     List<String> frameIds;
@@ -185,8 +191,8 @@ final class StackTrace implements ToXContentObject {
     }
 
     public static StackTrace fromSource(Map<String, Object> source) {
-        String inputFrameIDs = ObjectPath.eval("Stacktrace.frame.ids", source);
-        String inputFrameTypes = ObjectPath.eval("Stacktrace.frame.types", source);
+        String inputFrameIDs = ObjectPath.eval(PATH_FRAME_IDS, source);
+        String inputFrameTypes = ObjectPath.eval(PATH_FRAME_TYPES, source);
         int countsFrameIDs = inputFrameIDs.length() / BASE64_FRAME_ID_LENGTH;
 
         List<String> fileIDs = new ArrayList<>(countsFrameIDs);
@@ -213,6 +219,15 @@ final class StackTrace implements ToXContentObject {
         List<Integer> typeIDs = runLengthDecodeBase64Url(inputFrameTypes, inputFrameTypes.length(), countsFrameIDs);
 
         return new StackTrace(addressOrLines, fileIDs, frameIDs, typeIDs, 0, 0, 0);
+    }
+
+    public void forNativeAndKernelFrames(Consumer<String> consumer) {
+        for (int i = 0; i < this.fileIds.size(); i++) {
+            Integer frameType = this.typeIds.get(i);
+            if (frameType != null && (frameType == NATIVE_FRAME_TYPE || frameType == KERNEL_FRAME_TYPE)) {
+                consumer.accept(this.fileIds.get(i));
+            }
+        }
     }
 
     @Override

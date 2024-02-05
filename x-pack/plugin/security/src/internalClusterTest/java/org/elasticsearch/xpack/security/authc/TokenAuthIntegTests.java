@@ -44,8 +44,10 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -591,6 +593,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e, throwableWithMessage(containsString("token has already been refreshed more than 30 seconds in the past")));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85697")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
         final List<String> tokens = Collections.synchronizedList(new ArrayList<>());
@@ -635,11 +638,11 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                         }
                     }
                     logger.info("received access token [{}] and refresh token [{}]", result.accessToken(), result.getRefreshToken());
-                    completedLatch.countDown();
                 } catch (IOException e) {
                     failed.set(true);
-                    completedLatch.countDown();
                     logger.error("caught exception", e);
+                } finally {
+                    completedLatch.countDown();
                 }
             }));
         }
@@ -655,7 +658,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(failed.get(), equalTo(false));
         // Assert that we only ever got one token/refresh_token pair
         synchronized (tokens) {
-            assertThat((int) tokens.stream().distinct().count(), equalTo(1));
+            Set<String> uniqueTokens = new HashSet<>(tokens);
+            logger.info("Unique tokens received from refreshToken call [{}]", uniqueTokens);
+            assertThat(uniqueTokens.size(), equalTo(1));
         }
     }
 

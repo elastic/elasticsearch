@@ -25,7 +25,8 @@ import java.util.function.LongSupplier;
 public record ErrorEntry(long firstOccurrenceTimestamp, String error, long recordedTimestamp, int retryCount)
     implements
         Writeable,
-        ToXContentObject {
+        ToXContentObject,
+        Comparable<ErrorEntry> {
 
     public ErrorEntry(StreamInput in) throws IOException {
         this(in.readLong(), in.readString(), in.readLong(), in.readInt());
@@ -76,5 +77,13 @@ public record ErrorEntry(long firstOccurrenceTimestamp, String error, long recor
         out.writeString(error);
         out.writeLong(recordedTimestamp);
         out.writeInt(retryCount);
+    }
+
+    /**
+     * Compares two error entries by the number of retries, in reversed order by default.
+     */
+    @Override
+    public int compareTo(ErrorEntry o) {
+        return Integer.compare(o.retryCount, retryCount);
     }
 }

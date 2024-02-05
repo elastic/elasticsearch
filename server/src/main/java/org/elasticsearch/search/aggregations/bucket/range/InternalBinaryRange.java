@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -63,10 +62,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         }
 
         private static String generateKey(BytesRef from, BytesRef to, DocValueFormat format) {
-            StringBuilder builder = new StringBuilder().append(from == null ? "*" : format.format(from))
-                .append("-")
-                .append(to == null ? "*" : format.format(to));
-            return builder.toString();
+            return (from == null ? "*" : format.format(from)) + "-" + (to == null ? "*" : format.format(to));
         }
 
         private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
@@ -120,7 +116,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 

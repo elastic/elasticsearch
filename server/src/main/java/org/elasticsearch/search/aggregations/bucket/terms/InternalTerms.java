@@ -7,11 +7,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalOrder;
@@ -129,7 +127,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -213,20 +211,14 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     protected InternalTerms(StreamInput in) throws IOException {
         super(in);
         reduceOrder = InternalOrder.Streams.readOrder(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            order = InternalOrder.Streams.readOrder(in);
-        } else {
-            order = reduceOrder;
-        }
+        order = InternalOrder.Streams.readOrder(in);
         requiredSize = readSize(in);
         minDocCount = in.readVLong();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            reduceOrder.writeTo(out);
-        }
+        reduceOrder.writeTo(out);
         order.writeTo(out);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);

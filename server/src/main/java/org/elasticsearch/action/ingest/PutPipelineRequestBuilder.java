@@ -16,17 +16,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineRequest, AcknowledgedResponse> {
 
-    public PutPipelineRequestBuilder(ElasticsearchClient client, PutPipelineAction action) {
-        super(client, action, new PutPipelineRequest());
-    }
-
-    public PutPipelineRequestBuilder(
-        ElasticsearchClient client,
-        PutPipelineAction action,
-        String id,
-        BytesReference source,
-        XContentType xContentType
-    ) {
-        super(client, action, new PutPipelineRequest(id, source, xContentType));
+    public PutPipelineRequestBuilder(ElasticsearchClient client, String id, BytesReference source, XContentType xContentType) {
+        super(client, PutPipelineTransportAction.TYPE, new PutPipelineRequest(id, source, xContentType));
     }
 }

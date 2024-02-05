@@ -21,14 +21,17 @@ import java.util.List;
  * Cosine trigonometric function.
  */
 public class Cos extends AbstractTrigonometricFunction {
-    @FunctionInfo(returnType = "double")
-    public Cos(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+    @FunctionInfo(returnType = "double", description = "Returns the trigonometric cosine of an angle")
+    public Cos(
+        Source source,
+        @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }, description = "An angle, in radians") Expression n
+    ) {
         super(source, n);
     }
 
     @Override
     protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
-        return new CosEvaluator.Factory(field);
+        return new CosEvaluator.Factory(source(), field);
     }
 
     @Override

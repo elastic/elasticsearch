@@ -310,8 +310,6 @@ class RandomizedAssignmentRounding {
         private AssignmentPlan toPlan() {
             AssignmentPlan.Builder builder = AssignmentPlan.builder(nodes, deployments);
             for (Map.Entry<Tuple<AssignmentPlan.Deployment, Node>, Integer> assignment : tryAssigningRemainingCores().entrySet()) {
-                // TODO (#101612) The model should be assigned to the node only when it is possible. This means, that canAssign should be
-                // integrated into the assignModelToNode.
                 if (builder.canAssign(assignment.getKey().v1(), assignment.getKey().v2(), assignment.getValue())) {
                     builder.assignModelToNode(assignment.getKey().v1(), assignment.getKey().v2(), assignment.getValue());
                 }

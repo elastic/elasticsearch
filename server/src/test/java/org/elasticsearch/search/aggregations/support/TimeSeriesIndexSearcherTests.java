@@ -242,7 +242,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                         assertTrue(timestamp.advanceExact(doc));
                         BytesRef latestTSID = tsid.lookupOrd(tsid.ordValue());
                         long latestTimestamp = timestamp.longValue();
-                        assertEquals(latestTSID, aggCtx.getTsid());
+                        assertEquals(latestTSID, aggCtx.getTsidHash());
                         assertEquals(latestTimestamp, aggCtx.getTimestamp());
 
                         if (currentTSID != null) {
@@ -255,14 +255,14 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                                     currentTimestamp + "->" + latestTimestamp,
                                     timestampReverse ? latestTimestamp <= currentTimestamp : latestTimestamp >= currentTimestamp
                                 );
-                                assertEquals(currentTSIDord, aggCtx.getTsidOrd());
+                                assertEquals(currentTSIDord, aggCtx.getTsidHashOrd());
                             } else {
-                                assertThat(aggCtx.getTsidOrd(), greaterThan(currentTSIDord));
+                                assertThat(aggCtx.getTsidHashOrd(), greaterThan(currentTSIDord));
                             }
                         }
                         currentTimestamp = latestTimestamp;
                         currentTSID = BytesRef.deepCopyOf(latestTSID);
-                        currentTSIDord = aggCtx.getTsidOrd();
+                        currentTSIDord = aggCtx.getTsidHashOrd();
                         total++;
                     }
                 };

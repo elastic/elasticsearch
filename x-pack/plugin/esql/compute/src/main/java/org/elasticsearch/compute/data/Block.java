@@ -62,7 +62,16 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     ElementType elementType();
 
     /** The block factory associated with this block. */
+    // TODO: renaming this to owning blockFactory once we pass blockFactory for filter and expand
     BlockFactory blockFactory();
+
+    /**
+     * Before passing a Block to another Driver, it is necessary to switch the owning block factory to its parent, which is associated
+     * with the global circuit breaker. This ensures that when the new driver releases this Block, it returns memory directly to the
+     * parent block factory instead of the local block factory of this Block. This is important because the local block factory is
+     * not thread safe and doesn't support simultaneous access by more than one thread.
+     */
+    void allowPassingToDifferentDriver();
 
     /**
      * Tells if this block has been released. A block is released by calling its {@link Block#close()} or {@link Block#decRef()} methods.
@@ -98,10 +107,10 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     boolean mayHaveMultivaluedFields();
 
     /**
-     * Creates a new block that only exposes the positions provided. Materialization of the selected positions is avoided.
-     * The new block may hold a reference to this block, increasing this block's reference count.
+     * Creates a new block that only exposes the positions provided.
      * @param positions the positions to retain
      * @return a filtered block
+     * TODO: pass BlockFactory
      */
     Block filter(int... positions);
 
@@ -143,30 +152,11 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     }
 
     /**
-     * Expand multivalued fields into one row per value. Returns the
-     * block if there aren't any multivalued fields to expand.
+     * Expand multivalued fields into one row per value. Returns the same block if there aren't any multivalued
+     * fields to expand. The returned block needs to be closed by the caller to release the block's resources.
+     * TODO: pass BlockFactory
      */
-    // TODO: We should use refcounting instead of either deep copies or returning the same identical block.
     Block expand();
-
-    /**
-     * {@return a constant null block with the given number of positions, using the non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newConstantNullBlock}
-     */
-    // Eventually, this should use the GLOBAL breaking instance
-    @Deprecated
-    static Block constantNullBlock(int positions) {
-        return constantNullBlock(positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * {@return a constant null block with the given number of positions}.
-     * @deprecated use {@link BlockFactory#newConstantNullBlock}
-     */
-    @Deprecated
-    static Block constantNullBlock(int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantNullBlock(positions);
-    }
 
     /**
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.

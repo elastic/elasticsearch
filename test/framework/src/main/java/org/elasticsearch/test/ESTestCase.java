@@ -39,6 +39,8 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
@@ -77,6 +79,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -119,6 +122,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matcher;
+import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -144,6 +149,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Provider;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -161,8 +167,10 @@ import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -781,6 +789,16 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static long randomLongBetween(long min, long max) {
         return RandomNumbers.randomLongBetween(random(), min, max);
+    }
+
+    /**
+     * @return a random instant between a min and a max value with a random nanosecond precision
+     */
+    public static Instant randomInstantBetween(Instant minInstant, Instant maxInstant) {
+        return Instant.ofEpochSecond(
+            randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond()),
+            randomLongBetween(0, 999999999)
+        );
     }
 
     /**
@@ -1690,10 +1708,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(XContentParserConfiguration config, XContent xContent, BytesReference data)
         throws IOException {
-        if (data.hasArray()) {
-            return xContent.createParser(config, data.array(), data.arrayOffset(), data.length());
-        }
-        return xContent.createParser(config, data.streamInput());
+        return XContentHelper.createParserNotCompressed(config, data, xContent.type());
     }
 
     protected final XContentParser createParserWithCompatibilityFor(XContent xContent, String data, RestApiVersion restApiVersion)
@@ -2068,7 +2083,18 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static <T> T safeAwait(SubscribableListener<T> listener) {
-        return PlainActionFuture.get(listener::addListener, 10, TimeUnit.SECONDS);
+        final var future = new PlainActionFuture<T>();
+        listener.addListener(future);
+        try {
+            return future.get(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("safeAwait: interrupted", e);
+        } catch (ExecutionException e) {
+            throw new AssertionError("safeAwait: listener was completed exceptionally", e);
+        } catch (TimeoutException e) {
+            throw new AssertionError("safeAwait: listener was not completed within the timeout", e);
+        }
     }
 
     public static void safeSleep(long millis) {
@@ -2085,6 +2111,18 @@ public abstract class ESTestCase extends LuceneTestCase {
             || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
     }
 
+    /*
+     * Assert.assertThat (inherited from LuceneTestCase superclass) has been deprecated.
+     * So make sure that all assertThat references use the non-deprecated version.
+     */
+    public static <T> void assertThat(T actual, Matcher<? super T> matcher) {
+        MatcherAssert.assertThat(actual, matcher);
+    }
+
+    public static <T> void assertThat(String reason, T actual, Matcher<? super T> matcher) {
+        MatcherAssert.assertThat(reason, actual, matcher);
+    }
+
     public static <T> T fail(Throwable t, String msg, Object... args) {
         throw new AssertionError(org.elasticsearch.common.Strings.format(msg, args), t);
     }
@@ -2097,5 +2135,21 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static <T> T asInstanceOf(Class<T> clazz, Object o) {
         assertThat(o, Matchers.instanceOf(clazz));
         return (T) o;
+    }
+
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ActionFuture<? extends RefCounted> future) {
+        return expectThrows(
+            expectedType,
+            "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
+            () -> future.actionGet().decRef()  // dec ref if we unexpectedly fail to not leak transport response
+        );
+    }
+
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, RequestBuilder<?, ?> builder) {
+        return expectThrows(
+            expectedType,
+            "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
+            () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
+        );
     }
 }

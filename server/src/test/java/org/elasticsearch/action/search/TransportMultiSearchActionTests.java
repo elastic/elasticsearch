@@ -23,8 +23,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -35,6 +36,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,7 +53,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        ThreadPool threadPool = new ThreadPool(settings);
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
         try {
             TransportService transportService = new TransportService(
                 Settings.EMPTY,
@@ -82,7 +84,12 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                     assertEquals(task.getId(), request.getParentTask().getId());
                     assertEquals(localNodeId, request.getParentTask().getNodeId());
                     counter.incrementAndGet();
-                    listener.onResponse(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+                    var response = SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY);
+                    try {
+                        listener.onResponse(response);
+                    } finally {
+                        response.decRef();
+                    }
                 }
 
                 @Override
@@ -102,19 +109,19 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
             PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
             action.execute(task, multiSearchRequest, future);
-            future.get().decRef();
+            future.get();
             assertEquals(numSearchRequests, counter.get());
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }
     }
 
-    public void testBatchExecute() {
+    public void testBatchExecute() throws ExecutionException, InterruptedException {
         // Initialize dependencies of TransportMultiSearchAction
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        ThreadPool threadPool = new ThreadPool(settings);
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -160,18 +167,20 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 final ExecutorService executorService = rarely() ? rarelyExecutor : commonExecutor;
                 executorService.execute(() -> {
                     counter.decrementAndGet();
-                    listener.onResponse(
-                        new SearchResponse(
-                            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-                            null,
-                            0,
-                            0,
-                            0,
-                            0L,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
-                        )
+                    var response = SearchResponseUtils.emptyWithTotalHits(
+                        null,
+                        0,
+                        0,
+                        0,
+                        0L,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY
                     );
+                    try {
+                        listener.onResponse(response);
+                    } finally {
+                        response.decRef();
+                    }
                 });
             }
 
@@ -204,14 +213,14 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 multiSearchRequest.add(new SearchRequest());
             }
 
-            MultiSearchResponse response = ActionTestUtils.executeBlocking(action, multiSearchRequest);
-            try {
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            ActionTestUtils.execute(action, multiSearchRequest, future.delegateFailure((l, response) -> {
                 assertThat(response.getResponses().length, equalTo(numSearchRequests));
                 assertThat(requests.size(), equalTo(numSearchRequests));
                 assertThat(errorHolder.get(), nullValue());
-            } finally {
-                response.decRef();
-            }
+                l.onResponse(null);
+            }));
+            future.get();
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

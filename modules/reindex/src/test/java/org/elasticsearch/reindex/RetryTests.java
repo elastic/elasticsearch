@@ -97,7 +97,7 @@ public class RetryTests extends ESIntegTestCase {
     public void testReindex() throws Exception {
         testCase(
             ReindexAction.NAME,
-            client -> new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source("source").destination("dest"),
+            client -> new ReindexRequestBuilder(client).source("source").destination("dest"),
             matcher().created(DOC_COUNT)
         );
     }
@@ -129,9 +129,7 @@ public class RetryTests extends ESIntegTestCase {
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
                 RemoteInfo.DEFAULT_CONNECT_TIMEOUT
             );
-            ReindexRequestBuilder request = new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source("source")
-                .destination("dest")
-                .setRemoteInfo(remote);
+            ReindexRequestBuilder request = new ReindexRequestBuilder(client).source("source").destination("dest").setRemoteInfo(remote);
             return request;
         };
         testCase(ReindexAction.NAME, function, matcher().created(DOC_COUNT));
@@ -140,7 +138,7 @@ public class RetryTests extends ESIntegTestCase {
     public void testUpdateByQuery() throws Exception {
         testCase(
             UpdateByQueryAction.NAME,
-            client -> new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE).source("source"),
+            client -> new UpdateByQueryRequestBuilder(client).source("source"),
             matcher().updated(DOC_COUNT)
         );
     }
@@ -148,8 +146,7 @@ public class RetryTests extends ESIntegTestCase {
     public void testDeleteByQuery() throws Exception {
         testCase(
             DeleteByQueryAction.NAME,
-            client -> new DeleteByQueryRequestBuilder(client, DeleteByQueryAction.INSTANCE).source("source")
-                .filter(QueryBuilders.matchAllQuery()),
+            client -> new DeleteByQueryRequestBuilder(client).source("source").filter(QueryBuilders.matchAllQuery()),
             matcher().deleted(DOC_COUNT)
         );
     }

@@ -35,6 +35,8 @@ import java.io.IOException;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public record ColumnInfo(String name, String type) implements Writeable {
 
@@ -73,7 +75,7 @@ public record ColumnInfo(String name, String type) implements Writeable {
     }
 
     public abstract class PositionToXContent {
-        private final Block block;
+        protected final Block block;
 
         PositionToXContent(Block block) {
             this.block = block;
@@ -158,6 +160,20 @@ public record ColumnInfo(String name, String type) implements Writeable {
                     throws IOException {
                     long longVal = ((LongBlock) block).getLong(valueIndex);
                     return builder.value(UTC_DATE_TIME_FORMATTER.formatMillis(longVal));
+                }
+            };
+            case "geo_point", "geo_shape" -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    return builder.value(GEO.wkbToWkt(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
+                }
+            };
+            case "cartesian_point", "cartesian_shape" -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    return builder.value(CARTESIAN.wkbToWkt(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
                 }
             };
             case "boolean" -> new PositionToXContent(block) {

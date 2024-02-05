@@ -74,7 +74,7 @@ subprojects {
     // Compatibility testing for JDBC driver started with version 7.9.0
     BuildParams.bwcVersions.allIndexCompatible.findAll({ it.onOrAfter(Version.fromString("7.9.0")) && it != VersionProperties.elasticsearchVersion }).each { bwcVersion ->
       def baseName = "v${bwcVersion}"
-      def cluster = testClusters.maybeCreate(baseName)
+      def cluster = testClusters.register(baseName)
 
       UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
       Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}") {
@@ -101,7 +101,7 @@ subprojects {
           classpath = sourceSets.javaRestTest.runtimeClasspath + driverConfiguration
           testClassesDirs = sourceSets.javaRestTest.output.classesDirs
           systemProperty 'jdbc.driver.version', bwcVersionString
-          nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",")}")
+          nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.get().allHttpSocketURI.join(",")}")
           nonInputProperties.systemProperty('tests.clustername', baseName)
       }
     }

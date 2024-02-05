@@ -194,4 +194,46 @@ setup:
   - match: { hits.hits.0._id: 'doc2' }
   - match: { hits.hits.1._id: 'doc3' }
 
+---
+"Perform a rule query over a ruleset with combined numeric and text rule matching":
+
+  - do:
+      query_ruleset.put:
+        ruleset_id: combined-ruleset
+        body:
+          rules:
+            - rule_id: rule1
+              type: pinned
+              criteria:
+                - type: fuzzy
+                  metadata: foo
+                  values: [ bar ]
+              actions:
+                ids:
+                  - 'doc1'
+            - rule_id: rule2
+              type: pinned
+              criteria:
+                - type: lte
+                  metadata: foo
+                  values: [ 100 ]
+              actions:
+                ids:
+                  - 'doc2'
+  - do:
+      search:
+        body:
+          query:
+            rule_query:
+              organic:
+                query_string:
+                  default_field: text
+                  query: blah blah blah
+              match_criteria:
+                foo: baz
+              ruleset_id: combined-ruleset
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: 'doc1' }
+
 

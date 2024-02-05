@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
@@ -223,12 +224,12 @@ public abstract class AggregationBuilder
      * Return false if this aggregation or any of the child aggregations does not support parallel collection.
      * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query phase.
      */
-    public boolean supportsParallelCollection() {
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
         if (isInSortOrderExecutionRequired()) {
             return false;
         }
         for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
-            if (builder.supportsParallelCollection() == false) {
+            if (builder.supportsParallelCollection(fieldCardinalityResolver) == false) {
                 return false;
             }
         }

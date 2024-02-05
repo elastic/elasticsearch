@@ -22,7 +22,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -387,13 +386,6 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             include = includeString == null ? null : new RegExp(includeString);
             String excludeString = in.readOptionalString();
             exclude = excludeString == null ? null : new RegExp(excludeString);
-            if (in.getTransportVersion().before(TransportVersions.V_7_11_0)) {
-                incZeroBasedPartition = 0;
-                incNumPartitions = 0;
-                includeValues = null;
-                excludeValues = null;
-                return;
-            }
         } else {
             include = null;
             exclude = null;
@@ -427,9 +419,6 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (regexBased) {
             out.writeOptionalString(include == null ? null : include.getOriginalString());
             out.writeOptionalString(exclude == null ? null : exclude.getOriginalString());
-            if (out.getTransportVersion().before(TransportVersions.V_7_11_0)) {
-                return;
-            }
         }
         boolean hasIncludes = includeValues != null;
         out.writeBoolean(hasIncludes);

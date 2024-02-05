@@ -9,6 +9,7 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -47,22 +48,26 @@ public class IndexRequestBuilderTests extends ESTestCase {
      * test setting the source for the request with different available setters
      */
     public void testSetSource() throws Exception {
-        IndexRequestBuilder indexRequestBuilder = new IndexRequestBuilder(this.testClient, IndexAction.INSTANCE);
+        IndexRequestBuilder indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         Map<String, String> source = new HashMap<>();
         source.put("SomeKey", "SomeValue");
         indexRequestBuilder.setSource(source);
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         indexRequestBuilder.setSource(source, XContentType.JSON);
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         indexRequestBuilder.setSource("SomeKey", "SomeValue");
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
         // force the Object... setter
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         indexRequestBuilder.setSource((Object) "SomeKey", "SomeValue");
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         ByteArrayOutputStream docOut = new ByteArrayOutputStream();
         XContentBuilder doc = XContentFactory.jsonBuilder(docOut).startObject().field("SomeKey", "SomeValue").endObject();
         doc.close();
@@ -72,9 +77,26 @@ public class IndexRequestBuilderTests extends ESTestCase {
             XContentHelper.convertToJson(indexRequestBuilder.request().source(), true, indexRequestBuilder.request().getContentType())
         );
 
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         doc = XContentFactory.jsonBuilder().startObject().field("SomeKey", "SomeValue").endObject();
         doc.close();
         indexRequestBuilder.setSource(doc);
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
+    }
+
+    public void testValidation() {
+        IndexRequestBuilder indexRequestBuilder = new IndexRequestBuilder(this.testClient);
+        Map<String, String> source = new HashMap<>();
+        source.put("SomeKey", "SomeValue");
+        indexRequestBuilder.setSource(source);
+        assertNotNull(indexRequestBuilder.request());
+        indexRequestBuilder.setSource("SomeKey", "SomeValue");
+        expectThrows(IllegalStateException.class, indexRequestBuilder::request);
+
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
+        indexRequestBuilder.setTimeout(randomTimeValue());
+        assertNotNull(indexRequestBuilder.request());
+        indexRequestBuilder.setTimeout(TimeValue.timeValueSeconds(randomIntBetween(1, 30)));
+        expectThrows(IllegalStateException.class, indexRequestBuilder::request);
     }
 }

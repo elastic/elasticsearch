@@ -12,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,6 +26,14 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
+    private RestClient client;
+
+    @Before
+    public void setup() throws Exception {
+        client = client();
+        waitForLogs(client);
+    }
+
     @After
     public void cleanUp() throws IOException {
         adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
@@ -32,9 +41,6 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDefaultLogsSettingAndMapping() throws Exception {
-        RestClient client = client();
-        waitForLogs(client);
-
         String dataStreamName = "logs-generic-default";
         createDataStream(client, dataStreamName);
         String backingIndex = getWriteBackingIndex(client, dataStreamName);
@@ -104,9 +110,6 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     @SuppressWarnings("unchecked")
     public void testCustomMapping() throws Exception {
-        RestClient client = client();
-        waitForLogs(client);
-
         {
             Request request = new Request("POST", "/_component_template/logs@custom");
             request.setJsonEntity("""
@@ -182,9 +185,6 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLogsDefaultPipeline() throws Exception {
-        RestClient client = client();
-        waitForLogs(client);
-
         {
             Request request = new Request("POST", "/_component_template/logs@custom");
             request.setJsonEntity("""
@@ -284,9 +284,6 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLogsMessagePipeline() throws Exception {
-        RestClient client = client();
-        waitForLogs(client);
-
         {
             Request request = new Request("PUT", "/_ingest/pipeline/logs@custom");
             request.setJsonEntity("""
@@ -412,8 +409,6 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     @SuppressWarnings("unchecked")
     public void testNoSubobjects() throws Exception {
-        RestClient client = client();
-        waitForLogs(client);
         {
             Request request = new Request("POST", "/_component_template/logs-test-subobjects-mappings");
             request.setJsonEntity("""
@@ -631,6 +626,94 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         assertThat(getValueFromPath(properties, List.of("socket.ip", "type")), is("ip"));
         assertThat(getValueFromPath(properties, List.of("socket.remote_ip", "type")), is("ip"));
 
+    }
+
+    public void testAllFieldsAreSearchableByDefault() throws Exception {
+        final String dataStreamName = "logs-generic-default";
+        createDataStream(client, dataStreamName);
+
+        // index a doc with "message" field and an additional one that will be mapped to a "match_only_text" type
+        indexDoc(client, dataStreamName, """
+            {
+              "@timestamp": "2023-04-18",
+              "message": "Hello world",
+              "another.message": "Hi world"
+            }
+            """);
+
+        // verify that both fields are searchable when not querying specific fields
+        List<Object> results = searchDocs(client, dataStreamName, """
+            {
+              "query": {
+                "simple_query_string": {
+                  "query": "Hello"
+                }
+              }
+            }
+            """);
+        assertEquals(1, results.size());
+
+        results = searchDocs(client, dataStreamName, """
+            {
+              "query": {
+                "simple_query_string": {
+                  "query": "Hi"
+                }
+              }
+            }
+            """);
+        assertEquals(1, results.size());
+    }
+
+    public void testDefaultFieldCustomization() throws Exception {
+        Request request = new Request("POST", "/_component_template/logs@custom");
+        request.setJsonEntity("""
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "query": {
+                      "default_field": ["message"]
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        assertOK(client.performRequest(request));
+
+        final String dataStreamName = "logs-generic-default";
+        createDataStream(client, dataStreamName);
+
+        indexDoc(client, dataStreamName, """
+            {
+              "@timestamp": "2023-04-18",
+              "message": "Hello world",
+              "another.message": "Hi world"
+            }
+            """);
+
+        List<Object> results = searchDocs(client, dataStreamName, """
+            {
+              "query": {
+                "simple_query_string": {
+                  "query": "Hello"
+                }
+              }
+            }
+            """);
+        assertEquals(1, results.size());
+
+        results = searchDocs(client, dataStreamName, """
+            {
+              "query": {
+                "simple_query_string": {
+                  "query": "Hi"
+                }
+              }
+            }
+            """);
+        assertEquals(0, results.size());
     }
 
     static void waitForLogs(RestClient client) throws Exception {

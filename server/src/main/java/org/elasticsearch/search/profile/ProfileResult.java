@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.profile;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -75,11 +74,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         this.description = in.readString();
         this.nodeTime = in.readLong();
         breakdown = in.readMap(StreamInput::readLong);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-            debug = in.readMap(StreamInput::readGenericValue);
-        } else {
-            debug = Map.of();
-        }
+        debug = in.readMap(StreamInput::readGenericValue);
         children = in.readCollectionAsList(ProfileResult::new);
     }
 
@@ -89,9 +84,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         out.writeString(description);
         out.writeLong(nodeTime);            // not Vlong because can be negative
         out.writeMap(breakdown, StreamOutput::writeLong);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-            out.writeMap(debug, StreamOutput::writeGenericValue);
-        }
+        out.writeMap(debug, StreamOutput::writeGenericValue);
         out.writeCollection(children);
     }
 

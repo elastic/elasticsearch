@@ -56,7 +56,7 @@ public class Processors implements Writeable, Comparable<Processors>, ToXContent
         }
 
         if (validNumberOfProcessors(count) == false) {
-            throw new IllegalArgumentException("processors must be a non-negative number; provided [" + count + "]");
+            throw new IllegalArgumentException("processors must be a positive number; provided [" + count + "]");
         }
 
         return new Processors(count);

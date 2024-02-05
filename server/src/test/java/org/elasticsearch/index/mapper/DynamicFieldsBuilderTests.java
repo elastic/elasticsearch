@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -55,10 +56,40 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         parser.nextToken();
         assertTrue(parser.currentToken().isValue());
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, fieldname);
-        Map<String, List<Mapper.Builder>> dynamicMappers = ctx.getDynamicMappers();
+        List<Mapper> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
-        Mapper mapper = dynamicMappers.get(fieldname).get(0).build(MapperBuilderContext.root(false, false));
-        assertEquals(fieldname, mapper.name());
-        assertEquals(expectedType, mapper.typeName());
+        assertEquals(fieldname, dynamicMappers.get(0).name());
+        assertEquals(expectedType, dynamicMappers.get(0).typeName());
+    }
+
+    public void testCreateDynamicStringFieldAsKeywordForDimension() throws IOException {
+        String source = "{\"f1\": \"foobar\"}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, source);
+        SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
+
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null).setSynthetic().build();
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new PassThroughObjectMapper.Builder("labels").setContainsDimensions().dynamic(ObjectMapper.Dynamic.TRUE)
+        ).build(MapperBuilderContext.root(false, false));
+        Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
+
+        DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.fromMapping(mapping), sourceToParse) {
+            @Override
+            public XContentParser parser() {
+                return parser;
+            }
+        };
+        ctx.path().add("labels");
+
+        // position the parser on the value
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+        parser.nextToken();
+        assertTrue(parser.currentToken().isValue());
+        DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, "f1");
+        List<Mapper> dynamicMappers = ctx.getDynamicMappers();
+        assertEquals(1, dynamicMappers.size());
+        assertEquals("labels.f1", dynamicMappers.get(0).name());
+        assertEquals("keyword", dynamicMappers.get(0).typeName());
     }
 }

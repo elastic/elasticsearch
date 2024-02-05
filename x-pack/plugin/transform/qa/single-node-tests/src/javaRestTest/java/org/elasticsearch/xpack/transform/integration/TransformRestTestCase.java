@@ -380,7 +380,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         createReviewsTransform(transformId, null, null, config);
     }
 
-    private void createReviewsTransform(String transformId, String authHeader, String secondaryAuthHeader, String config)
+    protected void createReviewsTransform(String transformId, String authHeader, String secondaryAuthHeader, String config)
         throws IOException {
         final Request createTransformRequest = createRequestWithSecondaryAuth(
             "PUT",
@@ -399,13 +399,16 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         createPivotReviewsTransform(transformId, transformIndex, query, pipeline, null, null, authHeader, null, REVIEWS_INDEX_NAME);
     }
 
-    protected void updateTransform(String transformId, String update) throws IOException {
+    protected void updateTransform(String transformId, String update, boolean deferValidation) throws IOException {
         final Request updateTransformRequest = createRequestWithSecondaryAuth(
             "POST",
             getTransformEndpoint() + transformId + "/_update",
             null,
             null
         );
+        if (deferValidation) {
+            updateTransformRequest.addParameter("defer_validation", String.valueOf(deferValidation));
+        }
         updateTransformRequest.setJsonEntity(update);
 
         client().performRequest(updateTransformRequest);

@@ -21,11 +21,11 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Response;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.Collections;
@@ -89,6 +89,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                 new OriginSettingClient(client, ML_ORIGIN),
                 configs.get(0),
                 false,  // missing docs are not an error
+                null,   // if download is in progress, don't wait for it to complete
                 ActionListener.wrap(modelIdAndLength -> {
                     configs.get(0).setFullDefinition(modelIdAndLength.v2() > 0);
                     listener.onResponse(responseBuilder.setModels(configs).build());

@@ -159,12 +159,13 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         final DownsampleShardTaskParams params,
         final SearchHit[] lastDownsampledTsidHits
     ) {
+        DownsampleShardTask downsampleShardTask = (DownsampleShardTask) task;
         client.execute(
             DelegatingAction.INSTANCE,
-            new DelegatingAction.Request((DownsampleShardTask) task, lastDownsampledTsidHits, params),
+            new DelegatingAction.Request(downsampleShardTask, lastDownsampledTsidHits, params),
             ActionListener.wrap(empty -> {}, e -> {
                 LOGGER.error("error while delegating", e);
-                markAsFailed(task, e);
+                markAsFailed(downsampleShardTask, e);
             })
         );
     }
@@ -200,6 +201,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                         params.downsampleConfig(),
                         params.metrics(),
                         params.labels(),
+                        params.dimensions(),
                         initialState
                     );
                     downsampleShardIndexer.execute();
@@ -222,7 +224,8 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         });
     }
 
-    private static void markAsFailed(AllocatedPersistentTask task, Exception e) {
+    private static void markAsFailed(DownsampleShardTask task, Exception e) {
+        task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.FAILED);
         task.updatePersistentTaskState(
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.FAILED, null),
             ActionListener.running(() -> task.markAsFailed(e))
@@ -239,7 +242,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         public static final String NAME = "indices:data/read/downsample_delegate";
 
         private DelegatingAction() {
-            super(NAME, in -> new ActionResponse.Empty());
+            super(NAME);
         }
 
         public static class Request extends ActionRequest implements IndicesRequest {

@@ -86,6 +86,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         projectDirFiles.include("**/build/testclusters/**");
         projectDirFiles.include("**/build/testrun/*/temp/**");
         projectDirFiles.include("**/build/**/hs_err_pid*.log");
+        projectDirFiles.include("**/build/**/replay_pid*.log");
         projectDirFiles.exclude("**/build/testclusters/**/data/**");
         projectDirFiles.exclude("**/build/testclusters/**/distro/**");
         projectDirFiles.exclude("**/build/testclusters/**/repo/**");
@@ -133,7 +134,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             }
             uploadFile.getParentFile().mkdirs();
             createBuildArchiveTar(parameters.getFilteredFiles().get(), parameters.getProjectDir().get(), uploadFile);
-            if (uploadFile.exists() && System.getenv("BUILDKITE").equals("true")) {
+            if (uploadFile.exists() && "true".equals(System.getenv("BUILDKITE"))) {
                 String uploadFilePath = "build/" + uploadFile.getName();
                 try {
                     System.out.println("Uploading buildkite artifact: " + uploadFilePath + "...");

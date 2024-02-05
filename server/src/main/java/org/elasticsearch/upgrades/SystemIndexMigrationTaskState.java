@@ -62,7 +62,7 @@ public class SystemIndexMigrationTaskState implements PersistentTaskState {
     public SystemIndexMigrationTaskState(StreamInput in) throws IOException {
         this.currentIndex = in.readString();
         this.currentFeature = in.readString();
-        this.featureCallbackMetadata = in.readMap();
+        this.featureCallbackMetadata = in.readGenericMap();
     }
 
     /**

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.transform.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction.Request;
 
@@ -54,5 +55,13 @@ public class ScheduleNowTransformActionRequestTests extends AbstractWireSerializ
         ActionRequestValidationException e = request.validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(), contains("_schedule_now API does not support _all wildcard"));
+    }
+
+    public void testMatch() {
+        Request request = new Request("my-transform-7", TimeValue.timeValueSeconds(5));
+        assertTrue(request.match(new AllocatedPersistentTask(123, "", "", "data_frame_my-transform-7", null, null)));
+        assertFalse(request.match(new AllocatedPersistentTask(123, "", "", "data_frame_my-transform-", null, null)));
+        assertFalse(request.match(new AllocatedPersistentTask(123, "", "", "data_frame_my-transform-77", null, null)));
+        assertFalse(request.match(new AllocatedPersistentTask(123, "", "", "my-transform-7", null, null)));
     }
 }

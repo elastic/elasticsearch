@@ -204,7 +204,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < 16; i++) {
             repository.blobContainer()
-                .writeBlob(OperationPurpose.SNAPSHOT, BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
+                .writeBlob(OperationPurpose.SNAPSHOT_METADATA, BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
             if (i == 8) {
                 assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(generation));
             } else {

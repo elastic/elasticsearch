@@ -19,6 +19,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
@@ -247,6 +248,10 @@ public abstract class IndexRouting {
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
         }
 
+        public boolean matchesField(String fieldName) {
+            return isRoutingPath.test(fieldName);
+        }
+
         @Override
         public void process(IndexRequest indexRequest) {}
 
@@ -281,16 +286,14 @@ public abstract class IndexRouting {
 
         private Builder hashSource(XContentType sourceType, BytesReference source) {
             Builder b = builder();
-            try {
-                try (XContentParser parser = sourceType.xContent().createParser(parserConfig, source.streamInput())) {
-                    parser.nextToken(); // Move to first token
-                    if (parser.currentToken() == null) {
-                        throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
-                    }
-                    parser.nextToken();
-                    b.extractObject(null, parser);
-                    ensureExpectedToken(null, parser.nextToken(), parser);
+            try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, source, sourceType)) {
+                parser.nextToken(); // Move to first token
+                if (parser.currentToken() == null) {
+                    throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
                 }
+                parser.nextToken();
+                b.extractObject(null, parser);
+                ensureExpectedToken(null, parser.nextToken(), parser);
             } catch (IOException | ParsingException e) {
                 throw new IllegalArgumentException("Error extracting routing: " + e.getMessage(), e);
             }

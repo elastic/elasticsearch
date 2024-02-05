@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -24,6 +23,7 @@ import java.nio.file.Path;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.instanceOf;
@@ -114,7 +114,7 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             writeBlob(container, "test", new BytesArray(data));
             assertArrayEquals(readBlobFully(container, "test", data.length), data);
-            assertTrue(container.blobExists(OperationPurpose.SNAPSHOT, "test"));
+            assertTrue(container.blobExists(randomPurpose(), "test"));
         }
     }
 }

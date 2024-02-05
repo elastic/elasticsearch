@@ -30,7 +30,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -152,14 +151,14 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         }
         // internally we want to have a fixed order of filters, regardless of
         // the order of the filters in the request
-        Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
+        this.filters.sort(Comparator.comparing(KeyedFilter::key));
     }
 
     private AdjacencyMatrixAggregationBuilder setFiltersAsList(List<KeyedFilter> filters) {
         this.filters = new ArrayList<>(filters);
         // internally we want to have a fixed order of filters, regardless of
         // the order of the filters in the request
-        Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
+        this.filters.sort(Comparator.comparing(KeyedFilter::key));
         return this;
     }
 

@@ -11,16 +11,18 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 
-import java.util.List;
+import java.net.URI;
 
 public class ActionUtils {
 
-    public static ActionListener<List<? extends InferenceResults>> wrapFailuresInElasticsearchException(
+    public static ActionListener<InferenceServiceResults> wrapFailuresInElasticsearchException(
         String errorMessage,
-        ActionListener<List<? extends InferenceResults>> listener
+        ActionListener<InferenceServiceResults> listener
     ) {
         return ActionListener.wrap(listener::onResponse, e -> {
             var unwrappedException = ExceptionsHelper.unwrapCause(e);
@@ -35,6 +37,14 @@ public class ActionUtils {
 
     public static ElasticsearchStatusException createInternalServerError(Throwable e, String message) {
         return new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR, e);
+    }
+
+    public static String constructFailedToSendRequestMessage(@Nullable URI uri, String message) {
+        if (uri != null) {
+            return Strings.format("Failed to send %s request to [%s]", message, uri);
+        }
+
+        return Strings.format("Failed to send %s request", message);
     }
 
     private ActionUtils() {}

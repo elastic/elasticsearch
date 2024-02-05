@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
@@ -45,8 +46,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      * match. Today, a better match is one that can perform a no-op recovery while the previous recovery
      * has to copy segment files.
      */
-    public void processExistingRecoveries(RoutingAllocation allocation) {
-        Metadata metadata = allocation.metadata();
+    public void processExistingRecoveries(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {
         RoutingNodes routingNodes = allocation.routingNodes();
         List<Runnable> shardCancellationActions = new ArrayList<>();
         for (RoutingNode routingNode : routingNodes) {
@@ -58,6 +58,9 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                     continue;
                 }
                 if (shard.relocatingNodeId() != null) {
+                    continue;
+                }
+                if (isRelevantShardPredicate.test(shard) == false) {
                     continue;
                 }
 

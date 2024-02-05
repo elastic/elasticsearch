@@ -46,7 +46,7 @@ public class MultivalueDedupeBoolean {
             block.incRef();
             return block;
         }
-        try (BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -68,8 +68,8 @@ public class MultivalueDedupeBoolean {
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      * @param everSeen array tracking if the values {@code false} and {@code true} are ever seen
      */
-    public IntBlock hash(boolean[] everSeen) {
-        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount())) {
+    public IntBlock hash(BlockFactory blockFactory, boolean[] everSeen) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);

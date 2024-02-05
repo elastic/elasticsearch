@@ -45,7 +45,7 @@ public class SeekTrackerPluginIT extends ESIntegTestCase {
         }
         indexRandom(true, docs);
 
-        prepareSearch("index").setQuery(QueryBuilders.termQuery("field", "term2")).get();
+        prepareSearch("index").setQuery(QueryBuilders.termQuery("field", "term2")).get().decRef();
 
         SeekStatsResponse response = client().execute(SeekTrackerPlugin.SEEK_STATS_ACTION, new SeekStatsRequest("index")).actionGet();
         List<ShardSeekStats> shardSeekStats = response.getSeekStats().get("index");

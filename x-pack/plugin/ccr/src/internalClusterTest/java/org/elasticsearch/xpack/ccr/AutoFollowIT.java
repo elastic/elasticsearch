@@ -11,7 +11,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.client.internal.Client;
@@ -636,7 +636,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     public void testAutoFollowDatastreamWithClosingFollowerIndex() throws Exception {
         final String datastream = "logs-1";
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("template-id");
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request("template-id");
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("logs-*"))
@@ -653,7 +653,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
-        assertAcked(leaderClient().execute(PutComposableIndexTemplateAction.INSTANCE, request).get());
+        assertAcked(leaderClient().execute(TransportPutComposableIndexTemplateAction.TYPE, request).get());
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(datastream);
         assertAcked(leaderClient().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());

@@ -1142,6 +1142,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         return new ActionModule(
             settings.getSettings(),
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+            null,
             settings.getIndexScopedSettings(),
             settings.getClusterSettings(),
             settings.getSettingsFilter(),
@@ -1153,6 +1154,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
+            null,
             List.of(),
             RestExtension.allowAll()
         );
@@ -1387,8 +1389,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         @Override
         public void close() {
-            appender.stop();
             Loggers.removeAppender(mockLogger, appender);
+            appender.stop();
             if (checked == false) {
                 fail("did not check expectations matched in TimedOutLogExpectation");
             }

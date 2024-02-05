@@ -119,7 +119,8 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
             .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
             .setSize(0)
             .setPreference("fixed")
-            .get();
+            .get()
+            .decRef();
 
         stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after second query: {}", stats);
@@ -148,7 +149,8 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
             .setQuery(QueryBuilders.rangeQuery("date_field").from("2016/01/01"))
             .setSize(100)
             .setPreference("fixed")
-            .get();
+            .get()
+            .decRef();
 
         stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after third query: {}", stats);

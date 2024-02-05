@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.Hyperparameters;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
+import org.hamcrest.Matchers;
 import org.junit.After;
 
 import java.io.IOException;
@@ -47,11 +48,12 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -129,9 +131,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 // double predictionValue = (double) resultsObject.get(predictedClassField);
                 // assertThat(predictionValue, closeTo(10 * featureValue, 2.0));
 
-                assertThat(resultsObject.containsKey(predictedClassField), is(true));
-                assertThat(resultsObject.containsKey("is_training"), is(true));
-                assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
+                assertThat(resultsObject, hasKey(predictedClassField));
+                assertThat(resultsObject, hasEntry("is_training", destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
 
@@ -144,15 +145,13 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                     }
                 }
 
-                assertThat(importanceArray, hasSize(greaterThan(0)));
                 assertThat(
-                    importanceArray.stream()
-                        .filter(
-                            m -> NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
-                                || DISCRETE_NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
+                    importanceArray,
+                    hasItem(
+                        either(Matchers.<String, Object>hasEntry("feature_name", NUMERICAL_FEATURE_FIELD)).or(
+                            hasEntry("feature_name", DISCRETE_NUMERICAL_FEATURE_FIELD)
                         )
-                        .findAny(),
-                    isPresent()
+                    )
                 );
             }
 
@@ -504,20 +503,18 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 Map<String, Object> destDoc = getDestDoc(config, hit);
                 Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
 
-                assertThat(resultsObject.containsKey(predictedClassField), is(true));
-                assertThat(resultsObject.containsKey("is_training"), is(true));
-                assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
+                assertThat(resultsObject, hasKey(predictedClassField));
+                assertThat(resultsObject, hasEntry("is_training", destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
-                assertThat(importanceArray, hasSize(greaterThan(0)));
+
                 assertThat(
-                    importanceArray.stream()
-                        .filter(
-                            m -> NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
-                                || DISCRETE_NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
+                    importanceArray,
+                    hasItem(
+                        either(Matchers.<String, Object>hasEntry("feature_name", NUMERICAL_FEATURE_FIELD)).or(
+                            hasEntry("feature_name", DISCRETE_NUMERICAL_FEATURE_FIELD)
                         )
-                        .findAny(),
-                    isPresent()
+                    )
                 );
             }
         });
@@ -639,7 +636,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             // We assert on the mean prediction error in order to reduce the probability
             // the test fails compared to asserting on the prediction of each individual doc.
             double meanPredictionError = predictionErrorSum / sourceData.getHits().getHits().length;
-            String str = "Failure: failed for seed %d modelId %s numberTrees %d\n";
+            String str = "Failure: failed for seed %d inferenceEntityId %s numberTrees %d\n";
             assertThat(
                 Strings.format(str, seed, modelId, numberTrees) + targetsPredictions + hyperparameters,
                 meanPredictionError,

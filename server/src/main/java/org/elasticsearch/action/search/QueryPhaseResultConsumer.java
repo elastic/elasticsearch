@@ -105,11 +105,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     @Override
     protected void doClose() {
-        try {
-            super.doClose();
-        } finally {
-            pendingMerges.close();
-        }
+        pendingMerges.close();
     }
 
     @Override
@@ -300,11 +296,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
         }
 
-        synchronized long addWithoutBreaking(long size) {
+        synchronized void addWithoutBreaking(long size) {
             circuitBreaker.addWithoutBreaking(size);
             circuitBreakerBytes += size;
             maxAggsCurrentBufferSize = Math.max(maxAggsCurrentBufferSize, circuitBreakerBytes);
-            return circuitBreakerBytes;
         }
 
         synchronized long addEstimateAndMaybeBreak(long estimatedSize) {

@@ -11,7 +11,7 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -124,31 +124,31 @@ class TriangleTreeWriter {
         }
 
         private void writeTo(StreamOutput out) throws IOException {
-            BytesStreamOutput scratchBuffer = new BytesStreamOutput();
+            CountingStreamOutput countingBuffer = new CountingStreamOutput();
             writeMetadata(out);
             writeComponent(out);
             if (left != null) {
-                left.writeNode(out, maxX, maxY, scratchBuffer);
+                left.writeNode(out, maxX, maxY, countingBuffer);
             }
             if (right != null) {
-                right.writeNode(out, maxX, maxY, scratchBuffer);
+                right.writeNode(out, maxX, maxY, countingBuffer);
             }
         }
 
-        private void writeNode(StreamOutput out, int parentMaxX, int parentMaxY, BytesStreamOutput scratchBuffer) throws IOException {
+        private void writeNode(StreamOutput out, int parentMaxX, int parentMaxY, CountingStreamOutput countingBuffer) throws IOException {
             out.writeVLong((long) parentMaxX - maxX);
             out.writeVLong((long) parentMaxY - maxY);
-            int size = nodeSize(false, parentMaxX, parentMaxY, scratchBuffer);
-            out.writeVInt(size);
+            long size = nodeSize(false, parentMaxX, parentMaxY, countingBuffer);
+            out.writeVInt(Math.toIntExact(size));
             writeMetadata(out);
             writeComponent(out);
             if (left != null) {
-                left.writeNode(out, maxX, maxY, scratchBuffer);
+                left.writeNode(out, maxX, maxY, countingBuffer);
             }
             if (right != null) {
-                int rightSize = right.nodeSize(true, maxX, maxY, scratchBuffer);
-                out.writeVInt(rightSize);
-                right.writeNode(out, maxX, maxY, scratchBuffer);
+                long rightSize = right.nodeSize(true, maxX, maxY, countingBuffer);
+                out.writeVInt(Math.toIntExact(rightSize));
+                right.writeNode(out, maxX, maxY, countingBuffer);
             }
         }
 
@@ -184,50 +184,50 @@ class TriangleTreeWriter {
             out.writeVLong((long) maxY - component.cY);
         }
 
-        private int nodeSize(boolean includeBox, int parentMaxX, int parentMaxY, BytesStreamOutput scratchBuffer) throws IOException {
-            int size = 0;
+        private long nodeSize(boolean includeBox, int parentMaxX, int parentMaxY, CountingStreamOutput countingBuffer) throws IOException {
+            long size = 0;
             size++; // metadata
-            size += componentSize(scratchBuffer);
+            size += componentSize(countingBuffer);
             if (left != null) {
-                size += left.nodeSize(true, maxX, maxY, scratchBuffer);
+                size += left.nodeSize(true, maxX, maxY, countingBuffer);
             }
             if (right != null) {
-                int rightSize = right.nodeSize(true, maxX, maxY, scratchBuffer);
-                scratchBuffer.reset();
-                scratchBuffer.writeVLong(rightSize);
-                size += scratchBuffer.size(); // jump size
+                long rightSize = right.nodeSize(true, maxX, maxY, countingBuffer);
+                countingBuffer.reset();
+                countingBuffer.writeVLong(rightSize);
+                size += countingBuffer.size(); // jump size
                 size += rightSize;
             }
             if (includeBox) {
-                int jumpSize = size;
-                scratchBuffer.reset();
-                scratchBuffer.writeVLong((long) parentMaxX - maxX);
-                scratchBuffer.writeVLong((long) parentMaxY - maxY);
-                scratchBuffer.writeVLong(jumpSize);
-                size += scratchBuffer.size(); // box size
+                long jumpSize = size;
+                countingBuffer.reset();
+                countingBuffer.writeVLong((long) parentMaxX - maxX);
+                countingBuffer.writeVLong((long) parentMaxY - maxY);
+                countingBuffer.writeVLong(jumpSize);
+                size += countingBuffer.size(); // box size
             }
             return size;
         }
 
-        private int componentSize(BytesStreamOutput scratchBuffer) throws IOException {
-            scratchBuffer.reset();
+        private long componentSize(CountingStreamOutput countingBuffer) throws IOException {
+            countingBuffer.reset();
             if (component.type == ShapeField.DecodedTriangle.TYPE.POINT) {
-                scratchBuffer.writeVLong((long) maxX - component.aX);
-                scratchBuffer.writeVLong((long) maxY - component.aY);
+                countingBuffer.writeVLong((long) maxX - component.aX);
+                countingBuffer.writeVLong((long) maxY - component.aY);
             } else if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
-                scratchBuffer.writeVLong((long) maxX - component.aX);
-                scratchBuffer.writeVLong((long) maxY - component.aY);
-                scratchBuffer.writeVLong((long) maxX - component.bX);
-                scratchBuffer.writeVLong((long) maxY - component.bY);
+                countingBuffer.writeVLong((long) maxX - component.aX);
+                countingBuffer.writeVLong((long) maxY - component.aY);
+                countingBuffer.writeVLong((long) maxX - component.bX);
+                countingBuffer.writeVLong((long) maxY - component.bY);
             } else {
-                scratchBuffer.writeVLong((long) maxX - component.aX);
-                scratchBuffer.writeVLong((long) maxY - component.aY);
-                scratchBuffer.writeVLong((long) maxX - component.bX);
-                scratchBuffer.writeVLong((long) maxY - component.bY);
-                scratchBuffer.writeVLong((long) maxX - component.cX);
-                scratchBuffer.writeVLong((long) maxY - component.cY);
+                countingBuffer.writeVLong((long) maxX - component.aX);
+                countingBuffer.writeVLong((long) maxY - component.aY);
+                countingBuffer.writeVLong((long) maxX - component.bX);
+                countingBuffer.writeVLong((long) maxY - component.bY);
+                countingBuffer.writeVLong((long) maxX - component.cX);
+                countingBuffer.writeVLong((long) maxY - component.cY);
             }
-            return Math.toIntExact(scratchBuffer.size());
+            return countingBuffer.size();
         }
     }
 }

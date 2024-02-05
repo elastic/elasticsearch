@@ -41,8 +41,8 @@ import java.util.Map;
  */
 public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
 
-    public SearchRequestBuilder(ElasticsearchClient client, SearchAction action) {
-        super(client, action, new SearchRequest());
+    public SearchRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportSearchAction.TYPE, new SearchRequest());
     }
 
     /**

@@ -18,16 +18,16 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -64,6 +64,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
@@ -138,14 +139,12 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -883,14 +882,14 @@ public class IndicesService extends AbstractLifecycleComponent
                 : "mapping update consumer only required by local shards recovery";
             client.execute(
                 featureService.clusterHasFeature(clusterService.state(), SUPPORTS_AUTO_PUT)
-                    ? AutoPutMappingAction.INSTANCE
-                    : PutMappingAction.INSTANCE,
+                    ? TransportAutoPutMappingAction.TYPE
+                    : TransportPutMappingAction.TYPE,
                 new PutMappingRequest().setConcreteIndex(shardRouting.index())
                     .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
                     .source(mapping.source().string(), XContentType.JSON)
                     .timeout(TimeValue.MAX_VALUE)
                     .masterNodeTimeout(TimeValue.MAX_VALUE),
-                new ThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
+                new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
             );
         }, this, clusterStateVersion);
     }
@@ -1654,8 +1653,7 @@ public class IndicesService extends AbstractLifecycleComponent
          * of dependencies we pass in a function that can perform the parsing. */
         CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
             try (
-                InputStream inputStream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContentType(inputStream).xContent().createParser(parserConfig, inputStream)
+                XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, bytes, XContentHelper.xContentType(bytes))
             ) {
                 return parseTopLevelQuery(parser);
             }

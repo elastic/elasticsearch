@@ -11,8 +11,8 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -281,7 +281,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             // This user has permission to run sql queries so they are given preliminary authorization
             .expect(true, SQL_ACTION_NAME, "wrong_access", empty())
             // the following get index is granted too but against the no indices placeholder, as ignore_unavailable=true
-            .expect(true, FieldCapabilitiesAction.NAME, "wrong_access", hasItems("*", "-*"))
+            .expect(true, TransportFieldCapabilitiesAction.NAME, "wrong_access", hasItems("*", "-*"))
             .assertLogs();
     }
 
@@ -442,7 +442,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             // This user has permission to run sql queries so they are given preliminary authorization
             .expect(true, SQL_ACTION_NAME, "wrong_access", empty())
             // the following get index is granted too but against the no indices placeholder, as ignore_unavailable=true
-            .expect(true, FieldCapabilitiesAction.NAME, "wrong_access", hasItems("*", "-*"))
+            .expect(true, TransportFieldCapabilitiesAction.NAME, "wrong_access", hasItems("*", "-*"))
             .assertLogs();
     }
 
@@ -518,7 +518,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         public AuditLogAsserter expectSqlCompositeActionFieldCaps(String user, String... indices) {
             expect(true, SQL_ACTION_NAME, user, empty());
-            expect(true, FieldCapabilitiesAction.NAME, user, hasItems(indices));
+            expect(true, TransportFieldCapabilitiesAction.NAME, user, hasItems(indices));
             return this;
         }
 
@@ -531,7 +531,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             String request = switch (action) {
                 case SQL_ACTION_NAME -> "SqlQueryRequest";
                 case GetIndexAction.NAME -> GetIndexRequest.class.getSimpleName();
-                case FieldCapabilitiesAction.NAME -> FieldCapabilitiesRequest.class.getSimpleName();
+                case TransportFieldCapabilitiesAction.NAME -> FieldCapabilitiesRequest.class.getSimpleName();
                 default -> throw new IllegalArgumentException("Unknown action [" + action + "]");
             };
             final String eventAction = granted ? "access_granted" : "access_denied";
@@ -631,7 +631,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                 assertThat(log.containsKey("action"), is(true));
                                 if (false == (SQL_ACTION_NAME.equals(log.get("action"))
                                     || GetIndexAction.NAME.equals(log.get("action"))
-                                    || FieldCapabilitiesAction.NAME.equals(log.get("action")))) {
+                                    || TransportFieldCapabilitiesAction.NAME.equals(log.get("action")))) {
                                     // TODO we may want to extend this and the assertions to SearchAction.NAME as well
                                     continue;
                                 }

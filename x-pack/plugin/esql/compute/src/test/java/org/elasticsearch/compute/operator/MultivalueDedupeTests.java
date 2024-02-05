@@ -28,6 +28,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -55,7 +56,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     public static List<ElementType> supportedTypes() {
         List<ElementType> supported = new ArrayList<>();
         for (ElementType elementType : ElementType.values()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
+            if (oneOf(elementType, ElementType.UNKNOWN, ElementType.DOC)) {
                 continue;
             }
             supported.add(elementType);
@@ -63,13 +64,19 @@ public class MultivalueDedupeTests extends ESTestCase {
         return supported;
     }
 
+    private static boolean oneOf(ElementType elementType, ElementType... others) {
+        for (ElementType other : others) {
+            if (elementType == other) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType elementType : supportedTypes()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
-                continue;
-            }
             for (boolean nullAllowed : new boolean[] { false, true }) {
                 for (int max : new int[] { 10, 100, 1000 }) {
                     params.add(new Object[] { elementType, 1000, nullAllowed, 1, max, 0, 0 });
@@ -128,7 +135,7 @@ public class MultivalueDedupeTests extends ESTestCase {
         return BasicBlockTests.randomBlock(
             elementType,
             positionCount,
-            nullAllowed,
+            elementType == ElementType.NULL ? true : nullAllowed,
             minValuesPerPosition,
             maxValuesPerPosition,
             minDupsPerPosition,
@@ -154,8 +161,8 @@ public class MultivalueDedupeTests extends ESTestCase {
     }
 
     public void testHash() {
+        assumeFalse("not hash for null", elementType == ElementType.NULL);
         BasicBlockTests.RandomBlock b = randomBlock();
-
         switch (b.block().elementType()) {
             case BOOLEAN -> assertBooleanHash(Set.of(), b);
             case BYTES_REF -> assertBytesRefHash(Set.of(), b);
@@ -167,8 +174,8 @@ public class MultivalueDedupeTests extends ESTestCase {
     }
 
     public void testHashWithPreviousValues() {
+        assumeFalse("not hash for null", elementType == ElementType.NULL);
         BasicBlockTests.RandomBlock b = randomBlock();
-
         switch (b.block().elementType()) {
             case BOOLEAN -> {
                 Set<Boolean> previousValues = switch (between(0, 2)) {
@@ -180,6 +187,7 @@ public class MultivalueDedupeTests extends ESTestCase {
                 assertBooleanHash(previousValues, b);
             }
             case BYTES_REF -> {
+                // TODO: Also test spatial WKB
                 int prevSize = between(1, 10000);
                 Set<BytesRef> previousValues = new HashSet<>(prevSize);
                 while (previousValues.size() < prevSize) {
@@ -216,6 +224,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     }
 
     public void testBatchEncodeAll() {
+        assumeFalse("null only direct encodes", elementType == ElementType.NULL);
         int initCapacity = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
         BasicBlockTests.RandomBlock b = randomBlock();
         var encoder = (BatchEncoder.MVEncoder) MultivalueDedupe.batchEncoder(b.block(), initCapacity, false);
@@ -234,6 +243,7 @@ public class MultivalueDedupeTests extends ESTestCase {
 
     public void testBatchEncoderStartSmall() {
         assumeFalse("Booleans don't grow in the same way", elementType == ElementType.BOOLEAN);
+        assumeFalse("Nulls don't grow", elementType == ElementType.NULL);
         BasicBlockTests.RandomBlock b = randomBlock();
         var encoder = (BatchEncoder.MVEncoder) MultivalueDedupe.batchEncoder(b.block(), 0, false);
 
@@ -270,47 +280,56 @@ public class MultivalueDedupeTests extends ESTestCase {
         if (previousValues.contains(true)) {
             everSeen[2] = true;
         }
-        IntBlock hashes = new MultivalueDedupeBoolean((BooleanBlock) b.block()).hash(everSeen);
-        List<Boolean> hashedValues = new ArrayList<>();
-        if (everSeen[1]) {
-            hashedValues.add(false);
+        try (IntBlock hashes = new MultivalueDedupeBoolean((BooleanBlock) b.block()).hash(blockFactory(), everSeen)) {
+            List<Boolean> hashedValues = new ArrayList<>();
+            if (everSeen[1]) {
+                hashedValues.add(false);
+            }
+            if (everSeen[2]) {
+                hashedValues.add(true);
+            }
+            assertHash(b, hashes, hashedValues.size(), previousValues, i -> hashedValues.get((int) i));
         }
-        if (everSeen[2]) {
-            hashedValues.add(true);
-        }
-        assertHash(b, hashes, hashedValues.size(), previousValues, i -> hashedValues.get((int) i));
     }
 
     private void assertBytesRefHash(Set<BytesRef> previousValues, BasicBlockTests.RandomBlock b) {
         BytesRefHash hash = new BytesRefHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeBytesRef((BytesRefBlock) b.block()).hash(hash);
-        assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
-        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> hash.get(i, new BytesRef()));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeBytesRef((BytesRefBlock) b.block()).hash(blockFactory(), hash);
+        try (IntBlock ords = hashes.ords()) {
+            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+            assertHash(b, ords, hash.size(), previousValues, i -> hash.get(i, new BytesRef()));
+        }
     }
 
     private void assertIntHash(Set<Integer> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt((IntBlock) b.block()).hash(hash);
-        assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
-        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> (int) hash.get(i));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt((IntBlock) b.block()).hash(blockFactory(), hash);
+        try (IntBlock ords = hashes.ords()) {
+            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+            assertHash(b, ords, hash.size(), previousValues, i -> (int) hash.get(i));
+        }
     }
 
     private void assertLongHash(Set<Long> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong((LongBlock) b.block()).hash(hash);
-        assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
-        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> hash.get(i));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong((LongBlock) b.block()).hash(blockFactory(), hash);
+        try (IntBlock ords = hashes.ords()) {
+            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+            assertHash(b, ords, hash.size(), previousValues, i -> hash.get(i));
+        }
     }
 
     private void assertDoubleHash(Set<Double> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(d -> hash.add(Double.doubleToLongBits(d)));
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeDouble((DoubleBlock) b.block()).hash(hash);
-        assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
-        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> Double.longBitsToDouble(hash.get(i)));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeDouble((DoubleBlock) b.block()).hash(blockFactory(), hash);
+        try (IntBlock ords = hashes.ords()) {
+            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+            assertHash(b, ords, hash.size(), previousValues, i -> Double.longBitsToDouble(hash.get(i)));
+        }
     }
 
     private void assertHash(
@@ -337,7 +356,7 @@ public class MultivalueDedupeTests extends ESTestCase {
             for (int i = start; i < end; i++) {
                 actualValues.add(lookup.apply(hashes.getInt(i) - 1));
             }
-            assertThat(actualValues, containsInAnyOrder(v.stream().collect(Collectors.toSet()).stream().sorted().toArray()));
+            assertThat(new HashSet<>(actualValues), containsInAnyOrder(new HashSet<>(v).toArray()));
             allValues.addAll(v);
         }
 
@@ -365,7 +384,7 @@ public class MultivalueDedupeTests extends ESTestCase {
          * This produces a block with a single value per position, but it's good enough
          * for comparison.
          */
-        Block.Builder builder = elementType.newBlockBuilder(encoder.valueCount(offset));
+        Block.Builder builder = elementType.newBlockBuilder(encoder.valueCount(offset), TestBlockFactory.getNonBreakingInstance());
         BytesRef[] toDecode = new BytesRef[encoder.valueCount(offset)];
         for (int i = 0; i < toDecode.length; i++) {
             BytesRefBuilder dest = new BytesRefBuilder();

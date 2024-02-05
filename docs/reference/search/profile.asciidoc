@@ -1272,6 +1272,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
 "dfs" : {
     "knn" : [
         {
+        "vector_operations_count" : 4,
         "query" : [
             {
                 "type" : "DocAndScoreQuery",
@@ -1321,7 +1322,7 @@ In the `dfs.knn` portion of the response we can see the output
 the of timings for <<query-section, query>>, <<rewrite-section, rewrite>>,
 and <<collectors-section, collector>>. Unlike many other queries, kNN
 search does the bulk of the work during the query rewrite. This means
-`rewrite_time` represents the time spent on kNN search.
+`rewrite_time` represents the time spent on kNN search. The attribute `vector_operations_count` represents the overall count of vector operations performed during the kNN search.
 
 [[profiling-considerations]]
 ===== Profiling Considerations

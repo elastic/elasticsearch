@@ -32,7 +32,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class AbstractXContentTestCase<T extends ToXContent> extends ESTestCase {
-    protected static final int NUMBER_OF_TEST_RUNS = 20;
+    public static final int NUMBER_OF_TEST_RUNS = 20;
 
     public static <T> XContentTester<T> xContentTester(
         CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
@@ -154,8 +154,10 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
                         randomFieldsExcludeFilter,
                         createParser
                     );
-                    XContentParser parser = createParser.apply(XContentFactory.xContent(xContentType), shuffledContent);
-                    T parsed = fromXContent.apply(parser);
+                    final T parsed;
+                    try (XContentParser parser = createParser.apply(XContentFactory.xContent(xContentType), shuffledContent)) {
+                        parsed = fromXContent.apply(parser);
+                    }
                     try {
                         assertEqualsConsumer.accept(testInstance, parsed);
                         if (assertToXContentEquivalence) {
@@ -222,12 +224,41 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
         boolean assertToXContentEquivalence,
         ToXContent.Params toXContentParams
     ) throws IOException {
+        testFromXContent(
+            numberOfTestRuns,
+            instanceSupplier,
+            supportsUnknownFields,
+            shuffleFieldsExceptions,
+            randomFieldsExcludeFilter,
+            createParserFunction,
+            fromXContent,
+            assertEqualsConsumer,
+            assertToXContentEquivalence,
+            toXContentParams,
+            t -> {}
+        );
+    }
+
+    public static <T extends ToXContent> void testFromXContent(
+        int numberOfTestRuns,
+        Supplier<T> instanceSupplier,
+        boolean supportsUnknownFields,
+        String[] shuffleFieldsExceptions,
+        Predicate<String> randomFieldsExcludeFilter,
+        CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParserFunction,
+        CheckedFunction<XContentParser, T, IOException> fromXContent,
+        BiConsumer<T, T> assertEqualsConsumer,
+        boolean assertToXContentEquivalence,
+        ToXContent.Params toXContentParams,
+        Consumer<T> dispose
+    ) throws IOException {
         xContentTester(createParserFunction, instanceSupplier, toXContentParams, fromXContent).numberOfTestRuns(numberOfTestRuns)
             .supportsUnknownFields(supportsUnknownFields)
             .shuffleFieldsExceptions(shuffleFieldsExceptions)
             .randomFieldsExcludeFilter(randomFieldsExcludeFilter)
             .assertEqualsConsumer(assertEqualsConsumer)
             .assertToXContentEquivalence(assertToXContentEquivalence)
+            .dispose(dispose)
             .test();
     }
 
@@ -246,9 +277,16 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
             this::parseInstance,
             this::assertEqualInstances,
             assertToXContentEquivalence(),
-            getToXContentParams()
+            getToXContentParams(),
+            this::dispose
         );
     }
+
+    /**
+     * Callback invoked after a test instance is no longer needed that can be overridden to release resources associated with the instance.
+     * @param instance test instance that is no longer used
+     */
+    protected void dispose(T instance) {}
 
     /**
      * Creates a random test instance to use in the tests. This method will be
@@ -320,8 +358,9 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
         } else {
             withRandomFields = xContent;
         }
-        XContentParser parserWithRandomFields = createParserFunction.apply(XContentFactory.xContent(xContentType), withRandomFields);
-        return BytesReference.bytes(ESTestCase.shuffleXContent(parserWithRandomFields, false, shuffleFieldsExceptions));
+        try (XContentParser parserWithRandomFields = createParserFunction.apply(XContentFactory.xContent(xContentType), withRandomFields)) {
+            return BytesReference.bytes(ESTestCase.shuffleXContent(parserWithRandomFields, false, shuffleFieldsExceptions));
+        }
     }
 
 }

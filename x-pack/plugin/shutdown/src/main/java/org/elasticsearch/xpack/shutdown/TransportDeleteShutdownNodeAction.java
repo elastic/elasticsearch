@@ -40,6 +40,7 @@ import java.util.Map;
 public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<Request> {
     private static final Logger logger = LogManager.getLogger(TransportDeleteShutdownNodeAction.class);
 
+    private final RerouteService rerouteService;
     private final MasterServiceTaskQueue<DeleteShutdownNodeTask> taskQueue;
 
     private static boolean deleteShutdownNodeState(Map<String, SingleNodeShutdownMetadata> shutdownMetadata, Request request) {
@@ -89,8 +90,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
                     taskContext.onFailure(e);
                     continue;
                 }
-                var reroute = clusterService.getRerouteService();
-                taskContext.success(() -> ackAndReroute(request, taskContext.getTask().listener(), reroute));
+                taskContext.success(() -> ackAndReroute(request, taskContext.getTask().listener(), rerouteService));
             }
             if (changed == false) {
                 return batchExecutionContext.initialState();
@@ -108,6 +108,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     public TransportDeleteShutdownNodeAction(
         TransportService transportService,
         ClusterService clusterService,
+        RerouteService rerouteService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -123,6 +124,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.rerouteService = rerouteService;
         taskQueue = clusterService.createTaskQueue("delete-node-shutdown", Priority.URGENT, new DeleteShutdownNodeExecutor());
     }
 

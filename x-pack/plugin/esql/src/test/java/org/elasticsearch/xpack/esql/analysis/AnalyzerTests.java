@@ -16,7 +16,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -48,6 +52,7 @@ import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -262,11 +267,68 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
-    public void testProjectOrder() {
+    public void testDuplicateProjections() {
+        assertProjection("""
+            from test
+            | keep first_name, first_name
+            """, "first_name");
+        assertProjection("""
+            from test
+            | keep first_name, first_name, last_name, first_name
+            """, "last_name", "first_name");
+    }
+
+    public void testProjectWildcard() {
         assertProjection("""
             from test
             | keep first_name, *, last_name
             """, "first_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name");
+        assertProjection("""
+            from test
+            | keep first_name, last_name, *
+            """, "first_name", "last_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary");
+        assertProjection("""
+            from test
+            | keep *, first_name, last_name
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "first_name", "last_name");
+
+        var e = expectThrows(ParsingException.class, () -> analyze("""
+            from test
+            | keep *, first_name, last_name, *
+            """));
+        assertThat(e.getMessage(), containsString("Cannot specify [*] more than once"));
+
+    }
+
+    public void testProjectMixedWildcard() {
+        assertProjection("""
+            from test
+            | keep *name, first*
+            """, "last_name", "first_name");
+        assertProjection("""
+            from test
+            | keep first_name, *name, first*
+            """, "first_name", "last_name");
+        assertProjection("""
+            from test
+            | keep *ob*, first_name, *name, first*
+            """, "job", "job.raw", "first_name", "last_name");
+        assertProjection("""
+            from test
+            | keep first_name, *, *name
+            """, "first_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name");
+        assertProjection("""
+            from test
+            | keep first*, *, last_name, first_name
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name", "first_name");
+        assertProjection("""
+            from test
+            | keep first*, *, last_name, fir*
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name", "first_name");
+        assertProjection("""
+            from test
+            | keep *, job*
+            """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "long_noidx", "salary", "job", "job.raw");
     }
 
     public void testProjectThenDropName() {
@@ -1193,78 +1255,78 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedFieldsInStats() {
-        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
         verifyUnsupported("""
             from test
-            | stats max(point)
+            | stats max(unsupported)
             """, errorMsg);
         verifyUnsupported("""
             from test
-            | stats max(int) by point
+            | stats max(int) by unsupported
             """, errorMsg);
         verifyUnsupported("""
             from test
-            | stats max(int) by bool, point
+            | stats max(int) by bool, unsupported
             """, errorMsg);
     }
 
     public void testUnsupportedFieldsInEval() {
-        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
         verifyUnsupported("""
             from test
-            | eval x = point
+            | eval x = unsupported
             """, errorMsg);
         verifyUnsupported("""
             from test
-            | eval foo = 1, x = point
+            | eval foo = 1, x = unsupported
             """, errorMsg);
         verifyUnsupported("""
             from test
-            | eval x = 1 + point
+            | eval x = 1 + unsupported
             """, errorMsg);
     }
 
     public void testUnsupportedFieldsInWhere() {
-        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
         verifyUnsupported("""
             from test
-            | where point == "[1.0, 1.0]"
+            | where unsupported == "[1.0, 1.0]"
             """, errorMsg);
         verifyUnsupported("""
             from test
-            | where int > 2 and point == "[1.0, 1.0]"
+            | where int > 2 and unsupported == "[1.0, 1.0]"
             """, errorMsg);
     }
 
     public void testUnsupportedFieldsInSort() {
-        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
         verifyUnsupported("""
             from test
-            | sort point
+            | sort unsupported
             """, errorMsg);
         verifyUnsupported("""
             from test
-            | sort int, point
+            | sort int, unsupported
             """, errorMsg);
     }
 
     public void testUnsupportedFieldsInDissect() {
-        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
         verifyUnsupported("""
             from test
-            | dissect point \"%{foo}\"
+            | dissect unsupported \"%{foo}\"
             """, errorMsg);
     }
 
     public void testUnsupportedFieldsInGrok() {
-        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
         verifyUnsupported("""
             from test
-            | grok point \"%{WORD:foo}\"
+            | grok unsupported \"%{WORD:foo}\"
             """, errorMsg);
     }
 
@@ -1288,7 +1350,8 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
-        final String supportedTypes = "boolean, datetime, double, integer, ip, keyword, long, text, unsigned_long or version";
+        final String supportedTypes =
+            "boolean or cartesian_point or cartesian_shape or datetime or geo_point or geo_shape or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
@@ -1297,31 +1360,58 @@ public class AnalyzerTests extends ESTestCase {
             "row duration = 1 hour | eval to_string(duration)",
             "line 1:30: argument of [to_string(duration)] must be [" + supportedTypes + "], found value [duration] type [time_duration]"
         );
-        verifyUnsupported("from test | eval to_string(point)", "line 1:28: Cannot use field [point] with unsupported type [geo_point]");
+        verifyUnsupported(
+            "from test | eval to_string(unsupported)",
+            "line 1:28: Cannot use field [unsupported] with unsupported type [ip_range]"
+        );
     }
 
-    public void testNonExistingEnrichPolicy() {
-        var e = expectThrows(VerificationException.class, () -> analyze("""
-            from test
-            | enrich foo on bar
-            """));
-        assertThat(e.getMessage(), containsString("unresolved enrich policy [foo]"));
-    }
+    public void testEnrichPolicyWithError() {
+        IndexResolution testIndex = loadMapping("mapping-basic.json", "test");
+        IndexResolution languageIndex = loadMapping("mapping-languages.json", "languages");
+        EnrichResolution enrichResolution = new EnrichResolution();
+        Map<String, String> enrichIndices = Map.of("", "languages");
+        enrichResolution.addResolvedPolicy(
+            "languages",
+            Enrich.Mode.COORDINATOR,
+            new ResolvedEnrichPolicy(
+                "language_code",
+                "match",
+                List.of("language_code", "language_name"),
+                enrichIndices,
+                languageIndex.get().mapping()
+            )
+        );
+        enrichResolution.addError("languages", Enrich.Mode.REMOTE, "error-1");
+        enrichResolution.addError("languages", Enrich.Mode.ANY, "error-2");
+        enrichResolution.addError("foo", Enrich.Mode.ANY, "foo-error-101");
 
-    public void testNonExistingEnrichNoMatchField() {
-        var e = expectThrows(VerificationException.class, () -> analyze("""
-            from test
-            | enrich foo
-            """));
-        assertThat(e.getMessage(), containsString("unresolved enrich policy [foo]"));
-    }
+        AnalyzerContext context = new AnalyzerContext(configuration("from test"), new EsqlFunctionRegistry(), testIndex, enrichResolution);
+        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
+        {
+            LogicalPlan plan = analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:coordinator] languages ON x", analyzer);
+            List<Enrich> resolved = new ArrayList<>();
+            plan.forEachDown(Enrich.class, resolved::add);
+            assertThat(resolved, hasSize(1));
+        }
+        var e = expectThrows(
+            VerificationException.class,
+            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:any] languages ON x", analyzer)
+        );
+        assertThat(e.getMessage(), containsString("error-2"));
+        e = expectThrows(
+            VerificationException.class,
+            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH languages ON xs", analyzer)
+        );
+        assertThat(e.getMessage(), containsString("error-2"));
+        e = expectThrows(
+            VerificationException.class,
+            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:remote] languages ON x", analyzer)
+        );
+        assertThat(e.getMessage(), containsString("error-1"));
 
-    public void testNonExistingEnrichPolicyWithSimilarName() {
-        var e = expectThrows(VerificationException.class, () -> analyze("""
-            from test
-            | enrich language on bar
-            """));
-        assertThat(e.getMessage(), containsString("unresolved enrich policy [language], did you mean [languages]"));
+        e = expectThrows(VerificationException.class, () -> analyze("from test | ENRICH foo", analyzer));
+        assertThat(e.getMessage(), containsString("foo-error-101"));
     }
 
     public void testEnrichPolicyMatchFieldName() {
@@ -1383,6 +1473,35 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [id]"));
     }
 
+    public void testEnrichFieldsIncludeMatchField() {
+        String query = """
+            FROM test
+            | EVAL x = to_string(languages)
+            | ENRICH languages ON x
+            | KEEP language_name, language_code
+            """;
+        IndexResolution testIndex = loadMapping("mapping-basic.json", "test");
+        IndexResolution languageIndex = loadMapping("mapping-languages.json", "languages");
+        EnrichResolution enrichResolution = new EnrichResolution();
+        Map<String, String> enrichIndices = Map.of("", "languages");
+        enrichResolution.addResolvedPolicy(
+            "languages",
+            Enrich.Mode.ANY,
+            new ResolvedEnrichPolicy(
+                "language_code",
+                "match",
+                List.of("language_code", "language_name"),
+                enrichIndices,
+                languageIndex.get().mapping()
+            )
+        );
+        AnalyzerContext context = new AnalyzerContext(configuration(query), new EsqlFunctionRegistry(), testIndex, enrichResolution);
+        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
+        LogicalPlan plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        assertThat(Expressions.names(limit.output()), contains("language_name", "language_code"));
+    }
+
     public void testChainedEvalFieldsUse() {
         var query = "from test | eval x0 = pow(salary, 1), x1 = pow(x0, 2), x2 = pow(x1, 3)";
         int additionalEvals = randomIntBetween(0, 5);
@@ -1399,6 +1518,82 @@ public class AnalyzerTests extends ESTestCase {
             | keep x*
             """));
         assertThat(e.getMessage(), containsString("Unknown column [x5], did you mean any of [x1, x2, x3]?"));
+    }
+
+    public void testInsensitiveEqualsWrongType() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | where first_name =~ 12
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("second argument of [first_name =~ 12] must be [string], found value [12] type [integer]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | where first_name =~ languages
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("second argument of [first_name =~ languages] must be [string], found value [languages] type [integer]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | where languages =~ "foo"
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("first argument of [languages =~ \"foo\"] must be [string], found value [languages] type [integer]")
+        );
+    }
+
+    public void testUnresolvedMvExpand() {
+        var e = expectThrows(VerificationException.class, () -> analyze("row foo = 1 | mv_expand bar"));
+        assertThat(e.getMessage(), containsString("Unknown column [bar]"));
+    }
+
+    public void testUnsupportedTypesInStats() {
+        verifyUnsupported(
+            """
+                  row x = to_unsigned_long(\"10\")
+                  | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+                """,
+            "Found 8 problems\n"
+                + "line 2:12: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
+                + "line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:39: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [max(x)] type [unsigned_long]\n"
+                + "line 2:47: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
+                + "line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:88: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [min(x)] type [unsigned_long]\n"
+                + "line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:115: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]"
+        );
+
+        verifyUnsupported(
+            """
+                row x = to_version("1.2")
+                | stats  avg(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+                """,
+            "Found 7 problems\n"
+                + "line 2:10: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
+                + "line 2:18: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [max(x)] type [version]\n"
+                + "line 2:26: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
+                + "line 2:37: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
+                + "found value [x] type [version]\n"
+                + "line 2:67: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [min(x)] type [version]\n"
+                + "line 2:75: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
+                + "found value [x] type [version]\n"
+                + "line 2:94: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [version]"
+        );
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

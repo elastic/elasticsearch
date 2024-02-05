@@ -214,8 +214,8 @@ cluster to operate in a somewhat unbalanced state rather than to perform all
 the shard movements needed to achieve the perfect balance. If so, increase the
 value of `cluster.routing.allocation.balance.threshold` to define the
 acceptable imbalance between nodes. For instance, if you have an average of 500
-shards per node and can accept a difference of 5% (25 shards) between nodes,
-set `cluster.routing.allocation.balance.threshold` to `25`.
+shards per node and can accept a difference of 5% (25 typical shards) between
+nodes, set `cluster.routing.allocation.balance.threshold` to `25`.
 
 * We do not recommend adjusting the values of the heuristic weight factor
 settings. The default values work well in all reasonable clusters. Although

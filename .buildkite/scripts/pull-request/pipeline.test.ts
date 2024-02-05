@@ -50,4 +50,12 @@ describe("generatePipelines", () => {
       "@elasticmachine test this please"
     );
   });
+
+  test("should generate correct pipelines with a non-docs change and @elasticsearchmachine", () => {
+    testWithTriggerCheck(
+      `${import.meta.dir}/mocks/pipelines`,
+      ["build.gradle", "docs/README.asciidoc"],
+      "@elasticsearchmachine test this please"
+    );
+  });
 });

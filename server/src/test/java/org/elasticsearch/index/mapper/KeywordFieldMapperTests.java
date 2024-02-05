@@ -599,11 +599,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         return true;
     }
 
-    @Override
-    protected boolean fieldMapperSupportsDimension() {
-        return true;
-    }
-
     public void testDimensionInRoutingPath() throws IOException {
         MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("time_series_dimension", true)));
         IndexSettings settings = createIndexSettings(

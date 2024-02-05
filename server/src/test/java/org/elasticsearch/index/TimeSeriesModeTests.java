@@ -174,7 +174,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
                     + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                     + "without the [script] parameter. [dim.o] was [object]."
             )
@@ -192,7 +192,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
                     + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                     + "without the [script] parameter. [dim.non_dim] was not a dimension."
             )
@@ -221,7 +221,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
                     + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                     + "without the [script] parameter. [dim.kwd] has a [script] parameter."
             )
@@ -237,7 +237,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
                     + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                     + "without the [script] parameter. [dim.kwd] was a runtime [keyword]."
             )

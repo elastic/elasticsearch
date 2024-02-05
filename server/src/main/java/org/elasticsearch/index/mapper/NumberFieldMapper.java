@@ -89,7 +89,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
-    public static final class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -267,7 +267,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public NumberFieldMapper build(MapperBuilderContext context) {
-            if (context.parentObjectContainsDimensions()) {
+            if (super.isDimension || context.parentObjectContainsDimensions()) {
                 dimension.setValue(true);
             }
 
@@ -1745,11 +1745,19 @@ public class NumberFieldMapper extends FieldMapper {
             return CollapseType.NUMERIC;
         }
 
-        /**
-         * @return true if field has been marked as a dimension field
-         */
+        @Override
         public boolean isDimension() {
             return isDimension;
+        }
+
+        @Override
+        public boolean supportsDimension() {
+            return true;
+        }
+
+        @Override
+        public boolean hasScriptValues() {
+            return scriptValues != null;
         }
 
         /**
@@ -1758,28 +1766,6 @@ public class NumberFieldMapper extends FieldMapper {
          */
         public MetricType getMetricType() {
             return metricType;
-        }
-
-        public void validateMatchedRoutingPath(final String routingPath) {
-            if (false == isDimension) {
-                throw new IllegalArgumentException(
-                    "All fields that match routing_path "
-                        + "must be keywords with [time_series_dimension: true] "
-                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                        + "without the [script] parameter. ["
-                        + name()
-                        + "] was not a dimension."
-                );
-            }
-            if (scriptValues != null) {
-                throw new IllegalArgumentException(
-                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                        + "without the [script] parameter. ["
-                        + name()
-                        + "] has a [script] parameter."
-                );
-            }
         }
     }
 

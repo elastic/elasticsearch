@@ -1025,19 +1025,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    protected boolean fieldMapperSupportsDimension() {
-        return false;
-    }
-
     private String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
-        if (fieldMapperSupportsDimension()) {
-            return "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+        if (mapper instanceof FieldMapper fieldMapper
+            && fieldMapper.fieldType().supportsDimension()
+            && fieldMapper.fieldType().isDimension() == false) {
+            return "All fields that match routing_path must be configured with [time_series_dimension: true] "
                 + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                 + "without the [script] parameter. ["
                 + mapper.name()
                 + "] was not a dimension.";
         }
-        return "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+        return "All fields that match routing_path must be configured with [time_series_dimension: true] "
             + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
             + "without the [script] parameter. ["
             + mapper.name()

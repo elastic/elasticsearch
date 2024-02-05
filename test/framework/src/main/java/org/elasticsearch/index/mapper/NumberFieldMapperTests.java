@@ -85,11 +85,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         return 123;
     }
 
-    @Override
-    protected boolean fieldMapperSupportsDimension() {
-        return true;
-    }
-
     public void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

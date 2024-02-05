@@ -166,7 +166,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_COHERE_EMBEDDINGS_ADDED = def(8_579_00_0);
     public static final TransportVersion DESIRED_NODE_VERSION_OPTIONAL_STRING = def(8_580_00_0);
     public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED = def(8_581_00_0);
-
+    public static final TransportVersion ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED = def(8_582_00_0);
+    public static final TransportVersion ML_INFERENCE_SERVICE_ELAND_MODEL_SUPPORT_ADDED = def(8_583_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

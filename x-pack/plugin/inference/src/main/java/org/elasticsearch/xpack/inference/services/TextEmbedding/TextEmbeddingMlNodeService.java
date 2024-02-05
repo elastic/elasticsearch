@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.textembedding;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -23,6 +25,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -41,7 +44,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
-import static org.elasticsearch.xpack.inference.services.textembedding.MultilingualE5SmallMlNodeServiceSettings.MODEL_VARIANTS;
+import static org.elasticsearch.xpack.inference.services.settings.MlNodeServiceSettings.MODEL_VERSION;
 
 public class TextEmbeddingMlNodeService implements InferenceService {
 
@@ -51,6 +54,8 @@ public class TextEmbeddingMlNodeService implements InferenceService {
     static final String MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 = ".multilingual-e5-small_linux-x86_64";
 
     private final OriginSettingClient client;
+
+    private static final Logger logger = LogManager.getLogger(TextEmbeddingMlNodeService.class);
 
     public TextEmbeddingMlNodeService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
@@ -66,35 +71,87 @@ public class TextEmbeddingMlNodeService implements InferenceService {
     ) {
         try {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-
-            var e5ServiceSettings = MultilingualE5SmallMlNodeServiceSettings.fromMap(serviceSettingsMap);
-
-            if (e5ServiceSettings.getModelVariant() == null) {
-                e5ServiceSettings.setModelVariant(selectDefaultModelVersionBasedOnClusterArchitecture(platformArchitectures));
+            String modelId = (String) serviceSettingsMap.get(MODEL_VERSION);
+            if (modelId == null) {
+                throw new IllegalArgumentException("Error parsing request config, model id is missing");
             }
-
-            if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, e5ServiceSettings)) {
-                throw new IllegalArgumentException(
-                    "Error parsing request config, model id does not match any models versions available on this platform. Was ["
-                        + e5ServiceSettings.getModelVariant()
-                        + "]"
-                );
+            if (MultilingualE5SmallMlNodeServiceSettings.MODEL_VARIANTS.contains(modelId)) {
+                e5Case(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
+            } else {
+                customElandCase(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
             }
-
-            throwIfNotEmptyMap(config, name());
-            throwIfNotEmptyMap(serviceSettingsMap, name());
-
-            modelListener.onResponse(
-                new MultilingualE5SmallModel(
-                    inferenceEntityId,
-                    taskType,
-                    NAME,
-                    (MultilingualE5SmallMlNodeServiceSettings) e5ServiceSettings.build()
-                )
-            );
         } catch (Exception e) {
             modelListener.onFailure(e);
         }
+    }
+
+    private void customElandCase(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Set<String> platformArchitectures,
+        Map<String, Object> serviceSettingsMap,
+        ActionListener<Model> modelListener
+    ) {
+        String modelId = (String) serviceSettingsMap.get(MODEL_VERSION);
+        var request = new GetTrainedModelsAction.Request(modelId);
+
+        var getModelsListener = modelListener.<GetTrainedModelsAction.Response>delegateFailureAndWrap((delegate, response) -> {
+            if (response.getResources().count() < 1) {
+                throw new IllegalArgumentException(
+                    "Error parsing request config, model id does not match any models available on this platform. Was ["
+                        + modelId
+                        + "]. You may need to load it into the cluster using eland."
+                );
+            } else {
+                serviceSettingsMap.put(MODEL_VERSION, response.getResources().results().get(0).getModelId());
+                delegate.onResponse(
+                    new CustomElandModel(
+                        inferenceEntityId,
+                        taskType,
+                        name(),
+                        (CustomElandServiceSettings) CustomElandServiceSettings.fromMap(serviceSettingsMap).build()
+                    )
+                );
+            }
+        });
+
+        client.execute(GetTrainedModelsAction.INSTANCE, request, getModelsListener);
+    }
+
+    private void e5Case(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Set<String> platformArchitectures,
+        Map<String, Object> serviceSettingsMap,
+        ActionListener<Model> modelListener
+    ) {
+        var e5ServiceSettings = MultilingualE5SmallMlNodeServiceSettings.fromMap(serviceSettingsMap);
+
+        if (e5ServiceSettings.getModelVariant() == null) {
+            e5ServiceSettings.setModelVariant(selectDefaultModelVersionBasedOnClusterArchitecture(platformArchitectures));
+        }
+
+        if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, e5ServiceSettings)) {
+            throw new IllegalArgumentException(
+                "Error parsing request config, model id does not match any models available on this platform. Was ["
+                    + e5ServiceSettings.getModelVariant()
+                    + "]"
+            );
+        }
+
+        throwIfNotEmptyMap(config, name());
+        throwIfNotEmptyMap(serviceSettingsMap, name());
+
+        modelListener.onResponse(
+            new MultilingualE5SmallModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (MultilingualE5SmallMlNodeServiceSettings) e5ServiceSettings.build()
+            )
+        );
     }
 
     private static boolean modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(
@@ -120,22 +177,27 @@ public class TextEmbeddingMlNodeService implements InferenceService {
     public TextEmbeddingModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
-        var e5ServiceSettings = MultilingualE5SmallMlNodeServiceSettings.fromMap(serviceSettingsMap);
+        String modelId = (String) serviceSettingsMap.get(MODEL_VERSION);
+        if (modelId == null) {
+            throw new IllegalArgumentException("Error parsing request config, model id is missing");
+        }
 
-        if (e5ServiceSettings.getModelVariant() == null || MODEL_VARIANTS.contains(e5ServiceSettings.getModelVariant()) == false) {
-            throw new IllegalArgumentException(
-                "Error parsing persisted config, model id does not match any models versions available on this platform. Was ["
-                    + e5ServiceSettings.getModelVariant()
-                    + "]"
+        if (MultilingualE5SmallMlNodeServiceSettings.MODEL_VARIANTS.contains(modelId)) {
+            return new MultilingualE5SmallModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (MultilingualE5SmallMlNodeServiceSettings) MultilingualE5SmallMlNodeServiceSettings.fromMap(serviceSettingsMap).build()
+            );
+        } else {
+            return new CustomElandModel(
+                inferenceEntityId,
+                taskType,
+                name(),
+                (CustomElandServiceSettings) CustomElandServiceSettings.fromMap(serviceSettingsMap).build()
             );
         }
 
-        return new MultilingualE5SmallModel(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            (MultilingualE5SmallMlNodeServiceSettings) e5ServiceSettings.build()
-        );
     }
 
     @Override
@@ -227,6 +289,9 @@ public class TextEmbeddingMlNodeService implements InferenceService {
                     l.onResponse(Boolean.TRUE);
                 })
             );
+        } else if (model instanceof CustomElandModel elandModel) {
+            logger.info("Custom eland model detected, model must have been already loaded into the cluster with eland.");
+            listener.onResponse(Boolean.TRUE);
         } else {
             listener.onFailure(
                 new IllegalArgumentException(
@@ -235,6 +300,7 @@ public class TextEmbeddingMlNodeService implements InferenceService {
                         + "] you may need to download it through the trained models API or with eland."
                 )
             );
+            return;
         }
     }
 

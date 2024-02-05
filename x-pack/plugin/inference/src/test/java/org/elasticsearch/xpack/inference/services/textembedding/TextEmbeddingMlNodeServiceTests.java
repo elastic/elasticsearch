@@ -9,7 +9,6 @@
 
 package org.elasticsearch.xpack.inference.services.textembedding;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -26,6 +25,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
@@ -46,42 +46,12 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 )
             );
 
-            var e5ServiceSettings = new MultilingualE5SmallMlNodeServiceSettings(
-                1,
-                4,
-                TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID
-            );
-
-            var modelListener = getModelVerificationActionListener(e5ServiceSettings);
-
-            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
-        }
-
-        // Invalid model variant
-        {
-            var service = createService(mock(Client.class));
-            var settings = new HashMap<String, Object>();
-            settings.put(
-                ModelConfigurations.SERVICE_SETTINGS,
-                new HashMap<>(
-                    Map.of(
-                        TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS,
-                        1,
-                        TextEmbeddingMlNodeServiceSettings.NUM_THREADS,
-                        4,
-                        MlNodeServiceSettings.MODEL_VERSION,
-                        "invalid"
-                    )
-                )
-            );
-
-            var modelListener = ActionListener.<Model>wrap(
+            ActionListener<Model> modelListener = ActionListener.<Model>wrap(
                 model -> fail("Model parsing should have failed"),
-                e -> assertTrue(e instanceof IllegalArgumentException)
+                e -> assertThat(e, instanceOf(IllegalArgumentException.class))
             );
 
             service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
-
         }
 
         // Valid model variant
@@ -131,7 +101,7 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
 
             ActionListener<Model> modelListener = ActionListener.<Model>wrap(
                 model -> fail("Model parsing should have failed"),
-                e -> assertTrue(e instanceof ElasticsearchStatusException)
+                e -> assertThat(e, instanceOf(IllegalArgumentException.class))
             );
 
             service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
@@ -157,7 +127,7 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
 
             ActionListener<Model> modelListener = ActionListener.<Model>wrap(
                 model -> fail("Model parsing should have failed"),
-                e -> assertTrue(e instanceof ElasticsearchStatusException)
+                e -> assertThat(e, instanceOf(IllegalArgumentException.class))
             );
 
             service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
@@ -197,6 +167,8 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
         }
 
         // Invalid model variant
+        // because this is a persisted config, we assume that the model does exist, even though it doesn't. In practice, the trained models
+        // API would throw an exception when the model is used
         {
             var service = createService(mock(Client.class));
             var settings = new HashMap<String, Object>();
@@ -213,7 +185,13 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                     )
                 )
             );
-            expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
+
+            CustomElandModel parsedModel = (CustomElandModel) service.parsePersistedConfig(randomInferenceEntityId, taskType, settings);
+            var elandServiceSettings = new CustomElandServiceSettings(1, 4, "invalid");
+            assertEquals(
+                new CustomElandModel(randomInferenceEntityId, taskType, TextEmbeddingMlNodeService.NAME, elandServiceSettings),
+                parsedModel
+            );
         }
 
         // Valid model variant

@@ -238,7 +238,7 @@ public class ConnectorSyncJobTests extends ESTestCase {
                 "metadata": {},
                 "started_at": null,
                 "status": "canceling",
-                "total_document_count": 0,
+                "total_document_count": null,
                 "trigger_method": "scheduled",
                 "worker_hostname": null
             }

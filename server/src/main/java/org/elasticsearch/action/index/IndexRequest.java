@@ -9,6 +9,7 @@
 package org.elasticsearch.action.index;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -19,6 +20,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -109,6 +111,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private boolean requireAlias;
 
     private boolean requireDataStream;
+
+    /**
+     * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
+     */
+    private boolean writeToFailureStore = false;
 
     /**
      * This indicates whether the response to this request ought to list the ingest pipelines that were executed on the document
@@ -821,7 +828,25 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
-        return ia.getWriteIndex(this, metadata);
+        if (DataStream.isFailureStoreEnabled() && writeToFailureStore) {
+            if (ia.isDataStreamRelated() == false) {
+                throw new ElasticsearchException(
+                    "Attempting to write a document to a failure store but the targeted index is not a data stream"
+                );
+            }
+            // Resolve write index and get parent data stream to handle the case of dealing with an alias
+            String defaultWriteIndexName = ia.getWriteIndex().getName();
+            DataStream dataStream = metadata.getIndicesLookup().get(defaultWriteIndexName).getParentDataStream();
+            if (dataStream.getFailureIndices().size() < 1) {
+                throw new ElasticsearchException(
+                    "Attempting to write a document to a failure store but the target data stream does not have one enabled"
+                );
+            }
+            return dataStream.getFailureIndices().get(dataStream.getFailureIndices().size() - 1);
+        } else {
+            // Resolve as normal
+            return ia.getWriteIndex(this, metadata);
+        }
     }
 
     @Override
@@ -831,6 +856,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public IndexRequest setRequireAlias(boolean requireAlias) {
         this.requireAlias = requireAlias;
+        return this;
+    }
+
+    public boolean isWriteToFailureStore() {
+        return writeToFailureStore;
+    }
+
+    public IndexRequest setWriteToFailureStore(boolean writeToFailureStore) {
+        this.writeToFailureStore = writeToFailureStore;
         return this;
     }
 

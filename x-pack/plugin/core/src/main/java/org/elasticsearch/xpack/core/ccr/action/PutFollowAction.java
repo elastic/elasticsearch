@@ -64,13 +64,11 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             FollowParameters.initParser(PARSER);
         }
 
-        public static Request fromXContent(final XContentParser parser, final String followerIndex, ActiveShardCount waitForActiveShards)
+        public static Request fromXContent(final XContentParser parser)
             throws IOException {
             PutFollowParameters parameters = PARSER.parse(parser, null);
 
             Request request = new Request();
-            request.waitForActiveShards(waitForActiveShards);
-            request.setFollowerIndex(followerIndex);
             request.setRemoteCluster(parameters.remoteCluster);
             request.setLeaderIndex(parameters.leaderIndex);
             request.setDataStreamName(parameters.dataStreamName);

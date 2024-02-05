@@ -91,8 +91,11 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
 
     @Evaluator(extraName = "Constant", warnExceptions = PatternSyntaxException.class)
     static BytesRef process(BytesRef str, @Fixed Pattern regex, BytesRef newStr) {
-        if (str == null || regex == null || newStr == null) {
+        if (str == null) {
             return null;
+        }
+        if (regex == null || newStr == null) {
+            return str;
         }
         return new BytesRef(regex.matcher(str.utf8ToString()).replaceAll(newStr.utf8ToString()));
     }
@@ -102,7 +105,6 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
         if (str == null) {
             return null;
         }
-
         if (regex == null || newStr == null) {
             return str;
         }

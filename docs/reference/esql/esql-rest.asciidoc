@@ -209,15 +209,18 @@ Which returns:
 ==== Returning localized results
 
 Use the `locale` parameter in the request body to return results (especially dates) formatted per the conventions of the locale.
-If `locale` is not specified, defaults to `en` (English).
-Accepts a string with an https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes[ISO 639-1 code].
+If `locale` is not specified, defaults to `en_US` (English).
+Refer to https://www.oracle.com/java/technologies/javase/jdk17-suported-locales.html[JDK Supported Locales].
+
+Syntax: the `locale` parameter accepts tags in the (case-insensitive) format `xy` and `xy-XY`.
+
 For example, to return a month name in French:
 
 [source,console]
 ----
 POST /_query
 {
-  "locale": "fr",
+  "locale": "fr-FR",
   "query": """
           ROW birth_date_string = "2023-01-15T00:00:00.000Z" 
           | EVAL birth_date = date_parse(birth_date_string)

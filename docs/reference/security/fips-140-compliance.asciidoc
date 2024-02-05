@@ -9,7 +9,7 @@ government computer security standard used to approve cryptographic modules.
 configured JVM.
 
 IMPORTANT: The JVM bundled with {es} is not configured for FIPS 140-2. You must
-configure an external JDK and it highly recommended to use a FIPS 140-2 certified Java Security Provider.
+configure an external JDK with a FIPS 140-2 certified Java Security Provider.
 Refer to the {es}
 https://www.elastic.co/support/matrix#matrix_jvm[JVM support matrix] for
 supported JVM configurations. See https://www.elastic.co/subscriptions[subscriptions] for required licensing.

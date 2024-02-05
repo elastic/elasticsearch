@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -435,14 +434,14 @@ public final class AggregationResultUtils {
             // If the two geo_points are equal, it is a point
             if (aggregation.topLeft().equals(aggregation.bottomRight())) {
                 geoShape.put(FIELD_TYPE, POINT);
-                geoShape.put(FIELD_COORDINATES, Arrays.asList(aggregation.topLeft().getLon(), aggregation.bottomRight().getLat()));
+                geoShape.put(FIELD_COORDINATES, List.of(aggregation.topLeft().getLon(), aggregation.bottomRight().getLat()));
                 // If only the lat or the lon of the two geo_points are equal, than we know it should be a line
             } else if (Double.compare(aggregation.topLeft().getLat(), aggregation.bottomRight().getLat()) == 0
                 || Double.compare(aggregation.topLeft().getLon(), aggregation.bottomRight().getLon()) == 0) {
                     geoShape.put(FIELD_TYPE, LINESTRING);
                     geoShape.put(
                         FIELD_COORDINATES,
-                        Arrays.asList(
+                        List.of(
                             new Double[] { aggregation.topLeft().getLon(), aggregation.topLeft().getLat() },
                             new Double[] { aggregation.bottomRight().getLon(), aggregation.bottomRight().getLat() }
                         )
@@ -455,7 +454,7 @@ public final class AggregationResultUtils {
                     geoShape.put(
                         FIELD_COORDINATES,
                         Collections.singletonList(
-                            Arrays.asList(
+                            List.of(
                                 new Double[] { tl.getLon(), tl.getLat() },
                                 new Double[] { br.getLon(), tl.getLat() },
                                 new Double[] { br.getLon(), br.getLat() },

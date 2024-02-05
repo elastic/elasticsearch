@@ -921,7 +921,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
         // get and check some term results
-        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0", true);
+        Map<String, Object> searchResult = getAsOrderedMap(transformIndex + "/_search?q=every_2:2.0");
 
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Map<String, Integer> commonUsers = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(

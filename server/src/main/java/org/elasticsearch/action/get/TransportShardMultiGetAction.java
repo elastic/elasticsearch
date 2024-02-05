@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
@@ -172,12 +171,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     ) throws IOException {
         ShardId shardId = indexShard.shardId();
         if (request.refresh()) {
-            var node = getCurrentNodeOfPrimary(clusterService.state(), shardId);
-            if (node == null) {
-                listener.onFailure(new NoShardAvailableActionException(shardId, "primary shard is not active"));
-                return;
-            }
-            logger.trace("send refresh action for shard {} to node {}", shardId, node.getId());
+            logger.trace("send refresh action for shard {}", shardId);
             var refreshRequest = new BasicReplicationRequest(shardId);
             refreshRequest.setParentTask(request.getParentTask());
             client.executeLocally(
@@ -210,45 +204,46 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         ClusterStateObserver observer,
         ActionListener<MultiGetShardResponse> listener
     ) {
-        tryShardMultiGetFromTranslog(request, indexShard, state, listener.delegateResponse((l, e) -> {
-            final var cause = ExceptionsHelper.unwrapCause(e);
-            logger.debug("mget_from_translog[shard] failed", cause);
-            if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
-                logger.debug("retrying mget_from_translog[shard]");
-                observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                    @Override
-                    public void onNewClusterState(ClusterState state) {
-                        shardMultiGetFromTranslog(request, indexShard, state, observer, l);
-                    }
+        try {
+            final var node = getCurrentNodeOfPrimary(state, indexShard.shardId());
+            final var retryingListener = listener.delegateResponse((l, e) -> {
+                final var cause = ExceptionsHelper.unwrapCause(e);
+                logger.debug("mget_from_translog[shard] failed", cause);
+                if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
+                    logger.debug("retrying mget_from_translog[shard]");
+                    observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                        @Override
+                        public void onNewClusterState(ClusterState state) {
+                            shardMultiGetFromTranslog(request, indexShard, state, observer, l);
+                        }
 
-                    @Override
-                    public void onClusterServiceClose() {
-                        l.onFailure(new NodeClosedException(clusterService.localNode()));
-                    }
+                        @Override
+                        public void onClusterServiceClose() {
+                            l.onFailure(new NodeClosedException(clusterService.localNode()));
+                        }
 
-                    @Override
-                    public void onTimeout(TimeValue timeout) {
-                        l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", cause));
-                    }
-                });
-            } else {
-                l.onFailure(e);
-            }
-        }));
+                        @Override
+                        public void onTimeout(TimeValue timeout) {
+                            l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", cause));
+                        }
+                    });
+                } else {
+                    l.onFailure(e);
+                }
+            });
+            tryShardMultiGetFromTranslog(request, indexShard, node, retryingListener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private void tryShardMultiGetFromTranslog(
         MultiGetShardRequest request,
         IndexShard indexShard,
-        ClusterState state,
+        DiscoveryNode node,
         ActionListener<MultiGetShardResponse> listener
     ) {
         final var shardId = indexShard.shardId();
-        var node = getCurrentNodeOfPrimary(state, shardId);
-        if (node == null) {
-            listener.onFailure(new NoShardAvailableActionException(shardId, "primary shard is not active"));
-            return;
-        }
         TransportShardMultiGetFomTranslogAction.Request mgetFromTranslogRequest = new TransportShardMultiGetFomTranslogAction.Request(
             request,
             shardId

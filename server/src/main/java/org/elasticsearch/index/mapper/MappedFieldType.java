@@ -634,12 +634,15 @@ public abstract class MappedFieldType {
         );
     }
 
-    /** //TODO-MP check javadoc
-     * This method is used to support _field_caps when include_fields_with_no_value is
-     * set to false. In that case we return only fields with value in an index. This
-     * method gets as input FieldInfos and check if the MappedFieldType#name is present.
-     * @param fieldInfos field information for the current shard
-     * @return {@code true} if field had ever value in the current shard {@code false} otherwise
+    /**
+     * This method is used to support _field_caps when include_fields_with_no_value is set to
+     * {@code false}. In that case we return only fields with value in an index. This method
+     * gets as input FieldInfos and returns if the MappedFieldType#name is present. This method
+     * needs to be overwritten for special cases where Lucene field name do not match user
+     * defined field name two example are rank_feature that indexes into the _feature Lucene
+     * field regardless of the field name and constant_keyword that are not indexed.
+     * @param fieldInfos field information
+     * @return {@code true} if field is present in fieldInfos {@code false} otherwise
      */
     public boolean fieldHasValue(FieldInfos fieldInfos) {
         for (FieldInfo fieldInfo : fieldInfos) {

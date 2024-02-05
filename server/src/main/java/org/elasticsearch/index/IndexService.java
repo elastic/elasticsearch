@@ -31,7 +31,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
@@ -162,13 +161,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
 
-    // We keep track if a field has ever seen a value in an index at index level rather than
-    // on a per-shard basis. This has being done in order to reduce heap consumption on data
-    // nodes. The only limitation is that if a shard gets relocated to a different data node
-    // the response of that data node could be outdated but the _field_caps API response
-    // would still be correct, this works because we are not handling deletes.
-    private final Map<String, Boolean> fieldHasValue;
-
     @SuppressWarnings("this-escape")
     public IndexService(
         IndexSettings indexSettings,
@@ -283,7 +275,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
-        this.fieldHasValue = ConcurrentCollections.newConcurrentMap();
         updateFsyncTaskIfNecessary();
     }
 

@@ -3987,10 +3987,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private class RefreshFieldHasValueListener implements ReferenceManager.RefreshListener {
         @Override
-        public void beforeRefresh() throws IOException {}
+        public void beforeRefresh() {}
 
         @Override
-        public void afterRefresh(boolean didRefresh) throws IOException {
+        public void afterRefresh(boolean didRefresh) {
             if (enableFieldHasValue && didRefresh) {
                 try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
                     fieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));

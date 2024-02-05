@@ -42,7 +42,9 @@ class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
     private final boolean includeFieldsWithNoValue;
     private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
-    private final boolean enableFieldHasValue = Booleans.parseBoolean(System.getProperty("es.field_has_value", Boolean.TRUE.toString()));
+    private static final boolean enableFieldHasValue = Booleans.parseBoolean(
+        System.getProperty("es.field_has_value", Boolean.TRUE.toString())
+    );
 
     FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeFieldsWithNoValue) {
         this.indicesService = indicesService;
@@ -159,7 +161,7 @@ class FieldCapabilitiesFetcher {
                 continue;
             }
             MappedFieldType ft = context.getFieldType(field);
-            boolean includeField = includeFieldsWithNoValue || ft.fieldHasValue(indexShard.fieldInfos());
+            boolean includeField = includeFieldsWithNoValue || enableFieldHasValue == false || ft.fieldHasValue(indexShard.fieldInfos());
             if (includeField && filter.test(ft)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,

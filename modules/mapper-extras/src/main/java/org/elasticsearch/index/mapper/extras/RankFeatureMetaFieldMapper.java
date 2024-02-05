@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;

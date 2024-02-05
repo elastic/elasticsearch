@@ -30,7 +30,7 @@ class PumpThread extends Thread {
     final BufferedReader reader;
     final PrintWriter writer;
 
-    // an unexpected io failure that occurred while pumping stderr
+    // an unexpected io failure that occurred while pumping the stream
     private volatile IOException ioFailure;
 
     private PumpThread(String name, PrintWriter output, InputStream input) {

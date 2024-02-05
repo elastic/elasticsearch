@@ -11,7 +11,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsTestUtils;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PutConnectorSecretActionTests extends ESTestCase {
 

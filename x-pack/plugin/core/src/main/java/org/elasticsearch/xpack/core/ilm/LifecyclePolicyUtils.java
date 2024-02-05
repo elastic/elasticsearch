@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.template.resources.TemplateResources;
 
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -73,7 +72,7 @@ public class LifecyclePolicyUtils {
      * Replaces all occurrences of given variable with the value
      */
     public static String replaceVariable(String input, String variable, String value) {
-        return Pattern.compile("${" + variable + "}", Pattern.LITERAL).matcher(input).replaceAll(value);
+        return input.replace("${" + variable + "}", value);
     }
 
     /**

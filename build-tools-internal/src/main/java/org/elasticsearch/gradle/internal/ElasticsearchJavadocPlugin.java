@@ -107,8 +107,7 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
                 // Link to non-shadowed dependant projects
                 javadoc.dependsOn(upstreamProject.getPath() + ":javadoc");
                 String externalLinkName = upstreamProject.getExtensions().getByType(BasePluginExtension.class).getArchivesName().get();
-                String artifactPath = dep.getGroup().replaceAll("\\.", "/") + '/' + externalLinkName.replaceAll("\\.", "/") + '/' + dep
-                    .getVersion();
+                String artifactPath = dep.getGroup().replace('.', '/') + '/' + externalLinkName.replace('.', '/') + '/' + dep.getVersion();
                 var options = (StandardJavadocDocletOptions) javadoc.getOptions();
                 options.linksOffline(
                     artifactHost(project) + "/javadoc/" + artifactPath,

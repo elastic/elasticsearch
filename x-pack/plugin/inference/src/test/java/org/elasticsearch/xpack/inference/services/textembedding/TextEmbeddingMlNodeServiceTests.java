@@ -187,7 +187,7 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
             );
 
             CustomElandModel parsedModel = (CustomElandModel) service.parsePersistedConfig(randomInferenceEntityId, taskType, settings);
-            var elandServiceSettings = new CustomElandServiceSettings(1, 4, "invalid");
+            var elandServiceSettings = new CustomElandMlNodeServiceSettings(1, 4, "invalid");
             assertEquals(
                 new CustomElandModel(randomInferenceEntityId, taskType, TextEmbeddingMlNodeService.NAME, elandServiceSettings),
                 parsedModel

@@ -110,7 +110,7 @@ public class TextEmbeddingMlNodeService implements InferenceService {
                         inferenceEntityId,
                         taskType,
                         name(),
-                        (CustomElandServiceSettings) CustomElandServiceSettings.fromMap(serviceSettingsMap).build()
+                        (CustomElandMlNodeServiceSettings) CustomElandMlNodeServiceSettings.fromMap(serviceSettingsMap).build()
                     )
                 );
             }
@@ -194,7 +194,7 @@ public class TextEmbeddingMlNodeService implements InferenceService {
                 inferenceEntityId,
                 taskType,
                 name(),
-                (CustomElandServiceSettings) CustomElandServiceSettings.fromMap(serviceSettingsMap).build()
+                (CustomElandMlNodeServiceSettings) CustomElandMlNodeServiceSettings.fromMap(serviceSettingsMap).build()
             );
         }
 

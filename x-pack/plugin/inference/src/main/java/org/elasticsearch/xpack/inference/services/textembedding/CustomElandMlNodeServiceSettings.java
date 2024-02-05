@@ -19,13 +19,13 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.TransportVersions.ML_INFERENCE_SERVICE_ELAND_MODEL_SUPPORT_ADDED;
+import static org.elasticsearch.TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
 
-public class CustomElandServiceSettings extends TextEmbeddingMlNodeServiceSettings {
+public class CustomElandMlNodeServiceSettings extends TextEmbeddingMlNodeServiceSettings {
 
     public static final String NAME = "custom_eland_model_service_settings";
 
-    public CustomElandServiceSettings(int numAllocations, int numThreads, String modelVariant) {
+    public CustomElandMlNodeServiceSettings(int numAllocations, int numThreads, String modelVariant) {
         super(numAllocations, numThreads, modelVariant);
     }
 
@@ -56,8 +56,8 @@ public class CustomElandServiceSettings extends TextEmbeddingMlNodeServiceSettin
 
         var builder = new Builder() {
             @Override
-            public CustomElandServiceSettings build() {
-                return new CustomElandServiceSettings(getNumAllocations(), getNumThreads(), getModelVariant());
+            public CustomElandMlNodeServiceSettings build() {
+                return new CustomElandMlNodeServiceSettings(getNumAllocations(), getNumThreads(), getModelVariant());
             }
         };
         builder.setNumAllocations(numAllocations);
@@ -71,7 +71,7 @@ public class CustomElandServiceSettings extends TextEmbeddingMlNodeServiceSettin
         return super.toXContent(builder, params);
     }
 
-    public CustomElandServiceSettings(StreamInput in) throws IOException {
+    public CustomElandMlNodeServiceSettings(StreamInput in) throws IOException {
         super(in.readVInt(), in.readVInt(), in.readString());
     }
 
@@ -82,12 +82,12 @@ public class CustomElandServiceSettings extends TextEmbeddingMlNodeServiceSettin
 
     @Override
     public String getWriteableName() {
-        return CustomElandServiceSettings.NAME;
+        return CustomElandMlNodeServiceSettings.NAME;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ML_INFERENCE_SERVICE_ELAND_MODEL_SUPPORT_ADDED;
+        return ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
     }
 
     @Override

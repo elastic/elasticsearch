@@ -19,13 +19,13 @@ import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationSta
 
 public class CustomElandModel extends TextEmbeddingModel {
 
-    public CustomElandModel(String inferenceEntityId, TaskType taskType, String service, CustomElandServiceSettings serviceSettings) {
+    public CustomElandModel(String inferenceEntityId, TaskType taskType, String service, CustomElandMlNodeServiceSettings serviceSettings) {
         super(inferenceEntityId, taskType, service, serviceSettings);
     }
 
     @Override
-    public CustomElandServiceSettings getServiceSettings() {
-        return (CustomElandServiceSettings) super.getServiceSettings();
+    public CustomElandMlNodeServiceSettings getServiceSettings() {
+        return (CustomElandMlNodeServiceSettings) super.getServiceSettings();
     }
 
     @Override

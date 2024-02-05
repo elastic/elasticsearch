@@ -46,6 +46,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpRouteStatsTracker;
 import org.elasticsearch.http.HttpServerTransport;
@@ -81,6 +82,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -428,7 +430,8 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
             IndexScopedSettings indexScopedSettings,
             SettingsFilter settingsFilter,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<DiscoveryNodes> nodesInCluster
+            Supplier<DiscoveryNodes> nodesInCluster,
+            Predicate<NodeFeature> clusterSupportsFeature
         ) {
             return List.of(new BaseRestHandler() {
                 @Override
@@ -494,7 +497,8 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
             IndexScopedSettings indexScopedSettings,
             SettingsFilter settingsFilter,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<DiscoveryNodes> nodesInCluster
+            Supplier<DiscoveryNodes> nodesInCluster,
+            Predicate<NodeFeature> clusterSupportsFeature
         ) {
             return List.of(new BaseRestHandler() {
                 private final SubscribableListener<ToXContentObject> subscribableListener = new SubscribableListener<>();

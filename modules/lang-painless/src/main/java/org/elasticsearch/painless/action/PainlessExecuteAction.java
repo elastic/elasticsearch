@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -102,6 +103,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -121,7 +123,7 @@ public class PainlessExecuteAction {
 
     private PainlessExecuteAction() {/* no instances */}
 
-    public static class Request extends SingleShardRequest<Request> implements ToXContentObject {
+    public static class Request extends SingleShardRequest<Request> implements ToXContentObject, IndicesRequest.Replaceable {
 
         private static final ParseField SCRIPT_FIELD = new ParseField("script");
         private static final ParseField CONTEXT_FIELD = new ParseField("context");
@@ -156,6 +158,19 @@ public class PainlessExecuteAction {
                 throw new UnsupportedOperationException("unsupported script context name [" + name + "]");
             }
             return scriptContext;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            assert indices != null && indices.length == 1
+                : "PainlessExecuteAction only supports a single index but indices method got " + Arrays.toString(indices);
+            index(indices[0]);
+            return this;
+        }
+
+        @Override
+        public boolean allowsRemoteIndices() {
+            return true;
         }
 
         static class ContextSetup implements Writeable, ToXContentObject {

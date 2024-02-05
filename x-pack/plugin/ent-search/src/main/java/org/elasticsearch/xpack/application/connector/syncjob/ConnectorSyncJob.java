@@ -322,7 +322,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             STATUS_FIELD,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareLong(constructorArg(), TOTAL_DOCUMENT_COUNT_FIELD);
+        PARSER.declareLongOrNull(constructorArg(), 0L, TOTAL_DOCUMENT_COUNT_FIELD);
         PARSER.declareField(
             constructorArg(),
             (p, c) -> ConnectorSyncJobTriggerMethod.fromString(p.text()),

@@ -1,0 +1,13 @@
+pr: 104209
+summary: '`DesiredNode:` deprecate `node_version` field and make it optional (unused)
+  in current parser'
+area: Distributed
+type: deprecation
+issues: []
+deprecation:
+  title: '`DesiredNode:` deprecate `node_version` field and make it optional for the current version'
+  area: REST API
+  details: The desired_node API includes a `node_version` field to perform validation on the new node version required.
+    This kind of check is too broad, and it's better done by external logic, so it has been removed, making the
+    `node_version` field not necessary. The field will be removed in a later version.
+  impact: Users should update their usages of `desired_node` to not include the `node_version` field anymore.

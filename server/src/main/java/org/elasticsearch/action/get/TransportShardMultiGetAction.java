@@ -8,10 +8,15 @@
 
 package org.elasticsearch.action.get;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
@@ -19,6 +24,7 @@ import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -27,16 +33,18 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardGetService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -166,8 +174,12 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         ActionListener<MultiGetShardResponse> listener
     ) throws IOException {
         ShardId shardId = indexShard.shardId();
-        var node = getCurrentNodeOfPrimary(clusterService.state(), shardId);
         if (request.refresh()) {
+            var node = getCurrentNodeOfPrimary(clusterService.state(), shardId);
+            if (node == null) {
+                listener.onFailure(new NoShardAvailableActionException(shardId, "primary shard is not active"));
+                return;
+            }
             logger.trace("send refresh action for shard {} to node {}", shardId, node.getId());
             var refreshRequest = new BasicReplicationRequest(shardId);
             refreshRequest.setParentTask(request.getParentTask());
@@ -176,55 +188,114 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 refreshRequest,
                 listener.delegateFailureAndWrap((l, replicationResponse) -> super.asyncShardOperation(request, shardId, l))
             );
-        } else if (request.realtime()) {
-            TransportShardMultiGetFomTranslogAction.Request mgetFromTranslogRequest = new TransportShardMultiGetFomTranslogAction.Request(
-                request,
-                shardId
+            return;
+        }
+        if (request.realtime()) {
+            final var state = clusterService.state();
+            final var observer = new ClusterStateObserver(
+                state,
+                clusterService,
+                TimeValue.timeValueSeconds(60),
+                logger,
+                threadPool.getThreadContext()
             );
-            mgetFromTranslogRequest.setParentTask(request.getParentTask());
-            transportService.sendRequest(
-                node,
-                TransportShardMultiGetFomTranslogAction.NAME,
-                mgetFromTranslogRequest,
-                new ActionListenerResponseHandler<>(listener.delegateFailure((l, r) -> {
-                    var responseHasMissingLocations = false;
-                    for (int i = 0; i < r.multiGetShardResponse().locations.size(); i++) {
-                        if (r.multiGetShardResponse().responses.get(i) == null && r.multiGetShardResponse().failures.get(i) == null) {
-                            responseHasMissingLocations = true;
-                            break;
-                        }
-                    }
-                    if (responseHasMissingLocations == false) {
-                        logger.debug("received result of all ids in real-time mget[shard] from the promotable shard.");
-                        l.onResponse(r.multiGetShardResponse());
-                    } else {
-                        logger.debug(
-                            "no result for some ids from the promotable shard (segment generation to wait for: {})",
-                            r.segmentGeneration()
-                        );
-                        if (r.segmentGeneration() == -1) {
-                            // Nothing to wait for (no previous unsafe generation), just handle the rest locally.
-                            ActionRunnable.supply(l, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId)).run();
-                        } else {
-                            assert r.segmentGeneration() > -1L;
-                            assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
-                            indexShard.waitForPrimaryTermAndGeneration(
-                                r.primaryTerm(),
-                                r.segmentGeneration(),
-                                listener.delegateFailureAndWrap(
-                                    (ll, aLong) -> getExecutor(request, shardId).execute(
-                                        ActionRunnable.supply(ll, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId))
-                                    )
-                                )
-                            );
-                        }
-                    }
-                }), TransportShardMultiGetFomTranslogAction.Response::new, getExecutor(request, shardId))
-            );
+            shardMultiGetFromTranslog(request, indexShard, state, observer, listener);
         } else {
             // A non-real-time mget with no explicit refresh requested.
             super.asyncShardOperation(request, shardId, listener);
         }
+    }
+
+    private void shardMultiGetFromTranslog(
+        MultiGetShardRequest request,
+        IndexShard indexShard,
+        ClusterState state,
+        ClusterStateObserver observer,
+        ActionListener<MultiGetShardResponse> listener
+    ) {
+        tryShardMultiGetFromTranslog(request, indexShard, state, listener.delegateResponse((l, e) -> {
+            final var cause = ExceptionsHelper.unwrapCause(e);
+            logger.debug("mget_from_translog[shard] failed", cause);
+            if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
+                logger.debug("retrying mget_from_translog[shard]");
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        shardMultiGetFromTranslog(request, indexShard, state, observer, l);
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        l.onFailure(new NodeClosedException(clusterService.localNode()));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", cause));
+                    }
+                });
+            } else {
+                l.onFailure(e);
+            }
+        }));
+    }
+
+    private void tryShardMultiGetFromTranslog(
+        MultiGetShardRequest request,
+        IndexShard indexShard,
+        ClusterState state,
+        ActionListener<MultiGetShardResponse> listener
+    ) {
+        final var shardId = indexShard.shardId();
+        var node = getCurrentNodeOfPrimary(state, shardId);
+        if (node == null) {
+            listener.onFailure(new NoShardAvailableActionException(shardId, "primary shard is not active"));
+            return;
+        }
+        TransportShardMultiGetFomTranslogAction.Request mgetFromTranslogRequest = new TransportShardMultiGetFomTranslogAction.Request(
+            request,
+            shardId
+        );
+        mgetFromTranslogRequest.setParentTask(request.getParentTask());
+        transportService.sendRequest(
+            node,
+            TransportShardMultiGetFomTranslogAction.NAME,
+            mgetFromTranslogRequest,
+            new ActionListenerResponseHandler<>(listener.delegateFailure((l, r) -> {
+                var responseHasMissingLocations = false;
+                for (int i = 0; i < r.multiGetShardResponse().locations.size(); i++) {
+                    if (r.multiGetShardResponse().responses.get(i) == null && r.multiGetShardResponse().failures.get(i) == null) {
+                        responseHasMissingLocations = true;
+                        break;
+                    }
+                }
+                if (responseHasMissingLocations == false) {
+                    logger.debug("received result of all ids in real-time mget[shard] from the promotable shard.");
+                    l.onResponse(r.multiGetShardResponse());
+                } else {
+                    logger.debug(
+                        "no result for some ids from the promotable shard (segment generation to wait for: {})",
+                        r.segmentGeneration()
+                    );
+                    if (r.segmentGeneration() == -1) {
+                        // Nothing to wait for (no previous unsafe generation), just handle the rest locally.
+                        ActionRunnable.supply(l, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId)).run();
+                    } else {
+                        assert r.segmentGeneration() > -1L;
+                        assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
+                        indexShard.waitForPrimaryTermAndGeneration(
+                            r.primaryTerm(),
+                            r.segmentGeneration(),
+                            listener.delegateFailureAndWrap(
+                                (ll, aLong) -> getExecutor(request, shardId).execute(
+                                    ActionRunnable.supply(ll, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId))
+                                )
+                            )
+                        );
+                    }
+                }
+            }), TransportShardMultiGetFomTranslogAction.Response::new, getExecutor(request, shardId))
+        );
     }
 
     private MultiGetShardResponse handleLocalGets(MultiGetShardRequest request, MultiGetShardResponse response, ShardId shardId) {

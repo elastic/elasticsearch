@@ -295,31 +295,16 @@ public class ObjectMapper extends Mapper {
                         }
                     }
 
-                    if (objBuilder.subobjects.value() == false && type.equals(ObjectMapper.CONTENT_TYPE)) {
+                    if (objBuilder.subobjects.value() == false
+                        && (type.equals(ObjectMapper.CONTENT_TYPE)
+                            || type.equals(NestedObjectMapper.CONTENT_TYPE)
+                            || type.equals(PassThroughObjectMapper.CONTENT_TYPE))) {
                         throw new MapperParsingException(
                             "Tried to add subobject ["
                                 + fieldName
                                 + "] to object ["
                                 + objBuilder.name()
                                 + "] which does not support subobjects"
-                        );
-                    }
-                    if (objBuilder.subobjects.value() == false && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
-                        throw new MapperParsingException(
-                            "Tried to add nested object ["
-                                + fieldName
-                                + "] to object ["
-                                + objBuilder.name()
-                                + "] which does not support subobjects"
-                        );
-                    }
-                    if (type.equals(PassThroughObjectMapper.CONTENT_TYPE) && objBuilder instanceof RootObjectMapper.Builder == false) {
-                        throw new MapperParsingException(
-                            "Tried to add passthrough subobject ["
-                                + fieldName
-                                + "] to object ["
-                                + objBuilder.name()
-                                + "], passthrough is not supported as a subobject"
                         );
                     }
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);

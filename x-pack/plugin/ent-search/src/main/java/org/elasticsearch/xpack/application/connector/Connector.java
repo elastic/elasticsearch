@@ -222,7 +222,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     public static final ParseField PIPELINE_FIELD = new ParseField("pipeline");
     public static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
     public static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
-    static final ParseField STATUS_FIELD = new ParseField("status");
+    public static final ParseField STATUS_FIELD = new ParseField("status");
     static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
     static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");
 
@@ -710,8 +710,8 @@ public class Connector implements NamedWriteable, ToXContentObject {
             return this;
         }
 
-        public Builder setSyncNow(boolean syncNow) {
-            this.syncNow = syncNow;
+        public Builder setSyncNow(Boolean syncNow) {
+            this.syncNow = Objects.requireNonNullElse(syncNow, false);
             return this;
         }
 

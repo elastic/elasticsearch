@@ -14,6 +14,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
 import java.io.IOException;
@@ -38,7 +39,10 @@ public class RestListConnectorAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         int from = restRequest.paramAsInt("from", PageParams.DEFAULT_FROM);
         int size = restRequest.paramAsInt("size", PageParams.DEFAULT_SIZE);
-        ListConnectorAction.Request request = new ListConnectorAction.Request(new PageParams(from, size));
+        List<String> indexNames = List.of(restRequest.paramAsStringArray(Connector.INDEX_NAME_FIELD.getPreferredName(), new String[0]));
+        List<String> names = List.of(restRequest.paramAsStringArray(Connector.NAME_FIELD.getPreferredName(), new String[0]));
+
+        ListConnectorAction.Request request = new ListConnectorAction.Request(new PageParams(from, size), indexNames, names);
 
         return channel -> client.execute(ListConnectorAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

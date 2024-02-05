@@ -29,7 +29,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -280,13 +282,21 @@ public class ConnectorIndexService {
      *
      * @param from From index to start the search from.
      * @param size The maximum number of {@link Connector}s to return.
+     * @param indexNames A list of index names to filter the connectors.
+     * @param names A list of connector names to further filter the search results.
      * @param listener The action listener to invoke on response/failure.
      */
-    public void listConnectors(int from, int size, ActionListener<ConnectorIndexService.ConnectorResult> listener) {
+    public void listConnectors(
+        int from,
+        int size,
+        List<String> indexNames,
+        List<String> names,
+        ActionListener<ConnectorIndexService.ConnectorResult> listener
+    ) {
         try {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
-                .query(new MatchAllQueryBuilder())
+                .query(buildListQuery(indexNames, names))
                 .fetchSource(true)
                 .sort(Connector.INDEX_NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(CONNECTOR_INDEX_NAME).source(source);
@@ -312,6 +322,33 @@ public class ConnectorIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Constructs a query for filtering connectors based on index and/or connector names.
+     * Returns a {@link MatchAllQueryBuilder} if both parameters are empty or null,
+     * otherwise constructs a boolean query to filter by the provided lists.
+     *
+     * @param indexNames List of index names to filter by, or null/empty for no index name filtering.
+     * @param names List of connector names to filter by, or null/empty for no name filtering.
+     * @return A {@link QueryBuilder} tailored to the specified filters.
+     */
+    private QueryBuilder buildListQuery(List<String> indexNames, List<String> names) {
+        boolean filterByIndexNames = indexNames != null && indexNames.isEmpty() == false;
+        boolean filterByConnectorNames = indexNames != null && names.isEmpty() == false;
+        boolean usesFilter = filterByIndexNames || filterByConnectorNames;
+
+        BoolQueryBuilder boolFilterQueryBuilder = new BoolQueryBuilder();
+
+        if (usesFilter) {
+            if (filterByIndexNames) {
+                boolFilterQueryBuilder.must().add(new TermsQueryBuilder(Connector.INDEX_NAME_FIELD.getPreferredName(), indexNames));
+            }
+            if (filterByConnectorNames) {
+                boolFilterQueryBuilder.must().add(new TermsQueryBuilder(Connector.NAME_FIELD.getPreferredName(), names));
+            }
+        }
+        return usesFilter ? boolFilterQueryBuilder : new MatchAllQueryBuilder();
     }
 
     /**

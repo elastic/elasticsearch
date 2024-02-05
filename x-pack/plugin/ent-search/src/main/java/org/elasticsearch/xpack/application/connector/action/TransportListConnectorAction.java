@@ -42,9 +42,12 @@ public class TransportListConnectorAction extends HandledTransportAction<ListCon
     @Override
     protected void doExecute(Task task, ListConnectorAction.Request request, ActionListener<ListConnectorAction.Response> listener) {
         final PageParams pageParams = request.getPageParams();
+
         connectorIndexService.listConnectors(
             pageParams.getFrom(),
             pageParams.getSize(),
+            request.getIndexNames(),
+            request.getNames(),
             listener.map(r -> new ListConnectorAction.Response(r.connectors(), r.totalResults()))
         );
     }

@@ -31,6 +31,14 @@
         "type": "int",
         "default": 100,
         "description": "specifies a max number of results to get (default: 100)"
+      },
+      "index_name": {
+        "type": "string",
+        "description": "connector index name(s) to fetch connector documents for"
+      },
+      "name": {
+        "type": "string",
+        "description": "connector name(s) to fetch connector documents for"
       }
     }
   }

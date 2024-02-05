@@ -42,7 +42,7 @@ public class CohereServiceSettings implements ServiceSettings {
     public static final String MODEL = "model";
     public static final String MODEL_ID = "model_id";
 
-    public static CohereServiceSettings fromMap(Map<String, Object> map) {
+    public static CohereServiceSettings fromMap(Map<String, Object> map, boolean logDeprecations) {
         ValidationException validationException = new ValidationException();
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -55,7 +55,7 @@ public class CohereServiceSettings implements ServiceSettings {
 
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        if (model != null) {
+        if (logDeprecations && model != null) {
             logger.info("The cohere service_settings.model field is deprecated. Please use model_id instead.");
         }
 

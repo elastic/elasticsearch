@@ -12,6 +12,10 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -37,7 +41,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testFromMap_MissingModel_ThrowException() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")))
+            () -> OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")), true)
         );
 
         MatcherAssert.assertThat(
@@ -45,7 +49,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             is(
                 Strings.format(
                     "Validation Failed: 1: [task_settings] does not contain the required setting [%s];",
-                    OpenAiEmbeddingsTaskSettings.MODEL
+                    OpenAiEmbeddingsTaskSettings.MODEL_ID
                 )
             )
         );
@@ -53,23 +57,54 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testFromMap_CreatesWithModelAndUser() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user"))
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
+            false
         );
 
-        MatcherAssert.assertThat(taskSettings.model(), is("model"));
+        MatcherAssert.assertThat(taskSettings.modelId(), is("model"));
+        MatcherAssert.assertThat(taskSettings.user(), is("user"));
+    }
+
+    public void testFromMap_CreatesWithModelId() {
+        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL_ID, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
+            false
+        );
+
+        MatcherAssert.assertThat(taskSettings.modelId(), is("model"));
+        MatcherAssert.assertThat(taskSettings.user(), is("user"));
+    }
+
+    public void testFromMap_PrefersModelId_OverModel() {
+        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(
+                Map.of(
+                    OpenAiEmbeddingsTaskSettings.MODEL_ID,
+                    "model",
+                    OpenAiEmbeddingsTaskSettings.MODEL,
+                    "old_model",
+                    OpenAiEmbeddingsTaskSettings.USER,
+                    "user"
+                )
+            ),
+            false
+        );
+
+        MatcherAssert.assertThat(taskSettings.modelId(), is("model"));
         MatcherAssert.assertThat(taskSettings.user(), is("user"));
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model")));
+        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model")), false);
 
-        MatcherAssert.assertThat(taskSettings.model(), is("model"));
+        MatcherAssert.assertThat(taskSettings.modelId(), is("model"));
         assertNull(taskSettings.user());
     }
 
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user"))
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
+            false
         );
 
         var overriddenTaskSettings = OpenAiEmbeddingsTaskSettings.of(taskSettings, OpenAiEmbeddingsRequestTaskSettings.EMPTY_SETTINGS);
@@ -78,7 +113,8 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testOverrideWith_UsesOverriddenSettings() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user"))
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
+            false
         );
 
         var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(
@@ -91,7 +127,8 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testOverrideWith_UsesOnlyNonNullModelSetting() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user"))
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
+            false
         );
 
         var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(
@@ -100,6 +137,17 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
         var overriddenTaskSettings = OpenAiEmbeddingsTaskSettings.of(taskSettings, requestTaskSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new OpenAiEmbeddingsTaskSettings("model2", "user")));
+    }
+
+    public void testXContent_WritesModelId() throws IOException {
+        var entity = new OpenAiEmbeddingsTaskSettings("modelId", null);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, CoreMatchers.is("""
+            {"model_id":"modelId"}"""));
     }
 
     @Override

@@ -12,9 +12,13 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -72,7 +76,70 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
                     CohereServiceSettings.MODEL,
                     model
                 )
-            )
+            ),
+            true
+        );
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model))
+        );
+    }
+
+    public void testFromMap_WhenUsingModelId() {
+        var url = "https://www.abc.com";
+        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
+        var dims = 1536;
+        var maxInputTokens = 512;
+        var model = "model";
+        var serviceSettings = CohereServiceSettings.fromMap(
+            new HashMap<>(
+                Map.of(
+                    ServiceFields.URL,
+                    url,
+                    ServiceFields.SIMILARITY,
+                    similarity,
+                    ServiceFields.DIMENSIONS,
+                    dims,
+                    ServiceFields.MAX_INPUT_TOKENS,
+                    maxInputTokens,
+                    CohereServiceSettings.MODEL_ID,
+                    model
+                )
+            ),
+            false
+        );
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model))
+        );
+    }
+
+    public void testFromMap_PrefersModelId_OverModel() {
+        var url = "https://www.abc.com";
+        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
+        var dims = 1536;
+        var maxInputTokens = 512;
+        var model = "model";
+        var serviceSettings = CohereServiceSettings.fromMap(
+            new HashMap<>(
+                Map.of(
+                    ServiceFields.URL,
+                    url,
+                    ServiceFields.SIMILARITY,
+                    similarity,
+                    ServiceFields.DIMENSIONS,
+                    dims,
+                    ServiceFields.MAX_INPUT_TOKENS,
+                    maxInputTokens,
+                    CohereServiceSettings.MODEL,
+                    "old_model",
+                    CohereServiceSettings.MODEL_ID,
+                    model
+                )
+            ),
+            false
         );
 
         MatcherAssert.assertThat(
@@ -82,14 +149,14 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
     }
 
     public void testFromMap_MissingUrl_DoesNotThrowException() {
-        var serviceSettings = CohereServiceSettings.fromMap(new HashMap<>(Map.of()));
+        var serviceSettings = CohereServiceSettings.fromMap(new HashMap<>(Map.of()), false);
         assertNull(serviceSettings.getUri());
     }
 
     public void testFromMap_EmptyUrl_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")))
+            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")), false)
         );
 
         MatcherAssert.assertThat(
@@ -107,7 +174,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
         var url = "https://www.abc^.com";
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url)))
+            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url)), false)
         );
 
         MatcherAssert.assertThat(
@@ -120,13 +187,24 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
         var similarity = "by_size";
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.SIMILARITY, similarity)))
+            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.SIMILARITY, similarity)), false)
         );
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
             is("Validation Failed: 1: [service_settings] Unknown similarity measure [by_size];")
         );
+    }
+
+    public void testXContent_WritesModelId() throws IOException {
+        var entity = new CohereServiceSettings((String) null, null, null, null, "modelId");
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, CoreMatchers.is("""
+            {"model_id":"modelId"}"""));
     }
 
     @Override

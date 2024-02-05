@@ -68,7 +68,8 @@ public class CohereService extends SenderService {
             serviceSettingsMap,
             taskSettingsMap,
             serviceSettingsMap,
-            TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME)
+            TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
+            true
         );
 
         throwIfNotEmptyMap(config, NAME);
@@ -78,7 +79,7 @@ public class CohereService extends SenderService {
         return model;
     }
 
-    private static CohereModel createModel(
+    private static CohereModel createModelWithoutLoggingDeprecations(
         String modelId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
@@ -86,8 +87,28 @@ public class CohereService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         String failureMessage
     ) {
+        return createModel(modelId, taskType, serviceSettings, taskSettings, secretSettings, failureMessage, false);
+    }
+
+    private static CohereModel createModel(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        @Nullable Map<String, Object> secretSettings,
+        String failureMessage,
+        boolean logDeprecations
+    ) {
         return switch (taskType) {
-            case TEXT_EMBEDDING -> new CohereEmbeddingsModel(modelId, taskType, NAME, serviceSettings, taskSettings, secretSettings);
+            case TEXT_EMBEDDING -> new CohereEmbeddingsModel(
+                modelId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                logDeprecations
+            );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
@@ -103,7 +124,7 @@ public class CohereService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        return createModel(
+        return createModelWithoutLoggingDeprecations(
             modelId,
             taskType,
             serviceSettingsMap,
@@ -118,7 +139,14 @@ public class CohereService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        return createModel(modelId, taskType, serviceSettingsMap, taskSettingsMap, null, parsePersistedConfigErrorMsg(modelId, NAME));
+        return createModelWithoutLoggingDeprecations(
+            modelId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            null,
+            parsePersistedConfigErrorMsg(modelId, NAME)
+        );
     }
 
     @Override

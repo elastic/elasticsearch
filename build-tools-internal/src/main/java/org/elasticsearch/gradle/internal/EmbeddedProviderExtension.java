@@ -49,11 +49,10 @@ public class EmbeddedProviderExtension {
         String implTaskName = "generate" + capitalName + "ProviderImpl";
         var generateProviderImpl = project.getTasks().register(implTaskName, Sync.class);
         generateProviderImpl.configure(t -> {
-            t.into(generatedResourcesDir, spec -> {
-                spec.into("IMPL-JARS/" + implName, childSpec -> {
-                    childSpec.from(implConfig);
-                    childSpec.from(generateProviderManifest);
-                });
+            t.into(generatedResourcesDir);
+            t.into("IMPL-JARS/" + implName, spec -> {
+                spec.from(implConfig);
+                spec.from(generateProviderManifest);
             });
         });
 

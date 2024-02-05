@@ -85,6 +85,46 @@ public class ConnectorConfigurationTests extends ESTestCase {
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
+    public void testToXContentCrawlerConfig_WithNullValue() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+               "label": "nextSyncConfig",
+               "value": null
+            }
+            """);
+
+        ConnectorConfiguration configuration = ConnectorConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        boolean humanReadable = true;
+        BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        ConnectorConfiguration parsed;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+            parsed = ConnectorConfiguration.fromXContent(parser);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+    }
+
+    public void testToXContentCrawlerConfig_WithCrawlerConfigurationOverrides() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+               "label": "nextSyncConfig",
+               "value": {
+                   "max_crawl_depth": 3,
+                   "sitemap_discovery_disabled": false,
+                   "seed_urls": ["https://elastic.co/"]
+               }
+            }
+            """);
+
+        ConnectorConfiguration configuration = ConnectorConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        boolean humanReadable = true;
+        BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        ConnectorConfiguration parsed;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+            parsed = ConnectorConfiguration.fromXContent(parser);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+    }
+
     public void testToXContentWithMultipleConstraintTypes() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {

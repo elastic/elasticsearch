@@ -8,8 +8,6 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-public non-sealed interface PosixCLibrary extends NativeLibrary {
-
-    // TODO: doc
-    int geteuid();
+/** A marker interface for libraries that can be loaded by {@link org.elasticsearch.nativeaccess.lib.NativeLibraryProvider} */
+public sealed interface NativeLibrary permits PosixCLibrary {
 }

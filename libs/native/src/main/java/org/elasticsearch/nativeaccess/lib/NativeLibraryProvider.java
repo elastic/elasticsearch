@@ -22,11 +22,18 @@ import java.util.function.Supplier;
 public abstract class NativeLibraryProvider {
 
     private final String name;
-    private final Map<Class<?>, Supplier<?>> libraries;
+    private final Map<Class<? extends NativeLibrary>, Supplier<NativeLibrary>> libraries;
 
-    protected NativeLibraryProvider(String name, Map<Class<?>, Supplier<?>> libraries) {
+    protected NativeLibraryProvider(String name, Map<Class<? extends NativeLibrary>, Supplier<NativeLibrary>> libraries) {
         this.name = name;
         this.libraries = libraries;
+
+        // ensure impls actually provide all necessary libraries
+        for (Class<?> libClass : NativeLibrary.class.getPermittedSubclasses()) {
+            if (libraries.containsKey(libClass) == false) {
+                throw new IllegalStateException(getClass().getSimpleName() + " missing implementation for " + libClass.getSimpleName());
+            }
+        }
     }
 
     /**

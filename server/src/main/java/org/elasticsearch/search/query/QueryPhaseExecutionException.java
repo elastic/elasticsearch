@@ -14,7 +14,7 @@ import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
 
-public class QueryPhaseExecutionException extends SearchException {
+public final class QueryPhaseExecutionException extends SearchException {
 
     public QueryPhaseExecutionException(SearchShardTarget shardTarget, String msg, Throwable cause) {
         super(shardTarget, "Query Failed [" + msg + "]", cause);
@@ -22,9 +22,5 @@ public class QueryPhaseExecutionException extends SearchException {
 
     public QueryPhaseExecutionException(StreamInput in) throws IOException {
         super(in);
-    }
-
-    public QueryPhaseExecutionException(SearchShardTarget shardTarget, String msg) {
-        super(shardTarget, msg);
     }
 }

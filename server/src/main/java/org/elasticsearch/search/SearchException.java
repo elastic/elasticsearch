@@ -19,7 +19,11 @@ public class SearchException extends ElasticsearchException implements Elasticse
 
     private final SearchShardTarget shardTarget;
 
-    public SearchException(SearchShardTarget shardTarget, String msg) {
+    /**
+     * Creates a new instance of {@link SearchException}. To be used for subclasses that don't make a root cause available.
+     * It is highly recommended to override {@link ElasticsearchException#status()} in such cases, otherwise the status code will be 500.
+     */
+    protected SearchException(SearchShardTarget shardTarget, String msg) {
         this(shardTarget, msg, null);
     }
 

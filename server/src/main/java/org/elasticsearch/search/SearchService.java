@@ -1270,12 +1270,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         context.trackScores(source.trackScores());
-        if (source.trackTotalHitsUpTo() != null
-            && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
-            && context.scrollContext() != null) {
-            throw new SearchException(shardTarget, "disabling [track_total_hits] is not allowed in a scroll context");
-        }
         if (source.trackTotalHitsUpTo() != null) {
+            assert source.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE || context.scrollContext() == null
+                : "disabling [track_total_hits] is not allowed in a scroll context - should be validated in SearchRequest#validate";
             context.trackTotalHitsUpTo(source.trackTotalHitsUpTo());
         }
         if (source.minScore() != null) {
@@ -1402,44 +1399,36 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.groupStats(source.stats());
         }
         if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
-            if (context.scrollContext() != null) {
-                throw new SearchException(shardTarget, "`search_after` cannot be used in a scroll context.");
-            }
-            if (context.from() > 0) {
-                throw new SearchException(shardTarget, "`from` parameter must be set to 0 when `search_after` is used.");
-            }
-
+            assert context.scrollContext() == null
+                : "`search_after` cannot be used in a scroll context - should be validated in SearchRequest#validate";
+            assert context.from() == 0
+                : "`from` parameter must be set to 0 when `search_after` is used - should be validated in SearchRequest#validate";
             String collapseField = source.collapse() != null ? source.collapse().getField() : null;
             FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter(), collapseField);
             context.searchAfter(fieldDoc);
         }
 
         if (source.slice() != null) {
-            if (source.pointInTimeBuilder() == null && context.scrollContext() == null) {
-                throw new SearchException(shardTarget, "[slice] can only be used with [scroll] or [point-in-time] requests");
-            }
+            assert source.pointInTimeBuilder() != null || context.scrollContext() != null
+                : "[slice] can only be used with [scroll] or [point-in-time] requests - should be validated in SearchRequest#validate";
             context.sliceBuilder(source.slice());
         }
 
         if (source.storedFields() != null) {
             if (source.storedFields().fetchFields() == false) {
-                if (context.sourceRequested()) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [_source] is requested");
-                }
-                if (context.fetchFieldsContext() != null) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled when using the [fields] option");
-                }
+                assert context.sourceRequested() == false
+                    : "[stored_fields] cannot be disabled if [_source] is requested - should be validated in SearchRequest#validate";
+                assert context.fetchFieldsContext() == null
+                    : "[stored_fields] cannot be disabled when using the [fields] option - should be validated in SearchRequest#validate";
             }
             context.storedFieldsContext(source.storedFields());
         }
 
         if (source.collapse() != null) {
-            if (context.scrollContext() != null) {
-                throw new SearchException(shardTarget, "cannot use `collapse` in a scroll context");
-            }
-            if (context.rescore() != null && context.rescore().isEmpty() == false) {
-                throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `rescore`");
-            }
+            assert context.scrollContext() == null
+                : "cannot use `collapse` in a scroll context - should be validated in SearchRequest#validate";
+            assert context.rescore() == null || context.rescore().isEmpty()
+                : "cannot use `collapse` in conjunction with `rescore` - should be validated in SearchRequest#validate";
             final CollapseContext collapseContext = source.collapse().build(searchExecutionContext);
             context.collapse(collapseContext);
         }

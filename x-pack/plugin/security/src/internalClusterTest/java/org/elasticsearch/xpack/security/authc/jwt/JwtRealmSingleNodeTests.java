@@ -543,16 +543,8 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         Settings.Builder newSettingsBuilder = Settings.builder().setSecureSettings(newSecureSettings);
         {
             var e = expectThrows(ElasticsearchException.class, () -> securityPlugin.reload(newSettingsBuilder.build()));
-            assertThat(e.getMessage(), containsString("secure settings reload failed for one or more security component"));
-
-            var suppressedExceptions = e.getSuppressed();
-            assertThat(suppressedExceptions.length, equalTo(1));
-            assertThat(suppressedExceptions[0].getMessage(), containsString("secure settings reload failed for one or more realms"));
-
-            var realmSuppressedExceptions = suppressedExceptions[0].getSuppressed();
-            assertThat(realmSuppressedExceptions.length, equalTo(1));
             assertThat(
-                realmSuppressedExceptions[0].getMessage(),
+                e.getMessage(),
                 containsString(
                     "Missing setting for [xpack.security.authc.realms.jwt."
                         + chosenRealmToRemoveSharedSecret.name()
@@ -581,16 +573,8 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
 
         {
             var e = expectThrows(ElasticsearchException.class, () -> securityPlugin.reload(newSettingsBuilder.build()));
-            assertThat(e.getMessage(), containsString("secure settings reload failed for one or more security component"));
-
-            var suppressedExceptions = e.getSuppressed();
-            assertThat(suppressedExceptions.length, equalTo(1));
-            assertThat(suppressedExceptions[0].getMessage(), containsString("secure settings reload failed for one or more realms"));
-
-            var realmSuppressedExceptions = suppressedExceptions[0].getSuppressed();
-            assertThat(realmSuppressedExceptions.length, equalTo(1));
             assertThat(
-                realmSuppressedExceptions[0].getMessage(),
+                e.getMessage(),
                 containsString(
                     "Setting [xpack.security.authc.realms.jwt."
                         + realmWithoutSharedSecret.name()

@@ -1376,6 +1376,7 @@ public class DateFormattersTests extends ESTestCase {
     public void testNoClassCastException() {
         String input = "DpNKOGqhjZ";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern(input));
+        assertThat(e.getCause(), instanceOf(ClassCastException.class));
         assertThat(e.getMessage(), containsString(input));
     }
 }

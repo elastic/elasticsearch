@@ -2202,12 +2202,18 @@ public class InternalEngine extends Engine {
             // newly created commit points to a different translog generation (can free translog),
             // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
             boolean hasUncommittedChanges = hasUncommittedChanges();
+
+            final boolean shouldFlushForPreviousGeneration = store.getFlushByRefreshGenerations()
+                .contains(lastCommittedSegmentInfos.getGeneration())
+                && IS_FLUSH_BY_REFRESH.get() == false;
+
             if (hasUncommittedChanges
                 || force
                 || shouldPeriodicallyFlush()
                 || getProcessedLocalCheckpoint() > Long.parseLong(
                     lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
-                )) {
+                )
+                || shouldFlushForPreviousGeneration) {
                 ensureCanFlush();
                 Translog.Location commitLocation = getTranslogLastWriteLocation();
                 try {

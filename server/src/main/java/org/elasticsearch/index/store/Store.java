@@ -48,6 +48,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -83,6 +84,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -153,6 +155,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
     private final ShardLock shardLock;
     private final OnClose onClose;
+    private final Set<Long> flushByRefreshGenerations = ConcurrentCollections.newConcurrentSet();
 
     private final AbstractRefCounted refCounter = AbstractRefCounted.of(this::closeInternal); // close us once we are done
 
@@ -419,6 +422,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             decRef();
             logger.debug("store reference count on close: {}", refCounter.refCount());
         }
+    }
+
+    public Set<Long> getFlushByRefreshGenerations() {
+        return flushByRefreshGenerations;
     }
 
     /**

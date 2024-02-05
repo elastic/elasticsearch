@@ -22,12 +22,8 @@ import java.util.List;
 
 public class Min extends NumericAggregate {
 
-    @FunctionInfo(
-        returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "The minimum value of a numeric field.",
-        isAggregation = true
-    )
-    public Min(Source source, @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
+    @FunctionInfo(returnType = { "double", "integer", "long" }, description = "The minimum value of a numeric field.", isAggregation = true)
+    public Min(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 

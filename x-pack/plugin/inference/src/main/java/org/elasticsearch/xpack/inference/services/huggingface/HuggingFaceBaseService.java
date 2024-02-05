@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -96,6 +99,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         Model model,
         List<String> input,
         Map<String, Object> taskSettings,
+        InputType inputType,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof HuggingFaceModel == false) {
@@ -109,4 +113,17 @@ public abstract class HuggingFaceBaseService extends SenderService {
         var action = huggingFaceModel.accept(actionCreator);
         action.execute(input, listener);
     }
+
+    @Override
+    protected void doChunkedInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ChunkingOptions chunkingOptions,
+        ActionListener<ChunkedInferenceServiceResults> listener
+    ) {
+        listener.onFailure(new UnsupportedOperationException("Chunked inference not implemented for Hugging Face"));
+    }
+
 }

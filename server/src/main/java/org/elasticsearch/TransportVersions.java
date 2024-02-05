@@ -165,6 +165,12 @@ public class TransportVersions {
     public static final TransportVersion REQUIRE_DATA_STREAM_ADDED = def(8_578_00_0);
     public static final TransportVersion ML_INFERENCE_COHERE_EMBEDDINGS_ADDED = def(8_579_00_0);
     public static final TransportVersion DESIRED_NODE_VERSION_OPTIONAL_STRING = def(8_580_00_0);
+    public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED = def(8_581_00_0);
+    public static final TransportVersion ASYNC_SEARCH_STATUS_SUPPORTS_KEEP_ALIVE = def(8_582_00_0);
+    public static final TransportVersion KNN_QUERY_NUMCANDS_AS_OPTIONAL_PARAM = def(8_583_00_0);
+    public static final TransportVersion TRANSFORM_GET_BASIC_STATS = def(8_584_00_0);
+    public static final TransportVersion NLP_DOCUMENT_CHUNKING_ADDED = def(8_585_00_0);
+    public static final TransportVersion QUERY_PHASE_TIMEOUT_EXCEPTION_ADDED = def(8_586_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -286,11 +292,7 @@ public class TransportVersions {
         return VERSION_IDS.values();
     }
 
-    private static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class);
-
-    public static String toReleaseVersion(TransportVersion version) {
-        return VERSION_LOOKUP.apply(version.id());
-    }
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class);
 
     // no instance
     private TransportVersions() {}

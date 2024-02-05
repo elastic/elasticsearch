@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Collections;
@@ -306,7 +307,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 out.writeLong(value);
                 add(fieldName, out.bytes());
                 if (routingBuilder != null) {
-                    routingBuilder.addMatching(fieldName, new BytesRef(Long.toString(value).getBytes()));
+                    routingBuilder.addMatching(fieldName, new BytesRef(Long.toString(value).getBytes(StandardCharsets.UTF_8)));
                 }
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
@@ -327,7 +328,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 }
                 add(fieldName, out.bytes());
                 if (routingBuilder != null) {
-                    routingBuilder.addMatching(fieldName, new BytesRef(Long.toString(value).getBytes()));
+                    routingBuilder.addMatching(fieldName, new BytesRef(Long.toString(value).getBytes(StandardCharsets.UTF_8)));
                 }
                 return this;
             } catch (IOException e) {

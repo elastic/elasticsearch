@@ -53,7 +53,7 @@ public abstract class NativeLibraryProvider {
      * @param cls The library class to create
      * @return An instance of the class
      */
-    public <T> T getLibrary(Class<T> cls) {
+    public <T extends NativeLibrary> T getLibrary(Class<T> cls) {
         Supplier<?> libraryCtor = libraries.get(cls);
         Object library = libraryCtor.get();
         assert library != null;

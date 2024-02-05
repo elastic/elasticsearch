@@ -8,8 +8,16 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
+/**
+ * Provides access to native methods available on POSIX systems.
+ */
 public non-sealed interface PosixCLibrary extends NativeLibrary {
 
-    // TODO: doc
+    /**
+     * Gets the effective userid of the current process.
+     *
+     * @return the effective user id
+     * @see <a href="https://pubs.opengroup.org/onlinepubs/9699919799/functions/geteuid.html">geteuid</a>
+     */
     int geteuid();
 }

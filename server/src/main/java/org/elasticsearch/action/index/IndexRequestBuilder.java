@@ -136,9 +136,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the document to index in bytes form.
      */
     public IndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
-        this.sourceBytesReference = new BytesArray(source, 0, source.length);
-        this.sourceContentType = xContentType;
-        return this;
+        return setSource(source, 0, source.length, xContentType);
     }
 
     /**

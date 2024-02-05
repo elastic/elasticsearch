@@ -34,6 +34,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -63,7 +64,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-public class EsqlPlugin extends Plugin implements ActionPlugin {
+public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
 
     public static final String ESQL_THREAD_POOL_NAME = "esql";
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";

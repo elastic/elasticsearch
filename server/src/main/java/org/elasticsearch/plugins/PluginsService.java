@@ -302,15 +302,26 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     // package-private for test visibility
     static void loadExtensions(Collection<LoadedPlugin> plugins) {
-        Map<String, List<Plugin>> extendingPluginsByName = plugins.stream()
-            .flatMap(t -> t.descriptor().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.instance())))
+        Map<String, List<LoadedPlugin>> extendingPluginsByName = plugins.stream()
+            .flatMap(t -> t.descriptor().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t)))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
         for (LoadedPlugin pluginTuple : plugins) {
             if (pluginTuple.instance() instanceof ExtensiblePlugin) {
-                loadExtensionsForPlugin(
-                    (ExtensiblePlugin) pluginTuple.instance(),
-                    extendingPluginsByName.getOrDefault(pluginTuple.descriptor().getName(), List.of())
-                );
+                Set<Plugin> extendingPluginsDirectOrIndirect = new HashSet<>();
+                addPluginAndExtendingPlugins(extendingPluginsByName, pluginTuple.descriptor().getName(), extendingPluginsDirectOrIndirect);
+                loadExtensionsForPlugin((ExtensiblePlugin) pluginTuple.instance(), extendingPluginsDirectOrIndirect);
+            }
+        }
+    }
+
+    private static void addPluginAndExtendingPlugins(
+        Map<String, List<LoadedPlugin>> extendingPluginsByName,
+        String pluginName,
+        Set<Plugin> extendingPluginsDirectOrIndirect
+    ) {
+        for (LoadedPlugin plugin : extendingPluginsByName.getOrDefault(pluginName, List.of())) {
+            if (extendingPluginsDirectOrIndirect.add(plugin.instance())) {
+                addPluginAndExtendingPlugins(extendingPluginsByName, plugin.descriptor().getName(), extendingPluginsDirectOrIndirect);
             }
         }
     }
@@ -358,7 +369,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return services.get(0);
     }
 
-    private static void loadExtensionsForPlugin(ExtensiblePlugin extensiblePlugin, List<Plugin> extendingPlugins) {
+    private static void loadExtensionsForPlugin(ExtensiblePlugin extensiblePlugin, Collection<Plugin> extendingPlugins) {
         ExtensiblePlugin.ExtensionLoader extensionLoader = new ExtensiblePlugin.ExtensionLoader() {
             @Override
             public <T> List<T> loadExtensions(Class<T> extensionPointType) {

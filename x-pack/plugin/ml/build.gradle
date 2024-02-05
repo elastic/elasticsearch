@@ -12,7 +12,7 @@ esplugin {
   description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
   classname 'org.elasticsearch.xpack.ml.MachineLearning'
   hasNativeController true
-  extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
+  extendedPlugins = ['x-pack-esql']
 }
 
 def localRepo = providers.systemProperty('build.ml_cpp.repo').orNull
@@ -79,6 +79,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('autoscaling'))
   compileOnly project(path: xpackModule('ml-package-loader'))
+  compileOnly project(path: xpackModule('esql'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('shutdown'))

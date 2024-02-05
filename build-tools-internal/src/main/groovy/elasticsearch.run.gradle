@@ -29,6 +29,7 @@ testClusters.register("runTask") {
       systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
       setting 'xpack.security.enabled', 'true'
       keystore 'bootstrap.password', 'password'
+      keystore 'tracing.apm.secret_token', 'QWaIzMjqFB8xUWaZTA'
       user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
       numberOfNodes = 1
     }

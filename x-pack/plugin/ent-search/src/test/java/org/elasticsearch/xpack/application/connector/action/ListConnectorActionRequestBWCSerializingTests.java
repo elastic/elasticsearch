@@ -45,6 +45,6 @@ public class ListConnectorActionRequestBWCSerializingTests extends AbstractBWCSe
 
     @Override
     protected ListConnectorAction.Request mutateInstanceForVersion(ListConnectorAction.Request instance, TransportVersion version) {
-        return new ListConnectorAction.Request(instance.getPageParams(), instance.getIndexNames(), instance.getNames());
+        return new ListConnectorAction.Request(instance.getPageParams(), instance.getIndexNames(), instance.getConnectorNames());
     }
 }

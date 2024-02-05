@@ -43,7 +43,7 @@ public class ListConnectorAction {
 
         private final PageParams pageParams;
         private final List<String> indexNames;
-        private final List<String> names;
+        private final List<String> connectorNames;
 
         private static final ParseField PAGE_PARAMS_FIELD = new ParseField("pageParams");
         private static final ParseField INDEX_NAMES_FIELD = new ParseField("index_names");
@@ -53,13 +53,13 @@ public class ListConnectorAction {
             super(in);
             this.pageParams = new PageParams(in);
             this.indexNames = in.readOptionalStringCollectionAsList();
-            this.names = in.readOptionalStringCollectionAsList();
+            this.connectorNames = in.readOptionalStringCollectionAsList();
         }
 
-        public Request(PageParams pageParams, List<String> indexNames, List<String> names) {
+        public Request(PageParams pageParams, List<String> indexNames, List<String> connectorNames) {
             this.pageParams = pageParams;
             this.indexNames = indexNames;
-            this.names = names;
+            this.connectorNames = connectorNames;
         }
 
         public PageParams getPageParams() {
@@ -70,8 +70,8 @@ public class ListConnectorAction {
             return indexNames;
         }
 
-        public List<String> getNames() {
-            return names;
+        public List<String> getConnectorNames() {
+            return connectorNames;
         }
 
         @Override
@@ -96,7 +96,7 @@ public class ListConnectorAction {
             super.writeTo(out);
             pageParams.writeTo(out);
             out.writeOptionalStringCollection(indexNames);
-            out.writeOptionalStringCollection(names);
+            out.writeOptionalStringCollection(connectorNames);
         }
 
         @Override
@@ -106,12 +106,12 @@ public class ListConnectorAction {
             ListConnectorAction.Request request = (ListConnectorAction.Request) o;
             return Objects.equals(pageParams, request.pageParams)
                 && Objects.equals(indexNames, request.indexNames)
-                && Objects.equals(names, request.names);
+                && Objects.equals(connectorNames, request.connectorNames);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pageParams, indexNames, names);
+            return Objects.hash(pageParams, indexNames, connectorNames);
         }
 
         @SuppressWarnings("unchecked")
@@ -136,7 +136,7 @@ public class ListConnectorAction {
             {
                 builder.field(PAGE_PARAMS_FIELD.getPreferredName(), pageParams);
                 builder.field(INDEX_NAMES_FIELD.getPreferredName(), indexNames);
-                builder.field(NAMES_FIELD.getPreferredName(), names);
+                builder.field(NAMES_FIELD.getPreferredName(), connectorNames);
             }
             builder.endObject();
             return builder;

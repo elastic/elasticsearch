@@ -40,9 +40,9 @@ public class RestListConnectorAction extends BaseRestHandler {
         int from = restRequest.paramAsInt("from", PageParams.DEFAULT_FROM);
         int size = restRequest.paramAsInt("size", PageParams.DEFAULT_SIZE);
         List<String> indexNames = List.of(restRequest.paramAsStringArray(Connector.INDEX_NAME_FIELD.getPreferredName(), new String[0]));
-        List<String> names = List.of(restRequest.paramAsStringArray(Connector.NAME_FIELD.getPreferredName(), new String[0]));
+        List<String> connectorNames = List.of(restRequest.paramAsStringArray("connector_name", new String[0]));
 
-        ListConnectorAction.Request request = new ListConnectorAction.Request(new PageParams(from, size), indexNames, names);
+        ListConnectorAction.Request request = new ListConnectorAction.Request(new PageParams(from, size), indexNames, connectorNames);
 
         return channel -> client.execute(ListConnectorAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

@@ -137,14 +137,14 @@ setup:
 "List Connector - filter by connector names":
   - do:
       connector.list:
-        name: my-connector-1
+        connector_name: my-connector-1
 
   - match: { count: 1 }
   - match: { results.0.name: "my-connector-1" }
 
   - do:
       connector.list:
-        name: my-connector-1,my-connector-2
+        connector_name: my-connector-1,my-connector-2
 
   - match: { count: 2 }
   - match: { results.0.name: "my-connector-1" }
@@ -155,7 +155,7 @@ setup:
 "List Connector - filter by index name and name":
   - do:
       connector.list:
-        name: my-connector-1,my-connector-2
+        connector_name: my-connector-1,my-connector-2
         index_name: search-2-test
 
   - match: { count: 1 }

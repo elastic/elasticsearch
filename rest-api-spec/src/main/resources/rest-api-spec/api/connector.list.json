@@ -36,7 +36,7 @@
         "type": "string",
         "description": "connector index name(s) to fetch connector documents for"
       },
-      "name": {
+      "connector_name": {
         "type": "string",
         "description": "connector name(s) to fetch connector documents for"
       }

@@ -16,11 +16,13 @@ with this endpoint.
 
 For each cluster in the index expression, information is returned about:
 
-1. whether the querying ("local") cluster is currently connected to the remote cluster
-2. whether the remote cluster is configured with `skip_unavailable` as `true` or `false`
+1. whether the querying ("local") cluster is currently connected to each remote cluster
+   in the index expression scope
+2. whether each remote cluster is configured with `skip_unavailable` as `true` or `false`
 3. whether there are any indices, aliases or data streams on that cluster that match
    the index expression
-4. cluster version information, including the Elasticsearch server version
+4. whether the search is likely to have errors returned when you do the {ccs}
+5. cluster version information, including the Elasticsearch server version
 
 ////
 [source,console]
@@ -59,7 +61,7 @@ GET /_resolve/cluster/my-index-*,cluster*:my-index-*
 
 This will return information about the local cluster and all remotely configured
 clusters that start with the alias `cluster*`. Each cluster will return information
-about whether it has any indices, aliases or data streams that match `my-index-*`
+about whether it has any indices, aliases or data streams that match `my-index-*`.
 
 [[resolve-cluster-api-request]]
 ==== {api-request-title}
@@ -100,24 +102,34 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
+`ignore_throttled`::
+(Optional, Boolean) If `true`, concrete, expanded or aliased indices are
+ignored when frozen. Defaults to `false`.
++
+deprecated:[7.16.0]
+
 
 [discrete]
 [[usecases-for-resolve-cluster]]
 === Examples of why this endpoint is useful before doing a {ccs}.
 
-You may want to exclude a remote cluster from a search when:
+You may want to exclude a cluster or index from a search when:
 
-1. The remote cluster is not currently connected and is configured as `skip_unavailable`=`false`.
+1. A remote cluster is not currently connected and is configured with `skip_unavailable`=`false`.
 Executing a {ccs} under those conditions will cause
 <<cross-cluster-search-failures,the entire search to fail>>.
 
-2. The remote cluster has no matching indices, aliases or data streams for the index expression
+2. A cluster has no matching indices, aliases or data streams for the index expression
 (or your user does not have permissions to search them). For example, suppose your
 index expression is `logs*,remote1:logs*` and the `remote1` cluster has no indices, aliases or data
-streams that match `logs*`. In that case, that cluster will return nothing if you include it in
-a {ccs}.
+streams that match `logs*`. In that case, that cluster will return no results from that cluster if
+you include it in a {ccs}.
 
-3. The remote cluster is an older version that does not support the feature you want to
+3. The index expression (combined with any query parameters you specify) will likely cause an exception
+to be thrown when do a search. In these cases, the "error" field in the `_resolve/cluster` response
+will be present. (This is also )
+
+4. A remote cluster is an older version that does not support the feature you want to
 use in your search.
 
 
@@ -141,7 +153,7 @@ The API returns the following response:
     "skip_unavailable": false,
     "matching_indices": true,
     "version": {
-      "number": "8.13.0",
+      "number": "8.14.0",
       "build_flavor": "default",
       "minimum_wire_compatibility_version": "7.17.0",
       "minimum_index_compatibility_version": "7.0.0"
@@ -152,7 +164,7 @@ The API returns the following response:
     "skip_unavailable": true,  <3>
     "matching_indices": true,  <4>
     "version": {
-      "number": "8.13.0",      <5>
+      "number": "8.14.0",      <5>
       "build_flavor": "default",
       "minimum_wire_compatibility_version": "7.17.0",
       "minimum_index_compatibility_version": "7.0.0"
@@ -163,7 +175,7 @@ The API returns the following response:
     "skip_unavailable": false,
     "matching_indices": true,
     "version": {
-      "number": "8.13.0",
+      "number": "8.14.0",
       "build_flavor": "default",
       "minimum_wire_compatibility_version": "7.17.0",
       "minimum_index_compatibility_version": "7.0.0"
@@ -171,12 +183,82 @@ The API returns the following response:
   }
 }
 ----
-// TESTRESPONSE[s/"number": "8.13.0"/"number": "$body.$_path"/]
+// TESTRESPONSE[s/"number": "8.14.0"/"number": "$body.$_path"/]
 // TESTRESPONSE[s/"minimum_wire_compatibility_version": "7.17.0"/"minimum_wire_compatibility_version": "$body.$_path"/]
 // TESTRESPONSE[s/"minimum_index_compatibility_version": "7.0.0"/"minimum_index_compatibility_version": "$body.$_path"/]
 
 <1> Each cluster has its own response section. The cluster you sent the request to is labelled as "(local)".
 <2> The querying cluster attempts to make a request to each remote cluster. If successful, `connected`=`true`.
-<3> The `skip_unavailable` setting for each remote cluster as configured on the local cluster.
+<3> The `skip_unavailable` setting for each remote cluster, as configured on the local cluster.
 <4> Indicates whether any index, alias or data stream matches the index expression specified for that cluster.
 <5> The Elasticsearch server version.
+
+
+[discrete]
+[[resolve-index-api-error-example]]
+==== An example showing potential problems with your search set up
+
+The following request shows examples of several reasons why you might want
+to change your query to avoid unsuccessful searches.
+
+[source,console]
+--------------------------------------------------
+GET /_resolve/cluster/not-present,clust*:my-index*,oldcluster:*?ignore_unavailable=false
+--------------------------------------------------
+// TEST[continued]
+// TEST[s/,oldcluster:*//]
+
+[source,console-result]
+--------------------------------------------------
+{
+  "(local)": {
+    "connected": true,
+    "skip_unavailable": false,
+    "error": "no such index [not_present]"  <1>
+  },
+  "cluster_one": {
+    "connected": true,
+    "skip_unavailable": true,
+    "matching_indices": false,    <2>
+    "version": {
+      "number": "8.14.0",
+      "build_flavor": "default",
+      "minimum_wire_compatibility_version": "7.17.0",
+      "minimum_index_compatibility_version": "7.0.0"
+    }
+  },
+  "cluster_two": {
+    "connected": false,           <3>
+    "skip_unavailable": false,
+    "matching_indices": true,
+    "version": {
+      "number": "8.14.0",
+      "build_flavor": "default",
+      "minimum_wire_compatibility_version": "7.17.0",
+      "minimum_index_compatibility_version": "7.0.0"
+    }
+  },
+  "oldcluster": {         <4>
+    "connected": true,
+    "skip_unavailable": false,
+    "matching_indices": true
+  }
+}
+--------------------------------------------------
+// TEST[skip: too many illustrative error variations to reproduce]
+
+<1> The local cluster has no index called `not_present` and if you try a search against it
+using the specified `ignore_unavailable=false` param, you will get an "no such index" error.
+Other types of errors can show up here as well, such as security permission errors when your user does
+not have authorization to search the specified index.
+<2> The `cluster_one` remote cluster does not have any indices that match the pattern `my-index*`.
+That could be due to there being no indices present that match the pattern or that the index
+is closed. (You can check this by using the <<indices-resolve-index-api,resolve index>> API.)
+<3> The `cluster_two` remote cluster is not connected (the attempt to connect failed). Since this
+cluster is marked as `skip_unavailable=false`, you should probably exclude this cluster from the
+search by adding `-cluster_two:*` to the search index expression.
+<4> The `oldcluster` remote cluster shows that it has matching_indices, but no version information
+is included. That means that it is running a version older than when the `_resolve/cluster` API
+was added (8.14.0), so you may want to exclude it from your {ccs}. (Note: it was able to tell there
+were matching indices because it did a fallback to use the <<indices-resolve-index-api,resolve index>>
+API.)

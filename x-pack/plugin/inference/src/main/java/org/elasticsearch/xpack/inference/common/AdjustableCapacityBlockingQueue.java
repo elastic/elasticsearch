@@ -58,23 +58,23 @@ public class AdjustableCapacityBlockingQueue<E> {
      * could return a value greater than the specified capacity.
      * <br/>
      * <b>This is potentially an expensive operation because a new internal queue is instantiated.</b>
-     * @param capacity the new capacity for the queue
+     * @param newCapacity the new capacity for the queue
      */
-    public void setCapacity(int capacity) {
+    public void setCapacity(int newCapacity) {
         final ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
 
         writeLock.lock();
         try {
-            BlockingQueue<E> newQueue = queueCreator.create(capacity);
+            BlockingQueue<E> newQueue = queueCreator.create(newCapacity);
             // Drain the first items from the queue, so they will get read first.
             // Only drain the amount that wouldn't fit in the new queue
             // If the new capacity is larger than the current queue size then we don't need to drain any
             // they will all fit within the newly created queue. In this situation the queue size - capacity
             // would result in a negative value which is ignored
-            if (currentQueue.size() - capacity > 0) {
-                currentQueue.drainTo(prioritizedReadingQueue, currentQueue.size() - capacity);
+            if (currentQueue.size() > newCapacity) {
+                currentQueue.drainTo(prioritizedReadingQueue, currentQueue.size() - newCapacity);
             }
-            currentQueue.drainTo(newQueue, capacity);
+            currentQueue.drainTo(newQueue, newCapacity);
             currentQueue = newQueue;
         } finally {
             writeLock.unlock();

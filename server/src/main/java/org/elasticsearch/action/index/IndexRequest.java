@@ -477,6 +477,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * </p>
      */
     public IndexRequest source(XContentType xContentType, Object... source) {
+        return source(getXContentBuilder(xContentType, source));
+    }
+
+    /**
+     * Returns an XContentBuilder for the given xContentType and source array
+     * <p>
+     * <b>Note: the number of objects passed to this method as varargs must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
+     */
+    public static XContentBuilder getXContentBuilder(XContentType xContentType, Object... source) {
         if (source.length % 2 != 0) {
             throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
         }
@@ -489,11 +501,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             builder.startObject();
-            for (int i = 0; i < source.length; i++) {
-                builder.field(source[i++].toString(), source[i]);
+            // This for loop increments by 2 because the source array contains adjacent key/value pairs:
+            for (int i = 0; i < source.length; i = i + 2) {
+                String field = source[i].toString();
+                Object value = source[i + 1];
+                builder.field(field, value);
             }
             builder.endObject();
-            return source(builder);
+            return builder;
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate", e);
         }

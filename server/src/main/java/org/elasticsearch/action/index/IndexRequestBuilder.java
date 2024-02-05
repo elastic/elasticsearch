@@ -175,20 +175,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * </p>
      */
     public IndexRequestBuilder setSource(XContentType xContentType, Object... source) {
-        if (source.length % 2 != 0) {
-            throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
-        }
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
-            builder.startObject();
-            for (int i = 0; i < source.length; i++) {
-                builder.field(source[i++].toString(), source[i]);
-            }
-            builder.endObject();
-            return setSource(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
+        return setSource(IndexRequest.getXContentBuilder(xContentType, source));
     }
 
     /**
@@ -284,7 +271,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
 
     @Override
     public IndexRequest request() {
-        validate();
         IndexRequest request = new IndexRequest();
         super.apply(request);
         request.id(id);

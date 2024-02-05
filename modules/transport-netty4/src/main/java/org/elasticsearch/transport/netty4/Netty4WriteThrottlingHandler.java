@@ -12,10 +12,9 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GenericFutureListener;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.Transports;
@@ -105,8 +104,26 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        doFlush(ctx);
+        failQueuedWrites();
         super.channelInactive(ctx);
+    }
+
+    @Override
+    public void disconnect(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
+        failQueuedWrites();
+        super.disconnect(ctx, promise);
+    }
+
+    @Override
+    public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
+        failQueuedWrites();
+        super.close(ctx, promise);
+    }
+
+    @Override
+    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+        failQueuedWrites();
+        super.handlerRemoved(ctx);
     }
 
     private boolean doFlush(ChannelHandlerContext ctx) {
@@ -150,7 +167,7 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
         return true;
     }
 
-    private static GenericFutureListener<Future<Void>> forwardFailureListener(ChannelHandlerContext ctx, ChannelPromise promise) {
+    private static ChannelFutureListener forwardFailureListener(ChannelHandlerContext ctx, ChannelPromise promise) {
         return future -> {
             assert ctx.executor().inEventLoop();
             if (future.isSuccess() == false) {
@@ -159,7 +176,7 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
         };
     }
 
-    private static GenericFutureListener<Future<Void>> forwardResultListener(ChannelHandlerContext ctx, ChannelPromise promise) {
+    private static ChannelFutureListener forwardResultListener(ChannelHandlerContext ctx, ChannelPromise promise) {
         return future -> {
             assert ctx.executor().inEventLoop();
             if (future.isSuccess()) {

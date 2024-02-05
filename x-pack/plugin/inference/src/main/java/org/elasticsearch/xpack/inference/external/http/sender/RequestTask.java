@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
@@ -27,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
-class RequestTask extends HttpTask {
+class RequestTask extends AbstractRunnable {
     private static final Logger logger = LogManager.getLogger(RequestTask.class);
     private static final Scheduler.Cancellable NOOP_TIMEOUT_HANDLER = createDefaultHandler();
 

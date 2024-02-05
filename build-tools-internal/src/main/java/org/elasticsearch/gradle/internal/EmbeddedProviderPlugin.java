@@ -8,12 +8,28 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.attributes.Attribute;
+
+import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE;
+import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.DIRECTORY_TYPE;
+import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.JAR_TYPE;
 
 public class EmbeddedProviderPlugin implements Plugin<Project> {
+    static final Attribute<Boolean> IMPL_ATTR = Attribute.of("is.impl", Boolean.class);
+
     @Override
     public void apply(Project project) {
+
+        project.getDependencies().registerTransform(UnzipTransform.class,
+            transformSpec -> {
+                transformSpec.getFrom().attribute(ARTIFACT_TYPE_ATTRIBUTE, JAR_TYPE).attribute(IMPL_ATTR, true);
+                transformSpec.getTo().attribute(ARTIFACT_TYPE_ATTRIBUTE, DIRECTORY_TYPE).attribute(IMPL_ATTR, true);
+                transformSpec.parameters(parameters -> parameters.getIncludeArtifactName().set(true));
+            });
+
         project.getExtensions().create("embeddedProviders", EmbeddedProviderExtension.class, project);
     }
 }

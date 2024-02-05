@@ -11,23 +11,20 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class EqualsTests extends AbstractBinaryComparisonTestCase {
+public class EqualsTests extends AbstractFunctionTestCase {
     public EqualsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -79,36 +76,8 @@ public class EqualsTests extends AbstractBinaryComparisonTestCase {
                 List.of()
             )
         );
-        // Datetime, Period/Duration Cases
-
-        /*
-        For some reason, DatePeriods aren't working.  Will investigate after fixing double folding.
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                "No evaluator, the tests only trigger the folding code since Period is not representable",
-                "lhs",
-                "rhs",
-                Object::equals,
-                DataTypes.BOOLEAN,
-                TestCaseSupplier.datePeriodCases(),
-                TestCaseSupplier.datePeriodCases(),
-                List.of()
-            )
-        );
-         */
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                "No evaluator, the tests only trigger the folding code since Duration is not representable",
-                "lhs",
-                "rhs",
-                Object::equals,
-                DataTypes.BOOLEAN,
-                TestCaseSupplier.timeDurationCases(),
-                TestCaseSupplier.timeDurationCases(),
-                List.of()
-            )
-        );
-
+        // Datetime
+        // TODO: I'm surprised this passes.  Shouldn't there be a cast from DateTime to Long? 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 "EqualsLongsEvaluator",
@@ -165,17 +134,7 @@ public class EqualsTests extends AbstractBinaryComparisonTestCase {
     }
 
     @Override
-    protected <T extends Comparable<T>> Matcher<Object> resultMatcher(T lhs, T rhs) {
-        return equalTo(lhs.equals(rhs));
-    }
-
-    @Override
-    protected BinaryComparison build(Source source, Expression lhs, Expression rhs) {
-        return new Equals(source, lhs, rhs);
-    }
-
-    @Override
-    protected boolean isEquality() {
-        return true;
+    protected Expression build(Source source, List<Expression> args) {
+        return new Equals(source, args.get(0), args.get(1));
     }
 }

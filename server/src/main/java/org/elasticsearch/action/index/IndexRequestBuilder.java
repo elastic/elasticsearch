@@ -43,7 +43,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     private Boolean requireDataStream;
     private String routing;
     private WriteRequest.RefreshPolicy refreshPolicy;
-    private String refreshPolicyString;
     private Long ifSeqNo;
     private Long ifPrimaryTerm;
     private DocWriteRequest.OpType opType;
@@ -265,7 +264,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     public IndexRequestBuilder setRefreshPolicy(String refreshPolicy) {
-        this.refreshPolicyString = refreshPolicy;
+        this.refreshPolicy = WriteRequest.RefreshPolicy.parse(refreshPolicy);
         return this;
     }
 
@@ -285,9 +284,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         }
         if (refreshPolicy != null) {
             request.setRefreshPolicy(refreshPolicy);
-        }
-        if (refreshPolicyString != null) {
-            request.setRefreshPolicy(refreshPolicyString);
         }
         if (ifSeqNo != null) {
             request.setIfSeqNo(ifSeqNo);

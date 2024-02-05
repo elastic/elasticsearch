@@ -123,7 +123,7 @@ public abstract class AggregationBuilder
 
     /**
      * Creates a deep copy of {@param original} by recursively invoking {@code #shallowCopy} on the sub aggregations.
-     * Each copied agg is passed throw the {@param visitor} function that can modify the resulting copy.
+     * Each copied agg is passed through the {@param visitor} function that returns a possibly modified "copy".
      */
     public static AggregationBuilder deepCopy(AggregationBuilder original, Function<AggregationBuilder, AggregationBuilder> visitor) {
         AggregatorFactories.Builder subAggregations = new AggregatorFactories.Builder();

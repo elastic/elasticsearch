@@ -732,8 +732,7 @@ public class TumblingWindow implements Executable {
             if (criteria.get(matcher.firstPositiveStage).descending()) {
                 Collections.reverse(completed);
             }
-            SequencePayload payload = new SequencePayload(completed, addMissingEventPlaceholders(listOfHits), false, timeTook());
-            return payload;
+            return new SequencePayload(completed, addMissingEventPlaceholders(listOfHits), false, timeTook());
         }));
     }
 

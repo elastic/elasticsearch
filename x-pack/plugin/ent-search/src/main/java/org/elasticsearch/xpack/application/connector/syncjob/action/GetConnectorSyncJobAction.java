@@ -19,8 +19,8 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobSearchResult;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -110,15 +110,15 @@ public class GetConnectorSyncJobAction {
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        private final ConnectorSyncJob connectorSyncJob;
+        private final ConnectorSyncJobSearchResult connectorSyncJob;
 
-        public Response(ConnectorSyncJob connectorSyncJob) {
+        public Response(ConnectorSyncJobSearchResult connectorSyncJob) {
             this.connectorSyncJob = connectorSyncJob;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.connectorSyncJob = new ConnectorSyncJob(in);
+            this.connectorSyncJob = new ConnectorSyncJobSearchResult(in);
         }
 
         @Override

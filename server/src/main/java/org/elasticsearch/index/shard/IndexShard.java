@@ -3991,7 +3991,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void afterRefresh(boolean didRefresh) {
-            if (enableFieldHasValue && didRefresh) {
+            if (enableFieldHasValue) {
                 try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
                     fieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
                 }

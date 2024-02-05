@@ -141,6 +141,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         // log one thing and we can't easily separate the request body from the response body logging, so instead we capture the body log
         // message and then log it again with a different logger.
 
+        var loggingFinishedLatch = new CountDownLatch(1);
         var mockLogAppender = new MockLogAppender();
         mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
             final Pattern messagePattern = Pattern.compile("^\\[[1-9][0-9]*] (response body.*)");
@@ -151,6 +152,9 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                 final var matcher = messagePattern.matcher(formattedMessage);
                 if (matcher.matches()) {
                     logger.info("{}", matcher.group(1));
+                    if (formattedMessage.contains(ReferenceDocs.HTTP_TRACER.toString())) {
+                        loggingFinishedLatch.countDown();
+                    }
                 }
             }
 
@@ -161,13 +165,10 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         try (var ignored = withRequestTracker(); var ignored2 = mockLogAppender.capturing("org.elasticsearch.http.HttpBodyTracer")) {
             assertEquals(
                 expectedBody,
-                ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
-                    logger,
-                    Level.INFO,
-                    "response body",
-                    ReferenceDocs.HTTP_TRACER,
-                    () -> getRestClient().performRequest(new Request("GET", YieldsContinuationsPlugin.ROUTE))
-                ).utf8ToString()
+                ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(logger, Level.INFO, "response body", ReferenceDocs.HTTP_TRACER, () -> {
+                    getRestClient().performRequest(new Request("GET", YieldsContinuationsPlugin.ROUTE));
+                    safeAwait(loggingFinishedLatch);
+                }).utf8ToString()
             );
             mockLogAppender.assertAllExpectationsMatched();
         }

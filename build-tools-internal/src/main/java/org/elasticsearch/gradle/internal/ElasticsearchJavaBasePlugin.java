@@ -29,8 +29,9 @@ import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
-import javax.inject.Inject;
 import java.util.List;
+
+import javax.inject.Inject;
 
 /**
  * A wrapper around Gradle's Java Base plugin that applies our

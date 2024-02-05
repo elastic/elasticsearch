@@ -23,12 +23,11 @@ public class EmbeddedProviderPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
 
-        project.getDependencies().registerTransform(UnzipTransform.class,
-            transformSpec -> {
-                transformSpec.getFrom().attribute(ARTIFACT_TYPE_ATTRIBUTE, JAR_TYPE).attribute(IMPL_ATTR, true);
-                transformSpec.getTo().attribute(ARTIFACT_TYPE_ATTRIBUTE, DIRECTORY_TYPE).attribute(IMPL_ATTR, true);
-                transformSpec.parameters(parameters -> parameters.getIncludeArtifactName().set(true));
-            });
+        project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
+            transformSpec.getFrom().attribute(ARTIFACT_TYPE_ATTRIBUTE, JAR_TYPE).attribute(IMPL_ATTR, true);
+            transformSpec.getTo().attribute(ARTIFACT_TYPE_ATTRIBUTE, DIRECTORY_TYPE).attribute(IMPL_ATTR, true);
+            transformSpec.parameters(parameters -> parameters.getIncludeArtifactName().set(true));
+        });
 
         project.getExtensions().create("embeddedProviders", EmbeddedProviderExtension.class, project);
     }

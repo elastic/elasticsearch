@@ -97,6 +97,7 @@ import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -1214,11 +1215,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return innerGet(get, false, this::wrapSearcher);
     }
 
-    final MultiEngineGet newMultiEngineGet() {
+    public MultiEngineGet mget() {
         return new MultiEngineGet(this::wrapSearcher) {
             @Override
-            GetResult engineGet(Engine.Get get) {
-                return innerGet(get, false, this::wrapSearchWithCache);
+            public GetResult get(Engine.Get get) {
+                return innerGet(get, false, this::wrapSearchSearchWithCache);
             }
         };
     }

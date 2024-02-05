@@ -20,7 +20,7 @@ import java.util.function.Function;
  * A session that can perform multiple gets without wrapping searchers multiple times.
  * This must be created and used by a single thread.
  */
-abstract class MultiEngineGet implements Releasable {
+public abstract class MultiEngineGet implements Releasable {
     private IndexReader.CacheKey lastKey;
     private Engine.Searcher lastWrapped;
 
@@ -38,9 +38,9 @@ abstract class MultiEngineGet implements Releasable {
         return true;
     }
 
-    abstract Engine.GetResult engineGet(Engine.Get get);
+    public abstract Engine.GetResult get(Engine.Get get);
 
-    Engine.Searcher wrapSearchWithCache(Engine.Searcher searcher) {
+    final Engine.Searcher wrapSearchSearchWithCache(Engine.Searcher searcher) {
         assert assertAccessingThread();
         final IndexReader.CacheHelper cacheHelper = searcher.getIndexReader().getReaderCacheHelper();
         final IndexReader.CacheKey cacheKey = cacheHelper != null ? cacheHelper.getKey() : null;
@@ -64,7 +64,7 @@ abstract class MultiEngineGet implements Releasable {
     }
 
     @Override
-    public void close() {
+    public final void close() {
         assert assertAccessingThread();
         Releasables.close(lastWrapped);
     }

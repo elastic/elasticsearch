@@ -146,10 +146,7 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
         waitUntilCheckpoint(config.getId(), 1L);
 
         stopTransform(config.getId());
-        assertBusy(() -> {
-            var stats = getTransformStats(config.getId());
-            assertEquals("stopped", stats.get("state"));
-        });
+        assertBusy(() -> { assertEquals("stopped", getTransformState(config.getId())); });
 
         refreshIndex(destIndexName, RequestOptions.DEFAULT);
         // Verify destination index mappings

@@ -2125,9 +2125,18 @@ public class DateFormatters {
                     input,
                     new DateTimeFormatterBuilder().appendPattern(input).toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT)
                 );
-            } catch (IllegalArgumentException | ClassCastException e) {
-                // ClassCastException catches this bug https://bugs.openjdk.org/browse/JDK-8193877
+            } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
+            } catch (ClassCastException e) {
+                // this catches this bug https://bugs.openjdk.org/browse/JDK-8193877
+                if (e.getMessage()
+                    .startsWith(
+                        "class java.time.format.DateTimeFormatterBuilder$PadPrinterParserDecorator "
+                            + "cannot be cast to class java.time.format.DateTimeFormatterBuilder$NumberPrinterParser"
+                    )) {
+                    throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
+                }
+                throw e;
             }
         }
     }

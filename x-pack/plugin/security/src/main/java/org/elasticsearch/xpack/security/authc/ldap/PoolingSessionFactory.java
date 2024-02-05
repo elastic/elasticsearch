@@ -20,6 +20,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -73,7 +74,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
         super(config, sslService, threadPool);
         this.groupResolver = groupResolver;
         this.bindDn = bindDn;
-        this.bindRequest = new AtomicReference<>(buildBindRequest(config.settings()));
+        this.bindRequest = new AtomicReference<>(buildBindRequest(config.settings(), false));
         this.useConnectionPool = config.getSetting(poolingEnabled);
         if (useConnectionPool) {
             this.connectionPool = createConnectionPool(config, serverSet, timeout, logger, bindRequest.get(), healthCheckDNSupplier);
@@ -82,7 +83,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
         }
     }
 
-    private SimpleBindRequest buildBindRequest(Settings settings) {
+    private SimpleBindRequest buildBindRequest(Settings settings, boolean failOnMissingBindPassword) {
         final byte[] bindPassword;
         final Setting<SecureString> legacyPasswordSetting = config.getConcreteSetting(LEGACY_BIND_PASSWORD);
         final Setting<SecureString> securePasswordSetting = config.getConcreteSetting(SECURE_BIND_PASSWORD);
@@ -104,17 +105,28 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
             return new SimpleBindRequest();
         } else {
             if (bindPassword == null) {
-                deprecationLogger.critical(
-                    DeprecationCategory.SECURITY,
-                    "bind_dn_set_without_password",
-                    "[{}] is set but no bind password is specified. Without a corresponding bind password, "
-                        + "all {} realm authentication will fail. Specify a bind password via [{}] or [{}]. "
-                        + "In the next major release, nodes with incomplete bind credentials will fail to start.",
-                    RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
-                    config.type(),
-                    RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
-                    RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
-                );
+                if (failOnMissingBindPassword) {
+                    throw new SettingsException(
+                        "[{}] is set but no bind password is specified. Without a corresponding bind password, "
+                            + "all {} realm authentication will fail. Specify a bind password via [{}] or [{}].",
+                        RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
+                        config.type(),
+                        RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
+                        RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
+                    );
+                } else {
+                    deprecationLogger.critical(
+                        DeprecationCategory.SECURITY,
+                        "bind_dn_set_without_password",
+                        "[{}] is set but no bind password is specified. Without a corresponding bind password, "
+                            + "all {} realm authentication will fail. Specify a bind password via [{}] or [{}]. "
+                            + "In the next major release, nodes with incomplete bind credentials will fail to start.",
+                        RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
+                        config.type(),
+                        RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
+                        RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
+                    );
+                }
             }
             return new SimpleBindRequest(this.bindDn, bindPassword);
         }
@@ -123,7 +135,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
     @Override
     public void reload(Settings settings) {
         final SimpleBindRequest oldRequest = bindRequest.get();
-        final SimpleBindRequest newRequest = buildBindRequest(settings);
+        final SimpleBindRequest newRequest = buildBindRequest(settings, true);
         if (bindRequestEquals(newRequest, oldRequest) == false) {
             if (bindRequest.compareAndSet(oldRequest, newRequest)) {
                 if (connectionPool != null) {

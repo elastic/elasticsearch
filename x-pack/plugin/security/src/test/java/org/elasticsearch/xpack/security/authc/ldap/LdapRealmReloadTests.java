@@ -222,6 +222,61 @@ public class LdapRealmReloadTests extends LdapTestCase {
         }
     }
 
+    public void testReloadValidation() throws Exception {
+        final boolean useLegacyBindSetting = randomBoolean();
+        final Settings bindPasswordSettings;
+        if (useLegacyBindSetting) {
+            bindPasswordSettings = Settings.builder()
+                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), INITIAL_BIND_PASSWORD)
+                .build();
+        } else {
+            bindPasswordSettings = Settings.builder()
+                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, INITIAL_BIND_PASSWORD))
+                .build();
+        }
+        final Settings settings = Settings.builder()
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean())
+            .putList(getFullSettingKey(REALM_IDENTIFIER, URLS_SETTING), ldapUrls())
+            .put(defaultRealmSettings)
+            .put(defaultGlobalSettings)
+            .put(bindPasswordSettings)
+            .build();
+        final RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
+        try (SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(config.env()), threadPool)) {
+            assertThat(sessionFactory, is(instanceOf(LdapUserSearchSessionFactory.class)));
+            LdapRealm ldap = new LdapRealm(config, sessionFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
+            ldap.initialize(Collections.singleton(ldap), licenseState);
+
+            var e = expectThrows(Exception.class, () -> ldap.reload(Settings.EMPTY));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "["
+                        + getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN)
+                        + "] is set but no bind password is specified. Without a corresponding bind password, "
+                        + "all "
+                        + ldap.type()
+                        + " realm authentication will fail. Specify a bind password via ["
+                        + getFullSettingKey(config, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD)
+                        + "] or ["
+                        + getFullSettingKey(config, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD)
+                        + "]."
+                )
+            );
+            if (useLegacyBindSetting) {
+                assertSettingDeprecationsAndWarnings(
+                    new Setting<?>[] {
+                        PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD.apply(REALM_IDENTIFIER.getType())
+                            .getConcreteSettingForNamespace(REALM_IDENTIFIER.getName()) }
+                );
+            }
+
+            // The already configured password should stay unchanged
+            // and the authentication should still work.
+            authenticateUserAndAssertStatus(ldap, AuthenticationResult.Status.SUCCESS);
+        }
+    }
+
     private void authenticateUserAndAssertStatus(LdapRealm ldap, AuthenticationResult.Status expectedAuthStatus) {
         final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(LDAP_USER_AUTH_TOKEN, future);

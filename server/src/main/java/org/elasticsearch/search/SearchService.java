@@ -1401,7 +1401,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
             assert context.scrollContext() == null
                 : "`search_after` cannot be used in a scroll context - should be validated in SearchRequest#validate";
-            assert context.from() == 0
+            assert context.from() <= 0
                 : "`from` parameter must be set to 0 when `search_after` is used - should be validated in SearchRequest#validate";
             String collapseField = source.collapse() != null ? source.collapse().getField() : null;
             FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter(), collapseField);

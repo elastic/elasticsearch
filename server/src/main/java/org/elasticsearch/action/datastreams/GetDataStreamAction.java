@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.DATA_STREAM_RESPONSE_INDEX_PROPERTIES;
+import static org.elasticsearch.TransportVersions.V_8_11_X;
 
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
 
@@ -44,7 +44,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     public static final String NAME = "indices:admin/data_stream/get";
 
     private GetDataStreamAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
@@ -217,10 +217,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     in.readOptionalString(),
                     in.readOptionalString(),
                     in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null,
-                    in.getTransportVersion().onOrAfter(DATA_STREAM_RESPONSE_INDEX_PROPERTIES)
-                        ? in.readMap(Index::new, IndexProperties::new)
-                        : Map.of(),
-                    in.getTransportVersion().onOrAfter(DATA_STREAM_RESPONSE_INDEX_PROPERTIES) ? in.readBoolean() : true
+                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readMap(Index::new, IndexProperties::new) : Map.of(),
+                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true
                 );
             }
 
@@ -264,7 +262,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                     out.writeOptionalWriteable(timeSeries);
                 }
-                if (out.getTransportVersion().onOrAfter(DATA_STREAM_RESPONSE_INDEX_PROPERTIES)) {
+                if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
                     out.writeMap(indexSettingsValues);
                     out.writeBoolean(templatePreferIlmValue);
                 }

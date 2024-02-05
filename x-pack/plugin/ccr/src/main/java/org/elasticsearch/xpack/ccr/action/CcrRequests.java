@@ -65,7 +65,7 @@ public final class CcrRequests {
         if (metadataVersion > 0) {
             request.waitForMetadataVersion(metadataVersion).waitForTimeout(timeoutSupplier.get());
         }
-        client.execute(ClusterStateAction.INSTANCE, request, listener.delegateFailureAndWrap((delegate, response) -> {
+        client.execute(ClusterStateAction.REMOTE_TYPE, request, listener.delegateFailureAndWrap((delegate, response) -> {
             if (response.getState() == null) { // timeout on wait_for_metadata_version
                 assert metadataVersion > 0 : metadataVersion;
                 if (timeoutSupplier.get().nanos() < 0) {

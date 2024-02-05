@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -32,11 +33,14 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureResponse;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
@@ -48,6 +52,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -130,6 +135,8 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
         return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
     }
 
+    static EnrichPolicy policy = new EnrichPolicy("match", null, List.of("songs"), "song_id", List.of("title", "artist", "length"));
+
     @Before
     public void setupEnrichPolicies() {
         client().admin()
@@ -150,7 +157,6 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             client().prepareIndex("songs").setSource("song_id", s.id, "title", s.title, "artist", s.artist, "length", s.length).get();
         }
         client().admin().indices().prepareRefresh("songs").get();
-        EnrichPolicy policy = new EnrichPolicy("match", null, List.of("songs"), "song_id", List.of("title", "artist", "length"));
         client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("songs", policy)).actionGet();
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("songs")).actionGet();
         assertAcked(client().admin().indices().prepareDelete("songs"));
@@ -199,14 +205,12 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     private static String enrichSongCommand() {
-        String command = " ENRICH songs ";
-        if (randomBoolean()) {
-            command += " ON song_id ";
-        }
-        if (randomBoolean()) {
-            command += " WITH artist, title, length ";
-        }
-        return command;
+        return EsqlTestUtils.randomEnrichCommand(
+            "songs",
+            randomFrom(Enrich.Mode.COORDINATOR, Enrich.Mode.ANY),
+            policy.getMatchField(),
+            policy.getEnrichFields()
+        );
     }
 
     public void testSumDurationByArtist() {
@@ -314,6 +318,43 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Some enrich queries that could fail without the PushDownEnrich rule.
+     */
+    public void testForPushDownEnrichRule() {
+        {
+            String query = String.format(Locale.ROOT, """
+                FROM listens*
+                | eval x = TO_STR(song_id)
+                | SORT x
+                | %s
+                | SORT song_id
+                | LIMIT 5
+                | STATS listens = count(*) BY title
+                | SORT listens DESC
+                | KEEP title, listens
+                """, enrichSongCommand());
+            try (EsqlQueryResponse resp = run(query)) {
+                assertThat(EsqlTestUtils.getValuesList(resp), equalTo(List.of(List.of("Hotel California", 3L), List.of("In The End", 2L))));
+            }
+        }
+        {
+            String query = String.format(Locale.ROOT, """
+                FROM listens*
+                | eval x = TO_STR(song_id)
+                | SORT x
+                | KEEP x, song_id
+                | %s
+                | SORT song_id
+                | KEEP title, song_id
+                | LIMIT 1
+                """, enrichSongCommand());
+            try (EsqlQueryResponse resp = run(query)) {
+                assertThat(EsqlTestUtils.getValuesList(resp), equalTo(List.of(List.of("Hotel California", "s1"))));
+            }
+        }
+    }
+
     public static class LocalStateEnrich extends LocalStateCompositeXPackPlugin {
 
         public LocalStateEnrich(final Settings settings, final Path configPath) throws Exception {
@@ -339,7 +380,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             }
 
             @Override
-            protected List<XPackInfoFeatureAction> infoActions() {
+            protected List<ActionType<XPackInfoFeatureResponse>> infoActions() {
                 return Collections.singletonList(XPackInfoFeatureAction.ENRICH);
             }
         }

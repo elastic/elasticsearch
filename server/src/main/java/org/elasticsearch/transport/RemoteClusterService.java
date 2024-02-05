@@ -32,7 +32,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult;
 
 import java.io.Closeable;
@@ -544,18 +543,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     /**
      * Returns a client to the remote cluster if the given cluster alias exists.
      *
-     * @param threadPool       the {@link ThreadPool} for the client
      * @param clusterAlias     the cluster alias the remote cluster is registered under
      * @param responseExecutor the executor to use to process the response
      * @param ensureConnected  whether requests should wait for a connection attempt when there isn't a connection available
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
-    public RemoteClusterClient getRemoteClusterClient(
-        ThreadPool threadPool,
-        String clusterAlias,
-        Executor responseExecutor,
-        boolean ensureConnected
-    ) {
+    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor, boolean ensureConnected) {
         if (transportService.getRemoteClusterService().isEnabled() == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
@@ -570,14 +563,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     /**
      * Returns a client to the remote cluster if the given cluster alias exists.
      *
-     * @param threadPool       the {@link ThreadPool} for the client
      * @param clusterAlias     the cluster alias the remote cluster is registered under
      * @param responseExecutor the executor to use to process the response
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
-    public RemoteClusterClient getRemoteClusterClient(ThreadPool threadPool, String clusterAlias, Executor responseExecutor) {
+    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
         return getRemoteClusterClient(
-            threadPool,
             clusterAlias,
             responseExecutor,
             transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false

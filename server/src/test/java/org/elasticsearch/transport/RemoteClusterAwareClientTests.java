@@ -102,7 +102,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 );
                 final SearchShardsResponse searchShardsResponse = PlainActionFuture.get(
                     future -> client.execute(
-                        TransportSearchShardsAction.TYPE,
+                        TransportSearchShardsAction.REMOTE_TYPE,
                         searchShardsRequest,
                         ActionListener.runBefore(
                             future,
@@ -160,7 +160,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                             null
                         );
                         client.execute(
-                            TransportSearchShardsAction.TYPE,
+                            TransportSearchShardsAction.REMOTE_TYPE,
                             searchShardsRequest,
                             ActionListener.runBefore(
                                 future,

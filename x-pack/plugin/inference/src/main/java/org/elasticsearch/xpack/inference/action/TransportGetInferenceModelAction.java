@@ -17,6 +17,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -24,7 +25,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,19 +64,23 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         GetInferenceModelAction.Request request,
         ActionListener<GetInferenceModelAction.Response> listener
     ) {
-        boolean modelIdIsWildCard = Strings.isAllOrWildcard(request.getModelId());
+        boolean inferenceEntityIdIsWildCard = Strings.isAllOrWildcard(request.getInferenceEntityId());
 
-        if (request.getTaskType() == TaskType.ANY && modelIdIsWildCard) {
+        if (request.getTaskType() == TaskType.ANY && inferenceEntityIdIsWildCard) {
             getAllModels(listener);
-        } else if (modelIdIsWildCard) {
+        } else if (inferenceEntityIdIsWildCard) {
             getModelsByTaskType(request.getTaskType(), listener);
         } else {
-            getSingleModel(request.getModelId(), request.getTaskType(), listener);
+            getSingleModel(request.getInferenceEntityId(), request.getTaskType(), listener);
         }
     }
 
-    private void getSingleModel(String modelId, TaskType requestedTaskType, ActionListener<GetInferenceModelAction.Response> listener) {
-        modelRegistry.getModel(modelId, listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
+    private void getSingleModel(
+        String inferenceEntityId,
+        TaskType requestedTaskType,
+        ActionListener<GetInferenceModelAction.Response> listener
+    ) {
+        modelRegistry.getModel(inferenceEntityId, listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
                 delegate.onFailure(
@@ -84,7 +88,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
                         "Unknown service [{}] for model [{}]. ",
                         RestStatus.INTERNAL_SERVER_ERROR,
                         unparsedModel.service(),
-                        unparsedModel.modelId()
+                        unparsedModel.inferenceEntityId()
                     )
                 );
                 return;
@@ -102,7 +106,8 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
                 return;
             }
 
-            var model = service.get().parsePersistedConfig(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
+            var model = service.get()
+                .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
             delegate.onResponse(new GetInferenceModelAction.Response(List.of(model.getConfigurations())));
         }));
     }
@@ -130,12 +135,12 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
                     "Unknown service [{}] for model [{}]. ",
                     RestStatus.INTERNAL_SERVER_ERROR,
                     unparsedModel.service(),
-                    unparsedModel.modelId()
+                    unparsedModel.inferenceEntityId()
                 );
             }
             parsedModels.add(
                 service.get()
-                    .parsePersistedConfig(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings())
+                    .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings())
                     .getConfigurations()
             );
         }

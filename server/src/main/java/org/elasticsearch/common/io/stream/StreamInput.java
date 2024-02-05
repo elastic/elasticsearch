@@ -364,7 +364,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     public Text readText() throws IOException {
-        // use StringAndBytes so we can cache the string if its ever converted to it
+        // use StringAndBytes so we can cache the string if it's ever converted to it
         int length = readInt();
         return new Text(readBytesReference(length));
     }
@@ -1274,8 +1274,8 @@ public abstract class StreamInput extends InputStream {
         if (arraySize < 0) {
             throwNegative(arraySize);
         }
-        // lets do a sanity check that if we are reading an array size that is bigger that the remaining bytes we can safely
-        // throw an exception instead of allocating the array based on the size. A simple corrutpted byte can make a node go OOM
+        // let's do a sanity check that if we are reading an array size that is bigger that the remaining bytes we can safely
+        // throw an exception instead of allocating the array based on the size. A simple corrupted byte can make a node go OOM
         // if the size is large and for perf reasons we allocate arrays ahead of time
         ensureCanReadBytes(arraySize);
         return arraySize;
@@ -1290,7 +1290,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * This method throws an {@link EOFException} if the given number of bytes can not be read from the this stream. This method might
+     * This method throws an {@link EOFException} if the given number of bytes can not be read from the stream. This method might
      * be a no-op depending on the underlying implementation if the information of the remaining bytes is not present.
      */
     protected abstract void ensureCanReadBytes(int length) throws EOFException;

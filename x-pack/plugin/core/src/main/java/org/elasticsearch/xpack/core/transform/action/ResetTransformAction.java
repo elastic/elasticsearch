@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -26,7 +25,7 @@ public class ResetTransformAction extends ActionType<AcknowledgedResponse> {
     public static final ResetTransformAction INSTANCE = new ResetTransformAction();
 
     private ResetTransformAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -59,11 +58,6 @@ public class ResetTransformAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(id);
             out.writeBoolean(force);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

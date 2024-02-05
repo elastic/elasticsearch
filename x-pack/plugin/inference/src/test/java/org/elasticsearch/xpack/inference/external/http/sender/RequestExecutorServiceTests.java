@@ -277,6 +277,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         verify(queue, times(1)).take();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105155")
     public void testChangingCapacity_SetsCapacityToTwo() throws ExecutionException, InterruptedException, TimeoutException, IOException {
         var waitToShutdown = new CountDownLatch(1);
         var httpClient = mock(HttpClient.class);
@@ -313,6 +314,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertThat(service.remainingQueueCapacity(), is(2));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105155")
     public void testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull() throws IOException, ExecutionException,
         InterruptedException, TimeoutException {
         var waitToShutdown = new CountDownLatch(1);
@@ -356,6 +358,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertTrue(thrownException.isExecutorShutdown());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105155")
     public void testChangingCapacity_ToZero_SetsQueueCapacityToUnbounded() throws IOException, ExecutionException, InterruptedException,
         TimeoutException {
         var waitToShutdown = new CountDownLatch(1);

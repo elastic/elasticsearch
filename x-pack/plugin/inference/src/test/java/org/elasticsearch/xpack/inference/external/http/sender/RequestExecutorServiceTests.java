@@ -31,10 +31,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueueTests.mockQueueCreator;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createHttpPost;
 import static org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettingsTests.createRequestExecutorServiceSettings;
 import static org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettingsTests.createRequestExecutorServiceSettingsEmpty;
@@ -230,13 +230,11 @@ public class RequestExecutorServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         BlockingQueue<AbstractRunnable> queue = mock(LinkedBlockingQueue.class);
 
-        Function<Integer, BlockingQueue<AbstractRunnable>> createQueue = (Integer capacity) -> queue;
-
         var service = new RequestExecutorService(
             getTestName(),
             mock(HttpClient.class),
             threadPool,
-            createQueue,
+            mockQueueCreator(queue),
             null,
             createRequestExecutorServiceSettingsEmpty()
         );
@@ -260,7 +258,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             getTestName(),
             mock(HttpClient.class),
             threadPool,
-            getCreateQueueFunctionWithMock(queue),
+            mockQueueCreator(queue),
             null,
             createRequestExecutorServiceSettingsEmpty()
         );
@@ -315,7 +313,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertThat(service.remainingQueueCapacity(), is(2));
     }
 
-    public void testChangingCapacity_RejectsOverflowTasks() throws IOException, ExecutionException, InterruptedException, TimeoutException {
+    public void testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull() throws IOException, ExecutionException,
+        InterruptedException, TimeoutException {
         var waitToShutdown = new CountDownLatch(1);
         var httpClient = mock(HttpClient.class);
 
@@ -350,8 +349,11 @@ public class RequestExecutorServiceTests extends ESTestCase {
             EsRejectedExecutionException.class,
             () -> listener.actionGet(TIMEOUT.getSeconds(), TimeUnit.SECONDS)
         );
-        assertThat(thrownException.getMessage(), is("Failed to send request, http executor service [test_service] queue is full"));
-        assertFalse(thrownException.isExecutorShutdown());
+        assertThat(
+            thrownException.getMessage(),
+            is("Failed to send request, queue service [test_service] has shutdown prior to executing request")
+        );
+        assertTrue(thrownException.isExecutorShutdown());
     }
 
     public void testChangingCapacity_ToZero_SetsQueueCapacityToUnbounded() throws IOException, ExecutionException, InterruptedException,
@@ -417,15 +419,5 @@ public class RequestExecutorServiceTests extends ESTestCase {
             startupLatch,
             createRequestExecutorServiceSettingsEmpty()
         );
-    }
-
-    private static LinkedBlockingQueue<AbstractRunnable> createQueue(int capacity) {
-        return new LinkedBlockingQueue<>(capacity);
-    }
-
-    private static Function<Integer, BlockingQueue<AbstractRunnable>> getCreateQueueFunctionWithMock(
-        BlockingQueue<AbstractRunnable> mockQueue
-    ) {
-        return (Integer capacity) -> mockQueue;
     }
 }

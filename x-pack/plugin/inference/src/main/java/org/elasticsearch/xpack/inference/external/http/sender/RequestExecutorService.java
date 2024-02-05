@@ -32,7 +32,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -49,6 +48,26 @@ import static org.elasticsearch.core.Strings.format;
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
  */
 class RequestExecutorService implements RequestExecutor {
+
+    private static final AdjustableCapacityBlockingQueue.QueueCreator<AbstractRunnable> QUEUE_CREATOR =
+        new AdjustableCapacityBlockingQueue.QueueCreator<>() {
+            @Override
+            public BlockingQueue<AbstractRunnable> create(int capacity) {
+                BlockingQueue<AbstractRunnable> queue;
+                if (capacity <= 0) {
+                    queue = create();
+                } else {
+                    queue = new LinkedBlockingQueue<>(capacity);
+                }
+
+                return queue;
+            }
+
+            @Override
+            public BlockingQueue<AbstractRunnable> create() {
+                return new LinkedBlockingQueue<>();
+            }
+        };
 
     private static final Logger logger = LogManager.getLogger(RequestExecutorService.class);
     private final String serviceName;
@@ -68,7 +87,7 @@ class RequestExecutorService implements RequestExecutor {
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings
     ) {
-        this(serviceName, httpClient, threadPool, RequestExecutorService::buildQueue, startupLatch, settings);
+        this(serviceName, httpClient, threadPool, QUEUE_CREATOR, startupLatch, settings);
     }
 
     private static BlockingQueue<AbstractRunnable> buildQueue(int capacity) {
@@ -89,7 +108,7 @@ class RequestExecutorService implements RequestExecutor {
         String serviceName,
         HttpClient httpClient,
         ThreadPool threadPool,
-        Function<Integer, BlockingQueue<AbstractRunnable>> createQueue,
+        AdjustableCapacityBlockingQueue.QueueCreator<AbstractRunnable> createQueue,
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings
     ) {
@@ -97,7 +116,7 @@ class RequestExecutorService implements RequestExecutor {
         this.httpClient = Objects.requireNonNull(httpClient);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.httpContext = HttpClientContext.create();
-        this.queue = new AdjustableCapacityBlockingQueue<>(settings.getQueueCapacity(), createQueue);
+        this.queue = new AdjustableCapacityBlockingQueue<>(createQueue, settings.getQueueCapacity());
         this.startupLatch = startupLatch;
 
         Objects.requireNonNull(settings);
@@ -118,33 +137,11 @@ class RequestExecutorService implements RequestExecutor {
 
     private void updateCapacity(int newCapacity) {
         try {
-            var remainingTasks = queue.setCapacity(newCapacity);
-            if (remainingTasks.isEmpty() == false) {
-                rejectTasks(remainingTasks, this::rejectTaskBecauseOfQueueCapacity);
-            }
+            queue.setCapacity(newCapacity);
         } catch (Exception e) {
             logger.warn(
                 format("Failed to set the capacity of the task queue to [%s] for request batching service [%s]", newCapacity, serviceName),
                 e
-            );
-        }
-    }
-
-    private void rejectTaskBecauseOfQueueCapacity(AbstractRunnable task) {
-        try {
-            task.onRejection(
-                new EsRejectedExecutionException(
-                    format("Failed to send request, http executor service [%s] queue is full", serviceName),
-                    false
-                )
-            );
-        } catch (Exception e) {
-            logger.warn(
-                format(
-                    "Failed to notify request [%s] for service [%s] of rejection after queue capacity change when queue is now full",
-                    task,
-                    serviceName
-                )
             );
         }
     }

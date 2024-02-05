@@ -635,12 +635,11 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * This method is used to support _field_caps when include_fields_with_no_value is set to
+     * This method is used to support _field_caps when include_empty_fields is set to
      * {@code false}. In that case we return only fields with value in an index. This method
-     * gets as input FieldInfos and returns if the MappedFieldType#name is present. This method
-     * needs to be overwritten for special cases where Lucene field name do not match user
-     * defined field name two example are rank_feature that indexes into the _feature Lucene
-     * field regardless of the field name and constant_keyword that are not indexed.
+     * gets as input FieldInfos and returns if the field is non-empty. This method needs to
+     * be overwritten where fields don't have footprint in Lucene or their name differs from
+     * {@link MappedFieldType#name()}
      * @param fieldInfos field information
      * @return {@code true} if field is present in fieldInfos {@code false} otherwise
      */

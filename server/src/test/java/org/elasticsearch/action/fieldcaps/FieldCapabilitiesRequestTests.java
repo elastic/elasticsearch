@@ -171,23 +171,23 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
 
     public void testGetDescription() {
         final FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
-        assertThat(request.getDescription(), equalTo("indices[], fields[], filters[], types[], includeFieldsWithNoValue[true]"));
+        assertThat(request.getDescription(), equalTo("indices[], fields[], filters[], types[], includeEmptyFields[true]"));
 
         request.fields("a", "b");
         assertThat(
             request.getDescription(),
             anyOf(
-                equalTo("indices[], fields[a,b], filters[], types[], includeFieldsWithNoValue[true]"),
-                equalTo("indices[], fields[b,a], filters[], types[], includeFieldsWithNoValue[true]")
+                equalTo("indices[], fields[a,b], filters[], types[], includeEmptyFields[true]"),
+                equalTo("indices[], fields[b,a], filters[], types[], includeEmptyFields[true]")
             )
         );
 
         request.indices("x", "y", "z");
         request.fields("a");
-        assertThat(request.getDescription(), equalTo("indices[x,y,z], fields[a], filters[], types[], includeFieldsWithNoValue[true]"));
+        assertThat(request.getDescription(), equalTo("indices[x,y,z], fields[a], filters[], types[], includeEmptyFields[true]"));
 
         request.filters("-metadata", "-multifields");
-        assertThat(request.getDescription(), endsWith("filters[-metadata,-multifields], types[], includeFieldsWithNoValue[true]"));
+        assertThat(request.getDescription(), endsWith("filters[-metadata,-multifields], types[], includeEmptyFields[true]"));
 
         final String[] lots = new String[between(1024, 2048)];
         for (int i = 0; i < lots.length; i++) {
@@ -210,7 +210,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             request.getDescription().length(),
             lessThanOrEqualTo(
                 1024 + ("indices[x,y,z], fields["
-                    + "s9999,... (9999 in total, 9999 omitted)], filters[], types[], includeFieldsWithNoValue[true]").length()
+                    + "s9999,... (9999 in total, 9999 omitted)], filters[], types[], includeEmptyFields[true]").length()
             )
         );
 
@@ -223,14 +223,14 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
                 containsString("..."),
                 containsString(lots.length + " in total"),
                 containsString("omitted"),
-                endsWith("], fields[a], filters[], types[], includeFieldsWithNoValue[true]")
+                endsWith("], fields[a], filters[], types[], includeEmptyFields[true]")
             )
         );
         assertThat(
             request.getDescription().length(),
             lessThanOrEqualTo(
-                1024 + ("indices["
-                    + "s9999,... (9999 in total, 9999 omitted)], fields[a], filters[], types[], includeFieldsWithNoValue[true]").length()
+                1024 + ("indices[" + "s9999,... (9999 in total, 9999 omitted)], fields[a], filters[], types[], includeEmptyFields[true]")
+                    .length()
             )
         );
 

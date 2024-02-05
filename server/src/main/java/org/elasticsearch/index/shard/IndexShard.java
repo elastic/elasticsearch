@@ -226,7 +226,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Engine.IndexCommitListener indexCommitListener;
     private FieldInfos fieldInfos;
     // sys prop to disable the field has value feature, defaults to true (enabled) if set to false (disabled) the
-    // field caps always returns empty fields ignoring the value of the query param `include_fields_with_no_value`.
+    // field caps always returns empty fields ignoring the value of the query param `include_empty_fields`.
     private final boolean enableFieldHasValue = Booleans.parseBoolean(System.getProperty("es.field_has_value", Boolean.TRUE.toString()));
 
     protected volatile ShardRouting shardRouting;
@@ -995,11 +995,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return index(engine, operation);
     }
 
-    public void fieldInfos(FieldInfos fieldInfos) {
+    public void setFieldInfos(FieldInfos fieldInfos) {
         this.fieldInfos = fieldInfos;
     }
 
-    public FieldInfos fieldInfos() {
+    public FieldInfos getFieldInfos() {
         return fieldInfos;
     }
 
@@ -3993,7 +3993,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         public void afterRefresh(boolean didRefresh) {
             if (enableFieldHasValue) {
                 try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
-                    fieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
+                    setFieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
                 }
             }
         }

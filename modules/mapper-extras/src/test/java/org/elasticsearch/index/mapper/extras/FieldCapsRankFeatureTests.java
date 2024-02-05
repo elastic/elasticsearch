@@ -47,7 +47,7 @@ public class FieldCapsRankFeatureTests extends ESIntegTestCase {
         prepareIndex(INDEX).setSource("fooRank", 8).setSource("barRank", 8).get();
         refresh(INDEX);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX).setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX).setFields("*").setincludeEmptyFields(false).get();
         assertEquals(1, response.getIndices().length);
         assertEquals(response.getIndices()[0], INDEX);
         assertThat(response.get(), Matchers.hasKey("fooRank"));
@@ -66,7 +66,7 @@ public class FieldCapsRankFeatureTests extends ESIntegTestCase {
         internalCluster().fullRestart();
         ensureGreen(INDEX);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX).setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX).setFields("*").setincludeEmptyFields(false).get();
 
         assertEquals(1, response.getIndices().length);
         assertEquals(response.getIndices()[0], INDEX);
@@ -85,7 +85,7 @@ public class FieldCapsRankFeatureTests extends ESIntegTestCase {
         prepareIndex(INDEX).setSource("fooRank", 8).get();
         refresh(INDEX);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX).setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX).setFields("*").setincludeEmptyFields(false).get();
 
         assertEquals(1, response.getIndices().length);
         assertEquals(response.getIndices()[0], INDEX);

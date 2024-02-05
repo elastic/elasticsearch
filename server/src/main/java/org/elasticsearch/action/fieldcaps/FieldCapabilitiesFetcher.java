@@ -40,15 +40,15 @@ import java.util.function.Predicate;
  */
 class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
-    private final boolean includeFieldsWithNoValue;
+    private final boolean includeEmptyFields;
     private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
     private static final boolean enableFieldHasValue = Booleans.parseBoolean(
         System.getProperty("es.field_has_value", Boolean.TRUE.toString())
     );
 
-    FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeFieldsWithNoValue) {
+    FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeEmptyFields) {
         this.indicesService = indicesService;
-        this.includeFieldsWithNoValue = includeFieldsWithNoValue;
+        this.includeEmptyFields = includeEmptyFields;
     }
 
     FieldCapabilitiesIndexResponse fetch(
@@ -107,7 +107,7 @@ class FieldCapabilitiesFetcher {
 
         final MappingMetadata mapping = indexService.getMetadata().mapping();
         String indexMappingHash;
-        if (includeFieldsWithNoValue || enableFieldHasValue == false) {
+        if (includeEmptyFields || enableFieldHasValue == false) {
             indexMappingHash = mapping != null ? mapping.getSha256() : null;
         } else {
             // even if the mapping is the same if we return only fields with values we need
@@ -134,7 +134,7 @@ class FieldCapabilitiesFetcher {
             fieldTypes,
             fieldPredicate,
             indicesService.getShardOrNull(shardId),
-            includeFieldsWithNoValue
+            includeEmptyFields
         );
         if (indexMappingHash != null) {
             indexMappingHashToResponses.put(indexMappingHash, responseMap);
@@ -149,7 +149,7 @@ class FieldCapabilitiesFetcher {
         String[] types,
         Predicate<String> indexFieldfilter,
         IndexShard indexShard,
-        boolean includeFieldsWithNoValue
+        boolean includeEmptyFields
     ) {
         boolean includeParentObjects = checkIncludeParents(filters);
 
@@ -161,7 +161,7 @@ class FieldCapabilitiesFetcher {
                 continue;
             }
             MappedFieldType ft = context.getFieldType(field);
-            boolean includeField = includeFieldsWithNoValue || enableFieldHasValue == false || ft.fieldHasValue(indexShard.fieldInfos());
+            boolean includeField = includeEmptyFields || enableFieldHasValue == false || ft.fieldHasValue(indexShard.getFieldInfos());
             if (includeField && filter.test(ft)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,

@@ -219,8 +219,10 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
     }
 
     @Override
-    public boolean fieldHasValue(FieldInfos fieldInfos) {
-        // We consider script filed types to always have value.
+    public final boolean fieldHasValue(FieldInfos fieldInfos) {
+        // To know whether script field types have value we would need to run the script,
+        // this because script fields do not have footprint in Lucene. Since running the
+        // script would be too expensive for _field_caps we consider them as always non-empty.
         return true;
     }
 

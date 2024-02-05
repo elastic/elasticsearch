@@ -42,7 +42,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private String[] filters = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
-    private boolean includeFieldsWithNoValue = true;
+    private boolean includeEmptyFields = true;
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
     private QueryBuilder indexFilter;
@@ -64,7 +64,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             types = in.readStringArray();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
-            includeFieldsWithNoValue = in.readBoolean();
+            includeEmptyFields = in.readBoolean();
         }
     }
 
@@ -105,7 +105,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             out.writeStringArray(types);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
-            out.writeBoolean(includeFieldsWithNoValue);
+            out.writeBoolean(includeEmptyFields);
         }
     }
 
@@ -175,8 +175,8 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         return this;
     }
 
-    public FieldCapabilitiesRequest includeFieldsWithNoValue(boolean includeFieldsWithNoValue) {
-        this.includeFieldsWithNoValue = includeFieldsWithNoValue;
+    public FieldCapabilitiesRequest includeEmptyFields(boolean includeEmptyFields) {
+        this.includeEmptyFields = includeEmptyFields;
         return this;
     }
 
@@ -204,8 +204,8 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         return includeUnmapped;
     }
 
-    public boolean includeFieldsWithNoValue() {
-        return includeFieldsWithNoValue;
+    public boolean includeEmptyFields() {
+        return includeEmptyFields;
     }
 
     /**
@@ -264,7 +264,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             && Arrays.equals(filters, that.filters)
             && Arrays.equals(types, that.types)
             && Objects.equals(runtimeFields, that.runtimeFields)
-            && includeFieldsWithNoValue == that.includeFieldsWithNoValue;
+            && includeEmptyFields == that.includeEmptyFields;
     }
 
     @Override
@@ -276,7 +276,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             indexFilter,
             nowInMillis,
             runtimeFields,
-            includeFieldsWithNoValue
+            includeEmptyFields
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(fields);
@@ -289,7 +289,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     public String getDescription() {
         final StringBuilder stringBuilder = new StringBuilder("indices[");
         Strings.collectionToDelimitedStringWithLimit(Arrays.asList(indices), ",", "", "", 1024, stringBuilder);
-        return FieldCapabilitiesNodeRequest.completeDescription(stringBuilder, fields, filters, types, includeFieldsWithNoValue);
+        return FieldCapabilitiesNodeRequest.completeDescription(stringBuilder, fields, filters, types, includeEmptyFields);
     }
 
     @Override

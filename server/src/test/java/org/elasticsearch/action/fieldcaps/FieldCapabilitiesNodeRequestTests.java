@@ -241,7 +241,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
         );
         assertThat(
             r1.getDescription(),
-            equalTo("shards[[index-1][0],[index-2][3]], fields[field-1,field-2], filters[], types[], includeFieldsWithNoValue[true]")
+            equalTo("shards[[index-1][0],[index-2][3]], fields[field-1,field-2], filters[], types[], includeEmptyFields[true]")
         );
 
         FieldCapabilitiesNodeRequest r2 = new FieldCapabilitiesNodeRequest(
@@ -257,7 +257,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
         );
         assertThat(
             r2.getDescription(),
-            equalTo("shards[[index-1][0]], fields[*], filters[-nested,-metadata], types[], includeFieldsWithNoValue[false]")
+            equalTo("shards[[index-1][0]], fields[*], filters[-nested,-metadata], types[], includeEmptyFields[false]")
         );
     }
 }

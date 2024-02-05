@@ -167,7 +167,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     resp = new FieldCapabilitiesIndexResponse(resp.getIndexName(), curr.getIndexMappingHash(), curr.get(), true);
                 }
             }
-            if (request.includeFieldsWithNoValue()) {
+            if (request.includeEmptyFields()) {
                 indexResponses.putIfAbsent(resp.getIndexName(), resp);
             } else {
                 indexResponses.merge(resp.getIndexName(), resp, (a, b) -> {
@@ -305,7 +305,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.runtimeFields(request.runtimeFields());
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
-        remoteRequest.includeFieldsWithNoValue(request.includeFieldsWithNoValue());
+        remoteRequest.includeEmptyFields(request.includeEmptyFields());
         return remoteRequest;
     }
 
@@ -531,7 +531,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
-                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.includeFieldsWithNoValue());
+                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.includeEmptyFields());
                 final Predicate<String> fieldNameFilter = Regex.simpleMatcher(request.fields());
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
@@ -550,7 +550,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                             );
                             if (response.canMatch()) {
                                 allResponses.add(response);
-                                if (request.includeFieldsWithNoValue()) {
+                                if (request.includeEmptyFields()) {
                                     unmatched.clear();
                                     failures.clear();
                                     break;

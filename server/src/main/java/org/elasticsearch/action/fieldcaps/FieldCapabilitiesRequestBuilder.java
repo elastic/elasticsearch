@@ -32,8 +32,8 @@ public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldC
         return this;
     }
 
-    public FieldCapabilitiesRequestBuilder setIncludeFieldsWithNoValue(boolean includeFieldsWithNoValue) {
-        request().includeFieldsWithNoValue(includeFieldsWithNoValue);
+    public FieldCapabilitiesRequestBuilder setincludeEmptyFields(boolean includeEmptyFields) {
+        request().includeEmptyFields(includeEmptyFields);
         return this;
     }
 

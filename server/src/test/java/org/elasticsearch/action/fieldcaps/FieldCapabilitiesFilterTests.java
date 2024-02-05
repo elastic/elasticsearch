@@ -235,7 +235,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
 
     private IndexShard getMockIndexShard() {
         IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.fieldInfos()).thenReturn(FieldInfos.EMPTY);
+        when(indexShard.getFieldInfos()).thenReturn(FieldInfos.EMPTY);
         return indexShard;
     }
 

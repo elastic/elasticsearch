@@ -55,7 +55,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
     }
 
     public void testNoFieldsInEmptyIndex() {
-        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX1, INDEX2, INDEX3);
         // Ensure the response has no mapped fields.
@@ -68,7 +68,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         prepareIndex(INDEX1).setSource("foo", "foo-text").get();
         refresh(INDEX1);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX1, INDEX2, INDEX3);
         assertThat(response.get(), Matchers.hasKey("foo"));
@@ -86,7 +86,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         prepareIndex(ALIAS1).setSource("foo", "foo-text").get();
         refresh(ALIAS1);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX1, INDEX2, INDEX3);
         assertThat(response.get(), Matchers.hasKey("foo"));
@@ -104,7 +104,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         prepareIndex(INDEX1).setSource("foo", "foo-text").get();
         refresh(INDEX1);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1).setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1).setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX1);
         assertThat(response.get(), Matchers.hasKey("foo"));
@@ -122,7 +122,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         prepareIndex(ALIAS1).setSource("foo", "foo-text").get();
         refresh(ALIAS1);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(ALIAS1).setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(ALIAS1).setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX1);
         assertThat(response.get(), Matchers.hasKey("foo"));
@@ -141,7 +141,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         prepareIndex(INDEX1).setId(doc.getId()).setSource("bar", "bar-keyword").get();
         refresh(INDEX1);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1).setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1).setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX1);
         assertThat(response.get(), Matchers.hasKey("foo"));
@@ -169,7 +169,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         internalCluster().fullRestart();
         ensureGreen(INDEX1);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1).setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1).setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX1);
         assertThat(response.get(), Matchers.hasKey("foo"));
@@ -188,7 +188,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         prepareIndex(INDEX1).setSource("bar", "bar-keyword").get();
         refresh(INDEX1);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX1, INDEX2, INDEX3);
         assertThat(response.get(), Matchers.hasKey("foo"));
@@ -227,7 +227,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1)
             .setFields("*")
             .setIncludeUnmapped(true)
-            .setIncludeFieldsWithNoValue(false)
+            .setincludeEmptyFields(false)
             .get();
 
         assertIndices(response, INDEX1);
@@ -250,7 +250,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         FieldCapabilitiesResponse response = client().prepareFieldCaps()
             .setFields("*")
             .setIncludeUnmapped(true)
-            .setIncludeFieldsWithNoValue(false)
+            .setincludeEmptyFields(false)
             .get();
 
         assertIndices(response, INDEX1, INDEX2, INDEX3);
@@ -269,7 +269,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         FieldCapabilitiesResponse response = client().prepareFieldCaps()
             .setFields("*")
             .setIncludeUnmapped(true)
-            .setIncludeFieldsWithNoValue(false)
+            .setincludeEmptyFields(false)
             .get();
 
         assertIndices(response, INDEX1, INDEX2, INDEX3);
@@ -289,7 +289,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         prepareIndex(INDEX2).setSource("bar", 1704293160000L).get();
         refresh(INDEX1, INDEX2);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX1, INDEX2, INDEX3);
         assertThat(response.get(), Matchers.hasKey("foo"));
@@ -317,7 +317,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         prepareIndex(INDEX2).setSource("bar", 1704293160000L).get();
         refresh(INDEX1, INDEX2);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX1, INDEX2, INDEX3);
         assertThat(response.get(), Matchers.hasKey("bar"));
@@ -344,7 +344,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         client().admin().indices().prepareForceMerge(INDEX1).setFlush(true).setMaxNumSegments(1).get();
         refresh(INDEX1);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX1, INDEX2, INDEX3);
         assertThat(response.get(), Matchers.hasKey("foo"));
@@ -359,7 +359,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
     }
 
     public void testNoNestedFieldsInEmptyIndex() {
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX3);
         assertFalse(response.get().containsKey("nested_type"));
@@ -370,7 +370,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         prepareIndex(INDEX3).setSource("nested_type", Collections.singletonMap("nested_field", "value")).get();
         refresh(INDEX3);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX3);
         assertThat(response.get(), Matchers.hasKey("nested_type"));
@@ -394,7 +394,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
     }
 
     public void testNoObjectFieldsInEmptyIndex() {
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX3);
         assertFalse(response.get().containsKey("object"));
@@ -405,7 +405,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         prepareIndex(INDEX3).setSource("object.sub_field", "value").get();
         refresh(INDEX3);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setincludeEmptyFields(false).get();
 
         assertIndices(response, INDEX3);
         assertThat(response.get(), Matchers.hasKey("object"));
@@ -440,7 +440,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         FieldCapabilitiesResponse response = client().prepareFieldCaps("index-*")
             .setFields("*")
             .setIndexFilter(QueryBuilders.rangeQuery("timestamp").gte("2019-11-01"))
-            .setIncludeFieldsWithNoValue(false)
+            .setincludeEmptyFields(false)
             .get();
         assertIndices(response, INDEX2);
         // Check the capabilities for the 'timestamp' field.
@@ -454,7 +454,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         response = client().prepareFieldCaps("index-*")
             .setFields("*")
             .setIndexFilter(QueryBuilders.rangeQuery("timestamp").lte("2017-01-01"))
-            .setIncludeFieldsWithNoValue(false)
+            .setincludeEmptyFields(false)
             .get();
         assertIndices(response, INDEX1);
         // Check the capabilities for the 'timestamp' field.
@@ -471,7 +471,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         FieldCapabilitiesResponse response = client().prepareFieldCaps()
             .setFields("*")
             .setRuntimeFields(runtimeFields)
-            .setIncludeFieldsWithNoValue(false)
+            .setincludeEmptyFields(false)
             .get();
         assertIndices(response, INDEX1, INDEX2, INDEX3);
         assertThat(response.get(), Matchers.hasKey("day_of_week"));

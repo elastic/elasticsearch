@@ -21,7 +21,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ResolveClusterRequestTests extends AbstractWireSerializingTestCase<ResolveClusterActionRequest> {
+public class ResolveClusterActionRequestTests extends AbstractWireSerializingTestCase<ResolveClusterActionRequest> {
 
     @Override
     protected Writeable.Reader<ResolveClusterActionRequest> instanceReader() {

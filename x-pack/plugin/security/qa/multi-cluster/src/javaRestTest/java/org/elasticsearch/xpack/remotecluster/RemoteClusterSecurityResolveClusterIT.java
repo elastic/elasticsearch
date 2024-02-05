@@ -308,7 +308,6 @@ public class RemoteClusterSecurityResolveClusterIT extends AbstractRemoteCluster
             Response response = performRequestWithRemoteSearchUser(remoteOnly5);
             assertOK(response);
             Map<String, Object> responseMap = responseAsMap(response);
-            System.err.println("DDD2: " + responseMap);
             assertThat(responseMap.get(LOCAL_CLUSTER_NAME_REPRESENTATION), nullValue());
             Map<String, ?> remoteClusterResponse = (Map<String, ?>) responseMap.get("my_remote_cluster");
             assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(true));

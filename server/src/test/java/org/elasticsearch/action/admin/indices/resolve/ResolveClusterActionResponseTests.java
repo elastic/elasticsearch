@@ -16,7 +16,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ResolveClusterResponseTests extends AbstractWireSerializingTestCase<ResolveClusterActionResponse> {
+public class ResolveClusterActionResponseTests extends AbstractWireSerializingTestCase<ResolveClusterActionResponse> {
 
     @Override
     protected ResolveClusterActionResponse createTestInstance() {
@@ -52,6 +52,6 @@ public class ResolveClusterResponseTests extends AbstractWireSerializingTestCase
 
     @Override
     protected ResolveClusterActionResponse mutateInstance(ResolveClusterActionResponse response) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        return new ResolveClusterActionResponse(randomResolveClusterInfoMap());
     }
 }

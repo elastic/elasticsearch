@@ -187,12 +187,12 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                             clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable, infe.getMessage()));
                         } else {
                             Throwable cause = ExceptionsHelper.unwrapCause(failure);
-                            // when querying an older cluster that does not have the _resolve/cluster endpoint,
-                            // we will get this error at the Transport layer, since there are version guards
-                            // on the Writeables for this Action.
+                            // when querying an older cluster that does not have the _resolve/cluster endpoint, we will get
+                            // this error at the Transport layer BEFORE it sends the request to the remote cluster, since there
+                            // are version guards on the Writeables for this Action, namely ResolveClusterActionRequest.writeTo
                             if (cause instanceof UnsupportedOperationException
                                 && cause.getMessage().contains(TRANSPORT_VERSION_ERROR_MESSAGE)) {
-                                // Since this cluster does not have _resolve/cluster, we will call the _resolve/index
+                                // Since this cluster does not have _resolve/cluster, we call the _resolve/index
                                 // endpoint to fill in the matching_indices field of the response for that cluster
                                 ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(
                                     originalIndices.indices(),

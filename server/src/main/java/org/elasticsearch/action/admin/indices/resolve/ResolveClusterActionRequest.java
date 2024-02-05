@@ -33,10 +33,19 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
 
     private String[] names;
     /*
-     * tracks whether the user originally requested any local indices
-     * this info can be lost when the indices(String... indices) method is called to overwrite the
-     * indices array - it can remove local indices when user lacks permission to see them, but we
-     * need to know whether the original request included a request for info about the local cluster
+     * Tracks whether the user originally requested any local indices
+     * Due to how the IndicesAndAliasResolver.resolveIndicesAndAliases method works, when a user
+     * requests both a local index with a wildcard and remote index and the local index wildcard
+     * matches an index for which the user lacks permission, when the local index info is lost
+     * when the indices(String... indices) method is called to overwrite the
+     * indices array.
+     *
+     * Example: request is _resolve/cluster/index1*,my_remote_cluster:index1
+     * The indices array in the Request is originally set as [index1*, my_remote_cluster:index1]
+     * but gets overridden to [my_remote_cluster:index1]
+     * Since the user requested information about whether there are any matching indices on the local
+     * cluster, we need to parse the original indices request to track whether to include the local
+     * cluster in the response.
      */
     private boolean localIndicesRequested = false;
     private IndicesOptions indicesOptions;
@@ -152,7 +161,6 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         };
     }
 
-    // MP TODO: add test for this
     boolean localIndicesPresent(String[] indices) {
         for (String index : indices) {
             // ensure that `index` is a remote name and not a date math expression which includes ':' symbol

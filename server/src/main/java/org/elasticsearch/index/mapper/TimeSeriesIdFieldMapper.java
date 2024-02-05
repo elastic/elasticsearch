@@ -305,6 +305,9 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 out.write((byte) 'l');
                 out.writeLong(value);
                 add(fieldName, out.bytes());
+                if (routingBuilder != null) {
+                    routingBuilder.addMatching(fieldName, new BytesRef(Long.toString(value).getBytes()));
+                }
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
             }
@@ -323,6 +326,9 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                     out.writeLong(value);
                 }
                 add(fieldName, out.bytes());
+                if (routingBuilder != null) {
+                    routingBuilder.addMatching(fieldName, new BytesRef(Long.toString(value).getBytes()));
+                }
                 return this;
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);

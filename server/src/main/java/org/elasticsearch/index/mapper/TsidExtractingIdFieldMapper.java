@@ -116,6 +116,20 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         long timestamp = timestampFields.get(0).numericValue().longValue();
         byte[] suffix = new byte[16];
         String id = createId(context.hasDynamicMappers() == false, routingBuilder, tsid, timestamp, suffix);
+        /*
+         * Make sure that _id from extracting the tsid matches that _id
+         * from extracting the _source. This should be true for all valid
+         * documents with valid mappings. *But* some invalid mappings
+         * will not parse the field but be rejected later by the dynamic
+         * mappings machinery. So if there are any dynamic mappings
+         * at all we just skip the assertion because we can't be sure
+         * it always must pass.
+         */
+        IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
+        assert context.getDynamicMappers().isEmpty() == false
+            || context.getDynamicRuntimeFields().isEmpty() == false
+            || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
+
         if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
             throw new IllegalArgumentException(
                 String.format(

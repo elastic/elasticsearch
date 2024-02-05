@@ -334,14 +334,11 @@ public abstract class IndexRouting {
                         source.nextToken();
                         break;
                     case VALUE_STRING:
+                    case VALUE_NUMBER:
                         hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
                         source.nextToken();
                         break;
                     case VALUE_NULL:
-                        source.nextToken();
-                        break;
-                    case VALUE_NUMBER: // allow parsing numbers assuming routing fields are always keyword fields
-                        hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
                         source.nextToken();
                         break;
                     default:

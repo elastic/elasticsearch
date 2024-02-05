@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -36,8 +37,6 @@ public class SerializableTokenListCategory implements Writeable {
      * <code>CTokenListReverseSearchCreator</code></a> in the C++ code.
      */
     public static final int KEY_BUDGET = 10000;
-
-    private static final String REGEX_NEEDS_ESCAPE_PATTERN = "([\\\\|()\\[\\]{}^$.+*?])";
 
     final BytesRef[] baseTokens;
     final int[] baseTokenWeights;
@@ -168,7 +167,7 @@ public class SerializableTokenListCategory implements Writeable {
         }
         return Arrays.stream(keyTokenIndexes)
             .filter(index -> index >= orderedCommonTokenBeginIndex && index < orderedCommonTokenEndIndex)
-            .mapToObj(index -> baseTokens[index].utf8ToString().replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1"))
+            .mapToObj(index -> Pattern.quote(baseTokens[index].utf8ToString()))
             .collect(Collectors.joining(".+?", ".*?", ".*?"));
     }
 

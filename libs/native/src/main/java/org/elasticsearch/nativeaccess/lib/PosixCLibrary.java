@@ -9,7 +9,7 @@
 package org.elasticsearch.nativeaccess.lib;
 
 /**
- * Provides access to native methods available on POSIX systems.
+ * Provides access to methods in libc.so available on POSIX systems.
  */
 public non-sealed interface PosixCLibrary extends NativeLibrary {
 

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionRes
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -153,7 +154,7 @@ public class ElserInternalService implements InferenceService {
         // Change from old model_version field name to new model_id field name as of
         // TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED
         if (serviceSettingsMap.containsKey(OLD_MODEL_ID_FIELD_NAME)) {
-            String modelId = (String) serviceSettingsMap.remove(OLD_MODEL_ID_FIELD_NAME);
+            String modelId = ServiceUtils.removeAsType(serviceSettingsMap, OLD_MODEL_ID_FIELD_NAME, String.class);
             serviceSettingsMap.put(ElserInternalServiceSettings.MODEL_ID, modelId);
         }
 

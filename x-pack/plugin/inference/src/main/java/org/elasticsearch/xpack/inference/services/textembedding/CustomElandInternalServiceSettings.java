@@ -48,7 +48,7 @@ public class CustomElandInternalServiceSettings extends TextEmbeddingInternalSer
 
         validateParameters(numAllocations, validationException, numThreads);
 
-        String modelId = ServiceUtils.removeAsType(map, MODEL_ID, String.class);
+        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, "ServiceSettings", validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

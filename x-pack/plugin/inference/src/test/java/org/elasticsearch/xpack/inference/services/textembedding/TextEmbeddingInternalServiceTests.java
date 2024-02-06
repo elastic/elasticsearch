@@ -9,6 +9,7 @@
 
 package org.elasticsearch.xpack.inference.services.textembedding;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -119,6 +120,9 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
                         1,
                         TextEmbeddingInternalServiceSettings.NUM_THREADS,
                         4,
+                        InternalServiceSettings.MODEL_ID,
+                        TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID, // we can't directly test the eland case until we mock
+                                                                                     // the threadpool within the client
                         "not_a_valid_service_setting",
                         randomAlphaOfLength(10)
                     )
@@ -127,7 +131,64 @@ public class TextEmbeddingInternalServiceTests extends ESTestCase {
 
             ActionListener<Model> modelListener = ActionListener.<Model>wrap(
                 model -> fail("Model parsing should have failed"),
-                e -> assertThat(e, instanceOf(IllegalArgumentException.class))
+                e -> assertThat(e, instanceOf(ElasticsearchStatusException.class))
+            );
+
+            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
+        }
+
+        // Extra service settings
+        {
+            var service = createService(mock(Client.class));
+            var settings = new HashMap<String, Object>();
+            settings.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
+                        4,
+                        InternalServiceSettings.MODEL_ID,
+                        TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID, // we can't directly test the eland case until we mock
+                                                                                     // the threadpool within the client
+                        "extra_setting_that_should_not_be_here",
+                        randomAlphaOfLength(10)
+                    )
+                )
+            );
+
+            ActionListener<Model> modelListener = ActionListener.<Model>wrap(
+                model -> fail("Model parsing should have failed"),
+                e -> assertThat(e, instanceOf(ElasticsearchStatusException.class))
+            );
+
+            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
+        }
+
+        // Extra settings
+        {
+            var service = createService(mock(Client.class));
+            var settings = new HashMap<String, Object>();
+            settings.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
+                        4,
+                        InternalServiceSettings.MODEL_ID,
+                        TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID // we can't directly test the eland case until we mock
+                        // the threadpool within the client
+                    )
+                )
+            );
+            settings.put("extra_setting_that_should_not_be_here", randomAlphaOfLength(10));
+
+            ActionListener<Model> modelListener = ActionListener.<Model>wrap(
+                model -> fail("Model parsing should have failed"),
+                e -> assertThat(e, instanceOf(ElasticsearchStatusException.class))
             );
 
             service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);

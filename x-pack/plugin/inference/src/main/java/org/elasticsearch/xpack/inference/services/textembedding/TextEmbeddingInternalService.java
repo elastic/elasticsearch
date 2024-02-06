@@ -89,6 +89,7 @@ public class TextEmbeddingInternalService implements InferenceService {
             if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
                 e5Case(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
             } else {
+                throwIfNotEmptyMap(config, name());
                 customElandCase(inferenceEntityId, taskType, serviceSettingsMap, modelListener);
             }
         } catch (Exception e) {
@@ -113,6 +114,7 @@ public class TextEmbeddingInternalService implements InferenceService {
                         + "]. You may need to load it into the cluster using eland."
                 );
             } else {
+                throwIfNotEmptyMap(serviceSettingsMap, name());
                 serviceSettingsMap.put(MODEL_ID, response.getResources().results().get(0).getModelId());
                 delegate.onResponse(
                     new CustomElandModel(

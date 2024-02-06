@@ -1212,6 +1212,16 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 7.17.17
+      - label: 7.17.18 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.18#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.18
   - label: encryption-at-rest
     command: .buildkite/scripts/encryption-at-rest.sh
     timeout_in_minutes: 420

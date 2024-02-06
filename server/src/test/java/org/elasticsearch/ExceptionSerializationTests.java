@@ -282,9 +282,16 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testSearchException() throws IOException {
         SearchShardTarget target = new SearchShardTarget("foo", new ShardId("bar", "_na_", 1), null);
-        SearchException ex = serialize(new SearchException(target, "hello world"));
+        SearchException ex = serialize(new SearchException(target, "hello world") {
+            @Override
+            public RestStatus status() {
+                return RestStatus.NOT_FOUND;
+            }
+        });
         assertEquals(target, ex.shard());
         assertEquals(ex.getMessage(), "hello world");
+        assertNull(ex.getCause());
+        assertEquals(RestStatus.NOT_FOUND, ex.status());
 
         ex = serialize(new SearchException(null, "hello world", new NullPointerException()));
         assertNull(ex.shard());

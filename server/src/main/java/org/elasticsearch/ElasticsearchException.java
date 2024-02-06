@@ -37,6 +37,7 @@ import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -1896,6 +1897,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             AutoscalingMissedIndicesUpdateException::new,
             175,
             TransportVersions.MISSED_INDICES_UPDATE_EXCEPTION_ADDED
+        ),
+        SEARCH_TIMEOUT_EXCEPTION(
+            SearchTimeoutException.class,
+            SearchTimeoutException::new,
+            176,
+            TransportVersions.SEARCH_TIMEOUT_EXCEPTION_ADDED
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

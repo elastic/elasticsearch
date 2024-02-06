@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -36,11 +35,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_query"),
-            // TODO: remove before release
-            Route.builder(POST, "/_esql").deprecated("_esql endpoint has been deprecated in favour of _query", RestApiVersion.V_8).build()
-        );
+        return List.of(new Route(POST, "/_query"));
     }
 
     @Override

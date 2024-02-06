@@ -196,6 +196,7 @@ index without timestamp with pipeline:
 dynamic templates:
   - skip:
       version: " - 8.12.99"
+      features: "default_shards"
       reason: "Support for dynamic fields was added in 8.13"
   - do:
       indices.put_index_template:
@@ -261,7 +262,7 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: { "attributes.another.dim": "C", "attributes.dim": "A" } }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "KPLatIF-tbSjI8l9LcbTur4gYpiKF9nXxRUMHnJBiqqP58deEIun8H8" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -280,13 +281,14 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: { "attributes.another.dim": "C", "attributes.dim": "A" } }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "KPLatIF-tbSjI8l9LcbTur4gYpiKF9nXxRUMHnJBiqqP58deEIun8H8" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
 dynamic templates - conflicting aliases:
   - skip:
       version: " - 8.12.99"
+      features: "default_shards"
       reason: "Support for dynamic fields was added in 8.13"
   - do:
       indices.put_index_template:
@@ -356,7 +358,7 @@ dynamic templates - conflicting aliases:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: { "resource_attributes.dim": "C", "attributes.dim": "A" } }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "KGejYryCnrIkXYZdIF_Q8F8X2dfFIGKYisFh7t1RGGWOWgWU7C0RiFE" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -375,7 +377,125 @@ dynamic templates - conflicting aliases:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: { "resource_attributes.dim": "C", "attributes.dim": "A" } }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "KGejYryCnrIkXYZdIF_Q8F8X2dfFIGKYisFh7t1RGGWOWgWU7C0RiFE" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+---
+dynamic templates with nesting:
+  - skip:
+      version: " - 8.12.99"
+      features: "default_shards"
+      reason: "Support for dynamic fields was added in 8.13"
+  - do:
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                resource:
+                  type: object
+                  properties:
+                    attributes:
+                      type: passthrough
+                      dynamic: true
+                      time_series_dimension: true
+              dynamic_templates:
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "resource.attributes.dim": "A", "resource.attributes.another.dim": "C", "attributes.more.dim": "E" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "resource.attributes.dim": "A", "resource.attributes.another.dim": "C", "attributes.more.dim": "E" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "resource.attributes.dim": "B", "resource.attributes.another.dim": "D", "attributes.more.dim": "F" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "resource.attributes.dim": "B", "resource.attributes.another.dim": "D", "attributes.more.dim": "F" }'
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+
+  - match: { hits.total.value: 4 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  dim: A
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "LEjiJ4ATCXWlzeFvhGQ9lYlnP-nRIGKYihfZ18WoJ94t9a8OpbsCdwZALomb" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  another.dim: C
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "LEjiJ4ATCXWlzeFvhGQ9lYlnP-nRIGKYihfZ18WoJ94t9a8OpbsCdwZALomb" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  more.dim: E
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "LEjiJ4ATCXWlzeFvhGQ9lYlnP-nRIGKYihfZ18WoJ94t9a8OpbsCdwZALomb" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
@@ -426,27 +546,3 @@ dynamic templates - subobject in passthrough object error:
                 attributes:
                   type: passthrough
                   subobjects: true
-
----
-dynamic templates - passthrough not under root error:
-  - skip:
-      version: " - 8.12.99"
-      reason: "Support for dynamic fields was added in 8.13"
-  - do:
-      catch: /Tried to add passthrough subobject \[attributes\] to object \[resource\], passthrough is not supported as a subobject/
-      indices.put_index_template:
-        name: my-dynamic-template
-        body:
-          index_patterns: [k9s*]
-          data_stream: {}
-          template:
-            settings:
-              index:
-                mode: time_series
-
-            mappings:
-              properties:
-                "resource.attributes":
-                  type: passthrough
-                  dynamic: true
-                  time_series_dimension: true

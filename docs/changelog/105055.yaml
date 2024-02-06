@@ -1,0 +1,5 @@
+pr: 105055
+summary: "Do not enable APM agent 'instrument', it's not required for manual tracing"
+area: Infra/Core
+type: bug
+issues: []

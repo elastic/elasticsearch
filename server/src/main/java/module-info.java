@@ -325,6 +325,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
     exports org.elasticsearch.search.aggregations.bucket.composite;
+    exports org.elasticsearch.search.aggregations.bucket.countedterms;
     exports org.elasticsearch.search.aggregations.bucket.filter;
     exports org.elasticsearch.search.aggregations.bucket.geogrid;
     exports org.elasticsearch.search.aggregations.bucket.global;
@@ -423,6 +424,10 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.postings.ES812PostingsFormat;
     provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
+    provides org.apache.lucene.codecs.KnnVectorsFormat
+        with
+            org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
+            org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 
     exports org.elasticsearch.cluster.routing.allocation.shards
         to

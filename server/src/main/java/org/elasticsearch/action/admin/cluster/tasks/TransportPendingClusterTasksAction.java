@@ -31,10 +31,7 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadA
     PendingClusterTasksRequest,
     PendingClusterTasksResponse> {
 
-    public static final ActionType<PendingClusterTasksResponse> TYPE = new ActionType<>(
-        "cluster:monitor/task",
-        PendingClusterTasksResponse::new
-    );
+    public static final ActionType<PendingClusterTasksResponse> TYPE = new ActionType<>("cluster:monitor/task");
     private static final Logger logger = LogManager.getLogger(TransportPendingClusterTasksAction.class);
 
     private final ClusterService clusterService;

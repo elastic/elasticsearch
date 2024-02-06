@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.external.action.openai;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
@@ -20,12 +19,11 @@ import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbedding
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
-import java.net.URI;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
@@ -45,16 +43,8 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
             this.model.getSecretSettings().apiKey()
         );
         this.client = new OpenAiClient(Objects.requireNonNull(sender), Objects.requireNonNull(serviceComponents));
-        this.errorMessage = getErrorMessage(this.model.getServiceSettings().uri());
+        this.errorMessage = constructFailedToSendRequestMessage(this.model.getServiceSettings().uri(), "OpenAI embeddings");
         this.truncator = Objects.requireNonNull(serviceComponents.truncator());
-    }
-
-    private static String getErrorMessage(@Nullable URI uri) {
-        if (uri != null) {
-            return format("Failed to send OpenAI embeddings request to [%s]", uri.toString());
-        }
-
-        return "Failed to send OpenAI embeddings request";
     }
 
     @Override
@@ -62,7 +52,7 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
         try {
             var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
 
-            OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(truncator, account, truncatedInput, model.getTaskSettings());
+            OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(truncator, account, truncatedInput, model);
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 
             client.send(request, wrappedListener);

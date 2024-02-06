@@ -201,6 +201,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                         params.downsampleConfig(),
                         params.metrics(),
                         params.labels(),
+                        params.dimensions(),
                         initialState
                     );
                     downsampleShardIndexer.execute();
@@ -241,7 +242,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         public static final String NAME = "indices:data/read/downsample_delegate";
 
         private DelegatingAction() {
-            super(NAME, in -> new ActionResponse.Empty());
+            super(NAME);
         }
 
         public static class Request extends ActionRequest implements IndicesRequest {

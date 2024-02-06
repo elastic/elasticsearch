@@ -11,7 +11,7 @@ We use elastic's apm-java-agent as an implementation of the API we expose.
 the implementation can be found in `:modules:apm`
 The apm-java-agent is responsible for buffering metrics and upon metrics_interval
 send them over to apm server.
-Metrics_interval is configured via a `tracing.apm.agent.metrics_interval` setting
+Metrics_interval is configured via a `telemetry.agent.metrics_interval` setting
 The agent also collects a number of JVM metrics.
 see https://www.elastic.co/guide/en/apm/agent/java/current/metrics.html#metrics-jvm
 
@@ -106,9 +106,9 @@ rootProject {
         afterEvaluate {
             testClusters.matching { it.name == "runTask" }.configureEach {
                 setting 'xpack.security.audit.enabled', 'true'
-                keystore 'tracing.apm.secret_token', 'TODO-REPLACE'
+                keystore 'telemetry.secret_token', 'TODO-REPLACE'
                 setting 'telemetry.metrics.enabled', 'true'
-                setting 'tracing.apm.agent.server_url', 'https://TODO-REPLACE-URL.apm.eastus2.staging.azure.foundit.no:443'
+                setting 'telemetry.agent.server_url', 'https://TODO-REPLACE-URL.apm.eastus2.staging.azure.foundit.no:443'
             }
         }
     }

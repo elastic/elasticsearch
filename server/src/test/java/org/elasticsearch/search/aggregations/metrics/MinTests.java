@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -41,19 +40,6 @@ public class MinTests extends InternalAggregationTestCase<Min> {
     @Override
     protected void assertSampled(Min sampled, Min reduced, SamplingContext samplingContext) {
         assertThat(sampled.value(), equalTo(reduced.value()));
-    }
-
-    @Override
-    protected void assertFromXContent(Min min, ParsedAggregation parsedAggregation) {
-        ParsedMin parsed = ((ParsedMin) parsedAggregation);
-        if (Double.isInfinite(min.value()) == false) {
-            assertEquals(min.value(), parsed.value(), Double.MIN_VALUE);
-            assertEquals(min.getValueAsString(), parsed.getValueAsString());
-        } else {
-            // we write Double.NEGATIVE_INFINITY and Double.POSITIVE_INFINITY to xContent as 'null', so we
-            // cannot differentiate between them. Also we cannot recreate the exact String representation
-            assertEquals(parsed.value(), Double.POSITIVE_INFINITY, 0);
-        }
     }
 
     @Override

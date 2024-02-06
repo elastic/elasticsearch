@@ -260,3 +260,50 @@
   - match: {test2.aliases: {}}
   - match: {test3.aliases: {}}
 
+---
+"Test get alias with non-matching data streams":
+  - skip:
+      version: " - 8.12.1"
+      reason: "bugfix fixed from 8.12.1 and later"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [ds-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ ds-* ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: { }
+
+  - do:
+      indices.create_data_stream:
+        name: ds-first
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: ds-second
+  - is_true: acknowledged
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: ds-first
+                alias: my-alias
+  - is_true: acknowledged
+
+  - do:
+      indices.get_alias:
+        name: my-al*
+  - match: {ds-first.aliases.my-alias: {}}
+
+  - do:
+      indices.get_alias:
+        name: this-does-not-exist*
+  - is_false: ds-first.aliases.my-alias

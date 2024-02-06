@@ -76,8 +76,44 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 List.of()
             )
         );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "EqualsBoolsEvaluator",
+                "lhs",
+                "rhs",
+                Object::equals,
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.booleanCases(),
+                TestCaseSupplier.booleanCases(),
+                List.of()
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "EqualsKeywordsEvaluator",
+                "lhs",
+                "rhs",
+                Object::equals,
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.ipCases(),
+                TestCaseSupplier.ipCases(),
+                List.of()
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "EqualsKeywordsEvaluator",
+                "lhs",
+                "rhs",
+                Object::equals,
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.versionCases(""),
+                TestCaseSupplier.versionCases(""),
+                List.of()
+            )
+        );
         // Datetime
-        // TODO: I'm surprised this passes.  Shouldn't there be a cast from DateTime to Long? 
+        // TODO: I'm surprised this passes.  Shouldn't there be a cast from DateTime to Long?
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 "EqualsLongsEvaluator",
@@ -130,7 +166,7 @@ public class EqualsTests extends AbstractFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 
     @Override

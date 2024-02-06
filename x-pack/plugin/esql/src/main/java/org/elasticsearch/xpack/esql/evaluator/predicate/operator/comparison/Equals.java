@@ -116,7 +116,7 @@ public class Equals extends org.elasticsearch.xpack.ql.expression.predicate.oper
         if (commonType.equals(DataTypes.BOOLEAN)) {
             return new EqualsBoolsEvaluator.Factory(source(), lhs, rhs);
         }
-        if (DataTypes.isString(commonType)) {
+        if (DataTypes.isString(commonType) || commonType.equals(DataTypes.VERSION) || commonType.equals(DataTypes.IP)) {
             return new EqualsKeywordsEvaluator.Factory(source(), lhs, rhs);
         }
         throw new EsqlIllegalArgumentException("Unsupported type " + left().dataType());

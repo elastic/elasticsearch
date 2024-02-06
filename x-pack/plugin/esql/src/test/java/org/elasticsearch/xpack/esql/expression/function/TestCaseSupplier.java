@@ -925,7 +925,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    private static List<TypedDataSupplier> booleanCases() {
+    public static List<TypedDataSupplier> booleanCases() {
         return List.of(
             new TypedDataSupplier("<true>", () -> true, DataTypes.BOOLEAN),
             new TypedDataSupplier("<false>", () -> false, DataTypes.BOOLEAN)

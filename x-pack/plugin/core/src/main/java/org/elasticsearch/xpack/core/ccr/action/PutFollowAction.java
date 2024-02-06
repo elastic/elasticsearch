@@ -64,8 +64,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             FollowParameters.initParser(PARSER);
         }
 
-        public static Request fromXContent(final XContentParser parser)
-            throws IOException {
+        public static Request fromXContent(final XContentParser parser) throws IOException {
             PutFollowParameters parameters = PARSER.parse(parser, null);
 
             Request request = new Request();

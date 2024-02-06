@@ -1432,10 +1432,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 //these checks are now performed in the coord node, data nodes still need to check it for bw comp.
                 // You could have a coord node in the previous version that does not perform the check, in which case the shard must check.
                 if (context.sourceRequested()) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [_source] is requested");
+                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [_source] is requested",
+                        new IllegalArgumentException("[stored_fields] cannot be disabled if [_source] is requested"));
                 }
                 if (context.fetchFieldsContext() != null) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled when using the [fields] option");
+                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled when using the [fields] option",
+                        new IllegalArgumentException("[stored_fields] cannot be disabled if [_source] is requested"));
                 }
             }
             context.storedFieldsContext(source.storedFields());

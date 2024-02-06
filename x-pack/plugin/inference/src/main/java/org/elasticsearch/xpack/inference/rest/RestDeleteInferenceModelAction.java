@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
 
@@ -17,6 +19,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestDeleteInferenceModelAction extends BaseRestHandler {
     @Override
     public String getName() {
@@ -31,9 +34,9 @@ public class RestDeleteInferenceModelAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String taskType = restRequest.param("task_type");
-        String modelId = restRequest.param("model_id");
+        String inferenceEntityId = restRequest.param("model_id");
 
-        var request = new DeleteInferenceModelAction.Request(modelId, taskType);
+        var request = new DeleteInferenceModelAction.Request(inferenceEntityId, taskType);
         return channel -> client.execute(DeleteInferenceModelAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

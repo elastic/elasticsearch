@@ -30,6 +30,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.countedterms.CountedTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
@@ -46,7 +49,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
-import org.elasticsearch.xpack.countedkeyword.CountedTermsAggregationBuilder;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -216,8 +218,42 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         ActionListener<GetStackTracesResponse> submitListener,
         GetStackTracesResponseBuilder responseBuilder
     ) {
-        responseBuilder.setSamplingRate(1.0d);
-        client.prepareSearch(request.indices())
+        StopWatch watch = new StopWatch("getSamplingRate");
+        client.prepareSearch(request.getIndices())
+            .setSize(0)
+            .setTrackTotalHits(true)
+            .setRequestCache(true)
+            .setPreference(String.valueOf(request.hashCode()))
+            .setQuery(request.getQuery())
+            .execute(ActionListener.wrap(searchResponse -> {
+                long sampleCount = searchResponse.getHits().getTotalHits().value;
+                int requestedSampleCount = request.getSampleSize();
+                // random sampler aggregation does not support sampling rates between 0.5 and 1.0 -> clamp to 1.0
+                if (sampleCount <= requestedSampleCount * 2L) {
+                    responseBuilder.setSamplingRate(1.0d);
+                } else {
+                    responseBuilder.setSamplingRate((double) requestedSampleCount / (double) sampleCount);
+                }
+                log.debug(watch::report);
+                log.debug(
+                    "User requested [{}] samples, [{}] samples matched in [{}]. Sampling rate is [{}].",
+                    requestedSampleCount,
+                    sampleCount,
+                    request.getIndices(),
+                    responseBuilder.getSamplingRate()
+                );
+                searchGenericEventGroupedByStackTrace(submitTask, client, request, submitListener, responseBuilder);
+            }, submitListener::onFailure));
+    }
+
+    private void searchGenericEventGroupedByStackTrace(
+        Task submitTask,
+        Client client,
+        GetStackTracesRequest request,
+        ActionListener<GetStackTracesResponse> submitListener,
+        GetStackTracesResponseBuilder responseBuilder
+    ) {
+        client.prepareSearch(request.getIndices())
             .setTrackTotalHits(false)
             .setSize(0)
             // take advantage of request cache and keep a consistent order for the same request
@@ -227,17 +263,20 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))
             .addAggregation(
-                new CountedTermsAggregationBuilder("group_by").size(MAX_TRACE_EVENTS_RESULT_SIZE).field(request.getStackTraceIds())
+                new RandomSamplerAggregationBuilder("sample").setSeed(request.hashCode())
+                    .setProbability(responseBuilder.getSamplingRate())
+                    .subAggregation(
+                        new CountedTermsAggregationBuilder("group_by").size(MAX_TRACE_EVENTS_RESULT_SIZE)
+                            .field(request.getStackTraceIdsField())
+                    )
             )
             .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
                 long totalSamples = 0;
-                StringTerms stacktraces = searchResponse.getAggregations().get("group_by");
+                SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
+                StringTerms stacktraces = sample.getAggregations().get("group_by");
 
-                // When we switch to aggregation by (hostID, stacktraceID) we need to change the empty List to this.
-                // List<HostEventCount> hostEventCounts = new ArrayList<>(MAX_TRACE_EVENTS_RESULT_SIZE);
-                // Related: https://github.com/elastic/prodfiler/issues/4300
-                // See also the aggregation in searchEventGroupedByStackTrace() for the other parts of the change.
-                List<HostEventCount> hostEventCounts = Collections.emptyList();
+                // When we retrieve host data for generic events, we need to adapt the handler similar to searchEventGroupedByStackTrace().
+                List<HostEventCount> hostEventCounts = new ArrayList<>(stacktraces.getBuckets().size());
 
                 // aggregation
                 Map<String, TraceEvent> stackTraceEvents = new TreeMap<>();
@@ -246,6 +285,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     totalSamples += count;
 
                     String stackTraceID = stacktraceBucket.getKeyAsString();
+                    // For now, add a dummy-entry so CO2 and cost calculation can operate. In the future we will have one value per host.
+                    hostEventCounts.add(new HostEventCount("unknown", stackTraceID, (int) count));
                     TraceEvent event = stackTraceEvents.get(stackTraceID);
                     if (event == null) {
                         event = new TraceEvent(stackTraceID);
@@ -255,6 +296,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 }
                 responseBuilder.setTotalSamples(totalSamples);
                 responseBuilder.setHostEventCounts(hostEventCounts);
+                log.debug("Found [{}] stacktrace events.", stackTraceEvents.size());
                 return stackTraceEvents;
             }));
     }

@@ -1,0 +1,5 @@
+pr: 104872
+summary: Add new int8_flat and flat vector index types
+area: Vector Search
+type: enhancement
+issues: []

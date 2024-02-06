@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-@SuppressWarnings("removal")
 public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
 
     private static final String REVIEWS_INDEX_NAME = "basic-crud-reviews";
@@ -147,10 +146,7 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
         waitUntilCheckpoint(config.getId(), 1L);
 
         stopTransform(config.getId());
-        assertBusy(() -> {
-            var stats = getTransformStats(config.getId());
-            assertEquals("stopped", stats.get("state"));
-        });
+        assertBusy(() -> { assertEquals("stopped", getTransformState(config.getId())); });
 
         refreshIndex(destIndexName, RequestOptions.DEFAULT);
         // Verify destination index mappings

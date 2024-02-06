@@ -914,7 +914,9 @@ public class PeerFinderTests extends ESTestCase {
                 "discovery result",
                 "org.elasticsearch.discovery.PeerFinder",
                 Level.WARN,
-                "address [" + unreachableMaster.getAddress() + "]* [current master according to *node-from-hosts-list*"
+                "address ["
+                    + unreachableMaster.getAddress()
+                    + "]* [current master according to *node-from-hosts-list*ClusterFormationFailureHelper*discovery-troubleshooting.html*"
             )
         );
 

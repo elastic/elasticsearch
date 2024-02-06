@@ -72,7 +72,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user"))
         );
 
-        var overriddenTaskSettings = taskSettings.overrideWith(OpenAiEmbeddingsRequestTaskSettings.EMPTY_SETTINGS);
+        var overriddenTaskSettings = OpenAiEmbeddingsTaskSettings.of(taskSettings, OpenAiEmbeddingsRequestTaskSettings.EMPTY_SETTINGS);
         MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
     }
 
@@ -85,7 +85,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model2", OpenAiEmbeddingsTaskSettings.USER, "user2"))
         );
 
-        var overriddenTaskSettings = taskSettings.overrideWith(requestTaskSettings);
+        var overriddenTaskSettings = OpenAiEmbeddingsTaskSettings.of(taskSettings, requestTaskSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new OpenAiEmbeddingsTaskSettings("model2", "user2")));
     }
 
@@ -98,7 +98,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model2"))
         );
 
-        var overriddenTaskSettings = taskSettings.overrideWith(requestTaskSettings);
+        var overriddenTaskSettings = OpenAiEmbeddingsTaskSettings.of(taskSettings, requestTaskSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new OpenAiEmbeddingsTaskSettings("model2", "user")));
     }
 

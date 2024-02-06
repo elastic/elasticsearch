@@ -22,22 +22,28 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 public class Median extends AggregateFunction implements SurrogateExpression {
     // TODO: Add the compression parameter
     @FunctionInfo(
-        returnType = { "double", "integer", "long", "unsigned_long" },
+        returnType = { "double", "integer", "long" },
         description = "The value that is greater than half of all values and less than half of all values.",
         isAggregation = true
     )
-    public Median(Source source, @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
+    public Median(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 
     @Override
     protected Expression.TypeResolution resolveType() {
-        return isNumeric(field(), sourceText(), DEFAULT);
+        return isType(
+            field(),
+            dt -> dt.isNumeric() && dt != DataTypes.UNSIGNED_LONG,
+            sourceText(),
+            DEFAULT,
+            "numeric except unsigned_long"
+        );
     }
 
     @Override

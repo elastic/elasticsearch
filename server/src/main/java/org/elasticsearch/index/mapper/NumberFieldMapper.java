@@ -70,7 +70,6 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -183,11 +182,6 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             });
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
-                if (v && EnumSet.of(NumberType.INTEGER, NumberType.LONG, NumberType.BYTE, NumberType.SHORT).contains(type) == false) {
-                    throw new IllegalArgumentException(
-                        "Parameter [" + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + "] cannot be set to numeric type [" + type.name + "]"
-                    );
-                }
                 if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
                     throw new IllegalArgumentException(
                         "Field ["
@@ -1891,7 +1885,13 @@ public class NumberFieldMapper extends FieldMapper {
      */
     public void indexValue(DocumentParserContext context, Number numericValue) {
         if (dimension && numericValue != null) {
-            context.getDimensions().addLong(fieldType().name(), numericValue.longValue()).validate(context.indexSettings());
+            DocumentDimensions dimensions = switch (type) {
+                case DOUBLE -> context.getDimensions().addDouble(fieldType().name(), numericValue.doubleValue());
+                case FLOAT, HALF_FLOAT -> context.getDimensions().addDouble(fieldType().name(), numericValue.floatValue());
+                case LONG -> context.getDimensions().addLong(fieldType().name(), numericValue.longValue());
+                case INTEGER, SHORT, BYTE -> context.getDimensions().addLong(fieldType().name(), numericValue.intValue());
+            };
+            dimensions.validate(context.indexSettings());
         }
         fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
 

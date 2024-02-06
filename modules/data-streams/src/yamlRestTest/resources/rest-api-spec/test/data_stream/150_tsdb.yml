@@ -230,13 +230,13 @@ dynamic templates:
         refresh: true
         body:
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "attributes.dim": "A", "attributes.another.dim": 10 }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "attributes.dim": "A", "attributes.int.dim": 10, "attributes.double.dim": 10.5 }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "attributes.dim": "A", "attributes.another.dim": 10 }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "attributes.dim": "A", "attributes.int.dim": 10, "attributes.double.dim": 10.5 }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "attributes.dim": "B", "attributes.another.dim": 20 }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "attributes.dim": "B", "attributes.int.dim": 20, "attributes.double.dim": 20.5 }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "attributes.dim": "B", "attributes.another.dim": 20 }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "attributes.dim": "B", "attributes.int.dim": 20, "attributes.double.dim": 20.5 }'
 
   - do:
       search:
@@ -262,7 +262,7 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "KPLatIF-tbSjI8l9LcbTur7qNQVbF9nXxeO_bMXMxPMOBKO-Urpf2SU" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "LPWTjzBxe1mblxCxXB3bXoUX2dfFHLp75Oo1BVv9pT9Uy36DR_ifC8rajKv3" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -274,14 +274,33 @@ dynamic templates:
             filterA:
               filter:
                 term:
-                  another.dim: 10
+                  int.dim: 10
               aggs:
                 tsids:
                   terms:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "KPLatIF-tbSjI8l9LcbTur7qNQVbF9nXxeO_bMXMxPMOBKO-Urpf2SU" }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "LPWTjzBxe1mblxCxXB3bXoUX2dfFHLp75Oo1BVv9pT9Uy36DR_ifC8rajKv3" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  double.dim: 10.5
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "LPWTjzBxe1mblxCxXB3bXoUX2dfFHLp75Oo1BVv9pT9Uy36DR_ifC8rajKv3" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---

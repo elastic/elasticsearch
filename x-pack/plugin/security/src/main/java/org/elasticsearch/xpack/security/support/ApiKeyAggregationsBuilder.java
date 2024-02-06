@@ -99,7 +99,9 @@ public class ApiKeyAggregationsBuilder {
                     filterAggregationBuilder.getName(),
                     translateQueryFields(filterAggregationBuilder.getFilter(), fieldNameVisitor)
                 );
-                newFilterAggregationBuilder.setMetadata(filterAggregationBuilder.getMetadata());
+                if (filterAggregationBuilder.getMetadata() != null) {
+                    newFilterAggregationBuilder.setMetadata(filterAggregationBuilder.getMetadata());
+                }
                 for (AggregationBuilder subAgg : filterAggregationBuilder.getSubAggregations()) {
                     newFilterAggregationBuilder.subAggregation(subAgg);
                 }

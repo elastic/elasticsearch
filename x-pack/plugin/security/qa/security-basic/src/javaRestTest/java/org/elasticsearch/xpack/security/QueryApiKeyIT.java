@@ -790,14 +790,67 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return new Tuple<>((String) m.get("id"), (String) m.get("api_key"));
     }
 
+    static Tuple<String, String> grantApiKey(
+        String name,
+        String expiration,
+        Map<String, Object> metadata,
+        String authHeader,
+        String username
+    ) throws IOException {
+        return grantApiKey(name, expiration, null, metadata, authHeader, username);
+    }
+
+    static Tuple<String, String> grantApiKey(
+        String name,
+        String expiration,
+        Map<String, Object> roleDescriptors,
+        Map<String, Object> metadata,
+        String authHeader,
+        String username
+    ) throws IOException {
+        final Request request = new Request("POST", "/_security/api_key/grant");
+        final String roleDescriptorsString = XContentTestUtils.convertToXContent(
+            roleDescriptors == null ? Map.of() : roleDescriptors,
+            XContentType.JSON
+        ).utf8ToString();
+        final String metadataString = XContentTestUtils.convertToXContent(metadata == null ? Map.of() : metadata, XContentType.JSON)
+            .utf8ToString();
+        final String apiKeyString;
+        if (expiration == null) {
+            apiKeyString = Strings.format("""
+                {"name":"%s", "role_descriptors":%s, "metadata":%s}""", name, roleDescriptorsString, metadataString);
+        } else {
+            apiKeyString = Strings.format("""
+                {"name":"%s", "expiration": "%s", "role_descriptors":%s,\
+                "metadata":%s}""", name, expiration, roleDescriptorsString, metadataString);
+        }
+        request.setJsonEntity(Strings.format("""
+            {
+              "grant_type": "password",
+              "username": "%s",
+              "password": "super-strong-password",
+              "api_key": %s
+            }
+            """, username, apiKeyString));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        final Map<String, Object> m = responseAsMap(response);
+        return new Tuple<>((String) m.get("id"), (String) m.get("api_key"));
+    }
+
     static String createAndInvalidateApiKey(String name, String authHeader) throws IOException {
         final Tuple<String, String> tuple = createApiKey(name, null, authHeader);
+        invalidateApiKey(tuple.v1(), authHeader);
+        return tuple.v1();
+    }
+
+    static void invalidateApiKey(String id, String authHeader) throws IOException {
         final Request request = new Request("DELETE", "/_security/api_key");
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
         request.setJsonEntity(Strings.format("""
-            {"ids": ["%s"],"owner":true}""", tuple.v1()));
+            {"ids": ["%s"]}""", id));
         assertOK(client().performRequest(request));
-        return tuple.v1();
     }
 
     static String createUser(String username) throws IOException {

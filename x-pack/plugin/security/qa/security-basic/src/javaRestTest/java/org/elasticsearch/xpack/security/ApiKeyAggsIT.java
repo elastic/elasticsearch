@@ -21,6 +21,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.security.QueryApiKeyIT.createApiKey;
 import static org.elasticsearch.xpack.security.QueryApiKeyIT.createSystemWriteRole;
 import static org.elasticsearch.xpack.security.QueryApiKeyIT.createUser;
+import static org.elasticsearch.xpack.security.QueryApiKeyIT.grantApiKey;
+import static org.elasticsearch.xpack.security.QueryApiKeyIT.invalidateApiKey;
 import static org.elasticsearch.xpack.security.QueryApiKeyIT.updateApiKeys;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -391,6 +393,73 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
             assertThat(exception.getMessage(), containsString("Field [runtime_key_type] is not allowed for API Key query or aggregation"));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFilterAggs() throws IOException {
+        String user1Creds = createUser("test-user-1", new String[] { "api_key_user_role" });
+        String user2Creds = createUser("test-user-2", new String[] { "api_key_user_role" });
+        String user3Creds = createUser("test-user-3", new String[] { "api_key_user_role" });
+        // create 6 keys for 3 users (2 keys each, one granted)
+        String key1User1KeyId = grantApiKey(
+            "key-1-user-1",
+            "10d",
+            Map.of("labels", List.of("grant", "1", "10d")),
+            API_KEY_ADMIN_AUTH_HEADER,
+            "test-user-1"
+        ).v1();
+        String key2User1KeyId = createApiKey("key-2-user-1", "20d", null, Map.of("labels", List.of("2", "20d")), user1Creds).v1();
+        String key1User2KeyId = grantApiKey(
+            "key-1-user-2",
+            "30d",
+            Map.of("labels", List.of("grant", "1", "30d")),
+            API_KEY_ADMIN_AUTH_HEADER,
+            "test-user-2"
+        ).v1();
+        String key2User2KeyId = createApiKey("key-2-user-2", "40d", null, Map.of("labels", List.of("2", "40d")), user2Creds).v1();
+        String key1User3KeyId = grantApiKey(
+            "key-1-user-3",
+            "50d",
+            Map.of("labels", List.of("grant", "1", "50d")),
+            API_KEY_ADMIN_AUTH_HEADER,
+            "test-user-3"
+        ).v1();
+        String key2User3KeyId = createApiKey("key-2-user-3", "60d", null, Map.of("labels", List.of("2", "60d")), user3Creds).v1();
+        // invalidate some two keys
+        invalidateApiKey(key2User1KeyId, API_KEY_ADMIN_AUTH_HEADER);
+        invalidateApiKey(key1User3KeyId, API_KEY_ADMIN_AUTH_HEADER);
+
+        assertAggs(API_KEY_ADMIN_AUTH_HEADER, """
+            {
+              "size": 0,
+              "aggs": {
+                "not_invalidated": {
+                  "filter": { "term": { "invalidated": false } },
+                  "aggs": {
+                    "keys_by_username": {
+                      "composite": {
+                        "sources": [
+                          { "usernames": { "terms": { "field": "username" } } }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """, aggs -> {
+            assertThat(((Map<String, Object>) aggs.get("not_invalidated")).get("doc_count"), is(4)); // 6 - 2 (invalidated)
+            List<Map<String, Object>> buckets = (List<Map<String, Object>>) ((Map<String, Object>) ((Map<String, Object>) aggs.get(
+                "not_invalidated"
+            )).get("keys_by_username")).get("buckets");
+            assertThat(buckets.size(), is(3));
+            assertThat(((Map<String, Object>) buckets.get(0).get("key")).get("usernames"), is("test-user-1"));
+            assertThat(buckets.get(0).get("doc_count"), is(1));
+            assertThat(((Map<String, Object>) buckets.get(1).get("key")).get("usernames"), is("test-user-2"));
+            assertThat(buckets.get(1).get("doc_count"), is(2));
+            assertThat(((Map<String, Object>) buckets.get(2).get("key")).get("usernames"), is("test-user-3"));
+            assertThat(buckets.get(2).get("doc_count"), is(1));
+        });
     }
 
     void assertAggs(String authHeader, String body, Consumer<Map<String, Object>> aggsVerifier) throws IOException {

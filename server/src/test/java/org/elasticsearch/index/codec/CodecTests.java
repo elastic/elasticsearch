@@ -52,7 +52,7 @@ public class CodecTests extends ESTestCase {
     public void testDefault() throws Exception {
         Codec codec = createCodecService().codec("default");
         assertEquals(
-            "Zstd813StoredFieldsFormat(compressionMode=ZSTD(level=0), chunkSize=16384, maxDocsPerChunk=128, blockShift=10)",
+            "Zstd813StoredFieldsFormat(compressionMode=ZSTD(level=0), chunkSize=14336, maxDocsPerChunk=128, blockShift=10)",
             codec.storedFieldsFormat().toString()
         );
     }
@@ -60,7 +60,7 @@ public class CodecTests extends ESTestCase {
     public void testBestCompression() throws Exception {
         Codec codec = createCodecService().codec("best_compression");
         assertEquals(
-            "Zstd813StoredFieldsFormat(compressionMode=ZSTD(level=9), chunkSize=262144, maxDocsPerChunk=2048, blockShift=10)",
+            "Zstd813StoredFieldsFormat(compressionMode=ZSTD(level=3), chunkSize=245760, maxDocsPerChunk=2048, blockShift=10)",
             codec.storedFieldsFormat().toString()
         );
     }

@@ -180,7 +180,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return request.items().length;
     }
 
-    // TODO PG this is just for testing?
     public static void performOnPrimary(
         BulkShardRequest request,
         IndexShard primary,

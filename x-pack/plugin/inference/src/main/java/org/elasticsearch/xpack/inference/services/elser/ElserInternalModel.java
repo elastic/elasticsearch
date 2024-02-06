@@ -11,21 +11,21 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 
-public class ElserMlNodeModel extends Model {
+public class ElserInternalModel extends Model {
 
-    public ElserMlNodeModel(
+    public ElserInternalModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        ElserMlNodeServiceSettings serviceSettings,
+        ElserInternalServiceSettings serviceSettings,
         ElserMlNodeTaskSettings taskSettings
     ) {
         super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings));
     }
 
     @Override
-    public ElserMlNodeServiceSettings getServiceSettings() {
-        return (ElserMlNodeServiceSettings) super.getServiceSettings();
+    public ElserInternalServiceSettings getServiceSettings() {
+        return (ElserInternalServiceSettings) super.getServiceSettings();
     }
 
     @Override

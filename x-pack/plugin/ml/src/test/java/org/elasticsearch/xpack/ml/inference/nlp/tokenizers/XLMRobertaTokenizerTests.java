@@ -95,13 +95,13 @@ public class XLMRobertaTokenizerTests extends ESTestCase {
                 new XLMRobertaTokenization(false, null, Tokenization.Truncate.NONE, -1)
             ).build()
         ) {
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("😀", Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("😀", Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁\uD83D\uDE00"));
 
-            tokenization = tokenizer.tokenize("Elasticsearch 😀", Tokenization.Truncate.NONE, -1, 0).get(0);
+            tokenization = tokenizer.tokenize("Elasticsearch 😀", Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Ela", "stic", "search", "▁\uD83D\uDE00"));
 
-            tokenization = tokenizer.tokenize("Elasticsearch 😀 fun", Tokenization.Truncate.NONE, -1, 0).get(0);
+            tokenization = tokenizer.tokenize("Elasticsearch 😀 fun", Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Ela", "stic", "search", "▁\uD83D\uDE00", "▁fun"));
         }
     }
@@ -114,11 +114,11 @@ public class XLMRobertaTokenizerTests extends ESTestCase {
                 new XLMRobertaTokenization(false, null, Tokenization.Truncate.NONE, -1)
             ).build()
         ) {
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("🇸🇴", Tokenization.Truncate.NONE, -1, 0).get(0);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("🇸🇴", Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁🇸🇴"));
             assertThat(tokenization.tokenIds()[0], not(equalTo(3))); // not the unknown token
 
-            tokenization = tokenizer.tokenize("🏁", Tokenization.Truncate.NONE, -1, 0).get(0);
+            tokenization = tokenizer.tokenize("🏁", Tokenization.Truncate.NONE, -1, 0, null).get(0);
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁🏁"));
             assertThat(tokenization.tokenIds()[0], equalTo(3)); // the unknown token (not in the vocabulary)
         }

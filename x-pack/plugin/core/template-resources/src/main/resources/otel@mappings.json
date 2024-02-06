@@ -8,9 +8,8 @@
           "type": "date_nanos"
         },
         "attributes": {
-          "type": "object",
-          "dynamic": true,
-          "subobjects": false
+          "type": "passthrough",
+          "dynamic": true
         },
         "dropped_attributes_count": {
           "type": "long"
@@ -24,9 +23,8 @@
               "type": "long"
             },
             "attributes": {
-              "type": "object",
-              "dynamic": true,
-              "subobjects": false
+              "type": "passthrough",
+              "dynamic": true
             }
           }
         },
@@ -45,9 +43,8 @@
               "type": "long"
             },
             "attributes": {
-              "type": "object",
-              "dynamic": true,
-              "subobjects": false
+              "type": "passthrough",
+              "dynamic": true
             }
           }
         }

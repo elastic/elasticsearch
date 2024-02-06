@@ -47,8 +47,7 @@
             "path_unmatch": "metrics.*.*.*",
             "match_mapping_type": "object",
             "mapping": {
-              "subobjects": false,
-              "type": "object"
+              "type": "passthrough"
             }
           }
         },

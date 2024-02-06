@@ -71,7 +71,7 @@ public class OtelLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                  }
                },
                "attributes": {
-                 "foo": "bar",
+                 "foo.attr": "bar",
                  "complex.attribute": {
                    "foo": {
                      "bar": {
@@ -89,7 +89,7 @@ public class OtelLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             {
               "query": {
                 "term": {
-                  "severity_text": "Info"
+                  "foo.attr": "bar"
                 }
               },
               "fields": [
@@ -101,7 +101,9 @@ public class OtelLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         Map<String, Object> fields = ((Map<String, Map<String, Object>>) hits.get(0)).get("fields");
 
         assertThat(fields.get("data_stream.type"), is(List.of("logs")));
-        assertThat(fields.get("attributes.foo"), is(List.of("bar")));
+        assertThat(fields.get("foo.attr"), is(List.of("bar")));
+        assertThat(fields.get("attributes.foo.attr"), is(List.of("bar")));
+        assertThat(fields.get("service.name"), is(List.of("my-service")));
         assertThat(fields.get("resource.attributes.service.name"), is(List.of("my-service")));
         assertThat(fields.get("@timestamp"), is(List.of("2023-07-03T14:34:24.123456789Z")));
 
@@ -117,9 +119,6 @@ public class OtelLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             ),
             is("match_only_text")
         );
-        assertThat(
-            getValueFromPath(properties, List.of("attributes", "properties", "complex.attribute", "type")),
-            is("flattened")
-        );
+        assertThat(getValueFromPath(properties, List.of("attributes", "properties", "complex.attribute", "type")), is("flattened"));
     }
 }

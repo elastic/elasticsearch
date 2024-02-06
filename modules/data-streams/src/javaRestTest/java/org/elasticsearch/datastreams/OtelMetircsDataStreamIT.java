@@ -77,14 +77,14 @@ public class OtelMetircsDataStreamIT extends DisabledSecurityDataStreamTestCase 
             {
               "query": {
                 "exists": {
-                  "field": "metrics.gauge.us.my.gauge"
+                  "field": "my.gauge"
                 }
               },
               "size": 0,
               "aggs": {
                 "avg_value": {
                   "avg": {
-                    "field": "metrics.gauge.us.my.gauge"
+                    "field": "my.gauge"
                   }
                 }
               }
@@ -94,9 +94,10 @@ public class OtelMetircsDataStreamIT extends DisabledSecurityDataStreamTestCase 
         assertThat(new WriteField("aggregations.avg_value.value", () -> response).get(-1), equalTo(42.0));
 
         Map<String, Object> properties = getMappingProperties(client, getWriteBackingIndex(client, dataStream));
+        assertThat(getValueFromPath(properties, List.of("metrics", "properties", "gauge", "properties", "us", "type")), is("passthrough"));
         assertThat(
-            getValueFromPath(properties, List.of("metrics", "properties", "gauge", "properties", "us", "subobjects")),
-            is(false)
+            getValueFromPath(properties, List.of("metrics", "properties", "gauge", "properties", "us", "properties", "my.gauge", "type")),
+            is("long")
         );
         assertThat(
             getValueFromPath(properties, List.of("metrics", "properties", "gauge", "properties", "us", "properties", "my.gauge", "type")),

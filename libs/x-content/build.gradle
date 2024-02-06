@@ -6,43 +6,16 @@
  * Side Public License, v 1.
  */
 
-
-import org.elasticsearch.gradle.transform.UnzipTransform
-import org.elasticsearch.gradle.internal.GenerateProviderManifest
-import org.gradle.api.internal.artifacts.ArtifactAttributes
-
-import java.util.stream.Collectors
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.embedded-providers'
 
-def isImplAttr = Attribute.of("is.impl", Boolean)
-
-configurations {
-  providerImpl {
-    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
-    attributes.attribute(isImplAttr, true)
-  }
+embeddedProviders {
+  impl 'x-content', project(':libs:elasticsearch-x-content:impl')
 }
 
 dependencies {
-  registerTransform(
-    UnzipTransform.class, transformSpec -> {
-    transformSpec.getFrom()
-      .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE)
-      .attribute(isImplAttr, true)
-    transformSpec.getTo()
-      .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
-      .attribute(isImplAttr, true)
-    transformSpec.parameters(parameters -> {
-      parameters.includeArtifactName.set(true)
-    })
-
-  })
-
   api project(':libs:elasticsearch-core')
-
-  providerImpl project(':libs:elasticsearch-x-content:impl')
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
@@ -66,18 +39,3 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
-
-Directory generatedResourcesDir = layout.buildDirectory.dir('generated-resources').get()
-def generateProviderManifest = tasks.register("generateProviderManifest", GenerateProviderManifest.class) {
-  manifestFile = generatedResourcesDir.file("LISTING.TXT")
-  getProviderImplClasspath().from(configurations.providerImpl)
-}
-
-def generateProviderImpl = tasks.register("generateProviderImpl", Sync) {
-  destinationDir = generatedResourcesDir.dir("impl").getAsFile()
-  into("IMPL-JARS/x-content") {
-    from(configurations.providerImpl)
-    from(generateProviderManifest)
-  }
-}
-sourceSets.main.output.dir(generateProviderImpl)

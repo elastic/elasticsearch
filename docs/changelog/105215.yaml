@@ -1,0 +1,5 @@
+pr: 105215
+summary: Cross-cluster painless execute API fails on secured clusters in some scenarios
+area: Search
+type: bug
+issues: []

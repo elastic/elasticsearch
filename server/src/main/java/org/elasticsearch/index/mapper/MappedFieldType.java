@@ -640,13 +640,15 @@ public abstract class MappedFieldType {
      * gets as input FieldInfos and returns if the field is non-empty. This method needs to
      * be overwritten where fields don't have footprint in Lucene or their name differs from
      * {@link MappedFieldType#name()}
-     * @param fieldInfos field information
+     * @param fieldInfosList list of field information
      * @return {@code true} if field is present in fieldInfos {@code false} otherwise
      */
-    public boolean fieldHasValue(FieldInfos fieldInfos) {
-        for (FieldInfo fieldInfo : fieldInfos) {
-            if (fieldInfo.getName().equals(name())) {
-                return true;
+    public boolean fieldHasValue(List<FieldInfos> fieldInfosList) {
+        for (FieldInfos fieldInfos : fieldInfosList) {
+            for (FieldInfo fieldInfo : fieldInfos) {
+                if (fieldInfo.getName().equals(name())) {
+                    return true;
+                }
             }
         }
         return false;

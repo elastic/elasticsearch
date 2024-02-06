@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -135,10 +136,12 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean fieldHasValue(FieldInfos fieldInfos) {
-            for (FieldInfo fieldInfo : fieldInfos) {
-                if (fieldInfo.getName().equals(NAME)) {
-                    return true;
+        public boolean fieldHasValue(List<FieldInfos> fieldInfosList) {
+            for (FieldInfos fieldInfos : fieldInfosList) {
+                for (FieldInfo fieldInfo : fieldInfos) {
+                    if (fieldInfo.getName().equals(NAME)) {
+                        return true;
+                    }
                 }
             }
             return false;

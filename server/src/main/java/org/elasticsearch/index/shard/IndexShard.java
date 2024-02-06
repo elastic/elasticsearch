@@ -17,6 +17,7 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -224,7 +225,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReplicationTracker replicationTracker;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final Engine.IndexCommitListener indexCommitListener;
-    private FieldInfos fieldInfos;
+    private List<FieldInfos> fieldInfos;
     // sys prop to disable the field has value feature, defaults to true (enabled) if set to false (disabled) the
     // field caps always returns empty fields ignoring the value of the query param `include_empty_fields`.
     private final boolean enableFieldHasValue = Booleans.parseBoolean(System.getProperty("es.field_has_value", Boolean.TRUE.toString()));
@@ -405,7 +406,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshFieldHasValueListener = new RefreshFieldHasValueListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.fieldInfos = FieldInfos.EMPTY;
+        this.fieldInfos = List.of();
     }
 
     public ThreadPool getThreadPool() {
@@ -995,11 +996,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return index(engine, operation);
     }
 
-    public void setFieldInfos(FieldInfos fieldInfos) {
+    public void setFieldInfosList(List<FieldInfos> fieldInfos) {
         this.fieldInfos = fieldInfos;
     }
 
-    public FieldInfos getFieldInfos() {
+    public List<FieldInfos> getFieldInfosList() {
         return fieldInfos;
     }
 
@@ -3993,7 +3994,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         public void afterRefresh(boolean didRefresh) {
             if (enableFieldHasValue) {
                 try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
-                    setFieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
+                    List<LeafReaderContext> leaves = hasValueSearcher.getIndexReader().leaves();
+                    List<FieldInfos> fieldInfosList = new ArrayList<>(leaves.size());
+                    for (LeafReaderContext leave : hasValueSearcher.getIndexReader().leaves()) {
+                        fieldInfosList.add(leave.reader().getFieldInfos());
+                    }
+                    setFieldInfosList(fieldInfosList);
                 }
             }
         }

@@ -1139,12 +1139,13 @@ FROM employees
 | STATS x = CONCAT(TO_STRING(ROUND(AVG(salary % 3))), TO_STRING(MAX(emp_no))), 
         y = ROUND((MIN(emp_no / 3) + PI() - MEDIAN(salary))/E()) 
         BY z = languages % 2
+| SORT z
 ;
 
 x:s        | y:d        | z:i
-1.010029   | -16452.0   | null
 1.010100   | -15260.0   | 0
 1.010097   | -16701.0   | 1
+1.010029   | -16452.0   | null
 ;
 
 nestedAggsOverGroupingWithAlias#[skip:-8.12.99,reason:supported in 8.13]

@@ -325,7 +325,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (mapperService == null) {
             return null;
         }
-        long totalCount = mapperService().mappingLookup().getTotalFieldsCount();
+        long totalCount = mapperService().mappingLookup().getTotalMapperCount();
         long totalEstimatedOverhead = totalCount * 1024L; // 1KiB estimated per mapping
         NodeMappingStats indexNodeMappingStats = new NodeMappingStats(totalCount, totalEstimatedOverhead);
         return indexNodeMappingStats;
@@ -647,6 +647,18 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         String clusterAlias,
         Map<String, Object> runtimeMappings
     ) {
+        return newSearchExecutionContext(shardId, shardRequestIndex, searcher, nowInMillis, clusterAlias, runtimeMappings, null);
+    }
+
+    public SearchExecutionContext newSearchExecutionContext(
+        int shardId,
+        int shardRequestIndex,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Map<String, Object> runtimeMappings,
+        Integer requestSize
+    ) {
         final SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(
             index().getName(),
             clusterAlias,
@@ -672,7 +684,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexNameMatcher,
             allowExpensiveQueries,
             valuesSourceRegistry,
-            runtimeMappings
+            runtimeMappings,
+            requestSize
         );
     }
 

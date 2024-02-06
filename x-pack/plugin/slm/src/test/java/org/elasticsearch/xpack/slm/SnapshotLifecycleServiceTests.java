@@ -185,7 +185,6 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
      * Test new policies getting scheduled correctly, updated policies also being scheduled,
      * and deleted policies having their schedules cancelled.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44997")
     public void testPolicyCRUD() throws Exception {
         ClockMock clock = new ClockMock();
         final AtomicInteger triggerCount = new AtomicInteger(0);
@@ -280,7 +279,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             clock.fastForwardSeconds(2);
 
             // The existing job should be cancelled and no longer trigger
-            assertThat(triggerCount.get(), equalTo(currentCount2));
+            assertBusy(() -> assertThat(triggerCount.get(), equalTo(currentCount2)));
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
 
             // When the service is no longer master, all jobs should be automatically cancelled

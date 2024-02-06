@@ -1401,7 +1401,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         );
         assertThat(exception.getRootCause(), instanceOf(MapperParsingException.class));
         assertEquals(
-            "Tried to add nested object [time] to object [__dynamic__test] which does not support subobjects",
+            "Tried to add subobject [time] to object [__dynamic__test] which does not support subobjects",
             exception.getRootCause().getMessage()
         );
     }

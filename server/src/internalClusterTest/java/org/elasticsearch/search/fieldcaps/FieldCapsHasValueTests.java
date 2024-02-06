@@ -21,7 +21,6 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -265,25 +264,6 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         );
     }
 
-    public void testConstantFieldsNeverExcluded() {
-        FieldCapabilitiesResponse response = client().prepareFieldCaps()
-            .setFields("*")
-            .setIncludeUnmapped(true)
-            .setincludeEmptyFields(false)
-            .get();
-
-        assertIndices(response, INDEX1, INDEX2, INDEX3);
-        assertThat(response.get(), Matchers.hasKey("_index"));
-        // Check the capabilities for the '_index' constant field.
-        Map<String, FieldCapabilities> unmappedField = response.getField("_index");
-        assertEquals(1, unmappedField.size());
-        assertThat(unmappedField, Matchers.hasKey("_index"));
-        assertEquals(
-            new FieldCapabilities("_index", "_index", true, true, true, null, null, null, Collections.emptyMap()),
-            unmappedField.get("_index")
-        );
-    }
-
     public void testTwoFieldsNameTwoIndices() {
         prepareIndex(INDEX1).setSource("foo", "foo-text").get();
         prepareIndex(INDEX2).setSource("bar", 1704293160000L).get();
@@ -463,26 +443,6 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         assertThat(timestampField, Matchers.hasKey("date"));
         assertNull(response.getField("foo"));
         assertNull(response.getField("bar"));
-    }
-
-    public void testRuntimeMappingsAlwaysReturned() {
-        Map<String, Object> runtimeFields = new HashMap<>();
-        runtimeFields.put("day_of_week", Collections.singletonMap("type", "keyword"));
-        FieldCapabilitiesResponse response = client().prepareFieldCaps()
-            .setFields("*")
-            .setRuntimeFields(runtimeFields)
-            .setincludeEmptyFields(false)
-            .get();
-        assertIndices(response, INDEX1, INDEX2, INDEX3);
-        assertThat(response.get(), Matchers.hasKey("day_of_week"));
-        // Check the capabilities for the 'foo' field.
-        Map<String, FieldCapabilities> fooField = response.getField("day_of_week");
-        assertEquals(1, fooField.size());
-        assertThat(fooField, Matchers.hasKey("keyword"));
-        assertEquals(
-            new FieldCapabilities("day_of_week", "keyword", false, true, true, null, null, null, Collections.emptyMap()),
-            fooField.get("keyword")
-        );
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {

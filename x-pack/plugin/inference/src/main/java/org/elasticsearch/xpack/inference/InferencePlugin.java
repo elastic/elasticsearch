@@ -21,6 +21,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -29,6 +31,7 @@ import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.InferenceRegistryPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
@@ -52,6 +55,8 @@ import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextInferenceResultFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
@@ -67,12 +72,19 @@ import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, InferenceRegistryPlugin {
+public class InferencePlugin extends Plugin
+    implements
+        ActionPlugin,
+        ExtensiblePlugin,
+        SystemIndexPlugin,
+        InferenceRegistryPlugin,
+        MapperPlugin {
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
@@ -253,5 +265,18 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     @Override
     public ModelRegistry getModelRegistry() {
         return modelRegistry.get();
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        if (SemanticTextFeature.isEnabled()) {
+            return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
+        }
+        return Map.of();
+    }
+
+    @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return Map.of(SemanticTextInferenceResultFieldMapper.NAME, SemanticTextInferenceResultFieldMapper.PARSER);
     }
 }

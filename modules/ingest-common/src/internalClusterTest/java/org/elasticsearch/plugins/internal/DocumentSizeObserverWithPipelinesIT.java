@@ -70,24 +70,24 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDocumentParsingSupplierPlugin.class, IngestCommonPlugin.class);
+        return List.of(TestDocumentParsingProviderPlugin.class, IngestCommonPlugin.class);
     }
 
-    public static class TestDocumentParsingSupplierPlugin extends Plugin implements DocumentParsingSupplierPlugin, IngestPlugin {
+    public static class TestDocumentParsingProviderPlugin extends Plugin implements DocumentParsingSupplierPlugin, IngestPlugin {
 
-        public TestDocumentParsingSupplierPlugin() {}
+        public TestDocumentParsingProviderPlugin() {}
 
         @Override
-        public DocumentParsingSupplier getDocumentParsingSupplier() {
+        public DocumentParsingProvider getDocumentParsingSupplier() {
             // returns a static instance, because we want to assert that the wrapping is called only once
-            return new DocumentParsingSupplier() {
+            return new DocumentParsingProvider() {
                 @Override
-                public DocumentSizeObserver getDocumentSizeObserver(long normalisedBytesParsed) {
+                public DocumentSizeObserver newDocumentSizeObserver(long normalisedBytesParsed) {
                     return new TestDocumentSizeObserver(normalisedBytesParsed);
                 }
 
                 @Override
-                public DocumentSizeObserver getDocumentSizeObserver() {
+                public DocumentSizeObserver newDocumentSizeObserver() {
                     return new TestDocumentSizeObserver(0L);
                 }
 

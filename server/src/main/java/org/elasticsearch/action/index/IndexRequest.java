@@ -50,7 +50,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.NORMALISED_BYTES_PARSED;
+import static org.elasticsearch.TransportVersions.INDEX_REQUEST_NORMALIZED_BYTES_PARSED;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -182,7 +182,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             dynamicTemplates = in.readMap(StreamInput::readString);
         }
         if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
-            && in.getTransportVersion().before(NORMALISED_BYTES_PARSED)) {
+            && in.getTransportVersion().before(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
             in.readBoolean();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
@@ -199,7 +199,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             requireDataStream = false;
         }
-        if (in.getTransportVersion().onOrAfter(NORMALISED_BYTES_PARSED)) {
+        if (in.getTransportVersion().onOrAfter(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
             normalisedBytesParsed = in.readLong();
         }
     }
@@ -745,7 +745,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
         }
         if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
-            && out.getTransportVersion().before(NORMALISED_BYTES_PARSED)) {
+            && out.getTransportVersion().before(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
             out.writeBoolean(normalisedBytesParsed != -1L);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
@@ -758,7 +758,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
             out.writeBoolean(requireDataStream);
         }
-        if (out.getTransportVersion().onOrAfter(NORMALISED_BYTES_PARSED)) {
+        if (out.getTransportVersion().onOrAfter(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
             out.writeLong(normalisedBytesParsed);
         }
     }

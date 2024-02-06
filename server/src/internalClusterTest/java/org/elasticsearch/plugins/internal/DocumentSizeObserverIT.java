@@ -64,24 +64,24 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDocumentParsingSupplierPlugin.class);
+        return List.of(TestDocumentParsingProviderPlugin.class);
     }
 
-    public static class TestDocumentParsingSupplierPlugin extends Plugin implements DocumentParsingSupplierPlugin, IngestPlugin {
+    public static class TestDocumentParsingProviderPlugin extends Plugin implements DocumentParsingSupplierPlugin, IngestPlugin {
 
-        public TestDocumentParsingSupplierPlugin() {}
+        public TestDocumentParsingProviderPlugin() {}
 
         @Override
-        public DocumentParsingSupplier getDocumentParsingSupplier() {
-            return new DocumentParsingSupplier() {
+        public DocumentParsingProvider getDocumentParsingSupplier() {
+            return new DocumentParsingProvider() {
 
                 @Override
-                public DocumentSizeObserver getDocumentSizeObserver(long normalisedBytesParsed) {
+                public DocumentSizeObserver newDocumentSizeObserver(long normalisedBytesParsed) {
                     return new TestDocumentSizeObserver();
                 }
 
                 @Override
-                public DocumentSizeObserver getDocumentSizeObserver() {
+                public DocumentSizeObserver newDocumentSizeObserver() {
                     return new TestDocumentSizeObserver();
                 }
 

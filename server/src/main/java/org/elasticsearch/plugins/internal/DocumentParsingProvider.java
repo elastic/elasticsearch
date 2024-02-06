@@ -11,10 +11,10 @@ package org.elasticsearch.plugins.internal;
 /**
  * An interface to provide instances of document parsing observer and reporter
  */
-public interface DocumentParsingSupplier {
-    DocumentParsingSupplier EMPTY_INSTANCE = new DocumentParsingSupplier() {
+public interface DocumentParsingProvider {
+    DocumentParsingProvider EMPTY_INSTANCE = new DocumentParsingProvider() {
         @Override
-        public DocumentSizeObserver getDocumentSizeObserver() {
+        public DocumentSizeObserver newDocumentSizeObserver() {
             return DocumentSizeObserver.EMPTY_INSTANCE;
         }
 
@@ -24,7 +24,7 @@ public interface DocumentParsingSupplier {
         }
 
         @Override
-        public DocumentSizeObserver getDocumentSizeObserver(long normalisedBytesParsed) {
+        public DocumentSizeObserver newDocumentSizeObserver(long normalisedBytesParsed) {
             return DocumentSizeObserver.EMPTY_INSTANCE;
         }
     };
@@ -32,12 +32,12 @@ public interface DocumentParsingSupplier {
     /**
      * @return a new 'empty' observer to use when observing parsing
      */
-    DocumentSizeObserver getDocumentSizeObserver();
+    DocumentSizeObserver newDocumentSizeObserver();
 
     /**
      * @return an observer to use when continue observing parsing based on previous result
      */
-    DocumentSizeObserver getDocumentSizeObserver(long normalisedBytesParsed);
+    DocumentSizeObserver newDocumentSizeObserver(long normalisedBytesParsed);
 
     /**
      * @return an instance of a reporter to use when parsing has been completed and indexing successful

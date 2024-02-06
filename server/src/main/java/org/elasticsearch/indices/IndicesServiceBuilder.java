@@ -29,7 +29,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.internal.DocumentParsingSupplier;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -72,7 +72,7 @@ public class IndicesServiceBuilder {
     Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers = Map.of();
     @Nullable
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
-    DocumentParsingSupplier documentParsingSupplier;
+    DocumentParsingProvider documentParsingProvider;
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -171,8 +171,8 @@ public class IndicesServiceBuilder {
         return this;
     }
 
-    public IndicesServiceBuilder documentParsingSupplier(DocumentParsingSupplier documentParsingSupplier) {
-        this.documentParsingSupplier = documentParsingSupplier;
+    public IndicesServiceBuilder documentParsingSupplier(DocumentParsingProvider documentParsingProvider) {
+        this.documentParsingProvider = documentParsingProvider;
         return this;
     }
 
@@ -199,7 +199,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(recoveryStateFactories);
         Objects.requireNonNull(indexFoldersDeletionListeners);
         Objects.requireNonNull(snapshotCommitSuppliers);
-        Objects.requireNonNull(documentParsingSupplier);
+        Objects.requireNonNull(documentParsingProvider);
 
         // collect engine factory providers from plugins
         engineFactoryProviders = pluginsService.filterPlugins(EnginePlugin.class)

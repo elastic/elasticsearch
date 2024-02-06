@@ -156,7 +156,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingSupplier;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentParsingSupplierPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
@@ -610,8 +610,8 @@ class NodeConstruction {
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
-        DocumentParsingSupplier documentParsingSupplier = getDocumentParsingSupplier();
-        modules.bindToInstance(DocumentParsingSupplier.class, documentParsingSupplier);
+        DocumentParsingProvider documentParsingProvider = getDocumentParsingSupplier();
+        modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
         final IngestService ingestService = new IngestService(
             clusterService,
@@ -622,7 +622,7 @@ class NodeConstruction {
             pluginsService.filterPlugins(IngestPlugin.class).toList(),
             client,
             IngestService.createGrokThreadWatchdog(environment, threadPool),
-            documentParsingSupplier
+                documentParsingProvider
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);
@@ -717,7 +717,7 @@ class NodeConstruction {
             .metaStateService(metaStateService)
             .valuesSourceRegistry(searchModule.getValuesSourceRegistry())
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
-            .documentParsingSupplier(documentParsingSupplier)
+            .documentParsingSupplier(documentParsingProvider)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
@@ -1271,9 +1271,9 @@ class NodeConstruction {
         logger.info("initialized");
     }
 
-    private DocumentParsingSupplier getDocumentParsingSupplier() {
+    private DocumentParsingProvider getDocumentParsingSupplier() {
         return getSinglePlugin(DocumentParsingSupplierPlugin.class).map(DocumentParsingSupplierPlugin::getDocumentParsingSupplier)
-            .orElse(DocumentParsingSupplier.EMPTY_INSTANCE);
+            .orElse(DocumentParsingProvider.EMPTY_INSTANCE);
     }
 
     /**

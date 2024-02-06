@@ -16,5 +16,5 @@ public interface DocumentParsingSupplierPlugin {
     /**
      * @return a DocumentParsingSupplier to create instances of observer and reporter of parsing events
      */
-    DocumentParsingSupplier getDocumentParsingSupplier();
+    DocumentParsingProvider getDocumentParsingSupplier();
 }

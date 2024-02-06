@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestRequest;
@@ -72,6 +73,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         }
         if (request.hasParam(DocWriteRequest.REQUIRE_ALIAS)) {
             internal.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false));
+        }
+        if (request.hasParam("source_routing")) {
+            internal.getSearchRequest().routing(Strings.splitStringByCommaToArray(request.param("source_routing")));
         }
 
         return internal;

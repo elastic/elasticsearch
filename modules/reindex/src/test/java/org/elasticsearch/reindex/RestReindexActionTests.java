@@ -79,4 +79,14 @@ public class RestReindexActionTests extends RestActionTestCase {
             assertEquals("10m", request.getScrollTime().toString());
         }
     }
+
+    public void testSetSourceRouting() throws IOException {
+
+        FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
+        requestBuilder.withParams(singletonMap("source_routing", "u1,u2"));
+        requestBuilder.withContent(new BytesArray("{}"), XContentType.JSON);
+        ReindexRequest request = action.buildRequest(requestBuilder.build(), new NamedWriteableRegistry(Collections.emptyList()));
+        assertEquals("u1,u2", request.getSearchRequest().routing());
+
+    }
 }

@@ -1,0 +1,12 @@
+pr: 105221
+summary: "ESQL: Grammar - FROM METADATA no longer require []"
+area: Compute Engine
+type: breaking
+issues: []
+breaking:
+  title: "ESQL: Grammar - FROM METADATA no longer require []"
+  area: Compute Engine
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

@@ -94,7 +94,7 @@ include::{esql-specs}/docs.csv-spec[tag=keepWildcardPrecedence]
 include::{esql-specs}/docs.csv-spec[tag=keep-wildcard-precedence-result]
 |===
 
-A simple wildcard expression `*` has the lowest priority.
+A simple wildcard expression `*` has the lowest precedence.
 Output order is determined by the other arguments:
 
 [source,esql]

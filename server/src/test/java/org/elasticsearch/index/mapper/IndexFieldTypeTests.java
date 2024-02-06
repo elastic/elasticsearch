@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
@@ -49,6 +50,11 @@ public class IndexFieldTypeTests extends ESTestCase {
             () -> assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext()))
         );
         assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
+    }
+
+    public void testConstantFieldAlwaysHaveValue() {
+        MappedFieldType fieldType = IndexFieldMapper.IndexFieldType.INSTANCE;
+        assertTrue(fieldType.fieldHasValue(List.of()));
     }
 
     private SearchExecutionContext createContext() {

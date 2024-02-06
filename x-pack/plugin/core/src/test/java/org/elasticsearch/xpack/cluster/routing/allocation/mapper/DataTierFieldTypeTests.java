@@ -125,4 +125,9 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         return SearchExecutionContextHelper.createSimple(indexSettings, parserConfig(), writableRegistry());
     }
+
+    public void testConstantFieldAlwaysHaveValue() {
+        MappedFieldType fieldType = DataTierFieldMapper.DataTierFieldType.INSTANCE;
+        assertTrue(fieldType.fieldHasValue(List.of()));
+    }
 }

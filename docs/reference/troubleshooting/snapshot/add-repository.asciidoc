@@ -38,8 +38,7 @@ and install the missing plugins.
 
 When an {es} node faces an unexpected exception when trying to instantiate a snapshot
 repository, it will mark the repository as "invalid" and write a warning to the log file.
-Please refer to the logs of the affected node(s) for more information on the exact
-reason that caused the unexpected exception.
+Use the following steps to diagnose the underlying cause of this issue:
 
 1. Retrieve the affected nodes from the affected resources section of the health report.
 2. Refer to the logs of the affected node(s) and search for the repository name.

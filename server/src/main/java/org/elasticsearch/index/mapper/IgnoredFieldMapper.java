@@ -32,7 +32,7 @@ import java.util.Collections;
  */
 public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
-    public static final IndexVersion AGGS_SUPPORT_VERSION = IndexVersion.fromId(Version.V_8_12_0.id());
+    public static final IndexVersion AGGS_SUPPORT_VERSION = IndexVersion.fromId(Version.V_8_13_0.id());
 
     public static final String NAME = "_ignored";
 
@@ -125,13 +125,12 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) {
         MappedFieldType mappedFieldType = fieldType();
-        for (String field : context.getIgnoredFields()) {
+        for (String ignoredField : context.getIgnoredFields()) {
             if (mappedFieldType.hasDocValues()) {
-                final BytesRef binaryValue = new BytesRef(field);
-                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
-                context.doc().add(new StringField(NAME, field, Field.Store.NO));
+                context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(ignoredField)));
+                context.doc().add(new StringField(NAME, ignoredField, Field.Store.NO));
             } else {
-                context.doc().add(new StringField(NAME, field, Field.Store.YES));
+                context.doc().add(new StringField(NAME, ignoredField, Field.Store.YES));
             }
 
         }

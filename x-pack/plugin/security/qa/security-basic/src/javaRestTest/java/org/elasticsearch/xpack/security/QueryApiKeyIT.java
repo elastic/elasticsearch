@@ -813,7 +813,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return basicAuthHeaderValue(username, new SecureString("super-strong-password".toCharArray()));
     }
 
-    private void createSystemWriteRole(String roleName) throws IOException {
+    static void createSystemWriteRole(String roleName) throws IOException {
         final Request addRole = new Request("POST", "/_security/role/" + roleName);
         addRole.setJsonEntity("""
             {
@@ -829,7 +829,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertOK(response);
     }
 
-    private void expectWarnings(Request request, String... expectedWarnings) {
+    static void expectWarnings(Request request, String... expectedWarnings) {
         final Set<String> expected = Set.of(expectedWarnings);
         RequestOptions options = request.getOptions().toBuilder().setWarningsHandler(warnings -> {
             final Set<String> actual = Set.copyOf(warnings);
@@ -839,7 +839,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         request.setOptions(options);
     }
 
-    private void updateApiKeys(String creds, String script, Collection<String> ids) throws IOException {
+    static void updateApiKeys(String creds, String script, Collection<String> ids) throws IOException {
         if (ids.isEmpty()) {
             return;
         }

@@ -38,11 +38,11 @@
       },
       "connector_name": {
         "type": "list",
-        "description": "A comma-separated list of connector name(s) to fetch connector documents for"
+        "description": "A comma-separated list of connector names to fetch connector documents for"
       },
       "service_type": {
-        "type": "string",
-        "description": "Connector service type to fetch connector documents for"
+        "type": "list",
+        "description": "A comma-separated list of connector service types to fetch connector documents for"
       },
       "query": {
         "type": "string",

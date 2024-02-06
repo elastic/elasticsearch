@@ -181,6 +181,14 @@ setup:
   - match: { results.0.id: "connector-b" }
 
 ---
+"List Connector - filter by multiple service types":
+  - do:
+      connector.list:
+        service_type: super-connector,extra-connector
+
+  - match: { count: 3 }
+
+---
 "List Connector - filter by search query":
   - do:
       connector.list:

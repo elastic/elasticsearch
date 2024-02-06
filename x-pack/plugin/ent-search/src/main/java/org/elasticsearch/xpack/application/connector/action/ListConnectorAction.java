@@ -45,7 +45,7 @@ public class ListConnectorAction {
         private final PageParams pageParams;
         private final List<String> indexNames;
         private final List<String> connectorNames;
-        private final String connectorServiceType;
+        private final List<String> connectorServiceTypes;
         private final String connectorSearchQuery;
 
         private static final ParseField PAGE_PARAMS_FIELD = new ParseField("pageParams");
@@ -58,7 +58,7 @@ public class ListConnectorAction {
             this.pageParams = new PageParams(in);
             this.indexNames = in.readOptionalStringCollectionAsList();
             this.connectorNames = in.readOptionalStringCollectionAsList();
-            this.connectorServiceType = in.readOptionalString();
+            this.connectorServiceTypes = in.readOptionalStringCollectionAsList();
             this.connectorSearchQuery = in.readOptionalString();
         }
 
@@ -66,13 +66,13 @@ public class ListConnectorAction {
             PageParams pageParams,
             List<String> indexNames,
             List<String> connectorNames,
-            String serviceType,
+            List<String> serviceTypes,
             String connectorSearchQuery
         ) {
             this.pageParams = pageParams;
             this.indexNames = indexNames;
             this.connectorNames = connectorNames;
-            this.connectorServiceType = serviceType;
+            this.connectorServiceTypes = serviceTypes;
             this.connectorSearchQuery = connectorSearchQuery;
         }
 
@@ -88,8 +88,8 @@ public class ListConnectorAction {
             return connectorNames;
         }
 
-        public String getConnectorServiceType() {
-            return connectorServiceType;
+        public List<String> getConnectorServiceTypes() {
+            return connectorServiceTypes;
         }
 
         public String getConnectorSearchQuery() {
@@ -119,7 +119,7 @@ public class ListConnectorAction {
             pageParams.writeTo(out);
             out.writeOptionalStringCollection(indexNames);
             out.writeOptionalStringCollection(connectorNames);
-            out.writeOptionalString(connectorServiceType);
+            out.writeOptionalStringCollection(connectorServiceTypes);
             out.writeOptionalString(connectorSearchQuery);
         }
 
@@ -131,26 +131,32 @@ public class ListConnectorAction {
             return Objects.equals(pageParams, request.pageParams)
                 && Objects.equals(indexNames, request.indexNames)
                 && Objects.equals(connectorNames, request.connectorNames)
-                && Objects.equals(connectorServiceType, request.connectorServiceType)
+                && Objects.equals(connectorServiceTypes, request.connectorServiceTypes)
                 && Objects.equals(connectorSearchQuery, request.connectorSearchQuery);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pageParams, indexNames, connectorNames, connectorServiceType, connectorSearchQuery);
+            return Objects.hash(pageParams, indexNames, connectorNames, connectorServiceTypes, connectorSearchQuery);
         }
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<ListConnectorAction.Request, String> PARSER = new ConstructingObjectParser<>(
             "list_connector_request",
-            p -> new ListConnectorAction.Request((PageParams) p[0], (List<String>) p[1], (List<String>) p[2], (String) p[3], (String) p[4])
+            p -> new ListConnectorAction.Request(
+                (PageParams) p[0],
+                (List<String>) p[1],
+                (List<String>) p[2],
+                (List<String>) p[3],
+                (String) p[4]
+            )
         );
 
         static {
             PARSER.declareObject(constructorArg(), (p, c) -> PageParams.fromXContent(p), PAGE_PARAMS_FIELD);
             PARSER.declareStringArray(optionalConstructorArg(), INDEX_NAMES_FIELD);
             PARSER.declareStringArray(optionalConstructorArg(), NAMES_FIELD);
-            PARSER.declareString(optionalConstructorArg(), Connector.SERVICE_TYPE_FIELD);
+            PARSER.declareStringArray(optionalConstructorArg(), Connector.SERVICE_TYPE_FIELD);
             PARSER.declareString(optionalConstructorArg(), SEARCH_QUERY_FIELD);
         }
 
@@ -165,7 +171,7 @@ public class ListConnectorAction {
                 builder.field(PAGE_PARAMS_FIELD.getPreferredName(), pageParams);
                 builder.field(INDEX_NAMES_FIELD.getPreferredName(), indexNames);
                 builder.field(NAMES_FIELD.getPreferredName(), connectorNames);
-                builder.field(Connector.SERVICE_TYPE_FIELD.getPreferredName(), connectorServiceType);
+                builder.field(Connector.SERVICE_TYPE_FIELD.getPreferredName(), connectorServiceTypes);
                 builder.field(SEARCH_QUERY_FIELD.getPreferredName(), connectorSearchQuery);
             }
             builder.endObject();

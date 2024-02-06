@@ -539,13 +539,13 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         int size,
         List<String> indexNames,
         List<String> names,
-        String serviceType,
+        List<String> serviceTypes,
         String searchQuery
     ) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<ConnectorIndexService.ConnectorResult> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.listConnectors(from, size, indexNames, names, serviceType, searchQuery, new ActionListener<>() {
+        connectorIndexService.listConnectors(from, size, indexNames, names, serviceTypes, searchQuery, new ActionListener<>() {
             @Override
             public void onResponse(ConnectorIndexService.ConnectorResult result) {
                 resp.set(result);

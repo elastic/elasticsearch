@@ -285,8 +285,8 @@ public class ConnectorIndexService {
      * @param from Starting index for the search.
      * @param size Maximum number of {@link Connector}s to retrieve.
      * @param indexNames Filter connectors by these index names, if provided.
-     * @param connectorNames Further filter connectors by these names, if provided.
-     * @param serviceType Filter connectors by service type, if provided.
+     * @param connectorNames Filter connectors by connector names, if provided.
+     * @param serviceTypes Filter connectors by service types, if provided.
      * @param searchQuery Apply a wildcard search on index name, connector name, and description, if provided.
      * @param listener Invoked with search results or upon failure.
      */
@@ -295,14 +295,14 @@ public class ConnectorIndexService {
         int size,
         List<String> indexNames,
         List<String> connectorNames,
-        String serviceType,
+        List<String> serviceTypes,
         String searchQuery,
         ActionListener<ConnectorIndexService.ConnectorResult> listener
     ) {
         try {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
-                .query(buildListQuery(indexNames, connectorNames, serviceType, searchQuery))
+                .query(buildListQuery(indexNames, connectorNames, serviceTypes, searchQuery))
                 .fetchSource(true)
                 .sort(Connector.INDEX_NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(CONNECTOR_INDEX_NAME).source(source);
@@ -336,16 +336,21 @@ public class ConnectorIndexService {
      *
      * @param indexNames List of index names for filtering, or null/empty to skip.
      * @param connectorNames List of connector names for filtering, or null/empty to skip.
-     * @param serviceType Service type for filtering, or null/empty to skip.
+     * @param serviceTypes List of connector service types for filtering, or null/empty to skip.
      * @param searchQuery Search query for wildcard filtering on index name, connector name, and description, or null/empty to skip.
      * @return A {@link QueryBuilder} customized based on provided filters.
      */
-    private QueryBuilder buildListQuery(List<String> indexNames, List<String> connectorNames, String serviceType, String searchQuery) {
+    private QueryBuilder buildListQuery(
+        List<String> indexNames,
+        List<String> connectorNames,
+        List<String> serviceTypes,
+        String searchQuery
+    ) {
         boolean filterByIndexNames = indexNames != null && indexNames.isEmpty() == false;
         boolean filterByConnectorNames = indexNames != null && connectorNames.isEmpty() == false;
-        boolean filterByServiceType = Strings.isNullOrEmpty(serviceType) == false;
+        boolean filterByServiceTypes = serviceTypes != null && serviceTypes.isEmpty() == false;
         boolean filterBySearchQuery = Strings.isNullOrEmpty(searchQuery) == false;
-        boolean usesFilter = filterByIndexNames || filterByConnectorNames || filterByServiceType || filterBySearchQuery;
+        boolean usesFilter = filterByIndexNames || filterByConnectorNames || filterByServiceTypes || filterBySearchQuery;
 
         BoolQueryBuilder boolFilterQueryBuilder = new BoolQueryBuilder();
 
@@ -356,8 +361,8 @@ public class ConnectorIndexService {
             if (filterByConnectorNames) {
                 boolFilterQueryBuilder.must().add(new TermsQueryBuilder(Connector.NAME_FIELD.getPreferredName(), connectorNames));
             }
-            if (filterByServiceType) {
-                boolFilterQueryBuilder.must().add(new TermQueryBuilder(Connector.SERVICE_TYPE_FIELD.getPreferredName(), serviceType));
+            if (filterByServiceTypes) {
+                boolFilterQueryBuilder.must().add(new TermsQueryBuilder(Connector.SERVICE_TYPE_FIELD.getPreferredName(), serviceTypes));
             }
             if (filterBySearchQuery) {
                 String wildcardQueryValue = '*' + searchQuery + '*';

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml;
+package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.common.util.FeatureFlag;
 

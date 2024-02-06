@@ -2944,6 +2944,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             "3:8: third argument of [auto_bucket(salary, 10, emp_no, bucket_end)] must be a constant, received [emp_no]",
             e.getMessage().substring(header.length())
         );
+    }
 
     /**
      * Expects

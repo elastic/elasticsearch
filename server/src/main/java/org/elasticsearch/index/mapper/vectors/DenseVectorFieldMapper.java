@@ -46,6 +46,8 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat;
+import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -842,6 +844,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int8HnswIndexOptions(m, efConstruction, confidenceInterval);
             }
+        },
+        FLAT("flat") {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+                return new FlatIndexOptions();
+            }
+        },
+        INT8_FLAT("int8_flat") {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
+                Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
+                Float confidenceInterval = null;
+                if (confidenceIntervalNode != null) {
+                    confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
+                }
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+                return new Int8FlatIndexOption(confidenceInterval);
+            }
         };
 
         static Optional<VectorIndexType> fromString(String type) {
@@ -855,6 +876,80 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         abstract IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap);
+    }
+
+    private static class Int8FlatIndexOption extends IndexOptions {
+        private final Float confidenceInterval;
+
+        Int8FlatIndexOption(Float confidenceInterval) {
+            super("int8_flat");
+            this.confidenceInterval = confidenceInterval;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            if (confidenceInterval != null) {
+                builder.field("confidence_interval", confidenceInterval);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        KnnVectorsFormat getVectorsFormat() {
+            return new ES813Int8FlatVectorFormat(confidenceInterval);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Int8FlatIndexOption that = (Int8FlatIndexOption) o;
+            return Objects.equals(confidenceInterval, that.confidenceInterval);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(confidenceInterval);
+        }
+
+        @Override
+        boolean supportsElementType(ElementType elementType) {
+            return elementType != ElementType.BYTE;
+        }
+    }
+
+    private static class FlatIndexOptions extends IndexOptions {
+
+        FlatIndexOptions() {
+            super("flat");
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        KnnVectorsFormat getVectorsFormat() {
+            return new ES813FlatVectorFormat();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            return o != null && getClass() == o.getClass();
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type);
+        }
     }
 
     private static class Int8HnswIndexOptions extends IndexOptions {
@@ -1186,7 +1281,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 case FLOAT -> parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
                     : new ESKnnFloatVectorQuery(name(), queryVector, numCands, filter);
-
             };
 
             if (similarityThreshold != null) {

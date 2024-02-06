@@ -23,8 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class IgnoredFieldMapperTests extends MetadataMapperTestCase {
 
@@ -76,8 +74,7 @@ public class IgnoredFieldMapperTests extends MetadataMapperTestCase {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", "value"))).rootDoc());
         }, iw -> {
             SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup(mapperService), (ctx, doc) -> null);
-            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-            when(searchExecutionContext.lookup()).thenReturn(lookup);
+            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
             IgnoredFieldMapper.IgnoredFieldType ft = (IgnoredFieldMapper.IgnoredFieldType) mapperService.fieldType("_ignored");
             ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
             IndexSearcher searcher = newSearcher(iw);

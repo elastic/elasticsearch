@@ -25,9 +25,9 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 
 import java.io.IOException;
@@ -91,7 +91,7 @@ class ScrollDataExtractor implements DataExtractor {
 
     @Override
     public long getEndTime() {
-        return context.end;
+        return context.queryContext.end;
     }
 
     @Override
@@ -103,12 +103,12 @@ class ScrollDataExtractor implements DataExtractor {
         if (stream.isPresent() == false) {
             hasNext = false;
         }
-        return new Result(new SearchInterval(context.start, context.end), stream);
+        return new Result(new SearchInterval(context.queryContext.start, context.queryContext.end), stream);
     }
 
     private Optional<InputStream> tryNextStream() throws IOException {
         try {
-            return scrollId == null ? Optional.ofNullable(initScroll(context.start)) : Optional.ofNullable(continueScroll());
+            return scrollId == null ? Optional.ofNullable(initScroll(context.queryContext.start)) : Optional.ofNullable(continueScroll());
         } catch (Exception e) {
             scrollId = null;
             if (searchHasShardFailure) {
@@ -116,7 +116,7 @@ class ScrollDataExtractor implements DataExtractor {
             }
             logger.debug("[{}] Resetting scroll search after shard failure", context.jobId);
             markScrollAsErrored();
-            return Optional.ofNullable(initScroll(lastTimestamp == null ? context.start : lastTimestamp));
+            return Optional.ofNullable(initScroll(lastTimestamp == null ? context.queryContext.start : lastTimestamp));
         }
     }
 
@@ -135,14 +135,14 @@ class ScrollDataExtractor implements DataExtractor {
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
         SearchResponse searchResponse = ClientHelper.executeWithHeaders(
-            context.headers,
+            context.queryContext.headers,
             ClientHelper.ML_ORIGIN,
             client,
             searchRequestBuilder::get
         );
         boolean success = false;
         try {
-            checkForSkippedClusters(searchResponse);
+            DataExtractorUtils.checkForSkippedClusters(searchResponse);
             success = true;
         } catch (ResourceNotFoundException e) {
             clearScrollLoggingExceptions(searchResponse.getScrollId());
@@ -158,12 +158,19 @@ class ScrollDataExtractor implements DataExtractor {
     private SearchRequestBuilder buildSearchRequest(long start) {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(context.scrollSize)
             .sort(context.extractedFields.timeField(), SortOrder.ASC)
-            .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.extractedFields.timeField(), start, context.end))
-            .runtimeMappings(context.runtimeMappings);
+            .query(
+                DataExtractorUtils.wrapInTimeRangeQuery(
+                    context.queryContext.query,
+                    context.extractedFields.timeField(),
+                    start,
+                    context.queryContext.end
+                )
+            )
+            .runtimeMappings(context.queryContext.runtimeMappings);
 
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client).setScroll(SCROLL_TIMEOUT)
-            .setIndices(context.indices)
-            .setIndicesOptions(context.indicesOptions)
+            .setIndices(context.queryContext.indices)
+            .setIndicesOptions(context.queryContext.indicesOptions)
             .setAllowPartialSearchResults(false)
             .setSource(searchSourceBuilder);
 
@@ -228,7 +235,9 @@ class ScrollDataExtractor implements DataExtractor {
                 }
                 logger.debug("[{}] search failed due to SearchPhaseExecutionException. Will attempt again with new scroll", context.jobId);
                 markScrollAsErrored();
-                searchResponse = executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
+                searchResponse = executeSearchRequest(
+                    buildSearchRequest(lastTimestamp == null ? context.queryContext.start : lastTimestamp)
+                );
             }
             logger.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
@@ -254,14 +263,14 @@ class ScrollDataExtractor implements DataExtractor {
     @SuppressWarnings("HiddenField")
     protected SearchResponse executeSearchScrollRequest(String scrollId) {
         SearchResponse searchResponse = ClientHelper.executeWithHeaders(
-            context.headers,
+            context.queryContext.headers,
             ClientHelper.ML_ORIGIN,
             client,
             () -> new SearchScrollRequestBuilder(client).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId).get()
         );
         boolean success = false;
         try {
-            checkForSkippedClusters(searchResponse);
+            DataExtractorUtils.checkForSkippedClusters(searchResponse);
             success = true;
         } catch (ResourceNotFoundException e) {
             clearScrollLoggingExceptions(searchResponse.getScrollId());
@@ -294,11 +303,24 @@ class ScrollDataExtractor implements DataExtractor {
             ClearScrollRequest request = new ClearScrollRequest();
             request.addScrollId(scrollId);
             ClientHelper.executeWithHeaders(
-                context.headers,
+                context.queryContext.headers,
                 ClientHelper.ML_ORIGIN,
                 client,
                 () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
             );
+        }
+    }
+
+    @Override
+    public DataSummary getSummary() {
+        SearchRequestBuilder searchRequestBuilder = DataExtractorUtils.getSearchRequestBuilderForSummary(client, context.queryContext);
+        SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
+        try {
+            logger.debug("[{}] Scrolling Data summary response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            return DataExtractorUtils.getDataSummary(searchResponse);
+        } finally {
+            searchResponse.decRef();
         }
     }
 }

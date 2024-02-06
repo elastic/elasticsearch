@@ -118,7 +118,7 @@ public class NestedObjectMapper extends ObjectMapper {
         final boolean parentIncludedInRoot;
 
         NestedMapperBuilderContext(String path, boolean parentIncludedInRoot) {
-            super(path, false, false);
+            super(path);
             this.parentIncludedInRoot = parentIncludedInRoot;
         }
 
@@ -227,7 +227,11 @@ public class NestedObjectMapper extends ObjectMapper {
             MapperErrors.throwNestedMappingConflictError(mergeWith.name());
         }
         NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
-        var mergeResult = MergeResult.build(this, mergeWith, reason, parentMergeContext);
+        return merge(mergeWithObject, reason, parentMergeContext);
+    }
+
+    ObjectMapper merge(NestedObjectMapper mergeWithObject, MapperService.MergeReason reason, MapperMergeContext parentMergeContext) {
+        var mergeResult = MergeResult.build(this, mergeWithObject, reason, parentMergeContext);
         Explicit<Boolean> incInParent = this.includeInParent;
         Explicit<Boolean> incInRoot = this.includeInRoot;
         if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {

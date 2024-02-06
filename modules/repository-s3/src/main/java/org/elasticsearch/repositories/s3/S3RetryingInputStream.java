@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.repositories.s3.S3BlobStore.configureRequestForMetrics;
 
 /**
  * Wrapper around an S3 object that will retry the {@link GetObjectRequest} if the download fails part-way through, resuming from where
@@ -77,14 +78,16 @@ class S3RetryingInputStream extends InputStream {
         this.failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
         this.start = start;
         this.end = end;
+        final int initialAttempt = attempt;
         openStreamWithRetry();
+        maybeLogForSuccessAfterRetries(initialAttempt, "opened");
     }
 
     private void openStreamWithRetry() throws IOException {
         while (true) {
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
                 final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-                getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.GET_OBJECT, purpose));
+                configureRequestForMetrics(getObjectRequest, blobStore, Operation.GET_OBJECT, purpose);
                 if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                     assert start + currentOffset <= end
                         : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
@@ -130,14 +133,16 @@ class S3RetryingInputStream extends InputStream {
     @Override
     public int read() throws IOException {
         ensureOpen();
+        final int initialAttempt = attempt;
         while (true) {
             try {
                 final int result = currentStream.read();
                 if (result == -1) {
                     eof = true;
-                    return -1;
+                } else {
+                    currentOffset += 1;
                 }
-                currentOffset += 1;
+                maybeLogForSuccessAfterRetries(initialAttempt, "read");
                 return result;
             } catch (IOException e) {
                 reopenStreamOrFail(e);
@@ -148,14 +153,16 @@ class S3RetryingInputStream extends InputStream {
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         ensureOpen();
+        final int initialAttempt = attempt;
         while (true) {
             try {
                 final int bytesRead = currentStream.read(b, off, len);
                 if (bytesRead == -1) {
                     eof = true;
-                    return -1;
+                } else {
+                    currentOffset += bytesRead;
                 }
-                currentOffset += bytesRead;
+                maybeLogForSuccessAfterRetries(initialAttempt, "read");
                 return bytesRead;
             } catch (IOException e) {
                 reopenStreamOrFail(e);
@@ -171,6 +178,10 @@ class S3RetryingInputStream extends InputStream {
     }
 
     private void reopenStreamOrFail(IOException e) throws IOException {
+        final long meaningfulProgressSize = Math.max(1L, blobStore.bufferSizeInBytes() / 100L);
+        if (currentStreamProgress() >= meaningfulProgressSize) {
+            failuresAfterMeaningfulProgress += 1;
+        }
         final long delayInMillis = maybeLogAndComputeRetryDelay("reading", e);
         maybeAbort(currentStream);
         IOUtils.closeWhileHandlingException(currentStream);
@@ -188,8 +199,8 @@ class S3RetryingInputStream extends InputStream {
             throw finalException;
         }
 
-        // Log at info level for the 1st retry and every ~5 minutes afterward
-        logForRetry((attempt == 1 || attempt % 30 == 0) ? Level.INFO : Level.DEBUG, action, e);
+        // Log at info level for the 1st retry and then exponentially less
+        logForRetry(Integer.bitCount(attempt) == 1 ? Level.INFO : Level.DEBUG, action, e);
         if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
             failures.add(e);
         }
@@ -213,11 +224,6 @@ class S3RetryingInputStream extends InputStream {
     }
 
     private void logForRetry(Level level, String action, Exception e) {
-        final long meaningfulProgressSize = Math.max(1L, blobStore.bufferSizeInBytes() / 100L);
-        final long currentStreamProgress = Math.subtractExact(Math.addExact(start, currentOffset), currentStreamFirstOffset);
-        if (currentStreamProgress >= meaningfulProgressSize) {
-            failuresAfterMeaningfulProgress += 1;
-        }
         logger.log(
             level,
             () -> format(
@@ -232,12 +238,29 @@ class S3RetryingInputStream extends InputStream {
                 start + currentOffset,
                 purpose.getKey(),
                 attempt,
-                currentStreamProgress,
+                currentStreamProgress(),
                 failuresAfterMeaningfulProgress,
                 maxRetriesForNoMeaningfulProgress()
             ),
             e
         );
+    }
+
+    private void maybeLogForSuccessAfterRetries(int initialAttempt, String action) {
+        if (attempt > initialAttempt) {
+            logger.info(
+                "successfully {} input stream for [{}/{}] with purpose [{}] after [{}] retries",
+                action,
+                blobStore.bucket(),
+                blobKey,
+                purpose.getKey(),
+                attempt - initialAttempt
+            );
+        }
+    }
+
+    private long currentStreamProgress() {
+        return Math.subtractExact(Math.addExact(start, currentOffset), currentStreamFirstOffset);
     }
 
     private boolean shouldRetry(int attempt) {

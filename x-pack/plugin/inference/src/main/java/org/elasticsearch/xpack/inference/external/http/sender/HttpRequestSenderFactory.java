@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -78,7 +78,7 @@ public class HttpRequestSenderFactory {
 
         private final ThreadPool threadPool;
         private final HttpClientManager manager;
-        private final HttpRequestExecutorService service;
+        private final RequestExecutorService service;
         private final AtomicBoolean started = new AtomicBoolean(false);
         private volatile TimeValue maxRequestTimeout;
         private final CountDownLatch startCompleted = new CountDownLatch(2);
@@ -92,7 +92,13 @@ public class HttpRequestSenderFactory {
         ) {
             this.threadPool = Objects.requireNonNull(threadPool);
             this.manager = Objects.requireNonNull(httpClientManager);
-            service = new HttpRequestExecutorService(serviceName, manager.getHttpClient(), threadPool, startCompleted);
+            service = new RequestExecutorService(
+                serviceName,
+                manager.getHttpClient(),
+                threadPool,
+                startCompleted,
+                new RequestExecutorServiceSettings(settings, clusterService)
+            );
 
             this.maxRequestTimeout = MAX_REQUEST_TIMEOUT.get(settings);
             addSettingsUpdateConsumers(clusterService);
@@ -135,10 +141,10 @@ public class HttpRequestSenderFactory {
          *                connection from the connection pool
          * @param listener a listener to handle the response
          */
-        public void send(HttpRequestBase request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
+        public void send(HttpRequest request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
-            service.send(request, timeout, listener);
+            service.execute(request, timeout, listener);
         }
 
         private void waitForStartToComplete() {
@@ -156,10 +162,10 @@ public class HttpRequestSenderFactory {
          * @param request the http request to send
          * @param listener a listener to handle the response
          */
-        public void send(HttpRequestBase request, ActionListener<HttpResult> listener) {
+        public void send(HttpRequest request, ActionListener<HttpResult> listener) {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
-            service.send(request, maxRequestTimeout, listener);
+            service.execute(request, maxRequestTimeout, listener);
         }
 
         public static List<Setting<?>> getSettings() {

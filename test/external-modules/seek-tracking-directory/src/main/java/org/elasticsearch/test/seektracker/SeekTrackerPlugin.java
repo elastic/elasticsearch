@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -28,6 +29,7 @@ import org.elasticsearch.rest.RestHandler;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
@@ -39,7 +41,7 @@ public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope
     );
 
-    public static final ActionType<SeekStatsResponse> SEEK_STATS_ACTION = ActionType.localOnly("cluster:monitor/seek_stats");
+    public static final ActionType<SeekStatsResponse> SEEK_STATS_ACTION = new ActionType<>("cluster:monitor/seek_stats");
 
     private final SeekStatsService seekStatsService = new SeekStatsService();
     private final boolean enabled;
@@ -77,7 +79,8 @@ public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (enabled) {
             return Collections.singletonList(new RestSeekStatsAction());

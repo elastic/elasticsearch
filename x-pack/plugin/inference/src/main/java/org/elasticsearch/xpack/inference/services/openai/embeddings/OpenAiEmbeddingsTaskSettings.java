@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 public record OpenAiEmbeddingsTaskSettings(String modelId, @Nullable String user) implements TaskSettings {
 
     public static final String NAME = "openai_embeddings_task_settings";
-    public static final String MODEL = "model";
+    public static final String OLD_MODEL_ID_FIELD = "model";
     public static final String MODEL_ID = "model_id";
     public static final String USER = "user";
     private static final String MODEL_DEPRECATION_MESSAGE =
@@ -46,15 +46,15 @@ public record OpenAiEmbeddingsTaskSettings(String modelId, @Nullable String user
     public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, boolean logDeprecations) {
         ValidationException validationException = new ValidationException();
 
-        String model = extractOptionalString(map, MODEL, ModelConfigurations.TASK_SETTINGS, validationException);
-        if (logDeprecations && model != null) {
+        String oldModelId = extractOptionalString(map, OLD_MODEL_ID_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
+        if (logDeprecations && oldModelId != null) {
             logger.info(MODEL_DEPRECATION_MESSAGE);
         }
 
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.TASK_SETTINGS, validationException);
         String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
 
-        var modelIdToUse = getModelId(model, modelId, validationException);
+        var modelIdToUse = getModelId(oldModelId, modelId, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -63,8 +63,8 @@ public record OpenAiEmbeddingsTaskSettings(String modelId, @Nullable String user
         return new OpenAiEmbeddingsTaskSettings(modelIdToUse, user);
     }
 
-    private static String getModelId(@Nullable String model, @Nullable String modelId, ValidationException validationException) {
-        var modelIdToUse = modelId != null ? modelId : model;
+    private static String getModelId(@Nullable String oldModelId, @Nullable String modelId, ValidationException validationException) {
+        var modelIdToUse = modelId != null ? modelId : oldModelId;
 
         if (modelIdToUse == null) {
             validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(MODEL_ID, ModelConfigurations.TASK_SETTINGS));

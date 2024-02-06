@@ -54,7 +54,7 @@ public class CohereService extends SenderService {
 
     @Override
     public CohereModel parseRequestConfig(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Set<String> platformArchitectures
@@ -63,7 +63,7 @@ public class CohereService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
         CohereModel model = createModel(
-            modelId,
+            inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
@@ -80,18 +80,18 @@ public class CohereService extends SenderService {
     }
 
     private static CohereModel createModelWithoutLoggingDeprecations(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage
     ) {
-        return createModel(modelId, taskType, serviceSettings, taskSettings, secretSettings, failureMessage, false);
+        return createModel(inferenceEntityId, taskType, serviceSettings, taskSettings, secretSettings, failureMessage, false);
     }
 
     private static CohereModel createModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
@@ -101,7 +101,7 @@ public class CohereService extends SenderService {
     ) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new CohereEmbeddingsModel(
-                modelId,
+                inferenceEntityId,
                 taskType,
                 NAME,
                 serviceSettings,
@@ -115,7 +115,7 @@ public class CohereService extends SenderService {
 
     @Override
     public CohereModel parsePersistedConfigWithSecrets(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
@@ -125,27 +125,27 @@ public class CohereService extends SenderService {
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
         return createModelWithoutLoggingDeprecations(
-            modelId,
+            inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
     }
 
     @Override
-    public CohereModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+    public CohereModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
         return createModelWithoutLoggingDeprecations(
-            modelId,
+            inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
             null,
-            parsePersistedConfigErrorMsg(modelId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
     }
 

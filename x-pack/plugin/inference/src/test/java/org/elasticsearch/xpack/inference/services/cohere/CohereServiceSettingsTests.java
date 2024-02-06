@@ -73,7 +73,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    CohereServiceSettings.MODEL,
+                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
                     model
                 )
             ),
@@ -133,7 +133,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    CohereServiceSettings.MODEL,
+                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
                     "old_model",
                     CohereServiceSettings.MODEL_ID,
                     model
@@ -230,7 +230,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
         }
 
         if (model != null) {
-            map.put(CohereServiceSettings.MODEL, model);
+            map.put(CohereServiceSettings.OLD_MODEL_ID_FIELD, model);
         }
 
         return map;

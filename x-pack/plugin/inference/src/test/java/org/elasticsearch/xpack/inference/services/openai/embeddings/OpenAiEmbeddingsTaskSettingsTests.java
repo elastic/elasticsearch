@@ -57,7 +57,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testFromMap_CreatesWithModelAndUser() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
             false
         );
 
@@ -81,7 +81,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
                 Map.of(
                     OpenAiEmbeddingsTaskSettings.MODEL_ID,
                     "model",
-                    OpenAiEmbeddingsTaskSettings.MODEL,
+                    OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD,
                     "old_model",
                     OpenAiEmbeddingsTaskSettings.USER,
                     "user"
@@ -95,7 +95,10 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model")), false);
+        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model")),
+            false
+        );
 
         MatcherAssert.assertThat(taskSettings.modelId(), is("model"));
         assertNull(taskSettings.user());
@@ -103,7 +106,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
             false
         );
 
@@ -113,12 +116,12 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testOverrideWith_UsesOverriddenSettings() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
             false
         );
 
         var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model2", OpenAiEmbeddingsTaskSettings.USER, "user2"))
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model2", OpenAiEmbeddingsTaskSettings.USER, "user2"))
         );
 
         var overriddenTaskSettings = OpenAiEmbeddingsTaskSettings.of(taskSettings, requestTaskSettings);
@@ -127,7 +130,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testOverrideWith_UsesOverriddenSettings_UsesModel2_FromModelIdField() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
             false
         );
 
@@ -136,7 +139,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
                 Map.of(
                     OpenAiEmbeddingsTaskSettings.MODEL_ID,
                     "model2",
-                    OpenAiEmbeddingsTaskSettings.MODEL,
+                    OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD,
                     "model3",
                     OpenAiEmbeddingsTaskSettings.USER,
                     "user2"
@@ -150,12 +153,12 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testOverrideWith_UsesOnlyNonNullModelSetting() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
             false
         );
 
         var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model2"))
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model2"))
         );
 
         var overriddenTaskSettings = OpenAiEmbeddingsTaskSettings.of(taskSettings, requestTaskSettings);
@@ -189,7 +192,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public static Map<String, Object> getTaskSettingsMap(String model, @Nullable String user) {
-        var map = new HashMap<String, Object>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, model));
+        var map = new HashMap<String, Object>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, model));
 
         if (user != null) {
             map.put(OpenAiEmbeddingsTaskSettings.USER, user);

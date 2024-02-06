@@ -57,7 +57,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    CohereServiceSettings.MODEL,
+                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
                     model,
                     CohereEmbeddingsServiceSettings.EMBEDDING_TYPE,
                     CohereEmbeddingType.INT8.toString()
@@ -94,7 +94,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    CohereServiceSettings.MODEL,
+                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
                     model,
                     CohereEmbeddingsServiceSettings.EMBEDDING_TYPE,
                     CohereEmbeddingType.INT8.toString()
@@ -131,7 +131,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    CohereServiceSettings.MODEL,
+                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
                     "old_model",
                     CohereServiceSettings.MODEL_ID,
                     model,

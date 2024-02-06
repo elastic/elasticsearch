@@ -38,7 +38,9 @@ public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
     }
 
     public void testFromMap_ReturnsEmptyUser_WhenTheDoesMapNotContainThatField() {
-        var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model")));
+        var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model"))
+        );
 
         assertNull(settings.user());
         assertThat(settings.modelId(), is("model"));
@@ -46,7 +48,9 @@ public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
 
     public void testFromMap_PrefersModelId_OverModel() {
         var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.MODEL_ID, "model_id"))
+            new HashMap<>(
+                Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model", OpenAiEmbeddingsTaskSettings.MODEL_ID, "model_id")
+            )
         );
 
         assertNull(settings.user());
@@ -57,7 +61,7 @@ public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
         var map = new HashMap<String, Object>();
 
         if (model != null) {
-            map.put(OpenAiEmbeddingsTaskSettings.MODEL, model);
+            map.put(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, model);
         }
 
         if (user != null) {
@@ -71,7 +75,7 @@ public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
         var map = new HashMap<String, Object>();
 
         if (model != null) {
-            map.put(OpenAiEmbeddingsTaskSettings.MODEL, model);
+            map.put(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, model);
         }
 
         if (modelId != null) {

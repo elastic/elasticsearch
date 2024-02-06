@@ -39,7 +39,7 @@ public class CohereServiceSettings implements ServiceSettings {
 
     private static final Logger logger = LogManager.getLogger(CohereServiceSettings.class);
     public static final String NAME = "cohere_service_settings";
-    public static final String MODEL = "model";
+    public static final String OLD_MODEL_ID_FIELD = "model";
     public static final String MODEL_ID = "model_id";
 
     public static CohereServiceSettings fromMap(Map<String, Object> map, boolean logDeprecations) {
@@ -51,11 +51,11 @@ public class CohereServiceSettings implements ServiceSettings {
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String model = extractOptionalString(map, MODEL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String oldModelId = extractOptionalString(map, OLD_MODEL_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        if (logDeprecations && model != null) {
+        if (logDeprecations && oldModelId != null) {
             logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
         }
 
@@ -63,7 +63,7 @@ public class CohereServiceSettings implements ServiceSettings {
             throw validationException;
         }
 
-        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, getModelId(model, modelId));
+        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, getModelId(oldModelId, modelId));
     }
 
     private static String getModelId(@Nullable String model, @Nullable String modelId) {

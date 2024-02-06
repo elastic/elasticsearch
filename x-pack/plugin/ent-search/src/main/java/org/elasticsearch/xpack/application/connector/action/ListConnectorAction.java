@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorSearchResult;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -44,22 +45,35 @@ public class ListConnectorAction {
         private final PageParams pageParams;
         private final List<String> indexNames;
         private final List<String> connectorNames;
+        private final String connectorServiceType;
+        private final String connectorSearchQuery;
 
         private static final ParseField PAGE_PARAMS_FIELD = new ParseField("pageParams");
         private static final ParseField INDEX_NAMES_FIELD = new ParseField("index_names");
         private static final ParseField NAMES_FIELD = new ParseField("names");
+        private static final ParseField SEARCH_QUERY_FIELD = new ParseField("query");
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.pageParams = new PageParams(in);
             this.indexNames = in.readOptionalStringCollectionAsList();
             this.connectorNames = in.readOptionalStringCollectionAsList();
+            this.connectorServiceType = in.readOptionalString();
+            this.connectorSearchQuery = in.readOptionalString();
         }
 
-        public Request(PageParams pageParams, List<String> indexNames, List<String> connectorNames) {
+        public Request(
+            PageParams pageParams,
+            List<String> indexNames,
+            List<String> connectorNames,
+            String serviceType,
+            String connectorSearchQuery
+        ) {
             this.pageParams = pageParams;
             this.indexNames = indexNames;
             this.connectorNames = connectorNames;
+            this.connectorServiceType = serviceType;
+            this.connectorSearchQuery = connectorSearchQuery;
         }
 
         public PageParams getPageParams() {
@@ -72,6 +86,14 @@ public class ListConnectorAction {
 
         public List<String> getConnectorNames() {
             return connectorNames;
+        }
+
+        public String getConnectorServiceType() {
+            return connectorServiceType;
+        }
+
+        public String getConnectorSearchQuery() {
+            return connectorSearchQuery;
         }
 
         @Override
@@ -97,6 +119,8 @@ public class ListConnectorAction {
             pageParams.writeTo(out);
             out.writeOptionalStringCollection(indexNames);
             out.writeOptionalStringCollection(connectorNames);
+            out.writeOptionalString(connectorServiceType);
+            out.writeOptionalString(connectorSearchQuery);
         }
 
         @Override
@@ -106,24 +130,28 @@ public class ListConnectorAction {
             ListConnectorAction.Request request = (ListConnectorAction.Request) o;
             return Objects.equals(pageParams, request.pageParams)
                 && Objects.equals(indexNames, request.indexNames)
-                && Objects.equals(connectorNames, request.connectorNames);
+                && Objects.equals(connectorNames, request.connectorNames)
+                && Objects.equals(connectorServiceType, request.connectorServiceType)
+                && Objects.equals(connectorSearchQuery, request.connectorSearchQuery);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pageParams, indexNames, connectorNames);
+            return Objects.hash(pageParams, indexNames, connectorNames, connectorServiceType, connectorSearchQuery);
         }
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<ListConnectorAction.Request, String> PARSER = new ConstructingObjectParser<>(
             "list_connector_request",
-            p -> new ListConnectorAction.Request((PageParams) p[0], (List<String>) p[1], (List<String>) p[2])
+            p -> new ListConnectorAction.Request((PageParams) p[0], (List<String>) p[1], (List<String>) p[2], (String) p[3], (String) p[4])
         );
 
         static {
             PARSER.declareObject(constructorArg(), (p, c) -> PageParams.fromXContent(p), PAGE_PARAMS_FIELD);
             PARSER.declareStringArray(optionalConstructorArg(), INDEX_NAMES_FIELD);
             PARSER.declareStringArray(optionalConstructorArg(), NAMES_FIELD);
+            PARSER.declareString(optionalConstructorArg(), Connector.SERVICE_TYPE_FIELD);
+            PARSER.declareString(optionalConstructorArg(), SEARCH_QUERY_FIELD);
         }
 
         public static ListConnectorAction.Request parse(XContentParser parser) {
@@ -137,6 +165,8 @@ public class ListConnectorAction {
                 builder.field(PAGE_PARAMS_FIELD.getPreferredName(), pageParams);
                 builder.field(INDEX_NAMES_FIELD.getPreferredName(), indexNames);
                 builder.field(NAMES_FIELD.getPreferredName(), connectorNames);
+                builder.field(Connector.SERVICE_TYPE_FIELD.getPreferredName(), connectorServiceType);
+                builder.field(SEARCH_QUERY_FIELD.getPreferredName(), connectorSearchQuery);
             }
             builder.endObject();
             return builder;

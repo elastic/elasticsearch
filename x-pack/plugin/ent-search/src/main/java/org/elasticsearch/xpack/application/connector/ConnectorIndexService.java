@@ -105,6 +105,7 @@ public class ConnectorIndexService {
         try {
             isDataIndexNameAlreadyInUse(indexName, connectorId, listener.delegateFailure((l, isIndexNameInUse) -> {
                 if (isIndexNameInUse) {
+
                     l.onFailure(
                         new ElasticsearchStatusException(
                             "Index name [" + indexName + "] is used by another connector.",
@@ -230,7 +231,7 @@ public class ConnectorIndexService {
 
             clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, getResponse) -> {
                 if (getResponse.isExists() == false) {
-                    l.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                     return;
                 }
                 try {
@@ -265,7 +266,7 @@ public class ConnectorIndexService {
                 deleteRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, deleteResponse) -> {
                     if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(deleteResponse);
@@ -392,7 +393,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -422,7 +423,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -453,7 +454,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -483,7 +484,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -512,7 +513,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -542,7 +543,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -582,7 +583,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -614,7 +615,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -659,7 +660,7 @@ public class ConnectorIndexService {
                     updateRequest,
                     new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
                         if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                            ll.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                            ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                             return;
                         }
                         ll.onResponse(updateResponse);
@@ -691,7 +692,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -736,7 +737,7 @@ public class ConnectorIndexService {
                     updateRequest,
                     new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (updateListener, updateResponse) -> {
                         if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                            updateListener.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                            updateListener.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                             return;
                         }
                         updateListener.onResponse(updateResponse);
@@ -779,7 +780,7 @@ public class ConnectorIndexService {
                     updateRequest,
                     new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (updateListener, updateResponse) -> {
                         if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                            updateListener.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                            updateListener.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                             return;
                         }
                         updateListener.onResponse(updateResponse);
@@ -807,7 +808,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException("connector [" + connectorId + "] not found"));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -880,6 +881,10 @@ public class ConnectorIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private String connectorNotFoundErrorMsg(String connectorId) {
+        return "connector [" + connectorId + "] not found";
     }
 
     public record ConnectorResult(List<ConnectorSearchResult> connectors, long totalResults) {}

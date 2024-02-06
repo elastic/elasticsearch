@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
-abstract class HttpTask extends AbstractRunnable {
-    public boolean shouldShutdown() {
-        return false;
-    }
+class NoopTask extends AbstractRunnable {
+
+    @Override
+    public void onFailure(Exception e) {}
+
+    @Override
+    protected void doRun() throws Exception {}
 }

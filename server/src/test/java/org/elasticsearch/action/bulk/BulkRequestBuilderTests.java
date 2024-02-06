@@ -28,9 +28,12 @@ public class BulkRequestBuilderTests extends ESTestCase {
         bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
         bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
         bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
+        assertThat(bulkRequestBuilder.numberOfActions(), equalTo(3));
         BulkRequest bulkRequest = bulkRequestBuilder.request();
         assertNotNull(bulkRequest);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
+        // Make sure that the bulk request builder is no longer holding onto the child request builders:
+        assertThat(bulkRequestBuilder.numberOfActions(), equalTo(0));
         expectThrows(IllegalStateException.class, bulkRequestBuilder::request);
     }
 }

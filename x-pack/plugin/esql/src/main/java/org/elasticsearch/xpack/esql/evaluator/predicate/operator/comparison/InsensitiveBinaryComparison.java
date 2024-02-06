@@ -7,15 +7,25 @@
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction {
+public abstract class InsensitiveBinaryComparison extends BinaryOperator<
+    Object,
+    Object,
+    Boolean,
+    PredicateBiFunction<Object, Object, Boolean>> {
 
-    protected InsensitiveBinaryComparison(Source source, Expression left, Expression right) {
-        super(source, left, right);
+    protected InsensitiveBinaryComparison(
+        Source source,
+        Expression left,
+        Expression right,
+        PredicateBiFunction<Object, Object, Boolean> f
+    ) {
+        super(source, left, right, f);
     }
 
     @Override

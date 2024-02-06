@@ -124,7 +124,7 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
             }
             Literal lhs = randomLiteral(lhsType);
             for (DataType rhsType : EsqlDataTypes.types()) {
-                if (isRepresentable(rhsType) == false) {
+                if (isRepresentable(rhsType) == false || supportsTypes(lhsType, rhsType) == false) {
                     continue;
                 }
                 Literal rhs = randomLiteral(rhsType);

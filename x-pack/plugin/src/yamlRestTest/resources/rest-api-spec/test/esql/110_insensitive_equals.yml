@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: "all"
-      reason: "waiting for final decisions on supporting generic expressions on the right https://github.com/elastic/elasticsearch/issues/103599"
+      version: " - 8.12.99"
+      reason: "feature added in 8.13"
 
       features: allowed_warnings_regex
   - do:

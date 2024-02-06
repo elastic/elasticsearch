@@ -19,14 +19,14 @@ import org.junit.Before;
 import java.util.Locale;
 
 public class PutInferenceModelActionTests extends ESTestCase {
-    public static String TASK_TYPE;
+    public static TaskType TASK_TYPE;
     public static String MODEL_ID;
     public static XContentType X_CONTENT_TYPE;
     public static BytesReference BYTES;
 
     @Before
     public void setup() throws Exception {
-        TASK_TYPE = TaskType.ANY.toString();
+        TASK_TYPE = TaskType.SPARSE_EMBEDDING;
         MODEL_ID = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         X_CONTENT_TYPE = randomFrom(XContentType.values());
         BYTES = new BytesArray(randomAlphaOfLengthBetween(1, 10));

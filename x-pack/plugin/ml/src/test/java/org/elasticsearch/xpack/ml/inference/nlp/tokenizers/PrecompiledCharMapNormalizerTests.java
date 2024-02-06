@@ -46,6 +46,17 @@ public class PrecompiledCharMapNormalizerTests extends ESTestCase {
         assertNormalization("​​από", parsed, "  από");
     }
 
+    public void testSurrogatePairScenario() throws IOException {
+        PrecompiledCharMapNormalizer.Config parsed = loadTestCharMap();
+        assertNormalization("🇸🇴", parsed, "🇸🇴");
+        assertNormalization("🇸🇴", parsed, "\uD83C\uDDF8\uD83C\uDDF4");
+    }
+
+    public void testEmoji() throws IOException {
+        PrecompiledCharMapNormalizer.Config parsed = loadTestCharMap();
+        assertNormalization("😀", parsed, "😀");
+    }
+
     private void assertNormalization(String input, PrecompiledCharMapNormalizer.Config config, String expected) throws IOException {
         PrecompiledCharMapNormalizer normalizer = new PrecompiledCharMapNormalizer(
             config.offsets(),

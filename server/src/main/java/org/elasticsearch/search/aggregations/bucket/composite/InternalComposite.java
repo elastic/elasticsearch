@@ -283,19 +283,18 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
     @Override
     protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
-        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
+        assert buckets.isEmpty() == false;
         long docCount = 0;
         for (InternalBucket bucket : buckets) {
             docCount += bucket.docCount;
-            aggregations.add(bucket.aggregations);
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         /* Use the formats from the bucket because they'll be right to format
          * the key. The formats on the InternalComposite doing the reducing are
          * just whatever formats make sense for *its* index. This can be real
          * trouble when the index doing the reducing is unmapped. */
-        var reducedFormats = buckets.get(0).formats;
+        final var reducedFormats = buckets.get(0).formats;
         return new InternalBucket(sourceNames, reducedFormats, buckets.get(0).key, reverseMuls, missingOrders, docCount, aggs);
     }
 

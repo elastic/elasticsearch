@@ -330,7 +330,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (mapperService == null) {
             return null;
         }
-        long totalCount = mapperService().mappingLookup().getTotalFieldsCount();
+        long totalCount = mapperService().mappingLookup().getTotalMapperCount();
         long totalEstimatedOverhead = totalCount * 1024L; // 1KiB estimated per mapping
         NodeMappingStats indexNodeMappingStats = new NodeMappingStats(totalCount, totalEstimatedOverhead);
         return indexNodeMappingStats;

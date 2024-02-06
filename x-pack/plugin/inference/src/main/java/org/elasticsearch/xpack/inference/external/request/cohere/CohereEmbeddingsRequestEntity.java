@@ -47,7 +47,7 @@ public record CohereEmbeddingsRequestEntity(
         builder.startObject();
         builder.field(TEXTS_FIELD, input);
         if (model != null) {
-            builder.field(CohereServiceSettings.MODEL, model);
+            builder.field(CohereServiceSettings.OLD_MODEL_ID_FIELD, model);
         }
 
         if (taskSettings.getInputType() != null) {

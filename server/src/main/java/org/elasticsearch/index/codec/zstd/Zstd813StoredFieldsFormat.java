@@ -33,9 +33,15 @@ import java.nio.ByteBuffer;
  */
 public final class Zstd813StoredFieldsFormat extends Lucene90CompressingStoredFieldsFormat {
 
+    // ZSTD has special optimizations for inputs that are less than 16kB and less than 256kB that allow using a bit less memory for hash
+    // tables and chain tables among other things. So subtract a bit of memory from 16kB and 256kB to make our inputs unlikely to grow
+    // beyond 16kB for BEST_SPEED and 256kB for BEST_COMPRESSION.
+    private static final int BEST_SPEED_BLOCK_SIZE = (16 - 2) * 1_024;
+    private static final int BEST_COMPRESSION_BLOCK_SIZE = (256 - 16) * 1_024;
+
     public enum Mode {
-        BEST_SPEED(0, 16 * 1024, 128),
-        BEST_COMPRESSION(9, 256 * 1024, 2048);
+        BEST_SPEED(0, BEST_SPEED_BLOCK_SIZE, 128),
+        BEST_COMPRESSION(9, BEST_COMPRESSION_BLOCK_SIZE, 2048);
 
         final int level, blockSizeInBytes, blockDocCount;
 

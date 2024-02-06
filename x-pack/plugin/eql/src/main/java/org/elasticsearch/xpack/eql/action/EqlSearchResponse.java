@@ -277,7 +277,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         private Event(StreamInput in) throws IOException {
             index = in.readString();
             id = in.readString();
-            source = in.readReleasableBytesReference();
+            // TODO: make this pooled?
+            source = in.readBytesReference();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0) && in.readBoolean()) {
                 fetchFields = in.readMap(DocumentField::new);
             } else {

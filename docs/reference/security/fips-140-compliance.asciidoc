@@ -14,7 +14,7 @@ Refer to the {es}
 https://www.elastic.co/support/matrix#matrix_jvm[JVM support matrix] for
 supported JVM configurations. See https://www.elastic.co/subscriptions[subscriptions] for required licensing.
 
-Compliance with FIPS 140-2 is achieved by using only FIPS approved / NIST recommended cryptographic algorithms. This can be achieved by the following:
+Compliance with FIPS 140-2 requires using only FIPS approved / NIST recommended cryptographic algorithms. Generally this can be done by the following:
 
 - Installation and configuration of a FIPS certified Java security provider.
 - Ensuring the configuration of {es} is FIPS 140-2 compliant as documented below.

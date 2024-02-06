@@ -22,28 +22,28 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 
-public class MappedFieldTypeTest extends ESTestCase {
+public class MappedFieldTypeTests extends ESTestCase {
 
     public void testFieldHasValue() {
-        MappedFieldType fieldType = getMappedFieldType("field");
+        MappedFieldType fieldType = getMappedFieldType();
         List<FieldInfos> fieldInfosList = List.of(new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") }));
         assertTrue(fieldType.fieldHasValue(fieldInfosList));
     }
 
     public void testFieldEmpty() {
-        MappedFieldType fieldType = getMappedFieldType("field");
+        MappedFieldType fieldType = getMappedFieldType();
         List<FieldInfos> fieldInfosList = List.of(new FieldInfos(new FieldInfo[] { getFieldInfoWithName("anotherField") }));
         assertFalse(fieldType.fieldHasValue(fieldInfosList));
     }
 
     public void testFieldEmptyBecauseEmptyFieldInfosList() {
-        MappedFieldType fieldType = getMappedFieldType("field");
+        MappedFieldType fieldType = getMappedFieldType();
         List<FieldInfos> fieldInfosList = List.of();
         assertFalse(fieldType.fieldHasValue(fieldInfosList));
     }
 
-    private MappedFieldType getMappedFieldType(String name) {
-        return new MappedFieldType(name, false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+    private MappedFieldType getMappedFieldType() {
+        return new MappedFieldType("field", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
 
             @Override
             public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {

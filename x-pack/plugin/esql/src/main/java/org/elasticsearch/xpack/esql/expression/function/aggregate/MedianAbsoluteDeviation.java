@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -21,7 +22,12 @@ import java.util.List;
 public class MedianAbsoluteDeviation extends NumericAggregate {
 
     // TODO: Add parameter
-    public MedianAbsoluteDeviation(Source source, Expression field) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long" },
+        description = "The median absolute deviation, a measure of variability.",
+        isAggregation = true
+    )
+    public MedianAbsoluteDeviation(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 
@@ -36,17 +42,17 @@ public class MedianAbsoluteDeviation extends NumericAggregate {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
+        return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
+        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
+        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(inputChannels);
     }
 }

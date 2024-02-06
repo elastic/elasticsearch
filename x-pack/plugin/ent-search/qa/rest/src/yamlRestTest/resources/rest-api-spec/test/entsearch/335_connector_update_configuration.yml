@@ -57,7 +57,7 @@ setup:
         connector_id: test-connector
         body:
           configuration:
-            some_field:
+            some_new_field:
               default_value: null
               depends_on:
                 - field: some_field
@@ -72,8 +72,18 @@ setup:
               type: str
               ui_restrictions: [ ]
               validations:
+                - constraint: [123, 456, 789]
+                  type: included_in
+                - constraint: ["string 1", "string 2", "string 3"]
+                  type: included_in
                 - constraint: 0
                   type: greater_than
+                - constraint: 42
+                  type: less_than
+                - constraint: int
+                  type: list_type
+                - constraint: "\\d+"
+                  type: regex
               value: 456
 
   - match: { result: updated }
@@ -82,8 +92,22 @@ setup:
       connector.get:
         connector_id: test-connector
 
-  - match: { configuration.some_field.value: 456 }
+  - is_false:  configuration.some_field  # configuration.some_field doesn't exist
+
+  - match: { configuration.some_new_field.value: 456 }
   - match: { status: configured }
+  - match: { configuration.some_new_field.validations.0.constraint: [123, 456, 789] }
+  - match: { configuration.some_new_field.validations.0.type: included_in }
+  - match: { configuration.some_new_field.validations.1.constraint: ["string 1", "string 2", "string 3"] }
+  - match: { configuration.some_new_field.validations.1.type: included_in }
+  - match: { configuration.some_new_field.validations.2.constraint: 0 }
+  - match: { configuration.some_new_field.validations.2.type: greater_than }
+  - match: { configuration.some_new_field.validations.3.constraint: 42 }
+  - match: { configuration.some_new_field.validations.3.type: less_than }
+  - match: { configuration.some_new_field.validations.4.constraint: int }
+  - match: { configuration.some_new_field.validations.4.type: list_type }
+  - match: { configuration.some_new_field.validations.5.constraint: "\\d+" }
+  - match: { configuration.some_new_field.validations.5.type: regex }
 
 ---
 "Update Connector Configuration with null tooltip":
@@ -161,7 +185,6 @@ setup:
                 - field: some_field
                   value: 31
               display: numeric
-              label: Very important field
 
 ---
 "Update Connector Configuration - Unknown field type":
@@ -216,3 +239,26 @@ setup:
                 - constraint: 0
                   type: unknown_constraint
               value: 123
+
+---
+"Update Connector Configuration - Crawler configuration":
+  - do:
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration:
+            nextSyncConfig:
+              label: nextSyncConfig
+              value:
+                max_crawl_depth: 3
+                sitemap_discovery_disabled: false
+                seed_urls:
+                  - https://elastic.co/
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { configuration.nextSyncConfig.value.max_crawl_depth: 3 }

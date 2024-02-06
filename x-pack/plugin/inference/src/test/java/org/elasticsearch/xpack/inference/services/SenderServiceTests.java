@@ -12,7 +12,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -105,7 +108,20 @@ public class SenderServiceTests extends ESTestCase {
             Model model,
             List<String> input,
             Map<String, Object> taskSettings,
+            InputType inputType,
             ActionListener<InferenceServiceResults> listener
+        ) {
+
+        }
+
+        @Override
+        protected void doChunkedInfer(
+            Model model,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            ChunkingOptions chunkingOptions,
+            ActionListener<ChunkedInferenceServiceResults> listener
         ) {
 
         }
@@ -116,13 +132,18 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
-        public Model parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, Set<String> platfromArchitectures) {
+        public Model parseRequestConfig(
+            String inferenceEntityId,
+            TaskType taskType,
+            Map<String, Object> config,
+            Set<String> platfromArchitectures
+        ) {
             return null;
         }
 
         @Override
         public Model parsePersistedConfigWithSecrets(
-            String modelId,
+            String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
             Map<String, Object> secrets
@@ -131,7 +152,7 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
-        public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+        public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
             return null;
         }
 

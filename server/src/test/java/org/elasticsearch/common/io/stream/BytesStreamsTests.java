@@ -692,7 +692,7 @@ public class BytesStreamsTests extends ESTestCase {
         try (TestStreamOutput streamOut = new TestStreamOutput()) {
             streamOut.writeMapWithConsistentOrder(streamOutMap);
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(streamOut.bytes()));
-            Map<String, Object> streamInMap = in.readMap();
+            Map<String, Object> streamInMap = in.readGenericMap();
             assertEquals(streamOutMap, streamInMap);
         }
     }

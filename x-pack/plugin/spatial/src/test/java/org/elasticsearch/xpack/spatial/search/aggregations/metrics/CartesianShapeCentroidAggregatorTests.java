@@ -14,6 +14,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
-import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -162,8 +162,9 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                 w.addDocument(document);
                 if (targetShapeType.compareTo(calculator.getDimensionalShapeType()) == 0) {
                     double weight = calculator.sumWeight();
-                    compensatedSumLat.add(weight * calculator.getY());
-                    compensatedSumLon.add(weight * calculator.getX());
+                    // compute the centroid of centroids in float space
+                    compensatedSumLat.add(weight * (float) calculator.getY());
+                    compensatedSumLon.add(weight * (float) calculator.getX());
                     compensatedSumWeight.add(weight);
                 }
             }

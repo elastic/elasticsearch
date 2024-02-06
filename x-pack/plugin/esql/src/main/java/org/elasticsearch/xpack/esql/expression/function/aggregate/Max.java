@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -21,7 +22,8 @@ import java.util.List;
 
 public class Max extends NumericAggregate {
 
-    public Max(Source source, Expression field) {
+    @FunctionInfo(returnType = { "double", "integer", "long" }, description = "The maximum value of a numeric field.", isAggregation = true)
+    public Max(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 
@@ -46,17 +48,17 @@ public class Max extends NumericAggregate {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MaxLongAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
+        return new MaxLongAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MaxIntAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
+        return new MaxIntAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MaxDoubleAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
+        return new MaxDoubleAggregatorFunctionSupplier(inputChannels);
     }
 }

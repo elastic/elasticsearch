@@ -32,9 +32,9 @@ public class RestInferenceAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String taskType = restRequest.param("task_type");
-        String modelId = restRequest.param("model_id");
+        String inferenceEntityId = restRequest.param("model_id");
         try (var parser = restRequest.contentParser()) {
-            var request = InferenceAction.Request.parseRequest(modelId, taskType, parser);
+            var request = InferenceAction.Request.parseRequest(inferenceEntityId, taskType, parser);
             return channel -> client.execute(InferenceAction.INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }

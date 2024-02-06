@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -20,7 +20,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
-import org.elasticsearch.common.logging.ChunkedLoggingStreamTests;
+import org.elasticsearch.common.logging.ChunkedLoggingStreamTestUtils;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -495,7 +495,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         executeRequest(Settings.EMPTY, "request-host");
 
-        verify(tracer).setAttribute(argThat(id -> id.getRawId().startsWith("rest-")), eq("http.status_code"), eq(200L));
+        verify(tracer).setAttribute(argThat(id -> id.getSpanId().startsWith("rest-")), eq("http.status_code"), eq(200L));
         verify(tracer).stopTrace(any(RestRequest.class));
     }
 
@@ -543,12 +543,7 @@ public class DefaultRestChannelTests extends ESTestCase {
                 public String getResponseContentTypeString() {
                     return RestResponse.TEXT_CONTENT_TYPE;
                 }
-
-                @Override
-                public void close() {
-                    assertTrue(isClosed.compareAndSet(false, true));
-                }
-            }));
+            }, () -> assertTrue(isClosed.compareAndSet(false, true))));
             @SuppressWarnings("unchecked")
             Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class<?>) ActionListener.class;
             ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
@@ -570,7 +565,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     @TestLogging(reason = "Get HttpTracer to output trace logs", value = "org.elasticsearch.http.HttpTracer:TRACE")
     public void testHttpTracerSendResponseSuccess() {
-        final ListenableActionFuture<Void> sendResponseFuture = new ListenableActionFuture<>();
+        final SubscribableListener<Void> sendResponseFuture = new SubscribableListener<>();
         final HttpChannel httpChannel = new FakeRestRequest.FakeHttpChannel(InetSocketAddress.createUnresolved("127.0.0.1", 9200)) {
             @Override
             public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
@@ -713,7 +708,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         var responseBody = new BytesArray(randomUnicodeOfLengthBetween(1, 100).getBytes(StandardCharsets.UTF_8));
         assertEquals(
             responseBody,
-            ChunkedLoggingStreamTests.getDecodedLoggedBody(
+            ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(HttpTracerTests.HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
                 "[" + request.getRequestId() + "] response body",
@@ -725,7 +720,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         final var isClosed = new AtomicBoolean();
         assertEquals(
             responseBody,
-            ChunkedLoggingStreamTests.getDecodedLoggedBody(
+            ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(HttpTracerTests.HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
                 "[" + request.getRequestId() + "] response body",
@@ -750,12 +745,7 @@ public class DefaultRestChannelTests extends ESTestCase {
                     public String getResponseContentTypeString() {
                         return RestResponse.TEXT_CONTENT_TYPE;
                     }
-
-                    @Override
-                    public void close() {
-                        assertTrue(isClosed.compareAndSet(false, true));
-                    }
-                }))
+                }, () -> assertTrue(isClosed.compareAndSet(false, true))))
             )
         );
 

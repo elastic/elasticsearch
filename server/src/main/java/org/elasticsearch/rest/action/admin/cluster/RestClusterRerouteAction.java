@@ -19,7 +19,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
@@ -84,7 +84,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         if (metric == null) {
             request.params().put("metric", DEFAULT_METRICS);
         }
-        return channel -> client.admin().cluster().reroute(clusterRerouteRequest, new RestChunkedToXContentListener<>(channel));
+        return channel -> client.admin().cluster().reroute(clusterRerouteRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 
     @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -53,11 +55,25 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
             try {
                 assertBusy(() -> {
-                    logger.info("running tasks: {}", client().admin().cluster().prepareListTasks().get());
+                    logger.info(
+                        "running tasks: {}",
+                        client().admin()
+                            .cluster()
+                            .prepareListTasks()
+                            .get()
+                            .getTasks()
+                            .stream()
+                            .filter(
+                                // Skip the tasks we that'd get in the way while debugging
+                                t -> false == t.action().contains(TransportListTasksAction.TYPE.name())
+                                    && false == t.action().contains(HealthNode.TASK_NAME)
+                            )
+                            .toList()
+                    );
                     assertThat("Request breaker not reset to 0 on node: " + node, reqBreaker.getUsed(), equalTo(0L));
                 });
             } catch (Exception e) {
-                assertThat("Request breaker not reset to 0 on node: " + node, reqBreaker.getUsed(), equalTo(0L));
+                throw new RuntimeException("failed waiting for breakers to clear", e);
             }
         }
     }
@@ -168,6 +184,9 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                     default -> throw new AssertionError("unknown");
                 };
                 settings.put("page_size", pageSize);
+            }
+            if (randomBoolean()) {
+                settings.put("max_concurrent_shards_per_node", randomIntBetween(1, 10));
             }
         }
         return new QueryPragmas(settings.build());

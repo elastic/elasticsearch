@@ -53,6 +53,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -67,9 +68,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -88,7 +89,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -133,7 +133,6 @@ import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -547,7 +546,7 @@ public class JobResultsProvider {
             request.setParentTask(parentTaskId);
         }
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, ActionListener.<SearchResponse>wrap(response -> {
-            Aggregations aggs = response.getAggregations();
+            InternalAggregations aggs = response.getAggregations();
             if (aggs == null) {
                 handler.apply(new DataCounts(jobId), new ModelSizeStats.Builder(jobId).build(), new TimingStats(jobId));
                 return;
@@ -859,14 +858,7 @@ public class JobResultsProvider {
                 List<Bucket> results = new ArrayList<>();
                 for (SearchHit hit : hits.getHits()) {
                     BytesReference source = hit.getSourceRef();
-                    try (
-                        InputStream stream = source.streamInput();
-                        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                            .createParser(
-                                XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-                                stream
-                            )
-                    ) {
+                    try (XContentParser parser = createParser(source)) {
                         Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
                         results.add(bucket);
                     } catch (IOException e) {
@@ -1075,14 +1067,7 @@ public class JobResultsProvider {
                 List<CategoryDefinition> results = new ArrayList<>(hits.length);
                 for (SearchHit hit : hits) {
                     BytesReference source = hit.getSourceRef();
-                    try (
-                        InputStream stream = source.streamInput();
-                        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                            .createParser(
-                                XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-                                stream
-                            )
-                    ) {
+                    try (XContentParser parser = createParser(source)) {
                         CategoryDefinition categoryDefinition = CategoryDefinition.LENIENT_PARSER.apply(parser, null);
                         // Check if parent task is cancelled as augmentation of many categories is a non-trivial task
                         if (parentTask != null && parentTask.isCancelled()) {
@@ -1150,14 +1135,7 @@ public class JobResultsProvider {
                 List<AnomalyRecord> results = new ArrayList<>();
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     BytesReference source = hit.getSourceRef();
-                    try (
-                        InputStream stream = source.streamInput();
-                        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                            .createParser(
-                                XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-                                stream
-                            )
-                    ) {
+                    try (XContentParser parser = createParser(source)) {
                         results.add(AnomalyRecord.LENIENT_PARSER.apply(parser, null));
                     } catch (IOException e) {
                         throw new ElasticsearchParseException("failed to parse records", e);
@@ -1221,14 +1199,7 @@ public class JobResultsProvider {
                 List<Influencer> influencers = new ArrayList<>();
                 for (SearchHit hit : response.getHits().getHits()) {
                     BytesReference source = hit.getSourceRef();
-                    try (
-                        InputStream stream = source.streamInput();
-                        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                            .createParser(
-                                XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-                                stream
-                            )
-                    ) {
+                    try (XContentParser parser = createParser(source)) {
                         influencers.add(Influencer.LENIENT_PARSER.apply(parser, null));
                     } catch (IOException e) {
                         throw new ElasticsearchParseException("failed to parse influencer", e);
@@ -1432,11 +1403,7 @@ public class JobResultsProvider {
 
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 BytesReference source = hit.getSourceRef();
-                try (
-                    InputStream stream = source.streamInput();
-                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                        .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
-                ) {
+                try (XContentParser parser = createParser(source)) {
                     ModelPlot modelPlot = ModelPlot.LENIENT_PARSER.apply(parser, null);
                     results.add(modelPlot);
                 } catch (IOException e) {
@@ -1469,11 +1436,7 @@ public class JobResultsProvider {
 
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 BytesReference source = hit.getSourceRef();
-                try (
-                    InputStream stream = source.streamInput();
-                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                        .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
-                ) {
+                try (XContentParser parser = createParser(source)) {
                     CategorizerStats categorizerStats = CategorizerStats.LENIENT_PARSER.apply(parser, null).build();
                     results.add(categorizerStats);
                 } catch (IOException e) {
@@ -1639,7 +1602,7 @@ public class JobResultsProvider {
                     ML_ORIGIN,
                     search.request(),
                     ActionListener.<SearchResponse>wrap(response -> {
-                        List<Aggregation> aggregations = response.getAggregations().asList();
+                        List<InternalAggregation> aggregations = response.getAggregations().asList();
                         if (aggregations.size() == 1) {
                             ExtendedStats extendedStats = (ExtendedStats) aggregations.get(0);
                             long count = extendedStats.getCount();
@@ -1847,12 +1810,12 @@ public class JobResultsProvider {
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
-                Aggregations aggregations = searchResponse.getAggregations();
+                InternalAggregations aggregations = searchResponse.getAggregations();
                 if (aggregations == null) {
                     handler.accept(new ForecastStats());
                     return;
                 }
-                Map<String, Aggregation> aggregationsAsMap = aggregations.asMap();
+                Map<String, InternalAggregation> aggregationsAsMap = aggregations.asMap();
                 StatsAccumulator memoryStats = StatsAccumulator.fromStatsAggregation(
                     (Stats) aggregationsAsMap.get(ForecastStats.Fields.MEMORY)
                 );
@@ -1995,14 +1958,7 @@ public class JobResultsProvider {
                 try {
                     if (getDocResponse.isExists()) {
                         BytesReference docSource = getDocResponse.getSourceAsBytesRef();
-                        try (
-                            InputStream stream = docSource.streamInput();
-                            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                                .createParser(
-                                    XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-                                    stream
-                                )
-                        ) {
+                        try (XContentParser parser = createParser(docSource)) {
                             Calendar calendar = Calendar.LENIENT_PARSER.apply(parser, null).build();
                             listener.onResponse(calendar);
                         }
@@ -2023,6 +1979,10 @@ public class JobResultsProvider {
                 }
             }
         }, client::get);
+    }
+
+    private static XContentParser createParser(BytesReference docSource) throws IOException {
+        return XContentHelper.createParserNotCompressed(LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG, docSource, XContentType.JSON);
     }
 
     /**

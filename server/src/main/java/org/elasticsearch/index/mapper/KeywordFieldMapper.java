@@ -242,6 +242,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder indexed(boolean indexed) {
+            this.indexed.setValue(indexed);
+            return this;
+        }
+
         private FieldValues<String> scriptValues() {
             if (script.get() == null) {
                 return null;
@@ -298,6 +303,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             } else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
+            }
+            if (context.parentObjectContainsDimensions()) {
+                dimension(true);
             }
             return new KeywordFieldType(
                 context.buildFullName(name),
@@ -592,7 +600,18 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
-            return new BlockSourceReader.BytesRefsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())));
+            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
+        }
+
+        private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {
+            if (getTextSearchInfo().hasNorms()) {
+                return BlockSourceReader.lookupFromNorms(name());
+            }
+            if (isIndexed() || isStored()) {
+                return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
+            }
+            return BlockSourceReader.lookupMatchingAll();
         }
 
         @Override
@@ -910,7 +929,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         final BytesRef binaryValue = new BytesRef(value);
 
         if (fieldType().isDimension()) {
-            context.getDimensions().addString(fieldType().name(), binaryValue);
+            context.getDimensions().addString(fieldType().name(), binaryValue).validate(context.indexSettings());
         }
 
         // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to

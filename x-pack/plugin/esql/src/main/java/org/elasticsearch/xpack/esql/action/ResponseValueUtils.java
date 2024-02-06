@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -100,8 +101,8 @@ public final class ResponseValueUtils {
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
-            case "geo_point" -> GEO.longAsPoint(((LongBlock) block).getLong(offset));
-            case "cartesian_point" -> CARTESIAN.longAsPoint(((LongBlock) block).getLong(offset));
+            case "geo_point", "geo_shape" -> GEO.wkbToWkt(((BytesRefBlock) block).getBytesRef(offset, scratch));
+            case "cartesian_point", "cartesian_shape" -> CARTESIAN.wkbToWkt(((BytesRefBlock) block).getBytesRef(offset, scratch));
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
             case "_source" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -122,10 +123,10 @@ public final class ResponseValueUtils {
      * Converts a list of values to Pages so that we can parse from xcontent. It's not
      * super efficient, but it doesn't really have to be.
      */
-    static Page valuesToPage(List<ColumnInfo> columns, List<List<Object>> values) {
+    static Page valuesToPage(BlockFactory blockFactory, List<ColumnInfo> columns, List<List<Object>> values) {
         List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
         List<Block.Builder> results = dataTypes.stream()
-            .map(c -> PlannerUtils.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size()))
+            .map(c -> PlannerUtils.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size(), blockFactory))
             .toList();
 
         for (List<Object> row : values) {
@@ -160,13 +161,15 @@ public final class ResponseValueUtils {
                             throw new UncheckedIOException(e);
                         }
                     }
-                    case "geo_point" -> {
-                        long longVal = GEO.pointAsLong(GEO.stringAsPoint(value.toString()));
-                        ((LongBlock.Builder) builder).appendLong(longVal);
+                    case "geo_point", "geo_shape" -> {
+                        // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
+                        BytesRef wkb = GEO.wktToWkb(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
-                    case "cartesian_point" -> {
-                        long longVal = CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(value.toString()));
-                        ((LongBlock.Builder) builder).appendLong(longVal);
+                    case "cartesian_point", "cartesian_shape" -> {
+                        // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
+                        BytesRef wkb = CARTESIAN.wktToWkb(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));
                 }

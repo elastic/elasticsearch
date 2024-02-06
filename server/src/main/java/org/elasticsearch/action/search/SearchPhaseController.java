@@ -40,7 +40,6 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -62,6 +61,8 @@ import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
@@ -138,10 +139,10 @@ public final class SearchPhaseController {
         if (request.hasKnnSearch() == false) {
             return null;
         }
-
-        List<List<TopDocs>> topDocsLists = new ArrayList<>(request.source().knnSearch().size());
-        List<SetOnce<String>> nestedPath = new ArrayList<>(request.source().knnSearch().size());
-        for (int i = 0; i < request.source().knnSearch().size(); i++) {
+        SearchSourceBuilder source = request.source();
+        List<List<TopDocs>> topDocsLists = new ArrayList<>(source.knnSearch().size());
+        List<SetOnce<String>> nestedPath = new ArrayList<>(source.knnSearch().size());
+        for (int i = 0; i < source.knnSearch().size(); i++) {
             topDocsLists.add(new ArrayList<>());
             nestedPath.add(new SetOnce<>());
         }
@@ -160,9 +161,9 @@ public final class SearchPhaseController {
             }
         }
 
-        List<DfsKnnResults> mergedResults = new ArrayList<>(request.source().knnSearch().size());
-        for (int i = 0; i < request.source().knnSearch().size(); i++) {
-            TopDocs mergedTopDocs = TopDocs.merge(request.source().knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
+        List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
+        for (int i = 0; i < source.knnSearch().size(); i++) {
+            TopDocs mergedTopDocs = TopDocs.merge(source.knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
             mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
         }
         return mergedResults;
@@ -355,21 +356,25 @@ public final class SearchPhaseController {
      * Expects sortedDocs to have top search docs across all shards, optionally followed by top suggest docs for each named
      * completion suggestion ordered by suggestion name
      */
-    public static InternalSearchResponse merge(
+    public static SearchResponseSections merge(
         boolean ignoreFrom,
         ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArray
     ) {
         if (reducedQueryPhase.isEmptyResult) {
-            return InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
+            return SearchResponseSections.EMPTY_WITH_TOTAL_HITS;
         }
         ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         var fetchResults = fetchResultsArray.asList();
-        SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
-        if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
-            mergeSuggest(reducedQueryPhase, fetchResultsArray, hits, sortedDocs);
+        final SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
+        try {
+            if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
+                mergeSuggest(reducedQueryPhase, fetchResultsArray, hits, sortedDocs);
+            }
+            return reducedQueryPhase.buildResponse(hits, fetchResults);
+        } finally {
+            hits.decRef();
         }
-        return reducedQueryPhase.buildResponse(hits, fetchResults);
     }
 
     private static void mergeSuggest(
@@ -463,10 +468,11 @@ public final class SearchPhaseController {
                     searchHit.score(shardDoc.score);
                 }
                 hits.add(searchHit);
+                searchHit.incRef();
             }
         }
         return new SearchHits(
-            hits.toArray(new SearchHit[0]),
+            hits.toArray(SearchHits.EMPTY),
             reducedQueryPhase.totalHits,
             reducedQueryPhase.maxScore,
             sortedTopDocs.sortFields,
@@ -702,12 +708,10 @@ public final class SearchPhaseController {
      */
     static int getTopDocsSize(SearchRequest request) {
         if (request.source() == null) {
-            return SearchService.DEFAULT_SIZE;
+            return DEFAULT_SIZE;
         }
         SearchSourceBuilder source = request.source();
-        return (source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size()) + (source.from() == -1
-            ? SearchService.DEFAULT_FROM
-            : source.from());
+        return (source.size() == -1 ? DEFAULT_SIZE : source.size()) + (source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
     }
 
     public record ReducedQueryPhase(
@@ -753,14 +757,14 @@ public final class SearchPhaseController {
          * Creates a new search response from the given merged hits.
          * @see #merge(boolean, ReducedQueryPhase, AtomicArray)
          */
-        public InternalSearchResponse buildResponse(SearchHits hits, Collection<? extends SearchPhaseResult> fetchResults) {
-            return new InternalSearchResponse(
+        public SearchResponseSections buildResponse(SearchHits hits, Collection<? extends SearchPhaseResult> fetchResults) {
+            return new SearchResponseSections(
                 hits,
                 aggregations,
                 suggest,
-                buildSearchProfileResults(fetchResults),
                 timedOut,
                 terminatedEarly,
+                buildSearchProfileResults(fetchResults),
                 numReducePhases
             );
         }

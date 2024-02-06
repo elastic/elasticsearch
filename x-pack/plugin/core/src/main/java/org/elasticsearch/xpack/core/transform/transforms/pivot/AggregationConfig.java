@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
@@ -61,7 +63,7 @@ public class AggregationConfig implements Writeable, ToXContentObject {
     }
 
     public AggregationConfig(final StreamInput in) throws IOException {
-        source = in.readMap();
+        source = in.readGenericMap();
         aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
     }
 
@@ -142,8 +144,11 @@ public class AggregationConfig implements Writeable, ToXContentObject {
         final AggregatorFactories.Builder aggregations;
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
         try (
-            XContentParser sourceParser = XContentType.JSON.xContent()
-                .createParser(namedXContentRegistry, deprecationHandler, BytesReference.bytes(xContentBuilder).streamInput())
+            XContentParser sourceParser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry).withDeprecationHandler(deprecationHandler),
+                BytesReference.bytes(xContentBuilder),
+                XContentType.JSON
+            )
         ) {
             sourceParser.nextToken();
             aggregations = AggregatorFactories.parseAggregators(sourceParser);

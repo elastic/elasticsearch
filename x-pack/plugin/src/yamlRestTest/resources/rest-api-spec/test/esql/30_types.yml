@@ -868,6 +868,9 @@ synthetic _source text with parent keyword:
 
 ---
 geo_point:
+  - skip:
+      version: " - 8.12.99"
+      reason: "geo_point precision changed in 8.13.0"
   - do:
       indices.create:
         index: test
@@ -894,10 +897,13 @@ geo_point:
   - match: { columns.0.name: location }
   - match: { columns.0.type: geo_point }
   - length: { values: 1 }
-  - match: { values.0.0: "POINT (0.9999999403953552 -1.000000024214387)" }
+  - match: { values.0.0: "POINT (1.0 -1.0)" }
 
 ---
 cartesian_point:
+  - skip:
+      version: " - 8.12.99"
+      reason: "cartesian_point precision changed in 8.13.0"
   - do:
       indices.create:
         index: test

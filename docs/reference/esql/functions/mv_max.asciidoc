@@ -1,10 +1,27 @@
 [discrete]
 [[esql-mv_max]]
 === `MV_MAX`
+
+*Syntax*
+
 [.text-center]
 image::esql/functions/signature/mv_max.svg[Embedded,opts=inline]
 
-Converts a multivalued field into a single valued field containing the maximum value. For example:
+*Parameters*
+
+`v`::
+Multivalue expression.
+
+*Description*
+
+Converts a multivalued expression into a single valued column containing the
+maximum value.
+
+*Supported types*
+
+include::types/mv_max.asciidoc[]
+
+*Examples*
 
 [source.merge.styled,esql]
 ----
@@ -15,8 +32,8 @@ include::{esql-specs}/math.csv-spec[tag=mv_max]
 include::{esql-specs}/math.csv-spec[tag=mv_max-result]
 |===
 
-It can be used by any field type, including `keyword` fields. In that case picks the
-last string, comparing their utf-8 representation byte by byte:
+It can be used by any column type, including `keyword` columns. In that case
+it picks the last string, comparing their utf-8 representation byte by byte:
 
 [source.merge.styled,esql]
 ----
@@ -26,7 +43,3 @@ include::{esql-specs}/string.csv-spec[tag=mv_max]
 |===
 include::{esql-specs}/string.csv-spec[tag=mv_max-result]
 |===
-
-Supported types:
-
-include::types/mv_max.asciidoc[]

@@ -15,7 +15,6 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -319,7 +318,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         Map<String, ActionFuture<SearchResponse>> requestMap = new HashMap<>();
         for (int i = firstChunk; i <= lastChunk; i++) {
             byte[] chunk = data.get(i - firstChunk);
-            SearchHit hit = new SearchHit(i);
+            SearchHit hit = SearchHit.unpooled(i);
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
                 builder.map(Map.of("data", chunk));
                 builder.flush();
@@ -329,17 +328,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
                 throw new UncheckedIOException(ex);
             }
 
-            SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
-            SearchResponse searchResponse = new SearchResponse(
-                new SearchResponseSections(hits, null, null, false, null, null, 0),
-                null,
-                1,
-                1,
-                0,
-                1L,
-                null,
-                null
-            );
+            SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+            SearchResponse searchResponse = new SearchResponse(hits, null, null, false, null, null, 0, null, 1, 1, 0, 1L, null, null);
             toRelease.add(searchResponse::decRef);
             @SuppressWarnings("unchecked")
             ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);

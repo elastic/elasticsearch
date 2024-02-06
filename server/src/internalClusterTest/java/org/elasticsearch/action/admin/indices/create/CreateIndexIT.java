@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -41,7 +42,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -117,8 +117,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     public void testMappingParamAndNestedMismatch() throws Exception {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject())
-                .get()
+            prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject())
         );
         assertThat(e.getMessage(), startsWith("Failed to parse mapping: Root mapping definition has unsupported parameters"));
     }
@@ -293,10 +292,10 @@ public class CreateIndexIT extends ESIntegTestCase {
             .build();
         assertAcked(indicesAdmin().prepareCreate("test-idx-1").setSettings(settings).addAlias(new Alias("alias1").writeIndex(true)).get());
 
-        assertRequestBuilderThrows(
-            indicesAdmin().prepareCreate("test-idx-2").setSettings(settings).addAlias(new Alias("alias1").writeIndex(true)),
-            IllegalStateException.class
-        );
+        ActionRequestBuilder<?, ?> builder = indicesAdmin().prepareCreate("test-idx-2")
+            .setSettings(settings)
+            .addAlias(new Alias("alias1").writeIndex(true));
+        expectThrows(IllegalStateException.class, builder);
 
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, internalCluster().getMasterName());
         for (IndexService indexService : indicesService) {

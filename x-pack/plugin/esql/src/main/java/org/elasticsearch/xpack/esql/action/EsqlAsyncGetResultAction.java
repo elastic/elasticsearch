@@ -8,14 +8,15 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.xpack.core.esql.EsqlAsyncActionNames;
 
 public class EsqlAsyncGetResultAction extends ActionType<EsqlQueryResponse> {
 
     public static final EsqlAsyncGetResultAction INSTANCE = new EsqlAsyncGetResultAction();
 
-    public static final String NAME = "indices:data/read/esql/async/get";
+    public static final String NAME = EsqlAsyncActionNames.ESQL_ASYNC_GET_RESULT_ACTION_NAME;
 
     private EsqlAsyncGetResultAction() {
-        super(NAME, in -> { throw new IllegalArgumentException("can't transport EsqlAsyncGetResultAction"); });
+        super(NAME);
     }
 }

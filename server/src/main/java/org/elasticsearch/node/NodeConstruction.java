@@ -78,6 +78,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
@@ -122,6 +123,8 @@ import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
@@ -140,6 +143,7 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
+import org.elasticsearch.plugins.InferenceRegistryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -167,6 +171,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -183,7 +188,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -202,11 +207,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -242,8 +247,8 @@ class NodeConstruction {
             NodeConstruction constructor = new NodeConstruction(closeables);
 
             Settings settings = constructor.createEnvironment(initialEnvironment, serviceProvider);
-
-            ThreadPool threadPool = constructor.createThreadPool(settings);
+            TelemetryProvider telemetryProvider = constructor.createTelemetryProvider(settings);
+            ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
             SettingsModule settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
 
             SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool);
@@ -258,7 +263,8 @@ class NodeConstruction {
                 scriptService,
                 constructor.createAnalysisRegistry(),
                 serviceProvider,
-                forbidPrivateIndexSettings
+                forbidPrivateIndexSettings,
+                telemetryProvider
             );
 
             return constructor;
@@ -384,6 +390,7 @@ class NodeConstruction {
         );
         logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
         logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
+        logger.info("Default Locale [{}]", Locale.getDefault());
         if (Build.current().isProductionRelease() == false) {
             logger.warn(
                 "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
@@ -448,9 +455,14 @@ class NodeConstruction {
         return settings;
     }
 
-    private ThreadPool createThreadPool(Settings settings) throws IOException {
+    private TelemetryProvider createTelemetryProvider(Settings settings) {
+        return getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(settings)).orElse(TelemetryProvider.NOOP);
+    }
+
+    private ThreadPool createThreadPool(Settings settings, MeterRegistry meterRegistry) throws IOException {
         ThreadPool threadPool = new ThreadPool(
             settings,
+            meterRegistry,
             pluginsService.flatMap(p -> p.getExecutorBuilders(settings)).toArray(ExecutorBuilder<?>[]::new)
         );
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
@@ -580,13 +592,12 @@ class NodeConstruction {
         ScriptService scriptService,
         AnalysisRegistry analysisRegistry,
         NodeServiceProvider serviceProvider,
-        boolean forbidPrivateIndexSettings
+        boolean forbidPrivateIndexSettings,
+        TelemetryProvider telemetryProvider
     ) throws IOException {
 
         Settings settings = settingsModule.getSettings();
 
-        TelemetryProvider telemetryProvider = getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(settings))
-            .orElse(TelemetryProvider.NOOP);
         modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
 
         TaskManager taskManager = new TaskManager(
@@ -598,6 +609,7 @@ class NodeConstruction {
             ).collect(Collectors.toSet()),
             telemetryProvider.getTracer()
         );
+        final Tracer tracer = telemetryProvider.getTracer();
 
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
@@ -663,9 +675,8 @@ class NodeConstruction {
         IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
         modules.add(indicesModule);
 
-        final Map<String, LongCounter> customTripCounters = new TreeMap<>();
         CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
-            new CircuitBreakerMetrics(telemetryProvider, customTripCounters),
+            new CircuitBreakerMetrics(telemetryProvider),
             settingsModule.getSettings(),
             settingsModule.getClusterSettings()
         );
@@ -797,6 +808,7 @@ class NodeConstruction {
         ActionModule actionModule = new ActionModule(
             settings,
             clusterModule.getIndexNameExpressionResolver(),
+            namedWriteableRegistry,
             settingsModule.getIndexScopedSettings(),
             settingsModule.getClusterSettings(),
             settingsModule.getSettingsFilter(),
@@ -872,6 +884,7 @@ class NodeConstruction {
         );
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
         final SearchTransportAPMMetrics searchTransportAPMMetrics = new SearchTransportAPMMetrics(telemetryProvider.getMeterRegistry());
+        final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());
         final SearchTransportService searchTransportService = new SearchTransportService(
             transportService,
             client,
@@ -966,7 +979,8 @@ class NodeConstruction {
             repositoryService
         );
 
-        final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService);
+        final TimeValue metricsInterval = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));
+        final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
 
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,
@@ -1049,6 +1063,7 @@ class NodeConstruction {
             b.bind(MetadataUpdateSettingsService.class).toInstance(metadataUpdateSettingsService);
             b.bind(SearchService.class).toInstance(searchService);
             b.bind(SearchTransportAPMMetrics.class).toInstance(searchTransportAPMMetrics);
+            b.bind(SearchResponseMetrics.class).toInstance(searchResponseMetrics);
             b.bind(SearchTransportService.class).toInstance(searchTransportService);
             b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
             b.bind(Transport.class).toInstance(transport);
@@ -1077,6 +1092,18 @@ class NodeConstruction {
                 serviceProvider.newReadinessService(pluginsService, clusterService, environment)
             );
         }
+
+        // Register noop versions of inference services if Inference plugin is not available
+        Optional<InferenceRegistryPlugin> inferenceRegistryPlugin = getSinglePlugin(InferenceRegistryPlugin.class);
+        modules.bindToInstance(
+            InferenceServiceRegistry.class,
+            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getInferenceServiceRegistry)
+                .orElse(new InferenceServiceRegistry.NoopInferenceServiceRegistry())
+        );
+        modules.bindToInstance(
+            ModelRegistry.class,
+            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getModelRegistry).orElse(new ModelRegistry.NoopModelRegistry())
+        );
 
         injector = modules.createInjector();
 
@@ -1250,8 +1277,7 @@ class NodeConstruction {
             transportService.getTaskManager(),
             () -> clusterService.localNode().getId(),
             transportService.getLocalNodeConnection(),
-            transportService.getRemoteClusterService(),
-            namedWriteableRegistry
+            transportService.getRemoteClusterService()
         );
 
         logger.debug("initializing HTTP handlers ...");
@@ -1298,7 +1324,6 @@ class NodeConstruction {
         pluginBreakers.forEach(t -> {
             final CircuitBreaker circuitBreaker = circuitBreakerService.getBreaker(t.v2().getName());
             t.v1().setCircuitBreaker(circuitBreaker);
-            metrics.addCustomCircuitBreaker(circuitBreaker);
         });
 
         return circuitBreakerService;

@@ -76,9 +76,37 @@ public interface InferenceService extends Closeable {
      * @param model The model
      * @param input Inference input
      * @param taskSettings Settings in the request to override the model's defaults
+     * @param inputType For search, ingest etc
      * @param listener Inference result listener
      */
-    void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener);
+    void infer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ActionListener<InferenceServiceResults> listener
+    );
+
+    /**
+     * Chunk long text according to {@code chunkingOptions} or the
+     * model defaults if {@code chunkingOptions} contains unset
+     * values.
+     *
+     * @param model The model
+     * @param input Inference input
+     * @param taskSettings Settings in the request to override the model's defaults
+     * @param inputType For search, ingest etc
+     * @param chunkingOptions The window and span options to apply
+     * @param listener Inference result listener
+     */
+    void chunkedInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ChunkingOptions chunkingOptions,
+        ActionListener<ChunkedInferenceServiceResults> listener
+    );
 
     /**
      * Start or prepare the model for use.
@@ -86,6 +114,27 @@ public interface InferenceService extends Closeable {
      * @param listener The listener
      */
     void start(Model model, ActionListener<Boolean> listener);
+
+    /**
+     * Stop the model deployment.
+     * The default action does nothing except acknowledge the request (true).
+     * @param modelId The ID of the model to be stopped
+     * @param listener The listener
+     */
+    default void stop(String modelId, ActionListener<Boolean> listener) {
+        listener.onResponse(true);
+    }
+
+    /**
+     * Put the model definition (if applicable)
+     * The main purpose of this function is to download ELSER
+     * The default action does nothing except acknowledge the request (true).
+     * @param modelVariant The configuration of the model variant to be downloaded
+     * @param listener The listener
+     */
+    default void putModel(Model modelVariant, ActionListener<Boolean> listener) {
+        listener.onResponse(true);
+    }
 
     /**
      * Optionally test the new model configuration in the inference service.

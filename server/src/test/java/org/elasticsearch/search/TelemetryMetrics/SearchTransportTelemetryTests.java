@@ -52,6 +52,7 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
         return 0;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103781")
     public void testSearchTransportMetricsDfsQueryThenFetch() throws InterruptedException {
         var indexName = "test1";
         createIndex(indexName);
@@ -67,6 +68,7 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
         resetMeter();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104184")
     public void testSearchTransportMetricsQueryThenFetch() throws InterruptedException {
         var indexName = "test2";
         createIndex(indexName);
@@ -81,6 +83,7 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
         resetMeter();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103810")
     public void testSearchTransportMetricsScroll() throws InterruptedException {
         var indexName = "test3";
         createIndex(indexName);
@@ -92,6 +95,7 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
         ); // getNumShards(indexName).numPrimaries
 
         assertScrollResponsesAndHitCount(
+            client(),
             TimeValue.timeValueSeconds(60),
             prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setSize(1).setQuery(simpleQueryStringQuery("foo")),
             2,

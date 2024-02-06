@@ -139,7 +139,7 @@ public class InboundHandlerTests extends ESTestCase {
 
         long requestId = responseHandlers.add(new TransportResponseHandler<TestResponse>() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -198,7 +198,6 @@ public class InboundHandlerTests extends ESTestCase {
 
         TransportChannel transportChannel = channelCaptor.get();
         assertEquals(TransportVersion.current(), transportChannel.getVersion());
-        assertEquals("transport", transportChannel.getChannelType());
         assertEquals(requestValue, requestCaptor.get().value);
 
         String responseValue = randomAlphaOfLength(10);

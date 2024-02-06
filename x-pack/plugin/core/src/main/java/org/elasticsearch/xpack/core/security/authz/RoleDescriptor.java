@@ -19,14 +19,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
@@ -38,7 +37,6 @@ import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -54,7 +52,7 @@ import java.util.Objects;
  */
 public class RoleDescriptor implements ToXContentObject, Writeable {
 
-    public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersions.V_8_500_020;
+    public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersions.V_8_9_X;
 
     public static final String ROLE_TYPE = "role";
 
@@ -190,8 +188,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             indicesPrivileges[i] = new IndicesPrivileges(in);
         }
         this.runAs = in.readStringArray();
-        this.metadata = in.readMap();
-        this.transientMetadata = in.readMap();
+        this.metadata = in.readGenericMap();
+        this.transientMetadata = in.readGenericMap();
 
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
         this.configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
@@ -435,12 +433,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         boolean allowRestriction
     ) throws IOException {
         assert name != null;
-        // EMPTY is safe here because we never use namedObject
-        try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
-        ) {
+        try (XContentParser parser = createParser(source, xContentType)) {
             return parse(name, parser, allow2xFormat, allowRestriction);
         }
     }
@@ -610,11 +603,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         BytesReference source,
         XContentType xContentType
     ) throws IOException {
-        try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = xContentType.xContent()
-                .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
-        ) {
+        try (XContentParser parser = createParser(source, xContentType)) {
             // advance to the START_OBJECT token
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
@@ -626,6 +615,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             }
             return parsePrivilegesToCheck(description, runDetailedCheck, parser);
         }
+    }
+
+    private static XContentParser createParser(BytesReference source, XContentType xContentType) throws IOException {
+        return XContentHelper.createParserNotCompressed(LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG, source, xContentType);
     }
 
     private static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser, boolean allow2xFormat)

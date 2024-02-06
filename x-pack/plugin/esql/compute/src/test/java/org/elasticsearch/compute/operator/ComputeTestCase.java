@@ -44,8 +44,18 @@ public abstract class ComputeTestCase extends ESTestCase {
         return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Integer.MAX_VALUE)).withCircuitBreaking();
     }
 
-    protected BlockFactory blockFactory() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
+    /**
+     * Build a {@link BlockFactory} with a huge limit.
+     */
+    protected final BlockFactory blockFactory() {
+        return blockFactory(ByteSizeValue.ofGb(1));
+    }
+
+    /**
+     * Build a {@link BlockFactory} with a configured limit.
+     */
+    protected final BlockFactory blockFactory(ByteSizeValue limit) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
         BlockFactory factory = new MockBlockFactory(breaker, bigArrays);
@@ -53,7 +63,10 @@ public abstract class ComputeTestCase extends ESTestCase {
         return factory;
     }
 
-    protected BlockFactory crankyBlockFactory() {
+    /**
+     * Build a {@link BlockFactory} that randomly fails.
+     */
+    protected final BlockFactory crankyBlockFactory() {
         CrankyCircuitBreakerService cranky = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, cranky).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
@@ -64,7 +77,7 @@ public abstract class ComputeTestCase extends ESTestCase {
     }
 
     @After
-    public void allBreakersEmpty() throws Exception {
+    public final void allBreakersEmpty() throws Exception {
         // first check that all big arrays are released, which can affect breakers
         MockBigArrays.ensureAllArraysAreReleased();
         for (var factory : blockFactories) {

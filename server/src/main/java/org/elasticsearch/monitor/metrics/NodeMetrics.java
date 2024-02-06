@@ -24,6 +24,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * NodeMetrics monitors various statistics of an Elasticsearch node and exposes them as metrics through
@@ -36,17 +37,23 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     private final NodeService nodeService;
     private final List<AutoCloseable> metrics;
     private NodeStatsCache stats;
+    private final TimeValue cacheExpiry;
 
     /**
      * Constructs a new NodeMetrics instance.
      *
-     * @param meterRegistry The MeterRegistry used to register metrics.
-     * @param nodeService   The NodeService for interacting with the Elasticsearch node and extracting statistics.
-     */
-    public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService) {
+     * @param meterRegistry     The MeterRegistry used to register metrics.
+     * @param nodeService       The NodeService for interacting with the Elasticsearch node and extracting statistics.
+     * @param metricsInterval   The interval at which the agent sends metrics to the APM Server
+     * */
+    public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService, TimeValue metricsInterval) {
         this.registry = meterRegistry;
         this.nodeService = nodeService;
         this.metrics = new ArrayList<>(17);
+        // we set the cache to expire after half the interval at which the agent sends
+        // metrics to the APM Server so that there is enough time for the cache not
+        // update during the same poll period and that expires before a new poll period
+        this.cacheExpiry = new TimeValue(metricsInterval.getMillis() / 2);
     }
 
     /**
@@ -56,340 +63,547 @@ public class NodeMetrics extends AbstractLifecycleComponent {
      * @param registry The MeterRegistry used to register and collect metrics.
      */
     private void registerAsyncMetrics(MeterRegistry registry) {
-        // Agent should poll stats every 4 minutes and being this cache is lazy we need a
-        // number high enough so that the cache does not update during the same poll
-        // period and that expires before a new poll period, therefore we choose 1 minute.
-        this.stats = new NodeStatsCache(TimeValue.timeValueMinutes(1));
+        this.stats = new NodeStatsCache(cacheExpiry);
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.get.total",
+                "es.indices.get.total",
                 "Total number of get operations",
                 "operation",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getGet().getCount())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getGet())
+                        .map(o -> o.getCount())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.get.time",
+                "es.indices.get.time",
                 "Time in milliseconds spent performing get operations.",
                 "milliseconds",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getGet().getTimeInMillis())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getGet())
+                        .map(o -> o.getTimeInMillis())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.search.fetch.total",
+                "es.indices.search.fetch.total",
                 "Total number of fetch operations.",
                 "operation",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getSearch().getTotal().getFetchCount())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getSearch())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getFetchCount())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.search.fetch.time",
+                "es.indices.search.fetch.time",
                 "Time in milliseconds spent performing fetch operations.",
                 "milliseconds",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getSearch().getTotal().getFetchTimeInMillis())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getSearch())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getFetchTimeInMillis())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.merge.total",
+                "es.indices.merge.total",
                 "Total number of merge operations.",
                 "operation",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getMerge().getTotal())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getMerge())
+                        .map(o -> o.getTotal())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.merge.time",
+                "es.indices.merge.time",
                 "Time in milliseconds spent performing merge operations.",
                 "milliseconds",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getMerge().getTotalTimeInMillis())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getMerge())
+                        .map(o -> o.getTotalTimeInMillis())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.translog.operations",
+                "es.translog.operations.total",
                 "Number of transaction log operations.",
                 "operation",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().estimatedNumberOfOperations())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getTranslog())
+                        .map(o -> o.estimatedNumberOfOperations())
+                        .orElse(0)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.translog.size",
+                "es.translog.size",
                 "Size, in bytes, of the transaction log.",
                 "bytes",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getTranslogSizeInBytes())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getTranslog())
+                        .map(o -> o.getTranslogSizeInBytes())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.translog.uncommitted_operations",
+                "es.translog.uncommitted_operations.total",
                 "Number of uncommitted transaction log operations.",
                 "operations",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getUncommittedOperations())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getTranslog())
+                        .map(o -> o.getUncommittedOperations())
+                        .orElse(0)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.translog.uncommitted_size",
+                "es.translog.uncommitted_operations.size",
                 "Size, in bytes, of uncommitted transaction log operations.",
                 "bytes",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getUncommittedSizeInBytes())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getTranslog())
+                        .map(o -> o.getUncommittedSizeInBytes())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.translog.earliest_last_modified_age",
+                "es.translog.earliest_last_modified.time",
                 "Earliest last modified age for the transaction log.",
                 "time",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getEarliestLastModifiedAge())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getTranslog())
+                        .map(o -> o.getEarliestLastModifiedAge())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.transport.rx_size",
+                "es.transport.rx.size",
                 "Size, in bytes, of RX packets received by the node during internal cluster communication.",
                 "bytes",
-                () -> new LongWithAttributes(stats.getOrRefresh().getTransport().getRxSize().getBytes())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getTransport())
+                        .map(o -> o.getRxSize())
+                        .map(o -> o.getBytes())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.transport.tx_size",
+                "es.transport.tx.size",
                 "Size, in bytes, of TX packets sent by the node during internal cluster communication.",
                 "bytes",
-                () -> new LongWithAttributes(stats.getOrRefresh().getTransport().getTxSize().getBytes())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getTransport())
+                        .map(o -> o.getTxSize())
+                        .map(o -> o.getBytes())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.jvm.mem.pools.young.used",
+                "es.jvm.mem.pools.young.size",
                 "Memory, in bytes, used by the young generation heap.",
                 "bytes",
-                () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.YOUNG))
+                () -> new LongWithAttributes(
+                    bytesUsedByGCGen(Optional.ofNullable(stats.getOrRefresh()).map(o -> o.getJvm()).map(o -> o.getMem()), GcNames.YOUNG)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.jvm.mem.pools.survivor.used",
+                "es.jvm.mem.pools.survivor.size",
                 "Memory, in bytes, used by the survivor space.",
                 "bytes",
-                () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.SURVIVOR))
+                () -> new LongWithAttributes(
+                    bytesUsedByGCGen(Optional.ofNullable(stats.getOrRefresh()).map(o -> o.getJvm()).map(o -> o.getMem()), GcNames.SURVIVOR)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.jvm.mem.pools.old.used",
+                "es.jvm.mem.pools.old.size",
                 "Memory, in bytes, used by the old generation heap.",
                 "bytes",
-                () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.OLD))
+                () -> new LongWithAttributes(
+                    bytesUsedByGCGen(Optional.ofNullable(stats.getOrRefresh()).map(o -> o.getJvm()).map(o -> o.getMem()), GcNames.OLD)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.fs.io_stats.io_time.total",
+                "es.fs.io_stats.time.total",
                 "The total time in millis spent performing I/O operations across all devices used by Elasticsearch.",
                 "milliseconds",
-                () -> new LongWithAttributes(stats.getOrRefresh().getFs().getIoStats().getTotalIOTimeMillis())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getFs())
+                        .map(o -> o.getIoStats())
+                        .map(o -> o.getTotalIOTimeMillis())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.docs.total",
+                "es.indexing.docs.total",
                 "Total number of indexed documents",
                 "documents",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexCount())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getIndexing())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getIndexCount())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.indexing.docs.current",
+                "es.indexing.docs.current.total",
                 "Current number of indexing documents",
                 "documents",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexCurrent())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getIndexing())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getIndexCurrent())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.failed.total",
+                "es.indexing.indexing.failed.total",
                 "Total number of failed indexing operations",
                 "operations",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexFailedCount())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getIndexing())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getIndexFailedCount())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.deletion.docs.total",
+                "es.indexing.deletion.docs.total",
                 "Total number of deleted documents",
                 "documents",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getDeleteCount())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getIndexing())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getDeleteCount())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.deletion.docs.current",
+                "es.indexing.deletion.docs.current.total",
                 "Current number of deleting documents",
                 "documents",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getDeleteCurrent())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getIndexing())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getDeleteCurrent())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.time",
+                "es.indexing.time",
                 "Total indices indexing time",
                 "milliseconds",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexTime().millis())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getIndexing())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getIndexTime())
+                        .map(o -> o.millis())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.deletion.time",
+                "es.deletion.time",
                 "Total indices deletion time",
                 "milliseconds",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getDeleteTime().millis())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getIndexing())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getDeleteTime())
+                        .map(o -> o.millis())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.throttle.time",
+                "es.indices.throttle.time",
                 "Total indices throttle time",
                 "milliseconds",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getThrottleTime().millis())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getIndexing())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getThrottleTime())
+                        .map(o -> o.millis())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.noop.total",
+                "es.indices.noop.total",
                 "Total number of noop shard operations",
                 "operations",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getNoopUpdateCount())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getIndexing())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getNoopUpdateCount())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.coordinating_operations.memory.size.total",
+                "es.indexing.coordinating_operations.size",
                 "Total number of memory bytes consumed by coordinating operations",
                 "bytes",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalCoordinatingBytes())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndexingPressureStats())
+                        .map(o -> o.getTotalCoordinatingBytes())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.coordinating_operations.count.total",
+                "es.indexing.coordinating_operations.total",
                 "Total number of coordinating operations",
                 "operations",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalCoordinatingOps())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndexingPressureStats())
+                        .map(o -> o.getTotalCoordinatingOps())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.indexing.coordinating_operations.memory.size.current",
+                "es.indexing.coordinating_operations.current.size",
                 "Current number of memory bytes consumed by coordinating operations",
                 "bytes",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentCoordinatingBytes())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndexingPressureStats())
+                        .map(o -> o.getCurrentCoordinatingBytes())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.indexing.coordinating_operations.count.current",
+                "es.indexing.coordinating_operations.current.total",
                 "Current number of coordinating operations",
                 "operations",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentCoordinatingOps())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndexingPressureStats())
+                        .map(o -> o.getCurrentCoordinatingOps())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.coordinating_operations.rejections.total",
+                "es.indexing.coordinating_operations.rejections.total",
                 "Total number of coordinating operations rejections",
                 "operations",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCoordinatingRejections())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndexingPressureStats())
+                        .map(o -> o.getCoordinatingRejections())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.primary_operations.memory.size.total",
+                "es.indexing.primary_operations.size",
                 "Total number of memory bytes consumed by primary operations",
                 "bytes",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalPrimaryBytes())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndexingPressureStats())
+                        .map(o -> o.getTotalPrimaryBytes())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.primary_operations.count.total",
+                "es.indexing.primary_operations.total",
                 "Total number of primary operations",
                 "operations",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalPrimaryOps())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndexingPressureStats())
+                        .map(o -> o.getTotalPrimaryOps())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.indexing.primary_operations.memory.size.current",
+                "es.indexing.primary_operations.current.size",
                 "Current number of memory bytes consumed by primary operations",
                 "bytes",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentPrimaryBytes())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndexingPressureStats())
+                        .map(o -> o.getCurrentPrimaryBytes())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.indexing.primary_operations.count.current",
+                "es.indexing.primary_operations.current.total",
                 "Current number of primary operations",
                 "operations",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentPrimaryOps())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndexingPressureStats())
+                        .map(o -> o.getCurrentPrimaryOps())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.primary_operations.rejections.total",
+                "es.indexing.primary_operations.rejections.total",
                 "Total number of primary operations rejections",
                 "operations",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getPrimaryRejections())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndexingPressureStats())
+                        .map(o -> o.getPrimaryRejections())
+                        .orElse(0L)
+                )
             )
         );
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.indexing.memory.limit.current",
+                "es.indexing.memory.limit.size",
                 "Current memory limit for primary and coordinating operations",
                 "bytes",
-                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getMemoryLimit())
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh()).map(o -> o.getIndexingPressureStats()).map(o -> o.getMemoryLimit()).orElse(0L)
+                )
             )
         );
 
@@ -398,18 +612,20 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     /**
      * Retrieves the bytes used by a specific garbage collection generation from the provided JvmStats.Mem.
      *
-     * @param mem  The JvmStats.Mem containing memory pool information.
-     * @param name The name of the garbage collection generation (e.g., "young", "survivor", "old").
+     * @param optionalMem The JvmStats.Mem containing memory pool information.
+     * @param name        The name of the garbage collection generation (e.g., "young", "survivor", "old").
      * @return The number of bytes used by the specified garbage collection generation.
      */
-    private long bytesUsedByGCGen(JvmStats.Mem mem, String name) {
-        long bytesUsed = 0;
-        for (JvmStats.MemoryPool pool : mem) {
-            if (pool.getName().equals(name)) {
-                bytesUsed = pool.getUsed().getBytes();
+    private long bytesUsedByGCGen(Optional<JvmStats.Mem> optionalMem, String name) {
+        return optionalMem.map(mem -> {
+            long bytesUsed = 0;
+            for (JvmStats.MemoryPool pool : mem) {
+                if (pool.getName().equals(name)) {
+                    bytesUsed = pool.getUsed().getBytes();
+                }
             }
-        }
-        return bytesUsed;
+            return bytesUsed;
+        }).orElse(0L);
     }
 
     /**

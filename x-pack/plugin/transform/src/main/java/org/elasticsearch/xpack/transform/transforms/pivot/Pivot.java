@@ -14,13 +14,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
@@ -205,14 +205,11 @@ public class Pivot extends AbstractCompositeAggFunction {
             builder.endArray();
             builder.endObject(); // sources
             try (
-                XContentParser parser = builder.generator()
-                    .contentType()
-                    .xContent()
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        LoggingDeprecationHandler.INSTANCE,
-                        BytesReference.bytes(builder).streamInput()
-                    )
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    BytesReference.bytes(builder),
+                    builder.generator().contentType()
+                )
             ) {
                 compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
             }

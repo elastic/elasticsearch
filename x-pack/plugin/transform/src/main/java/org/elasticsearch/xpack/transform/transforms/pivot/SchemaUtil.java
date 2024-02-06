@@ -326,7 +326,7 @@ public final class SchemaUtil {
             int pos;
             String objectKey = key;
             // lastIndexOf returns -1 on mismatch, but to disallow empty strings check for > 0
-            while ((pos = objectKey.lastIndexOf(".")) > 0) {
+            while ((pos = objectKey.lastIndexOf('.')) > 0) {
                 objectKey = objectKey.substring(0, pos);
                 additionalMappings.putIfAbsent(objectKey, "object");
             }

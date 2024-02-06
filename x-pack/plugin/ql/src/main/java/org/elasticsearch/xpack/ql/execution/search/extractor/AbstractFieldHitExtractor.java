@@ -133,7 +133,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         List<String> remainingPath = new ArrayList<>();
         // first, search for the "root" DocumentField under which the remaining path of nested document values is
         while ((field = hit.field(tempHitname)) == null) {
-            int indexOfDot = tempHitname.lastIndexOf(".");
+            int indexOfDot = tempHitname.lastIndexOf('.');
             if (indexOfDot < 0) {// there is no such field in the hit
                 return null;
             }

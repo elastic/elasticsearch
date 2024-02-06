@@ -48,9 +48,9 @@ public class ReflectionUtils {
     // remove packaging from the name - strategy used for naming rules by default
     public static String ruleLikeNaming(Class<?> c) {
         String className = c.getName();
-        int parentPackage = className.lastIndexOf(".");
+        int parentPackage = className.lastIndexOf('.');
         if (parentPackage > 0) {
-            int grandParentPackage = className.substring(0, parentPackage).lastIndexOf(".");
+            int grandParentPackage = className.substring(0, parentPackage).lastIndexOf('.');
             return (grandParentPackage > 0 ? className.substring(grandParentPackage + 1) : className.substring(parentPackage));
         } else {
             return className;

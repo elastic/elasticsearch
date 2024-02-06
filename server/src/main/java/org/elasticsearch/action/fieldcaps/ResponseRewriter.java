@@ -109,7 +109,7 @@ final class ResponseRewriter {
     }
 
     private static boolean isNotMultifield(String field, Set<String> objectFields) {
-        int lastDotPos = field.lastIndexOf(".");
+        int lastDotPos = field.lastIndexOf('.');
         if (lastDotPos == -1) {
             return true;
         }

@@ -155,7 +155,7 @@ public class UriPartsProcessor extends AbstractProcessor {
         if (userInfo != null) {
             uriParts.put("user_info", userInfo);
             if (userInfo.contains(":")) {
-                int colonIndex = userInfo.indexOf(":");
+                int colonIndex = userInfo.indexOf(':');
                 uriParts.put("username", userInfo.substring(0, colonIndex));
                 uriParts.put("password", colonIndex < userInfo.length() ? userInfo.substring(colonIndex + 1) : "");
             }

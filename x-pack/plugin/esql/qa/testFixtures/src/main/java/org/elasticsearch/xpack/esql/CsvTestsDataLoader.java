@@ -261,7 +261,7 @@ public class CsvTestsDataLoader {
                     if (columns == null) {
                         columns = new String[entries.length];
                         for (int i = 0; i < entries.length; i++) {
-                            int split = entries[i].indexOf(":");
+                            int split = entries[i].indexOf(':');
                             String name, typeName;
 
                             if (split < 0) {

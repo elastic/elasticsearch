@@ -90,7 +90,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     public static final class IgnoredFieldType extends StringFieldType {
 
         private IgnoredFieldType() {
-            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, true, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -128,8 +128,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         for (String ignoredField : context.getIgnoredFields()) {
             if (mappedFieldType.hasDocValues()) {
                 context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(ignoredField)));
-                context.doc().add(new StringField(NAME, ignoredField, Field.Store.NO));
-            } else {
+            }
+            if (mappedFieldType.isStored()) {
                 context.doc().add(new StringField(NAME, ignoredField, Field.Store.YES));
             }
 

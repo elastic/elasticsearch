@@ -68,6 +68,8 @@ public class ElserInternalService implements InferenceService {
         ElserInternalService.ELSER_V2_MODEL_LINUX_X86
     );
 
+    private static final String OLD_MODEL_ID_FIELD_NAME = "model_version";
+
     private final OriginSettingClient client;
 
     public ElserInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
@@ -147,6 +149,14 @@ public class ElserInternalService implements InferenceService {
     @Override
     public ElserInternalModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+
+        // Change from old model_version field name to new model_id field name as of
+        // TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED
+        if (serviceSettingsMap.containsKey(OLD_MODEL_ID_FIELD_NAME)) {
+            String modelId = (String) serviceSettingsMap.remove(OLD_MODEL_ID_FIELD_NAME);
+            serviceSettingsMap.put(ElserInternalServiceSettings.MODEL_ID, modelId);
+        }
+
         var serviceSettingsBuilder = ElserInternalServiceSettings.fromMap(serviceSettingsMap);
 
         Map<String, Object> taskSettingsMap;

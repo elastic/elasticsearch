@@ -41,7 +41,7 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
 
         String model_id = ServiceUtils.removeAsType(map, MODEL_ID, String.class);
         if (model_id != null && ElserInternalService.VALID_ELSER_MODEL_IDS.contains(model_id) == false) {
-            validationException.addValidationError("unknown ELSER model id/version [" + model_id + "]");
+            validationException.addValidationError("unknown ELSER model id [" + model_id + "]");
         }
 
         if (validationException.validationErrors().isEmpty() == false) {

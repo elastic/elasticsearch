@@ -21,7 +21,7 @@ public abstract class InternalServiceSettings implements ServiceSettings {
 
     public static final String NUM_ALLOCATIONS = "num_allocations";
     public static final String NUM_THREADS = "num_threads";
-    public static final String MODEL_ID = "model_version";
+    public static final String MODEL_ID = "model_id";
 
     private final int numAllocations;
     private final int numThreads;

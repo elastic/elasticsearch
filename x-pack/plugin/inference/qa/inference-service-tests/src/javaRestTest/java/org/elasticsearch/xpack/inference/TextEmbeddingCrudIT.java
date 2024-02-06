@@ -19,8 +19,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-// Tests disabled in CI due to the models being too large to download
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105198")
+// Tests disabled in CI due to the models being too large to download. Can be enabled (commented out) for local testing
+//@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105198")
 public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
 
     public void testPutE5Small_withNoModelVariant() throws IOException {
@@ -133,7 +133,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
                   "service_settings": {
                     "num_allocations": 1,
                     "num_threads": 1,
-                    "model_version": ".multilingual-e5-small"
+                    "model_id": ".multilingual-e5-small"
                     }
                 }
             """;
@@ -146,7 +146,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
                   "service_settings": {
                     "num_allocations": 1,
                     "num_threads": 1,
-                    "model_version": ".multilingual-e5-small_linux-x86_64"
+                    "model_id": ".multilingual-e5-small_linux-x86_64"
                   }
                 }
             """;
@@ -159,7 +159,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
                   "service_settings": {
                     "num_allocations": 1,
                     "num_threads": 1,
-                    "model_version": ".not-a-real-model-variant"
+                    "model_id": ".not-a-real-model-variant"
                   }
                 }
             """;

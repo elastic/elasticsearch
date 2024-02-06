@@ -52,7 +52,7 @@ public class ElserInternalServiceTests extends ESTestCase {
                     1,
                     ElserInternalServiceSettings.NUM_THREADS,
                     4,
-                    "model_version",
+                    "model_id",
                     ".elser_model_1"
                 )
             )
@@ -70,6 +70,39 @@ public class ElserInternalServiceTests extends ESTestCase {
         var modelVerificationListener = getModelVerificationListener(expectedModel);
 
         service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), modelVerificationListener);
+
+    }
+
+    public void testParseConfigLooseWithOldModelId() {
+        var service = createService(mock(Client.class));
+
+        var settings = new HashMap<String, Object>();
+        settings.put(
+            ModelConfigurations.SERVICE_SETTINGS,
+            new HashMap<>(
+                Map.of(
+                    ElserInternalServiceSettings.NUM_ALLOCATIONS,
+                    1,
+                    ElserInternalServiceSettings.NUM_THREADS,
+                    4,
+                    "model_version",
+                    ".elser_model_1"
+                )
+            )
+        );
+        settings.put(ModelConfigurations.TASK_SETTINGS, Map.of());
+
+        var expectedModel = new ElserInternalModel(
+            "foo",
+            TaskType.SPARSE_EMBEDDING,
+            ElserInternalService.NAME,
+            new ElserInternalServiceSettings(1, 4, ".elser_model_1"),
+            ElserMlNodeTaskSettings.DEFAULT
+        );
+
+        var realModel = service.parsePersistedConfig("foo", TaskType.SPARSE_EMBEDDING, settings);
+
+        assertEquals(expectedModel, realModel);
 
     }
 

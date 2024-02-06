@@ -62,13 +62,13 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
                         1,
                         ElserInternalServiceSettings.NUM_THREADS,
                         4,
-                        "model_version",
+                        "model_id",
                         ".elser_model_27"
                     )
                 )
             )
         );
-        assertThat(e.getMessage(), containsString("unknown ELSER model version [.elser_model_27]"));
+        assertThat(e.getMessage(), containsString("unknown ELSER model id [.elser_model_27]"));
     }
 
     public void testFromMapMissingOptions() {

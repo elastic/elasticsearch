@@ -70,13 +70,13 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
                         1,
                         MultilingualE5SmallInternalServiceSettings.NUM_THREADS,
                         4,
-                        "model_version",
+                        "model_id",
                         randomModelVariant
                     )
                 )
             )
         );
-        assertThat(e.getMessage(), containsString("unknown Multilingual-E5-Small model version [" + randomModelVariant + "]"));
+        assertThat(e.getMessage(), containsString("unknown Multilingual-E5-Small model ID [" + randomModelVariant + "]. Valid IDs are ["));
     }
 
     public void testFromMapMissingOptions() {

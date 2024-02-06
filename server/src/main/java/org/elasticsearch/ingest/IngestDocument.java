@@ -49,7 +49,7 @@ public final class IngestDocument {
     private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
     private static final String SOURCE_PREFIX = SOURCE_KEY + ".";
 
-    public static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
+    private static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
     static final String TIMESTAMP = "timestamp";
 
     private final IngestCtxMap ctxMap;
@@ -841,7 +841,7 @@ public final class IngestDocument {
                 handler.accept(result, e);
             });
         } else {
-            handler.accept(null, new IllegalStateException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
+            handler.accept(null, new PipelineGraphStructureException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
         }
     }
 
@@ -1075,6 +1075,16 @@ public final class IngestDocument {
         @Override
         public Set<Entry<String, Object>> entrySet() {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
+     * This exception is thrown when there is something wrong with the structure of the graph of pipelines to be applied to a document.
+     * For example, this is thrown when there are cycles in the graph.
+     */
+    public static final class PipelineGraphStructureException extends IllegalStateException {
+        public PipelineGraphStructureException(String message) {
+            super(message);
         }
     }
 }

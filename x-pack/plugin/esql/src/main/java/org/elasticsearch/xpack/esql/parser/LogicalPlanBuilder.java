@@ -12,6 +12,7 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.QualifiedNamePatternContext;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -60,6 +61,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
@@ -180,7 +182,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         TableIdentifier table = new TableIdentifier(source, null, visitFromIdentifiers(ctx.fromIdentifier()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
-            for (var c : ctx.metadata().fromIdentifier()) {
+            var deprecatedContext = ctx.metadata().deprecated_metadata();
+            MetadataOptionContext metadataOptionContext = null;
+            if (deprecatedContext != null) {
+                addWarning("Remove [ ] in FROM METADATA declaration");
+                metadataOptionContext = deprecatedContext.metadataOption();
+            } else {
+                metadataOptionContext = ctx.metadata().metadataOption();
+
+            }
+            for (var c : metadataOptionContext.fromIdentifier()) {
                 String id = visitFromIdentifier(c);
                 Source src = source(c);
                 if (MetadataAttribute.isSupported(id) == false) {

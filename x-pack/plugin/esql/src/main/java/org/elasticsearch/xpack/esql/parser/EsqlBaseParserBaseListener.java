@@ -353,6 +353,30 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterMetadataOption(EsqlBaseParser.MetadataOptionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMetadataOption(EsqlBaseParser.MetadataOptionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterEvalCommand(EsqlBaseParser.EvalCommandContext ctx) { }
   /**
    * {@inheritDoc}

@@ -113,7 +113,7 @@ load everything:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test [metadata _id]'
+          query: 'from test metadata _id'
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -245,7 +245,7 @@ _source:
   - do:
       esql.query:
         body:
-          query: 'FROM test [METADATA _source] | WHERE @timestamp == "2021-04-28T18:50:23.142Z" | KEEP _source | LIMIT 1'
+          query: 'FROM test METADATA _source | WHERE @timestamp == "2021-04-28T18:50:23.142Z" | KEEP _source | LIMIT 1'
   - match: { columns.0.name: _source }
   - match: { columns.0.type: _source }
   - length: { values: 1 }

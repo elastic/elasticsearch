@@ -107,7 +107,7 @@
   - do:
       esql.query:
         body:
-          query: 'from index* [metadata _index] | limit 5 | sort _index desc'
+          query: 'from index* metadata _index | limit 5 | sort _index desc'
   - match: { columns.0.name: http.headers }
   - match: { columns.0.type: unsupported }
   - match: { columns.1.name: http.headers.location }

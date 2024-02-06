@@ -102,9 +102,17 @@ fromCommand
     ;
 
 metadata
-    : OPENING_BRACKET METADATA fromIdentifier (COMMA fromIdentifier)* CLOSING_BRACKET
+    : metadataOption
+    | deprecated_metadata
     ;
 
+metadataOption
+    : METADATA fromIdentifier (COMMA fromIdentifier)*
+    ;
+
+deprecated_metadata
+    : OPENING_BRACKET metadataOption CLOSING_BRACKET
+    ;
 
 evalCommand
     : EVAL fields

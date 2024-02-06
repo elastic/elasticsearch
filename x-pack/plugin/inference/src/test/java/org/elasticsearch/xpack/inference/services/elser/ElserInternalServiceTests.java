@@ -25,15 +25,15 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 
-public class ElserMlNodeServiceTests extends ESTestCase {
+public class ElserInternalServiceTests extends ESTestCase {
 
     public static Model randomModelConfig(String inferenceEntityId, TaskType taskType) {
         return switch (taskType) {
-            case SPARSE_EMBEDDING -> new ElserMlNodeModel(
+            case SPARSE_EMBEDDING -> new ElserInternalModel(
                 inferenceEntityId,
                 taskType,
-                ElserMlNodeService.NAME,
-                ElserMlNodeServiceSettingsTests.createRandom(),
+                ElserInternalService.NAME,
+                ElserInternalServiceSettingsTests.createRandom(),
                 ElserMlNodeTaskSettingsTests.createRandom()
             );
             default -> throw new IllegalArgumentException("task type " + taskType + " is not supported");
@@ -48,9 +48,9 @@ public class ElserMlNodeServiceTests extends ESTestCase {
             ModelConfigurations.SERVICE_SETTINGS,
             new HashMap<>(
                 Map.of(
-                    ElserMlNodeServiceSettings.NUM_ALLOCATIONS,
+                    ElserInternalServiceSettings.NUM_ALLOCATIONS,
                     1,
-                    ElserMlNodeServiceSettings.NUM_THREADS,
+                    ElserInternalServiceSettings.NUM_THREADS,
                     4,
                     "model_version",
                     ".elser_model_1"
@@ -59,11 +59,11 @@ public class ElserMlNodeServiceTests extends ESTestCase {
         );
         settings.put(ModelConfigurations.TASK_SETTINGS, Map.of());
 
-        var expectedModel = new ElserMlNodeModel(
+        var expectedModel = new ElserInternalModel(
             "foo",
             TaskType.SPARSE_EMBEDDING,
-            ElserMlNodeService.NAME,
-            new ElserMlNodeServiceSettings(1, 4, ".elser_model_1"),
+            ElserInternalService.NAME,
+            new ElserInternalServiceSettings(1, 4, ".elser_model_1"),
             ElserMlNodeTaskSettings.DEFAULT
         );
 
@@ -73,7 +73,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
 
     }
 
-    private static ActionListener<Model> getModelVerificationListener(ElserMlNodeModel expectedModel) {
+    private static ActionListener<Model> getModelVerificationListener(ElserInternalModel expectedModel) {
         return ActionListener.<Model>wrap(
             (model) -> { assertEquals(expectedModel, model); },
             (e) -> fail("Model verification should not fail " + e.getMessage())
@@ -86,14 +86,14 @@ public class ElserMlNodeServiceTests extends ESTestCase {
         var settings = new HashMap<String, Object>();
         settings.put(
             ModelConfigurations.SERVICE_SETTINGS,
-            new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
+            new HashMap<>(Map.of(ElserInternalServiceSettings.NUM_ALLOCATIONS, 1, ElserInternalServiceSettings.NUM_THREADS, 4))
         );
 
-        var expectedModel = new ElserMlNodeModel(
+        var expectedModel = new ElserInternalModel(
             "foo",
             TaskType.SPARSE_EMBEDDING,
-            ElserMlNodeService.NAME,
-            new ElserMlNodeServiceSettings(1, 4, ElserMlNodeService.ELSER_V2_MODEL),
+            ElserInternalService.NAME,
+            new ElserInternalServiceSettings(1, 4, ElserInternalService.ELSER_V2_MODEL),
             ElserMlNodeTaskSettings.DEFAULT
         );
 
@@ -114,11 +114,11 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                     ModelConfigurations.SERVICE_SETTINGS,
                     new HashMap<>(
                         Map.of(
-                            ElserMlNodeServiceSettings.NUM_ALLOCATIONS,
+                            ElserInternalServiceSettings.NUM_ALLOCATIONS,
                             1,
-                            ElserMlNodeServiceSettings.NUM_THREADS,
+                            ElserInternalServiceSettings.NUM_THREADS,
                             4,
-                            ElserMlNodeServiceSettings.MODEL_VERSION,
+                            ElserInternalServiceSettings.MODEL_ID,
                             ".elser_model_2"
                         )
                     )
@@ -160,11 +160,11 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                     ModelConfigurations.SERVICE_SETTINGS,
                     new HashMap<>(
                         Map.of(
-                            ElserMlNodeServiceSettings.NUM_ALLOCATIONS,
+                            ElserInternalServiceSettings.NUM_ALLOCATIONS,
                             1,
-                            ElserMlNodeServiceSettings.NUM_THREADS,
+                            ElserInternalServiceSettings.NUM_THREADS,
                             4,
-                            ElserMlNodeServiceSettings.MODEL_VERSION,
+                            ElserInternalServiceSettings.MODEL_ID,
                             ".elser_model_2"
                         )
                     )
@@ -203,11 +203,11 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                     ModelConfigurations.SERVICE_SETTINGS,
                     new HashMap<>(
                         Map.of(
-                            ElserMlNodeServiceSettings.NUM_ALLOCATIONS,
+                            ElserInternalServiceSettings.NUM_ALLOCATIONS,
                             1,
-                            ElserMlNodeServiceSettings.NUM_THREADS,
+                            ElserInternalServiceSettings.NUM_THREADS,
                             4,
-                            ElserMlNodeServiceSettings.MODEL_VERSION,
+                            ElserInternalServiceSettings.MODEL_ID,
                             ".elser_model_2",
                             "foo",
                             "bar"
@@ -250,11 +250,11 @@ public class ElserMlNodeServiceTests extends ESTestCase {
             var settings = new HashMap<String, Object>();
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
-                new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
+                new HashMap<>(Map.of(ElserInternalServiceSettings.NUM_ALLOCATIONS, 1, ElserInternalServiceSettings.NUM_THREADS, 4))
             );
 
             ActionListener<Model> modelActionListener = ActionListener.<Model>wrap((model) -> {
-                assertEquals(".elser_model_2", ((ElserMlNodeModel) model).getServiceSettings().getModelVariant());
+                assertEquals(".elser_model_2", ((ElserInternalModel) model).getServiceSettings().getModelId());
             }, (e) -> { fail("Model verification should not fail"); });
 
             service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of(), modelActionListener);
@@ -263,19 +263,19 @@ public class ElserMlNodeServiceTests extends ESTestCase {
             var settings = new HashMap<String, Object>();
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
-                new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
+                new HashMap<>(Map.of(ElserInternalServiceSettings.NUM_ALLOCATIONS, 1, ElserInternalServiceSettings.NUM_THREADS, 4))
             );
 
             ActionListener<Model> modelActionListener = ActionListener.<Model>wrap((model) -> {
-                assertEquals(".elser_model_2_linux-x86_64", ((ElserMlNodeModel) model).getServiceSettings().getModelVariant());
+                assertEquals(".elser_model_2_linux-x86_64", ((ElserInternalModel) model).getServiceSettings().getModelId());
             }, (e) -> { fail("Model verification should not fail"); });
 
             service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Set.of("linux-x86_64"), modelActionListener);
         }
     }
 
-    private ElserMlNodeService createService(Client client) {
+    private ElserInternalService createService(Client client) {
         var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client);
-        return new ElserMlNodeService(context);
+        return new ElserInternalService(context);
     }
 }

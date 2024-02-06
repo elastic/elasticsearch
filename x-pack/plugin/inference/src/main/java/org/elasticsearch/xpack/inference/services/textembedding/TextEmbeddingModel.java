@@ -20,14 +20,14 @@ public abstract class TextEmbeddingModel extends Model {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        TextEmbeddingMlNodeServiceSettings serviceSettings
+        TextEmbeddingInternalServiceSettings serviceSettings
     ) {
         super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings));
     }
 
     @Override
-    public TextEmbeddingMlNodeServiceSettings getServiceSettings() {
-        return (TextEmbeddingMlNodeServiceSettings) super.getServiceSettings();
+    public TextEmbeddingInternalServiceSettings getServiceSettings() {
+        return (TextEmbeddingInternalServiceSettings) super.getServiceSettings();
     }
 
     abstract StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest();

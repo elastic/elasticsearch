@@ -17,20 +17,20 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import java.io.IOException;
 import java.util.Objects;
 
-public abstract class MlNodeServiceSettings implements ServiceSettings {
+public abstract class InternalServiceSettings implements ServiceSettings {
 
     public static final String NUM_ALLOCATIONS = "num_allocations";
     public static final String NUM_THREADS = "num_threads";
-    public static final String MODEL_VERSION = "model_version";
+    public static final String MODEL_ID = "model_version";
 
     private final int numAllocations;
     private final int numThreads;
-    private final String modelVariant;
+    private final String modelId;
 
-    public MlNodeServiceSettings(int numAllocations, int numThreads, String modelVariant) {
+    public InternalServiceSettings(int numAllocations, int numThreads, String modelId) {
         this.numAllocations = numAllocations;
         this.numThreads = numThreads;
-        this.modelVariant = modelVariant;
+        this.modelId = modelId;
     }
 
     protected static void validateParameters(Integer numAllocations, ValidationException validationException, Integer numThreads) {
@@ -57,20 +57,20 @@ public abstract class MlNodeServiceSettings implements ServiceSettings {
         return numThreads;
     }
 
-    public String getModelVariant() {
-        return modelVariant;
+    public String getModelId() {
+        return modelId;
     }
 
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        MlNodeServiceSettings that = (MlNodeServiceSettings) o;
-        return numAllocations == that.numAllocations && numThreads == that.numThreads && Objects.equals(modelVariant, that.modelVariant);
+        InternalServiceSettings that = (InternalServiceSettings) o;
+        return numAllocations == that.numAllocations && numThreads == that.numThreads && Objects.equals(modelId, that.modelId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numAllocations, numThreads, modelVariant);
+        return Objects.hash(numAllocations, numThreads, modelId);
     }
 
     @Override
@@ -78,7 +78,7 @@ public abstract class MlNodeServiceSettings implements ServiceSettings {
         builder.startObject();
         builder.field(NUM_ALLOCATIONS, getNumAllocations());
         builder.field(NUM_THREADS, getNumThreads());
-        builder.field(MODEL_VERSION, getModelVariant());
+        builder.field(MODEL_ID, getModelId());
         builder.endObject();
         return builder;
     }
@@ -92,15 +92,15 @@ public abstract class MlNodeServiceSettings implements ServiceSettings {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(getNumAllocations());
         out.writeVInt(getNumThreads());
-        out.writeString(getModelVariant());
+        out.writeString(getModelId());
     }
 
     public abstract static class Builder {
         private int numAllocations;
         private int numThreads;
-        private String modelVariant;
+        private String modelId;
 
-        public abstract MlNodeServiceSettings build();
+        public abstract InternalServiceSettings build();
 
         public void setNumAllocations(int numAllocations) {
             this.numAllocations = numAllocations;
@@ -110,12 +110,12 @@ public abstract class MlNodeServiceSettings implements ServiceSettings {
             this.numThreads = numThreads;
         }
 
-        public void setModelVariant(String modelVariant) {
-            this.modelVariant = modelVariant;
+        public void setModelId(String modelId) {
+            this.modelId = modelId;
         }
 
-        public String getModelVariant() {
-            return modelVariant;
+        public String getModelId() {
+            return modelId;
         }
 
         public int getNumAllocations() {

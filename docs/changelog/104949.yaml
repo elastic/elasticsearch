@@ -1,5 +1,5 @@
 pr: 104949
-summary: Add Inference service support for multilingual-e5 builtin and customEland text_embedding models
+summary: Add text_embedding inference service with multilingual-e5 and custom eland models
 area: Machine Learning
 type: enhancement
-issues: []
+issues: [ ]

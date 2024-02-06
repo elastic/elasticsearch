@@ -187,7 +187,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             service.checkModelConfig(
                 model,
                 delegate.delegateFailureAndWrap(
-                    // model is valid good to persist then start
+                    // model is valid, ok to persist then start
                     (delegate2, verifiedModel) -> modelRegistry.storeModel(
                         verifiedModel,
                         delegate2.delegateFailureAndWrap((l, r) -> putAndStartModel(service, verifiedModel, l))

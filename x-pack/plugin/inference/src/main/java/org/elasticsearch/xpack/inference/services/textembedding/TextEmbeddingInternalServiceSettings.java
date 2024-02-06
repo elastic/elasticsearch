@@ -11,27 +11,27 @@ package org.elasticsearch.xpack.inference.services.textembedding;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.inference.services.settings.MlNodeServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.io.IOException;
 
 import static org.elasticsearch.TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
 
-public class TextEmbeddingMlNodeServiceSettings extends MlNodeServiceSettings {
+public class TextEmbeddingInternalServiceSettings extends InternalServiceSettings {
 
-    public static final String NAME = "text_embedding_service_settings";
+    public static final String NAME = "text_embedding_internal_service_settings";
 
-    public TextEmbeddingMlNodeServiceSettings(int numAllocations, int numThreads, String modelVariant) {
+    public TextEmbeddingInternalServiceSettings(int numAllocations, int numThreads, String modelVariant) {
         super(numAllocations, numThreads, modelVariant);
     }
 
-    public TextEmbeddingMlNodeServiceSettings(StreamInput in) throws IOException {
+    public TextEmbeddingInternalServiceSettings(StreamInput in) throws IOException {
         super(in.readVInt(), in.readVInt(), in.readString());
     }
 
     @Override
     public String getWriteableName() {
-        return TextEmbeddingMlNodeServiceSettings.NAME;
+        return TextEmbeddingInternalServiceSettings.NAME;
     }
 
     @Override

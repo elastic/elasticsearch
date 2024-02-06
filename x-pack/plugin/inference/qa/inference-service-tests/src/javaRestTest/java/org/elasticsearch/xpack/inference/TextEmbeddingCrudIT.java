@@ -20,14 +20,14 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 
 // Tests disabled in CI due to the models being too large to download
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-team/issues/1119")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105198")
 public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
 
     public void testPutE5Small_withNoModelVariant() throws IOException {
         // Model downloaded automatically & test infer with no model variant
         {
             String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
-            putTextEmbeddingModel(inferenceEntityId, TaskType.TEXT_EMBEDDING, noModelVariantJsonEntity());
+            putTextEmbeddingModel(inferenceEntityId, TaskType.TEXT_EMBEDDING, noModelIdVariantJsonEntity());
             var models = getTrainedModel("_all");
             assertThat(models.toString(), containsString("deployment_id=" + inferenceEntityId));
 
@@ -114,7 +114,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
         return entityAsMap(response);
     }
 
-    private String noModelVariantJsonEntity() {
+    private String noModelIdVariantJsonEntity() {
         return """
                 {
                   "service": "text_embedding",

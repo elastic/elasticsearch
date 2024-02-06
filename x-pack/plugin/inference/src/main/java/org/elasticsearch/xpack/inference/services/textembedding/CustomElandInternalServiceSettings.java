@@ -15,77 +15,64 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.settings.MlNodeServiceSettings;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
-import static org.elasticsearch.xpack.inference.services.textembedding.TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.textembedding.TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 
-public class MultilingualE5SmallMlNodeServiceSettings extends TextEmbeddingMlNodeServiceSettings {
+public class CustomElandInternalServiceSettings extends TextEmbeddingInternalServiceSettings {
 
-    public static final String NAME = "multilingual_e5_small_service_settings";
-    public static final Set<String> MODEL_VARIANTS = Set.of(MULTILINGUAL_E5_SMALL_MODEL_ID, MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86);
+    public static final String NAME = "custom_eland_model_internal_service_settings";
 
-    public MultilingualE5SmallMlNodeServiceSettings(int numAllocations, int numThreads, String modelVariant) {
-        super(numAllocations, numThreads, modelVariant);
-    }
-
-    public MultilingualE5SmallMlNodeServiceSettings(StreamInput in) throws IOException {
-        super(in.readVInt(), in.readVInt(), in.readString());
+    public CustomElandInternalServiceSettings(int numAllocations, int numThreads, String modelId) {
+        super(numAllocations, numThreads, modelId);
     }
 
     /**
-     * Parse the MultilingualE5SmallServiceSettings from map and validate the setting values.
+     * Parse the CustomElandServiceSettings from map and validate the setting values.
+     *
+     * This method does not verify the model variant
      *
      * If required setting are missing or the values are invalid an
      * {@link ValidationException} is thrown.
      *
      * @param map Source map containing the config
-     * @return The {@code MultilingualE5SmallServiceSettings} builder
+     * @return The {@code CustomElandServiceSettings} builder
      */
-    public static MultilingualE5SmallMlNodeServiceSettings.Builder fromMap(Map<String, Object> map) {
+    public static Builder fromMap(Map<String, Object> map) {
+
         ValidationException validationException = new ValidationException();
         Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
         Integer numThreads = ServiceUtils.removeAsType(map, NUM_THREADS, Integer.class);
 
         validateParameters(numAllocations, validationException, numThreads);
 
-        String version = ServiceUtils.removeAsType(map, MODEL_VERSION, String.class);
-        if (version != null) {
-            if (MODEL_VARIANTS.contains(version) == false) {
-                validationException.addValidationError(
-                    "unknown Multilingual-E5-Small model version ["
-                        + version
-                        + "]. Valid variants are "
-                        + Arrays.toString(MODEL_VARIANTS.toArray())
-                );
-            }
-        }
+        String modelId = ServiceUtils.removeAsType(map, MODEL_ID, String.class);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        var builder = new MlNodeServiceSettings.Builder() {
+        var builder = new Builder() {
             @Override
-            public MultilingualE5SmallMlNodeServiceSettings build() {
-                return new MultilingualE5SmallMlNodeServiceSettings(getNumAllocations(), getNumThreads(), getModelVariant());
+            public CustomElandInternalServiceSettings build() {
+                return new CustomElandInternalServiceSettings(getNumAllocations(), getNumThreads(), getModelId());
             }
         };
         builder.setNumAllocations(numAllocations);
         builder.setNumThreads(numThreads);
-        builder.setModelVariant(version);
+        builder.setModelId(modelId);
         return builder;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return super.toXContent(builder, params);
+    }
+
+    public CustomElandInternalServiceSettings(StreamInput in) throws IOException {
+        super(in.readVInt(), in.readVInt(), in.readString());
     }
 
     @Override
@@ -95,7 +82,7 @@ public class MultilingualE5SmallMlNodeServiceSettings extends TextEmbeddingMlNod
 
     @Override
     public String getWriteableName() {
-        return MultilingualE5SmallMlNodeServiceSettings.NAME;
+        return CustomElandInternalServiceSettings.NAME;
     }
 
     @Override

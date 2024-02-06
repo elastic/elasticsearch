@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionRes
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
-import org.elasticsearch.xpack.inference.services.settings.MlNodeServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,20 +51,24 @@ import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
-import static org.elasticsearch.xpack.inference.services.settings.MlNodeServiceSettings.MODEL_VERSION;
+import static org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings.MODEL_ID;
 
-public class TextEmbeddingMlNodeService implements InferenceService {
+public class TextEmbeddingInternalService implements InferenceService {
 
     public static final String NAME = "text_embedding";
 
     static final String MULTILINGUAL_E5_SMALL_MODEL_ID = ".multilingual-e5-small";
     static final String MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 = ".multilingual-e5-small_linux-x86_64";
+    public static final Set<String> MULTILINGUAL_E5_SMALL_VALID_IDS = Set.of(
+        MULTILINGUAL_E5_SMALL_MODEL_ID,
+        MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
+    );
 
     private final OriginSettingClient client;
 
-    private static final Logger logger = LogManager.getLogger(TextEmbeddingMlNodeService.class);
+    private static final Logger logger = LogManager.getLogger(TextEmbeddingInternalService.class);
 
-    public TextEmbeddingMlNodeService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public TextEmbeddingInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
     }
 
@@ -78,14 +82,14 @@ public class TextEmbeddingMlNodeService implements InferenceService {
     ) {
         try {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            String modelId = (String) serviceSettingsMap.get(MODEL_VERSION);
+            String modelId = (String) serviceSettingsMap.get(MODEL_ID);
             if (modelId == null) {
                 throw new IllegalArgumentException("Error parsing request config, model id is missing");
             }
-            if (MultilingualE5SmallMlNodeServiceSettings.MODEL_VARIANTS.contains(modelId)) {
+            if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
                 e5Case(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
             } else {
-                customElandCase(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
+                customElandCase(inferenceEntityId, taskType, serviceSettingsMap, modelListener);
             }
         } catch (Exception e) {
             modelListener.onFailure(e);
@@ -95,12 +99,10 @@ public class TextEmbeddingMlNodeService implements InferenceService {
     private void customElandCase(
         String inferenceEntityId,
         TaskType taskType,
-        Map<String, Object> config,
-        Set<String> platformArchitectures,
         Map<String, Object> serviceSettingsMap,
         ActionListener<Model> modelListener
     ) {
-        String modelId = (String) serviceSettingsMap.get(MODEL_VERSION);
+        String modelId = (String) serviceSettingsMap.get(MODEL_ID);
         var request = new GetTrainedModelsAction.Request(modelId);
 
         var getModelsListener = modelListener.<GetTrainedModelsAction.Response>delegateFailureAndWrap((delegate, response) -> {
@@ -111,13 +113,13 @@ public class TextEmbeddingMlNodeService implements InferenceService {
                         + "]. You may need to load it into the cluster using eland."
                 );
             } else {
-                serviceSettingsMap.put(MODEL_VERSION, response.getResources().results().get(0).getModelId());
+                serviceSettingsMap.put(MODEL_ID, response.getResources().results().get(0).getModelId());
                 delegate.onResponse(
                     new CustomElandModel(
                         inferenceEntityId,
                         taskType,
                         name(),
-                        (CustomElandMlNodeServiceSettings) CustomElandMlNodeServiceSettings.fromMap(serviceSettingsMap).build()
+                        (CustomElandInternalServiceSettings) CustomElandInternalServiceSettings.fromMap(serviceSettingsMap).build()
                     )
                 );
             }
@@ -134,16 +136,16 @@ public class TextEmbeddingMlNodeService implements InferenceService {
         Map<String, Object> serviceSettingsMap,
         ActionListener<Model> modelListener
     ) {
-        var e5ServiceSettings = MultilingualE5SmallMlNodeServiceSettings.fromMap(serviceSettingsMap);
+        var e5ServiceSettings = MultilingualE5SmallInternalServiceSettings.fromMap(serviceSettingsMap);
 
-        if (e5ServiceSettings.getModelVariant() == null) {
-            e5ServiceSettings.setModelVariant(selectDefaultModelVersionBasedOnClusterArchitecture(platformArchitectures));
+        if (e5ServiceSettings.getModelId() == null) {
+            e5ServiceSettings.setModelId(selectDefaultModelVariantBasedOnClusterArchitecture(platformArchitectures));
         }
 
         if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, e5ServiceSettings)) {
             throw new IllegalArgumentException(
                 "Error parsing request config, model id does not match any models available on this platform. Was ["
-                    + e5ServiceSettings.getModelVariant()
+                    + e5ServiceSettings.getModelId()
                     + "]"
             );
         }
@@ -156,18 +158,17 @@ public class TextEmbeddingMlNodeService implements InferenceService {
                 inferenceEntityId,
                 taskType,
                 NAME,
-                (MultilingualE5SmallMlNodeServiceSettings) e5ServiceSettings.build()
+                (MultilingualE5SmallInternalServiceSettings) e5ServiceSettings.build()
             )
         );
     }
 
     private static boolean modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(
         Set<String> platformArchitectures,
-        MlNodeServiceSettings.Builder e5ServiceSettings
+        InternalServiceSettings.Builder e5ServiceSettings
     ) {
-        return e5ServiceSettings.getModelVariant()
-            .equals(selectDefaultModelVersionBasedOnClusterArchitecture(platformArchitectures)) == false
-            && e5ServiceSettings.getModelVariant().equals(MULTILINGUAL_E5_SMALL_MODEL_ID) == false;
+        return e5ServiceSettings.getModelId().equals(selectDefaultModelVariantBasedOnClusterArchitecture(platformArchitectures)) == false
+            && e5ServiceSettings.getModelId().equals(MULTILINGUAL_E5_SMALL_MODEL_ID) == false;
     }
 
     @Override
@@ -184,24 +185,24 @@ public class TextEmbeddingMlNodeService implements InferenceService {
     public TextEmbeddingModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
-        String modelId = (String) serviceSettingsMap.get(MODEL_VERSION);
+        String modelId = (String) serviceSettingsMap.get(MODEL_ID);
         if (modelId == null) {
             throw new IllegalArgumentException("Error parsing request config, model id is missing");
         }
 
-        if (MultilingualE5SmallMlNodeServiceSettings.MODEL_VARIANTS.contains(modelId)) {
+        if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
             return new MultilingualE5SmallModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
-                (MultilingualE5SmallMlNodeServiceSettings) MultilingualE5SmallMlNodeServiceSettings.fromMap(serviceSettingsMap).build()
+                (MultilingualE5SmallInternalServiceSettings) MultilingualE5SmallInternalServiceSettings.fromMap(serviceSettingsMap).build()
             );
         } else {
             return new CustomElandModel(
                 inferenceEntityId,
                 taskType,
                 name(),
-                (CustomElandMlNodeServiceSettings) CustomElandMlNodeServiceSettings.fromMap(serviceSettingsMap).build()
+                (CustomElandInternalServiceSettings) CustomElandInternalServiceSettings.fromMap(serviceSettingsMap).build()
             );
         }
 
@@ -274,11 +275,7 @@ public class TextEmbeddingMlNodeService implements InferenceService {
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
         if (model instanceof TextEmbeddingModel == false) {
-            listener.onFailure(
-                new IllegalStateException(
-                    "Error starting model, [" + model.getConfigurations().getInferenceEntityId() + "] is not a text embedding model model"
-                )
-            );
+            listener.onFailure(notTextEmbeddingModelException(model));
             return;
         }
 
@@ -307,17 +304,13 @@ public class TextEmbeddingMlNodeService implements InferenceService {
     @Override
     public void putModel(Model model, ActionListener<Boolean> listener) {
         if (model instanceof TextEmbeddingModel == false) {
-            listener.onFailure(
-                new IllegalStateException(
-                    "Error starting model, [" + model.getConfigurations().getInferenceEntityId() + "] is not a TextEmbedding model"
-                )
-            );
+            listener.onFailure(notTextEmbeddingModelException(model));
             return;
         } else if (model instanceof MultilingualE5SmallModel e5Model) {
-            String modelVariant = e5Model.getServiceSettings().getModelVariant();
+            String modelId = e5Model.getServiceSettings().getModelId();
             var fieldNames = List.<String>of();
             var input = new TrainedModelInput(fieldNames);
-            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelVariant).build();
+            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).build();
             PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);
             executeAsyncWithOrigin(
                 client,
@@ -334,13 +327,19 @@ public class TextEmbeddingMlNodeService implements InferenceService {
         } else {
             listener.onFailure(
                 new IllegalArgumentException(
-                    "Can not download model automatically, ["
+                    "Can not download model automatically for ["
                         + model.getConfigurations().getInferenceEntityId()
                         + "] you may need to download it through the trained models API or with eland."
                 )
             );
             return;
         }
+    }
+
+    private static IllegalStateException notTextEmbeddingModelException(Model model) {
+        return new IllegalStateException(
+            "Error starting model, [" + model.getConfigurations().getInferenceEntityId() + "] is not a text embedding model"
+        );
     }
 
     private void checkCompatibleTaskType(TaskType taskType) {
@@ -351,10 +350,7 @@ public class TextEmbeddingMlNodeService implements InferenceService {
 
     private ChunkedTextEmbeddingResults translateChunkedResults(List<InferenceResults> inferenceResults) {
         if (inferenceResults.size() != 1) {
-            throw new ElasticsearchStatusException(
-                "Expected exactly one chunked sparse embedding result",
-                RestStatus.INTERNAL_SERVER_ERROR
-            );
+            throw new ElasticsearchStatusException("Expected exactly one chunked text embedding result", RestStatus.INTERNAL_SERVER_ERROR);
         }
 
         if (inferenceResults.get(
@@ -389,7 +385,7 @@ public class TextEmbeddingMlNodeService implements InferenceService {
         return NAME;
     }
 
-    private static String selectDefaultModelVersionBasedOnClusterArchitecture(Set<String> modelArchitectures) {
+    private static String selectDefaultModelVariantBasedOnClusterArchitecture(Set<String> modelArchitectures) {
         // choose a default model version based on the cluster architecture
         boolean homogenous = modelArchitectures.size() == 1;
         if (homogenous && modelArchitectures.iterator().next().equals("linux-x86_64")) {

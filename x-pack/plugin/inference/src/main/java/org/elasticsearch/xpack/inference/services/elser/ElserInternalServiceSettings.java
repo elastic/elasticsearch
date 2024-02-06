@@ -13,13 +13,13 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.settings.MlNodeServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class ElserMlNodeServiceSettings extends MlNodeServiceSettings {
+public class ElserInternalServiceSettings extends InternalServiceSettings {
 
     public static final String NAME = "elser_mlnode_service_settings";
 
@@ -29,49 +29,49 @@ public class ElserMlNodeServiceSettings extends MlNodeServiceSettings {
      * If required setting are missing or the values are invalid an
      * {@link ValidationException} is thrown.
      *
-     * @param map Source map containg the config
-     * @return The {@code ElserMlNodeServiceSettings}
+     * @param map Source map containing the config
+     * @return The {@code ElserInternalServiceSettings}
      */
-    public static ElserMlNodeServiceSettings.Builder fromMap(Map<String, Object> map) {
+    public static ElserInternalServiceSettings.Builder fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
         Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
         Integer numThreads = ServiceUtils.removeAsType(map, NUM_THREADS, Integer.class);
 
         validateParameters(numAllocations, validationException, numThreads);
 
-        String version = ServiceUtils.removeAsType(map, MODEL_VERSION, String.class);
-        if (version != null && ElserMlNodeService.VALID_ELSER_MODELS.contains(version) == false) {
-            validationException.addValidationError("unknown ELSER model version [" + version + "]");
+        String model_id = ServiceUtils.removeAsType(map, MODEL_ID, String.class);
+        if (model_id != null && ElserInternalService.VALID_ELSER_MODEL_IDS.contains(model_id) == false) {
+            validationException.addValidationError("unknown ELSER model id/version [" + model_id + "]");
         }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        var builder = new MlNodeServiceSettings.Builder() {
+        var builder = new InternalServiceSettings.Builder() {
             @Override
-            public ElserMlNodeServiceSettings build() {
-                return new ElserMlNodeServiceSettings(getNumAllocations(), getNumThreads(), getModelVariant());
+            public ElserInternalServiceSettings build() {
+                return new ElserInternalServiceSettings(getNumAllocations(), getNumThreads(), getModelId());
             }
         };
         builder.setNumAllocations(numAllocations);
         builder.setNumThreads(numThreads);
-        builder.setModelVariant(version);
+        builder.setModelId(model_id);
         return builder;
     }
 
-    public ElserMlNodeServiceSettings(int numAllocations, int numThreads, String variant) {
-        super(numAllocations, numThreads, variant);
-        Objects.requireNonNull(variant);
+    public ElserInternalServiceSettings(int numAllocations, int numThreads, String modelId) {
+        super(numAllocations, numThreads, modelId);
+        Objects.requireNonNull(modelId);
     }
 
-    public ElserMlNodeServiceSettings(StreamInput in) throws IOException {
+    public ElserInternalServiceSettings(StreamInput in) throws IOException {
         super(
             in.readVInt(),
             in.readVInt(),
             transportVersionIsCompatibleWithElserModelVersion(in.getTransportVersion())
                 ? in.readString()
-                : ElserMlNodeService.ELSER_V2_MODEL
+                : ElserInternalService.ELSER_V2_MODEL
         );
     }
 
@@ -87,7 +87,7 @@ public class ElserMlNodeServiceSettings extends MlNodeServiceSettings {
 
     @Override
     public String getWriteableName() {
-        return ElserMlNodeServiceSettings.NAME;
+        return ElserInternalServiceSettings.NAME;
     }
 
     @Override
@@ -100,23 +100,23 @@ public class ElserMlNodeServiceSettings extends MlNodeServiceSettings {
         out.writeVInt(getNumAllocations());
         out.writeVInt(getNumThreads());
         if (transportVersionIsCompatibleWithElserModelVersion(out.getTransportVersion())) {
-            out.writeString(getModelVariant());
+            out.writeString(getModelId());
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(NAME, getNumAllocations(), getNumThreads(), getModelVariant());
+        return Objects.hash(NAME, getNumAllocations(), getNumThreads(), getModelId());
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ElserMlNodeServiceSettings that = (ElserMlNodeServiceSettings) o;
+        ElserInternalServiceSettings that = (ElserInternalServiceSettings) o;
         return getNumAllocations() == that.getNumAllocations()
             && getNumThreads() == that.getNumThreads()
-            && Objects.equals(getModelVariant(), that.getModelVariant());
+            && Objects.equals(getModelId(), that.getModelId());
     }
 
 }

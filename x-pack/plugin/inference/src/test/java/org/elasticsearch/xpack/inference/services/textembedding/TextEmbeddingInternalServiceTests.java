@@ -16,7 +16,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.settings.MlNodeServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -28,7 +28,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
+public class TextEmbeddingInternalServiceTests extends ESTestCase {
 
     TaskType taskType = TaskType.TEXT_EMBEDDING;
     String randomInferenceEntityId = randomAlphaOfLength(10);
@@ -42,7 +42,7 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
-                    Map.of(TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingMlNodeServiceSettings.NUM_THREADS, 4)
+                    Map.of(TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingInternalServiceSettings.NUM_THREADS, 4)
                 )
             );
 
@@ -62,20 +62,20 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
-                        TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS,
+                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
                         1,
-                        TextEmbeddingMlNodeServiceSettings.NUM_THREADS,
+                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
                         4,
-                        MlNodeServiceSettings.MODEL_VERSION,
-                        TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                        InternalServiceSettings.MODEL_ID,
+                        TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
                     )
                 )
             );
 
-            var e5ServiceSettings = new MultilingualE5SmallMlNodeServiceSettings(
+            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
                 1,
                 4,
-                TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
             );
 
             service.parseRequestConfig(
@@ -94,7 +94,7 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
-                    Map.of(TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingMlNodeServiceSettings.NUM_THREADS, 4)
+                    Map.of(TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingInternalServiceSettings.NUM_THREADS, 4)
                 )
             );
             settings.put("not_a_valid_config_setting", randomAlphaOfLength(10));
@@ -115,9 +115,9 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
-                        TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS,
+                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
                         1,
-                        TextEmbeddingMlNodeServiceSettings.NUM_THREADS,
+                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
                         4,
                         "not_a_valid_service_setting",
                         randomAlphaOfLength(10)
@@ -134,10 +134,10 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
         }
     }
 
-    private ActionListener<Model> getModelVerificationActionListener(MultilingualE5SmallMlNodeServiceSettings e5ServiceSettings) {
+    private ActionListener<Model> getModelVerificationActionListener(MultilingualE5SmallInternalServiceSettings e5ServiceSettings) {
         return ActionListener.<Model>wrap(model -> {
             assertEquals(
-                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingMlNodeService.NAME, e5ServiceSettings),
+                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingInternalService.NAME, e5ServiceSettings),
                 model
             );
         }, e -> { fail("Model parsing failed " + e.getMessage()); });
@@ -152,14 +152,14 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
-                    Map.of(TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingMlNodeServiceSettings.NUM_THREADS, 4)
+                    Map.of(TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingInternalServiceSettings.NUM_THREADS, 4)
                 )
             );
 
-            var e5ServiceSettings = new MultilingualE5SmallMlNodeServiceSettings(
+            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
                 1,
                 4,
-                TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
             );
 
             expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
@@ -176,20 +176,20 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
-                        TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS,
+                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
                         1,
-                        TextEmbeddingMlNodeServiceSettings.NUM_THREADS,
+                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
                         4,
-                        MlNodeServiceSettings.MODEL_VERSION,
+                        InternalServiceSettings.MODEL_ID,
                         "invalid"
                     )
                 )
             );
 
             CustomElandModel parsedModel = (CustomElandModel) service.parsePersistedConfig(randomInferenceEntityId, taskType, settings);
-            var elandServiceSettings = new CustomElandMlNodeServiceSettings(1, 4, "invalid");
+            var elandServiceSettings = new CustomElandInternalServiceSettings(1, 4, "invalid");
             assertEquals(
-                new CustomElandModel(randomInferenceEntityId, taskType, TextEmbeddingMlNodeService.NAME, elandServiceSettings),
+                new CustomElandModel(randomInferenceEntityId, taskType, TextEmbeddingInternalService.NAME, elandServiceSettings),
                 parsedModel
             );
         }
@@ -202,20 +202,20 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
-                        TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS,
+                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
                         1,
-                        TextEmbeddingMlNodeServiceSettings.NUM_THREADS,
+                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
                         4,
-                        MlNodeServiceSettings.MODEL_VERSION,
-                        TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                        InternalServiceSettings.MODEL_ID,
+                        TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
                     )
                 )
             );
 
-            var e5ServiceSettings = new MultilingualE5SmallMlNodeServiceSettings(
+            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
                 1,
                 4,
-                TextEmbeddingMlNodeService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
             );
 
             MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parsePersistedConfig(
@@ -224,7 +224,7 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 settings
             );
             assertEquals(
-                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingMlNodeService.NAME, e5ServiceSettings),
+                new MultilingualE5SmallModel(randomInferenceEntityId, taskType, TextEmbeddingInternalService.NAME, e5ServiceSettings),
                 parsedModel
             );
         }
@@ -236,7 +236,7 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
-                    Map.of(TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingMlNodeServiceSettings.NUM_THREADS, 4)
+                    Map.of(TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS, 1, TextEmbeddingInternalServiceSettings.NUM_THREADS, 4)
                 )
             );
             settings.put("not_a_valid_config_setting", randomAlphaOfLength(10));
@@ -251,9 +251,9 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
                     Map.of(
-                        TextEmbeddingMlNodeServiceSettings.NUM_ALLOCATIONS,
+                        TextEmbeddingInternalServiceSettings.NUM_ALLOCATIONS,
                         1,
-                        TextEmbeddingMlNodeServiceSettings.NUM_THREADS,
+                        TextEmbeddingInternalServiceSettings.NUM_THREADS,
                         4,
                         "not_a_valid_service_setting",
                         randomAlphaOfLength(10)
@@ -264,9 +264,9 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
         }
     }
 
-    private TextEmbeddingMlNodeService createService(Client client) {
+    private TextEmbeddingInternalService createService(Client client) {
         var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client);
-        return new TextEmbeddingMlNodeService(context);
+        return new TextEmbeddingInternalService(context);
     }
 
     public static Model randomModelConfig(String inferenceEntityId) {
@@ -278,8 +278,8 @@ public class TextEmbeddingMlNodeServiceTests extends ESTestCase {
             case "MultilingualE5SmallModel" -> new MultilingualE5SmallModel(
                 inferenceEntityId,
                 TaskType.TEXT_EMBEDDING,
-                TextEmbeddingMlNodeService.NAME,
-                MultilingualE5SmallMlNodeServiceSettingsTests.createRandom()
+                TextEmbeddingInternalService.NAME,
+                MultilingualE5SmallInternalServiceSettingsTests.createRandom()
             );
             default -> throw new IllegalArgumentException("model " + model + " is not supported for testing");
         };

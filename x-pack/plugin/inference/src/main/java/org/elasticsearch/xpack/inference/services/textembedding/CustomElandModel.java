@@ -19,19 +19,24 @@ import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationSta
 
 public class CustomElandModel extends TextEmbeddingModel {
 
-    public CustomElandModel(String inferenceEntityId, TaskType taskType, String service, CustomElandMlNodeServiceSettings serviceSettings) {
+    public CustomElandModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        CustomElandInternalServiceSettings serviceSettings
+    ) {
         super(inferenceEntityId, taskType, service, serviceSettings);
     }
 
     @Override
-    public CustomElandMlNodeServiceSettings getServiceSettings() {
-        return (CustomElandMlNodeServiceSettings) super.getServiceSettings();
+    public CustomElandInternalServiceSettings getServiceSettings() {
+        return (CustomElandInternalServiceSettings) super.getServiceSettings();
     }
 
     @Override
     StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
         var startRequest = new StartTrainedModelDeploymentAction.Request(
-            this.getServiceSettings().getModelVariant(),
+            this.getServiceSettings().getModelId(),
             this.getInferenceEntityId()
         );
         startRequest.setNumberOfAllocations(this.getServiceSettings().getNumAllocations());
@@ -60,8 +65,8 @@ public class CustomElandModel extends TextEmbeddingModel {
                         new ResourceNotFoundException(
                             "Could not start the TextEmbeddingService service as the "
                                 + "custom eland model [{0}] for this platform cannot be found."
-                                + " Custom models need to be loaded into the cluster with eland before they can be started",
-                            getServiceSettings().getModelVariant()
+                                + " Custom models need to be loaded into the cluster with eland before they can be started.",
+                            getServiceSettings().getModelId()
                         )
                     );
                     return;

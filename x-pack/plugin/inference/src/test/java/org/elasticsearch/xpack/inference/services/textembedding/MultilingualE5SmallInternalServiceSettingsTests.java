@@ -17,53 +17,58 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class MultilingualE5SmallMlNodeServiceSettingsTests extends AbstractWireSerializingTestCase<
-    MultilingualE5SmallMlNodeServiceSettings> {
+public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWireSerializingTestCase<
+    MultilingualE5SmallInternalServiceSettings> {
 
-    public static MultilingualE5SmallMlNodeServiceSettings createRandom() {
-        return new MultilingualE5SmallMlNodeServiceSettings(
+    public static MultilingualE5SmallInternalServiceSettings createRandom() {
+        return new MultilingualE5SmallInternalServiceSettings(
             randomIntBetween(1, 4),
             randomIntBetween(1, 4),
-            randomFrom(MultilingualE5SmallMlNodeServiceSettings.MODEL_VARIANTS)
+            randomFrom(TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS)
         );
     }
 
     public void testFromMap_DefaultModelVersion() {
-        var serviceSettingsBuilder = MultilingualE5SmallMlNodeServiceSettings.fromMap(
+        var serviceSettingsBuilder = MultilingualE5SmallInternalServiceSettings.fromMap(
             new HashMap<>(
-                Map.of(MultilingualE5SmallMlNodeServiceSettings.NUM_ALLOCATIONS, 1, MultilingualE5SmallMlNodeServiceSettings.NUM_THREADS, 4)
+                Map.of(
+                    MultilingualE5SmallInternalServiceSettings.NUM_ALLOCATIONS,
+                    1,
+                    MultilingualE5SmallInternalServiceSettings.NUM_THREADS,
+                    4
+                )
             )
         );
-        assertNull(serviceSettingsBuilder.getModelVariant());
+        assertNull(serviceSettingsBuilder.getModelId());
     }
 
     public void testFromMap() {
-        String randomModelVariant = randomFrom(MultilingualE5SmallMlNodeServiceSettings.MODEL_VARIANTS);
-        var serviceSettings = MultilingualE5SmallMlNodeServiceSettings.fromMap(
+        String randomModelVariant = randomFrom(TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS);
+        var serviceSettings = MultilingualE5SmallInternalServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    MultilingualE5SmallMlNodeServiceSettings.NUM_ALLOCATIONS,
+                    MultilingualE5SmallInternalServiceSettings.NUM_ALLOCATIONS,
                     1,
-                    MultilingualE5SmallMlNodeServiceSettings.NUM_THREADS,
+                    MultilingualE5SmallInternalServiceSettings.NUM_THREADS,
                     4,
-                    MultilingualE5SmallMlNodeServiceSettings.MODEL_VERSION,
+                    MultilingualE5SmallInternalServiceSettings.MODEL_ID,
                     randomModelVariant
                 )
             )
         ).build();
-        assertEquals(new MultilingualE5SmallMlNodeServiceSettings(1, 4, randomModelVariant), serviceSettings);
+        assertEquals(new MultilingualE5SmallInternalServiceSettings(1, 4, randomModelVariant), serviceSettings);
     }
 
     public void testFromMapInvalidVersion() {
         String randomModelVariant = randomAlphaOfLength(10);
         var e = expectThrows(
             ValidationException.class,
-            () -> MultilingualE5SmallMlNodeServiceSettings.fromMap(
+            () -> MultilingualE5SmallInternalServiceSettings.fromMap(
                 new HashMap<>(
                     Map.of(
-                        MultilingualE5SmallMlNodeServiceSettings.NUM_ALLOCATIONS,
+                        MultilingualE5SmallInternalServiceSettings.NUM_ALLOCATIONS,
                         1,
-                        MultilingualE5SmallMlNodeServiceSettings.NUM_THREADS,
+                        MultilingualE5SmallInternalServiceSettings.NUM_THREADS,
                         4,
                         "model_version",
                         randomModelVariant
@@ -77,8 +82,8 @@ public class MultilingualE5SmallMlNodeServiceSettingsTests extends AbstractWireS
     public void testFromMapMissingOptions() {
         var e = expectThrows(
             ValidationException.class,
-            () -> MultilingualE5SmallMlNodeServiceSettings.fromMap(
-                new HashMap<>(Map.of(MultilingualE5SmallMlNodeServiceSettings.NUM_ALLOCATIONS, 1))
+            () -> MultilingualE5SmallInternalServiceSettings.fromMap(
+                new HashMap<>(Map.of(MultilingualE5SmallInternalServiceSettings.NUM_ALLOCATIONS, 1))
             )
         );
 
@@ -86,8 +91,8 @@ public class MultilingualE5SmallMlNodeServiceSettingsTests extends AbstractWireS
 
         e = expectThrows(
             ValidationException.class,
-            () -> MultilingualE5SmallMlNodeServiceSettings.fromMap(
-                new HashMap<>(Map.of(MultilingualE5SmallMlNodeServiceSettings.NUM_THREADS, 1))
+            () -> MultilingualE5SmallInternalServiceSettings.fromMap(
+                new HashMap<>(Map.of(MultilingualE5SmallInternalServiceSettings.NUM_THREADS, 1))
             )
         );
 
@@ -96,41 +101,46 @@ public class MultilingualE5SmallMlNodeServiceSettingsTests extends AbstractWireS
 
     public void testFromMapInvalidSettings() {
         var settingsMap = new HashMap<String, Object>(
-            Map.of(MultilingualE5SmallMlNodeServiceSettings.NUM_ALLOCATIONS, 0, MultilingualE5SmallMlNodeServiceSettings.NUM_THREADS, -1)
+            Map.of(
+                MultilingualE5SmallInternalServiceSettings.NUM_ALLOCATIONS,
+                0,
+                MultilingualE5SmallInternalServiceSettings.NUM_THREADS,
+                -1
+            )
         );
-        var e = expectThrows(ValidationException.class, () -> MultilingualE5SmallMlNodeServiceSettings.fromMap(settingsMap));
+        var e = expectThrows(ValidationException.class, () -> MultilingualE5SmallInternalServiceSettings.fromMap(settingsMap));
 
         assertThat(e.getMessage(), containsString("Invalid value [0]. [num_allocations] must be a positive integer"));
         assertThat(e.getMessage(), containsString("Invalid value [-1]. [num_threads] must be a positive integer"));
     }
 
     @Override
-    protected Writeable.Reader<MultilingualE5SmallMlNodeServiceSettings> instanceReader() {
-        return MultilingualE5SmallMlNodeServiceSettings::new;
+    protected Writeable.Reader<MultilingualE5SmallInternalServiceSettings> instanceReader() {
+        return MultilingualE5SmallInternalServiceSettings::new;
     }
 
     @Override
-    protected MultilingualE5SmallMlNodeServiceSettings createTestInstance() {
+    protected MultilingualE5SmallInternalServiceSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected MultilingualE5SmallMlNodeServiceSettings mutateInstance(MultilingualE5SmallMlNodeServiceSettings instance) {
+    protected MultilingualE5SmallInternalServiceSettings mutateInstance(MultilingualE5SmallInternalServiceSettings instance) {
         return switch (randomIntBetween(0, 2)) {
-            case 0 -> new MultilingualE5SmallMlNodeServiceSettings(
+            case 0 -> new MultilingualE5SmallInternalServiceSettings(
                 instance.getNumAllocations() + 1,
                 instance.getNumThreads(),
-                instance.getModelVariant()
+                instance.getModelId()
             );
-            case 1 -> new MultilingualE5SmallMlNodeServiceSettings(
+            case 1 -> new MultilingualE5SmallInternalServiceSettings(
                 instance.getNumAllocations(),
                 instance.getNumThreads() + 1,
-                instance.getModelVariant()
+                instance.getModelId()
             );
             case 2 -> {
-                var versions = new HashSet<>(MultilingualE5SmallMlNodeServiceSettings.MODEL_VARIANTS);
-                versions.remove(instance.getModelVariant());
-                yield new MultilingualE5SmallMlNodeServiceSettings(
+                var versions = new HashSet<>(TextEmbeddingInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS);
+                versions.remove(instance.getModelId());
+                yield new MultilingualE5SmallInternalServiceSettings(
                     instance.getNumAllocations(),
                     instance.getNumThreads(),
                     versions.iterator().next()

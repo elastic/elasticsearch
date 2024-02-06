@@ -53,7 +53,7 @@ import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationSta
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
-public class ElserMlNodeService implements InferenceService {
+public class ElserInternalService implements InferenceService {
 
     public static final String NAME = "elser";
 
@@ -62,15 +62,15 @@ public class ElserMlNodeService implements InferenceService {
     static final String ELSER_V2_MODEL = ".elser_model_2";
     static final String ELSER_V2_MODEL_LINUX_X86 = ".elser_model_2_linux-x86_64";
 
-    public static Set<String> VALID_ELSER_MODELS = Set.of(
-        ElserMlNodeService.ELSER_V1_MODEL,
-        ElserMlNodeService.ELSER_V2_MODEL,
-        ElserMlNodeService.ELSER_V2_MODEL_LINUX_X86
+    public static Set<String> VALID_ELSER_MODEL_IDS = Set.of(
+        ElserInternalService.ELSER_V1_MODEL,
+        ElserInternalService.ELSER_V2_MODEL,
+        ElserInternalService.ELSER_V2_MODEL_LINUX_X86
     );
 
     private final OriginSettingClient client;
 
-    public ElserMlNodeService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public ElserInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
     }
 
@@ -88,10 +88,10 @@ public class ElserMlNodeService implements InferenceService {
     ) {
         try {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
+            var serviceSettingsBuilder = ElserInternalServiceSettings.fromMap(serviceSettingsMap);
 
-            if (serviceSettingsBuilder.getModelVariant() == null) {
-                serviceSettingsBuilder.setModelVariant(selectDefaultModelVersionBasedOnClusterArchitecture(modelArchitectures));
+            if (serviceSettingsBuilder.getModelId() == null) {
+                serviceSettingsBuilder.setModelId(selectDefaultModelVersionBasedOnClusterArchitecture(modelArchitectures));
             }
 
             Map<String, Object> taskSettingsMap;
@@ -109,11 +109,11 @@ public class ElserMlNodeService implements InferenceService {
             throwIfNotEmptyMap(taskSettingsMap, NAME);
 
             parsedModelListener.onResponse(
-                new ElserMlNodeModel(
+                new ElserInternalModel(
                     inferenceEntityId,
                     taskType,
                     NAME,
-                    (ElserMlNodeServiceSettings) serviceSettingsBuilder.build(),
+                    (ElserInternalServiceSettings) serviceSettingsBuilder.build(),
                     taskSettings
                 )
             );
@@ -123,7 +123,7 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     private static String selectDefaultModelVersionBasedOnClusterArchitecture(Set<String> modelArchitectures) {
-        // choose a default model version based on the cluster architecture
+        // choose a default model ID based on the cluster architecture
         boolean homogenous = modelArchitectures.size() == 1;
         if (homogenous && modelArchitectures.iterator().next().equals("linux-x86_64")) {
             // Use the hardware optimized model
@@ -135,7 +135,7 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public ElserMlNodeModel parsePersistedConfigWithSecrets(
+    public ElserInternalModel parsePersistedConfigWithSecrets(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
@@ -145,9 +145,9 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public ElserMlNodeModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+    public ElserInternalModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
+        var serviceSettingsBuilder = ElserInternalServiceSettings.fromMap(serviceSettingsMap);
 
         Map<String, Object> taskSettingsMap;
         // task settings are optional
@@ -159,21 +159,21 @@ public class ElserMlNodeService implements InferenceService {
 
         var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
 
-        return new ElserMlNodeModel(
+        return new ElserInternalModel(
             inferenceEntityId,
             taskType,
             NAME,
-            (ElserMlNodeServiceSettings) serviceSettingsBuilder.build(),
+            (ElserInternalServiceSettings) serviceSettingsBuilder.build(),
             taskSettings
         );
     }
 
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
-        if (model instanceof ElserMlNodeModel == false) {
+        if (model instanceof ElserInternalModel == false) {
             listener.onFailure(
                 new IllegalStateException(
-                    "Error starting model, [" + model.getConfigurations().getInferenceEntityId() + "] is not an elser model"
+                    "Error starting model, [" + model.getConfigurations().getInferenceEntityId() + "] is not an ELSER model"
                 )
             );
             return;
@@ -186,22 +186,24 @@ public class ElserMlNodeService implements InferenceService {
             return;
         }
 
-        var elserModel = (ElserMlNodeModel) model;
+        client.execute(StartTrainedModelDeploymentAction.INSTANCE, startDeploymentRequest(model), elserNotDownloadedListener(listener));
+    }
+
+    private static StartTrainedModelDeploymentAction.Request startDeploymentRequest(Model model) {
+        var elserModel = (ElserInternalModel) model;
         var serviceSettings = elserModel.getServiceSettings();
 
         var startRequest = new StartTrainedModelDeploymentAction.Request(
-            serviceSettings.getModelVariant(),
+            serviceSettings.getModelId(),
             model.getConfigurations().getInferenceEntityId()
         );
         startRequest.setNumberOfAllocations(serviceSettings.getNumAllocations());
         startRequest.setThreadsPerAllocation(serviceSettings.getNumThreads());
         startRequest.setWaitForState(STARTED);
-
-        client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, elserNotDownloadedListener(model, listener));
+        return startRequest;
     }
 
     private static ActionListener<CreateTrainedModelAssignmentAction.Response> elserNotDownloadedListener(
-        Model model,
         ActionListener<Boolean> listener
     ) {
         return new ActionListener<>() {
@@ -216,7 +218,7 @@ public class ElserMlNodeService implements InferenceService {
                     listener.onFailure(
                         new ResourceNotFoundException(
                             "Could not start the ELSER service as the ELSER model for this platform cannot be found."
-                                + " ELSER needs to be downloaded before it can be started"
+                                + " ELSER needs to be downloaded before it can be started."
                         )
                     );
                     return;
@@ -308,18 +310,18 @@ public class ElserMlNodeService implements InferenceService {
 
     @Override
     public void putModel(Model model, ActionListener<Boolean> listener) {
-        if (model instanceof ElserMlNodeModel == false) {
+        if (model instanceof ElserInternalModel == false) {
             listener.onFailure(
                 new IllegalStateException(
-                    "Error starting model, [" + model.getConfigurations().getInferenceEntityId() + "] is not an elser model"
+                    "Error starting model, [" + model.getConfigurations().getInferenceEntityId() + "] is not an ELSER model"
                 )
             );
             return;
         } else {
-            String modelVariant = ((ElserMlNodeModel) model).getServiceSettings().getModelVariant();
+            String modelId = ((ElserInternalModel) model).getServiceSettings().getModelId();
             var fieldNames = List.<String>of();
             var input = new TrainedModelInput(fieldNames);
-            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelVariant).build();
+            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).build();
             PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);
             executeAsyncWithOrigin(
                 client,

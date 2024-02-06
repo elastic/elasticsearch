@@ -25,20 +25,20 @@ public class MultilingualE5SmallModel extends TextEmbeddingModel {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        MultilingualE5SmallMlNodeServiceSettings serviceSettings
+        MultilingualE5SmallInternalServiceSettings serviceSettings
     ) {
         super(inferenceEntityId, taskType, service, serviceSettings);
     }
 
     @Override
-    public MultilingualE5SmallMlNodeServiceSettings getServiceSettings() {
-        return (MultilingualE5SmallMlNodeServiceSettings) super.getServiceSettings();
+    public MultilingualE5SmallInternalServiceSettings getServiceSettings() {
+        return (MultilingualE5SmallInternalServiceSettings) super.getServiceSettings();
     }
 
     @Override
     StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
         var startRequest = new StartTrainedModelDeploymentAction.Request(
-            this.getServiceSettings().getModelVariant(),
+            this.getServiceSettings().getModelId(),
             this.getInferenceEntityId()
         );
         startRequest.setNumberOfAllocations(this.getServiceSettings().getNumAllocations());

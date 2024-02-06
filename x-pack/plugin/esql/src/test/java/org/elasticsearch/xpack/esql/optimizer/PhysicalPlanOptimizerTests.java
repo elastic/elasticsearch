@@ -17,7 +17,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -73,6 +72,7 @@ import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -2916,7 +2916,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var source = source(fieldExtract.child());
             // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
             // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
-            var condition = as(source.query(), AbstractGeometryQueryBuilder.class);
+            var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
             assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
@@ -3013,7 +3013,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var source = source(extract.child());
             // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
             // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
-            var condition = as(source.query(), AbstractGeometryQueryBuilder.class);
+            var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
             assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
@@ -3048,7 +3048,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var source = source(fieldExtract.child());
             // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
             // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
-            var condition = as(source.query(), AbstractGeometryQueryBuilder.class);
+            var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("shape"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
             assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
@@ -3058,17 +3058,22 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
-    public void testDoNotPushCartesianSpatialIntersectsToSource() {
+    public void testPushCartesianSpatialIntersectsToSource() {
         for (String query : new String[] { """
             FROM airports_web
-            | WHERE ST_INTERSECTS(location, "POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")
+            | WHERE ST_INTERSECTS(
+                location,
+                "POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"
+              )
             """, """
             FROM airports_web
-            | WHERE ST_INTERSECTS("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))", location)
+            | WHERE ST_INTERSECTS(
+                "POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))",
+                location
+              )
             """ }) {
 
             var plan = this.physicalPlan(query, airportsWeb);
-
             var limit = as(plan, LimitExec.class);
             var exchange = as(limit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
@@ -3081,20 +3086,36 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             exchange = as(topLimit.child(), ExchangeExec.class);
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
-            // TODO: Once CARTESIAN push-down is supported, replace the assertions below with source.query() assertions like above
-            var limitExec = as(fieldExtract.child(), LimitExec.class);
-            var filterExec = as(limitExec.child(), FilterExec.class);
-            assertThat("filter contains ST_INTERSECTS", filterExec.condition(), instanceOf(SpatialIntersects.class));
+            var source = source(fieldExtract.child());
+            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
+            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+            var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+            assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+            assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
+            assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
+            var polygon = as(condition.shape(), Polygon.class);
+            assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
+            assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
         }
     }
 
-    public void testDoNotPushCartesianSpatialIntersectsShapeToSource() {
+    public void testPushCartesianSpatialIntersectsShapeToSource() {
         for (String query : new String[] { """
             FROM countriesBboxWeb
-            | WHERE ST_INTERSECTS(shape, TO_CARTESIANSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
+            | WHERE ST_INTERSECTS(
+                shape,
+                TO_CARTESIANSHAPE(
+                  "POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"
+                )
+              )
             """, """
             FROM countriesBboxWeb
-            | WHERE ST_INTERSECTS(TO_CARTESIANSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), shape)
+            | WHERE ST_INTERSECTS(
+                TO_CARTESIANSHAPE(
+                  "POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"
+                ),
+                shape
+              )
             """ }) {
 
             var plan = this.physicalPlan(query, countriesBboxWeb);
@@ -3111,10 +3132,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             exchange = as(topLimit.child(), ExchangeExec.class);
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
-            // TODO: Once CARTESIAN push-down is supported, replace the assertions below with source.query() assertions like above
-            var limitExec = as(fieldExtract.child(), LimitExec.class);
-            var filterExec = as(limitExec.child(), FilterExec.class);
-            assertThat("filter contains ST_INTERSECTS", filterExec.condition(), instanceOf(SpatialIntersects.class));
+            var source = source(fieldExtract.child());
+            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
+            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+            var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+            assertThat("Geometry field name", condition.fieldName(), equalTo("shape"));
+            assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
+            assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
+            var polygon = as(condition.shape(), Polygon.class);
+            assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
+            assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
         }
     }
 

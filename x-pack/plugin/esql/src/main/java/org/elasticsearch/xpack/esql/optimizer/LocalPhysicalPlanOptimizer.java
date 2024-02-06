@@ -78,8 +78,6 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType.COUNT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
@@ -285,7 +283,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
          *  - GEO_SHAPE and CARTESIAN_SHAPE cannot push-down due to LeafShapeFieldData
          *  // TODO: Move those classes to server, and remove this predicate
          */
-        private static final Predicate<FieldAttribute> validSpatial = fa -> fa.dataType() == GEO_POINT || fa.dataType() == GEO_SHAPE;
+        private static final Predicate<FieldAttribute> validSpatial = fa -> true;
 
         private static boolean isAttributePushable(
             Expression expression,

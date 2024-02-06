@@ -2914,7 +2914,106 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             var source = source(fieldExtract.child());
-            var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
+            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+            var condition = as(source.query(), AbstractGeometryQueryBuilder.class);
+            assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+            assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
+            assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
+            var polygon = as(condition.shape(), Polygon.class);
+            assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
+            assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+        }
+    }
+
+    /**
+     * Plan:
+     * Plan:
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,null]
+     *   \_ExchangeExec[[xVal{r}#16, xDel{r}#17, yVal{r}#18, yDel{r}#19, count{r}#20, count{r}#21, seen{r}#22],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
+     * Aggregate[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count]]
+     * \_Filter[SPATIALINTERSECTS(location{f}#12,[50 4f 4c 59 47 4f 4e 28 28 34 32 20 31 34 2c 20 34 33 20 31 34 2c 20 34 33 2
+     * 0 31 35 2c 20 34 32 20 31 35 2c 20 34 32 20 31 34 29 29][KEYWORD])]
+     *   \_EsRelation[airports][abbrev{f}#8, city{f}#14, city_location{f}#15, count..]]]
+     *
+     * Optimized:
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,58]
+     *   \_ExchangeExec[[xVal{r}#16, xDel{r}#17, yVal{r}#18, yDel{r}#19, count{r}#20, count{r}#21, seen{r}#22],true]
+     *     \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],PARTIAL,58]
+     *       \_FieldExtractExec[location{f}#12][location{f}#12]
+     *         \_EsQueryExec[airports], query[{
+     *           "esql_single_value":{
+     *             "field":"location",
+     *             "next":{
+     *               "geo_shape":{
+     *                 "location":{
+     *                   "shape":{
+     *                     "type":"Polygon",
+     *                     "coordinates":[[[42.0,14.0],[43.0,14.0],[43.0,15.0],[42.0,15.0],[42.0,14.0]]]
+     *                   },
+     *                   "relation":"intersects"
+     *                 },
+     *                 "ignore_unmapped":false,
+     *                 "boost":1.0
+     *               }
+     *             },
+     *             "source":"ST_INTERSECTS(location, \"POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))\")@2:9"
+     *           }
+     *         }][_doc{f}#140, limit[], sort[] estimatedRowSize[54]
+     */
+    public void testPushSpatialIntersectsStringToSourceAndUseDocValuesForCentroid() {
+        for (String query : new String[] { """
+            FROM airports
+            | WHERE ST_INTERSECTS(location, "POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")
+            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            """, """
+            FROM airports
+            | WHERE ST_INTERSECTS("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))", location)
+            | STATS centroid=ST_CENTROID(location), count=COUNT()
+            """ }) {
+
+            var plan = this.physicalPlan(query, airports);
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+            // Before optimization the aggregation does not use doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+
+            var exchange = as(agg.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var fAgg = as(fragment.fragment(), Aggregate.class);
+            var filter = as(fAgg.child(), Filter.class);
+            assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
+
+            // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
+            var optimized = optimizedPlan(plan);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+            // below the exchange (in data node) the aggregation is using doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
+            var extract = as(agg.child(), FieldExtractExec.class);
+            assertTrue(
+                "Expect attributes field extract preference to be DOC_VALUES",
+                extract.attributesToExtract().stream().allMatch(attr -> {
+                    MappedFieldType.FieldExtractPreference extractPreference = extract.extractPreference(attr);
+                    return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
+                })
+            );
+            var source = source(extract.child());
+            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
+            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+            var condition = as(source.query(), AbstractGeometryQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
             assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
@@ -2926,14 +3025,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     public void testPushSpatialIntersectsShapeToSource() {
         for (String query : new String[] { """
-            FROM airports
-            | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
+            FROM countriesBbox
+            | WHERE ST_INTERSECTS(shape, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
             """, """
-            FROM airports
-            | WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
+            FROM countriesBbox
+            | WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), shape)
             """ }) {
 
-            var plan = this.physicalPlan(query, airports);
+            var plan = this.physicalPlan(query, countriesBbox);
             var limit = as(plan, LimitExec.class);
             var exchange = as(limit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
@@ -2947,8 +3046,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             var source = source(fieldExtract.child());
-            var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
-            assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
+            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+            var condition = as(source.query(), AbstractGeometryQueryBuilder.class);
+            assertThat("Geometry field name", condition.fieldName(), equalTo("shape"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
             assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
             var polygon = as(condition.shape(), Polygon.class);
@@ -2967,6 +3068,36 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """ }) {
 
             var plan = this.physicalPlan(query, airportsWeb);
+
+            var limit = as(plan, LimitExec.class);
+            var exchange = as(limit.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var limit2 = as(fragment.fragment(), Limit.class);
+            var filter = as(limit2.child(), Filter.class);
+            assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
+
+            var optimized = optimizedPlan(plan);
+            var topLimit = as(optimized, LimitExec.class);
+            exchange = as(topLimit.child(), ExchangeExec.class);
+            var project = as(exchange.child(), ProjectExec.class);
+            var fieldExtract = as(project.child(), FieldExtractExec.class);
+            // TODO: Once CARTESIAN push-down is supported, replace the assertions below with source.query() assertions like above
+            var limitExec = as(fieldExtract.child(), LimitExec.class);
+            var filterExec = as(limitExec.child(), FilterExec.class);
+            assertThat("filter contains ST_INTERSECTS", filterExec.condition(), instanceOf(SpatialIntersects.class));
+        }
+    }
+
+    public void testDoNotPushCartesianSpatialIntersectsShapeToSource() {
+        for (String query : new String[] { """
+            FROM countriesBboxWeb
+            | WHERE ST_INTERSECTS(shape, TO_CARTESIANSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
+            """, """
+            FROM countriesBboxWeb
+            | WHERE ST_INTERSECTS(TO_CARTESIANSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), shape)
+            """ }) {
+
+            var plan = this.physicalPlan(query, countriesBboxWeb);
 
             var limit = as(plan, LimitExec.class);
             var exchange = as(limit.child(), ExchangeExec.class);

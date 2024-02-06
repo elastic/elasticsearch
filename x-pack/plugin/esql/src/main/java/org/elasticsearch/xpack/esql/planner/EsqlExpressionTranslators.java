@@ -61,6 +61,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.planner.ExpressionTranslators.valueOf;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
@@ -380,13 +381,26 @@ public final class EsqlExpressionTranslators {
             );
         }
 
+        /**
+         * We should normally be using the real `wrapFunctionQuery` above, so we get the benefits of `SingleValueQuery`,
+         * but at the moment `SingleValueQuery` makes use of `SortDocValues` to determine if the results are single or multi-valued,
+         * and LeafShapeFieldData does not support `SortedBinaryDocValues getBytesValues()`.
+         * Skipping this code path entirely is a temporary workaround while separate work is being done to simplify `SingleValueQuery`
+         * to rather rely on a new method on `LeafFieldData`. This is both for the benefit of the spatial queries, as well as an
+         * improvement overall.
+         * TODO: Remove this method and call the parent method once the SingleValueQuery improvements have been made
+         */
+        public static Query wrapFunctionQuery(Expression field, Supplier<Query> querySupplier) {
+            return ExpressionTranslator.wrapIfNested(querySupplier.get(), field);
+        }
+
         public static Query doTranslate(SpatialRelatesFunction bc, TranslatorHandler handler) {
             if (bc.left().foldable()) {
                 checkSpatialRelatesFunction(bc.left(), bc.queryRelation());
-                return handler.wrapFunctionQuery(bc, bc.right(), () -> translate(bc, handler));
+                return wrapFunctionQuery(bc.right(), () -> translate(bc, handler));
             } else {
                 checkSpatialRelatesFunction(bc.right(), bc.queryRelation());
-                return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
+                return wrapFunctionQuery(bc.left(), () -> translate(bc, handler));
             }
         }
 

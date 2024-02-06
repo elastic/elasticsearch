@@ -19,9 +19,14 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID_PATH;
+import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_INFERENCE_ID_PATH;
+import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetInferenceModelAction extends BaseRestHandler {
+
     @Override
     public String getName() {
         return "get_inference_model_action";
@@ -29,20 +34,23 @@ public class RestGetInferenceModelAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "_inference/{task_type}/{model_id}"), new Route(GET, "_inference/_all"));
+        return List.of(new Route(GET, "_inference/_all"), new Route(GET, INFERENCE_ID_PATH), new Route(GET, TASK_TYPE_INFERENCE_ID_PATH));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String inferenceEntityId = null;
         TaskType taskType = null;
-        if (restRequest.hasParam("task_type") == false && restRequest.hasParam("model_id") == false) {
+        if (restRequest.hasParam(TASK_TYPE_OR_INFERENCE_ID) == false && restRequest.hasParam(INFERENCE_ID) == false) {
             // _all models request
             inferenceEntityId = "_all";
             taskType = TaskType.ANY;
+        } else if (restRequest.hasParam(INFERENCE_ID)) {
+            inferenceEntityId = restRequest.param(INFERENCE_ID);
+            taskType = TaskType.fromStringOrStatusException(restRequest.param(TASK_TYPE_OR_INFERENCE_ID));
         } else {
-            taskType = TaskType.fromStringOrStatusException(restRequest.param("task_type"));
-            inferenceEntityId = restRequest.param("model_id");
+            inferenceEntityId = restRequest.param(TASK_TYPE_OR_INFERENCE_ID);
+            taskType = TaskType.ANY;
         }
 
         var request = new GetInferenceModelAction.Request(inferenceEntityId, taskType);

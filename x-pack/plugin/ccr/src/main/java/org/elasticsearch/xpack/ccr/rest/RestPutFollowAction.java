@@ -45,7 +45,7 @@ public class RestPutFollowAction extends BaseRestHandler {
             request.waitForActiveShards(ActiveShardCount.parseString(restRequest.param("wait_for_active_shards")));
             request.setFollowerIndex(restRequest.param("index"));
             request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT));
-            return Request.fromXContent(parser);
+            return request;
         }
     }
 }

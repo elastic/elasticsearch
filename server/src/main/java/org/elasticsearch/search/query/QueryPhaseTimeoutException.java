@@ -19,12 +19,12 @@ import java.io.IOException;
  * Specific instance of {@link SearchException} that indicates that a search timeout occurred.
  * Always returns http status 504 (Gateway Timeout)
  */
-public final class SearchTimeoutException extends SearchException {
-    public SearchTimeoutException(SearchShardTarget shardTarget, String msg) {
+public final class QueryPhaseTimeoutException extends QueryPhaseExecutionException {
+    public QueryPhaseTimeoutException(SearchShardTarget shardTarget, String msg) {
         super(shardTarget, msg);
     }
 
-    public SearchTimeoutException(StreamInput in) throws IOException {
+    public QueryPhaseTimeoutException(StreamInput in) throws IOException {
         super(in);
     }
 

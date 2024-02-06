@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.mapper;
+package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;

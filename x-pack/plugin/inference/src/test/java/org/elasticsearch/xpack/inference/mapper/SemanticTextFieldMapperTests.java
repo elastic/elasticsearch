@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.mapper;
+package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
@@ -18,7 +18,7 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -74,7 +74,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return singletonList(new MachineLearning(Settings.EMPTY));
+        return singletonList(new InferencePlugin(Settings.EMPTY));
     }
 
     @Override

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.mapper;
+package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -37,7 +37,7 @@ import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,7 +78,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
 
     @Override
     protected boolean isSupportedOn(IndexVersion version) {
-        return version.onOrAfter(IndexVersions.ES_VERSION_8_13); // TODO: Switch to ES_VERSION_8_14 when available
+        return version.onOrAfter(IndexVersions.ES_VERSION_8_12_1); // TODO: Switch to ES_VERSION_8_14 when available
     }
 
     @Override
@@ -88,7 +88,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new MachineLearning(Settings.EMPTY));
+        return List.of(new InferencePlugin(Settings.EMPTY));
     }
 
     public void testSuccessfulParse() throws IOException {

@@ -253,7 +253,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[collapse] cannot be used in a scroll context", validationErrors.validationErrors().get(0));
+            assertEquals("cannot use `collapse` in a scroll context", validationErrors.validationErrors().get(0));
         }
         {
             // search_after and `from` isn't valid
@@ -286,7 +286,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[collapse] cannot be used in conjunction with [rescore]", validationErrors.validationErrors().get(0));
+            assertEquals("cannot use `collapse` in conjunction with `rescore`", validationErrors.validationErrors().get(0));
         }
         {
             // stored fields disabled with _source requested

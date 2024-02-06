@@ -28,7 +28,6 @@ public final class ChannelActionListener<Response extends TransportResponse> imp
 
     @Override
     public void onResponse(Response response) {
-        response.incRef(); // acquire reference that will be released by channel.sendResponse below
         ActionListener.run(this, l -> l.channel.sendResponse(response));
     }
 

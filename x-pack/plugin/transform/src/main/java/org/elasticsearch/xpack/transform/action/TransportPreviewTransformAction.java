@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -65,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.DUMMY_DEST_INDEX_FOR_PREVIEW;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
@@ -153,6 +155,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 config.getDestination().getIndex(),
                 config.getDestination().getAliases(),
                 config.getSyncConfig(),
+                config.getSettings(),
                 listener
             ),
             listener::onFailure
@@ -208,6 +211,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         String dest,
         List<DestAlias> aliases,
         SyncConfig syncConfig,
+        SettingsConfig settingsConfig,
         ActionListener<Response> listener
     ) {
         Client parentTaskClient = new ParentTaskAssigningClient(client, parentTaskId);
@@ -285,18 +289,23 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         }, listener::onFailure);
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
-            mappings.set(deducedMappings);
+            if (Boolean.FALSE.equals(settingsConfig.getDeduceMappings())) {
+                mappings.set(emptyMap());
+            } else {
+                mappings.set(deducedMappings);
+            }
             function.preview(
                 parentTaskClient,
                 timeout,
                 filteredHeaders,
                 source,
+                // Use deduced mappings for generating preview even if "settings.deduce_mappings" is set to false
                 deducedMappings,
                 NUMBER_OF_PREVIEW_BUCKETS,
                 previewListener
             );
         }, listener::onFailure);
 
-        function.deduceMappings(parentTaskClient, filteredHeaders, source, deduceMappingsListener);
+        function.deduceMappings(parentTaskClient, filteredHeaders, transformId, source, deduceMappingsListener);
     }
 }

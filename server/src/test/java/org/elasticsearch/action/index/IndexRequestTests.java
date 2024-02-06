@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -46,12 +47,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -136,7 +135,7 @@ public class IndexRequestTests extends ESTestCase {
         IndexResponse indexResponse = new IndexResponse(shardId, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
         int total = randomIntBetween(1, 10);
         int successful = randomIntBetween(1, 10);
-        ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
+        ReplicationResponse.ShardInfo shardInfo = ReplicationResponse.ShardInfo.of(total, successful);
         indexResponse.setShardInfo(shardInfo);
         boolean forcedRefresh = false;
         if (randomBoolean()) {
@@ -442,6 +441,25 @@ public class IndexRequestTests extends ESTestCase {
                 equalTo("Error get data stream timestamp field: timestamp [10.0] type [class java.lang.Double] error")
             );
         }
+
+        {
+            // Alias to time series data stream
+            DataStreamAlias alias = new DataStreamAlias("my-alias", List.of(tsdbDataStream), tsdbDataStream, null);
+            var metadataBuilder3 = Metadata.builder(metadata);
+            metadataBuilder3.put(alias.getName(), tsdbDataStream, true, null);
+            var metadata3 = metadataBuilder3.build();
+            IndexRequest request = new IndexRequest(alias.getName());
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(renderSource(source, start1), XContentType.JSON);
+            var result = request.getConcreteWriteIndex(metadata3.getIndicesLookup().get(alias.getName()), metadata3);
+            assertThat(result, equalTo(metadata3.dataStreams().get(tsdbDataStream).getIndices().get(0)));
+
+            request = new IndexRequest(alias.getName());
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(renderSource(source, start2), XContentType.JSON);
+            result = request.getConcreteWriteIndex(metadata3.getIndicesLookup().get(alias.getName()), metadata3);
+            assertThat(result, equalTo(metadata3.dataStreams().get(tsdbDataStream).getIndices().get(1)));
+        }
     }
 
     static String renderSource(String sourceTemplate, Instant instant) {
@@ -463,6 +481,7 @@ public class IndexRequestTests extends ESTestCase {
         assertThat(copy.ifSeqNo(), equalTo(indexRequest.ifSeqNo()));
         assertThat(copy.getFinalPipeline(), equalTo(indexRequest.getFinalPipeline()));
         assertThat(copy.ifPrimaryTerm(), equalTo(indexRequest.ifPrimaryTerm()));
+        assertThat(copy.isRequireDataStream(), equalTo(indexRequest.isRequireDataStream()));
     }
 
     private IndexRequest createTestInstance() {
@@ -470,6 +489,7 @@ public class IndexRequestTests extends ESTestCase {
         indexRequest.setPipeline(randomAlphaOfLength(15));
         indexRequest.setRequestId(randomLong());
         indexRequest.setRequireAlias(randomBoolean());
+        indexRequest.setRequireDataStream(randomBoolean());
         indexRequest.setIfSeqNo(randomNonNegativeLong());
         indexRequest.setFinalPipeline(randomAlphaOfLength(20));
         indexRequest.setIfPrimaryTerm(randomNonNegativeLong());

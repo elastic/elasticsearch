@@ -14,7 +14,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -266,10 +265,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testSearchTimeSeriesMode() throws Exception {
-
-        var originalClusterHasNewTimeSeriesIndexing = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_8_2_0))
-            .orElse(true);
-        assumeTrue("indexing time series indices changed in 8.2.0", originalClusterHasNewTimeSeriesIndexing);
+        assumeTrue("indexing time series indices changed in 8.2.0", oldClusterHasFeature(RestTestLegacyFeatures.TSDB_NEW_INDEX_FORMAT));
         int numDocs;
         if (isRunningAgainstOldCluster()) {
             numDocs = createTimeSeriesModeIndex(1);
@@ -307,9 +303,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testNewReplicasTimeSeriesMode() throws Exception {
-        var originalClusterHasNewTimeSeriesIndexing = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_8_2_0))
-            .orElse(true);
-        assumeTrue("indexing time series indices changed in 8.2.0", originalClusterHasNewTimeSeriesIndexing);
+        assumeTrue("indexing time series indices changed in 8.2.0", oldClusterHasFeature(RestTestLegacyFeatures.TSDB_NEW_INDEX_FORMAT));
         if (isRunningAgainstOldCluster()) {
             createTimeSeriesModeIndex(0);
         } else {
@@ -1216,9 +1210,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         }
 
         @UpdateForV9 // This check can be removed (always assume true)
-        var originalClusterSupportsReplicationOfClosedIndices = parseLegacyVersion(getOldClusterVersion()).map(
-            v -> v.onOrAfter(Version.V_7_2_0)
-        ).orElse(true);
+        var originalClusterSupportsReplicationOfClosedIndices = oldClusterHasFeature(RestTestLegacyFeatures.REPLICATION_OF_CLOSED_INDICES);
 
         if (originalClusterSupportsReplicationOfClosedIndices) {
             ensureGreenLongWait(index);
@@ -1624,9 +1616,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     public void testSystemIndexMetadataIsUpgraded() throws Exception {
 
         @UpdateForV9 // assumeTrue can be removed (condition always true)
-        var originalClusterTaskIndexIsSystemIndex = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_7_10_0))
-            .orElse(true);
-
+        var originalClusterTaskIndexIsSystemIndex = oldClusterHasFeature(RestTestLegacyFeatures.TASK_INDEX_SYSTEM_INDEX);
         assumeTrue(".tasks became a system index in 7.10.0", originalClusterTaskIndexIsSystemIndex);
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
             + "access to system indices will be prevented by default";
@@ -1748,8 +1738,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
      */
     @UpdateForV9 // This test can be removed in v9
     public void testEnableSoftDeletesOnRestore() throws Exception {
-        var originalClusterDidNotEnforceSoftDeletes = parseLegacyVersion(getOldClusterVersion()).map(v -> v.before(Version.V_8_0_0))
-            .orElse(false);
+        var originalClusterDidNotEnforceSoftDeletes = oldClusterHasFeature(RestTestLegacyFeatures.SOFT_DELETES_ENFORCED) == false;
 
         assumeTrue("soft deletes must be enabled on 8.0+", originalClusterDidNotEnforceSoftDeletes);
         final String snapshot = "snapshot-" + index;
@@ -1862,9 +1851,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
      */
     @UpdateForV9
     public void testTransportCompressionSetting() throws IOException {
-        var originalClusterCompressSettingIsBoolean = parseLegacyVersion(getOldClusterVersion()).map(v -> v.before(Version.V_7_14_0))
-            .orElse(false);
-        assumeTrue("the old transport.compress setting existed before 7.14", originalClusterCompressSettingIsBoolean);
+        var originalClusterBooleanCompressSetting = oldClusterHasFeature(RestTestLegacyFeatures.NEW_TRANSPORT_COMPRESSED_SETTING) == false;
+        assumeTrue("the old transport.compress setting existed before 7.14", originalClusterBooleanCompressSetting);
         if (isRunningAgainstOldCluster()) {
             client().performRequest(
                 newXContentRequest(

@@ -36,17 +36,17 @@ public class RestDeleteInferenceModelAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        String inferenceId;
+        String inferenceEntityId;
         TaskType taskType;
         if (restRequest.hasParam(INFERENCE_ID)) {
-            inferenceId = restRequest.param(INFERENCE_ID);
+            inferenceEntityId = restRequest.param(INFERENCE_ID);
             taskType = TaskType.fromStringOrStatusException(restRequest.param(TASK_TYPE_OR_INFERENCE_ID));
         } else {
-            inferenceId = restRequest.param(TASK_TYPE_OR_INFERENCE_ID);
+            inferenceEntityId = restRequest.param(TASK_TYPE_OR_INFERENCE_ID);
             taskType = TaskType.ANY;
         }
 
-        var request = new DeleteInferenceModelAction.Request(inferenceId, taskType);
+        var request = new DeleteInferenceModelAction.Request(inferenceEntityId, taskType);
         return channel -> client.execute(DeleteInferenceModelAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

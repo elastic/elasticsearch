@@ -83,8 +83,10 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
-    static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataTypes.NULL, null, Nullability.TRUE, null, false)
+    // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
+    // ie from test | stats c = count(*)
+    public static final List<Attribute> NO_FIELDS = List.of(
+        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataTypes.NULL, null, Nullability.TRUE, null, true)
     );
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
@@ -208,16 +210,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
             final String policyName = (String) plan.policyName().fold();
-            final EnrichResolution.ResolvedPolicy resolvedPolicy = context.enrichResolution().getResolvedPolicy(policyName);
-            if (resolvedPolicy != null) {
-                EnrichPolicy policy = resolvedPolicy.policy();
+            final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
+            if (resolved != null) {
+                var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
                 var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
                     ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
                     : plan.matchField();
                 List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
                     policyName,
-                    mappingAsAttributes(plan.source(), resolvedPolicy.mapping()),
+                    mappingAsAttributes(plan.source(), resolved.mapping()),
                     plan.enrichFields(),
                     policy
                 );
@@ -228,11 +230,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.policyName(),
                     matchField,
                     policy,
-                    resolvedPolicy.concreteIndices(),
+                    resolved.concreteIndices(),
                     enrichFields
                 );
             } else {
-                String error = context.enrichResolution().getError(policyName);
+                String error = context.enrichResolution().getError(policyName, plan.mode());
                 var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, null, error);
                 return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }

@@ -23,7 +23,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -53,7 +55,9 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
         Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new),
-        Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new)
+        Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new),
+        Map.entry(CARTESIAN_SHAPE, ToStringFromCartesianShapeEvaluator.Factory::new),
+        Map.entry(GEO_SHAPE, ToStringFromGeoShapeEvaluator.Factory::new)
     );
 
     @FunctionInfo(returnType = "keyword", description = "Converts a field into a string.")
@@ -64,9 +68,11 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
             type = {
                 "boolean",
                 "cartesian_point",
+                "cartesian_shape",
                 "date",
                 "double",
                 "geo_point",
+                "geo_shape",
                 "integer",
                 "ip",
                 "keyword",
@@ -146,6 +152,16 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @ConvertEvaluator(extraName = "FromCartesianPoint")
     static BytesRef fromCartesianPoint(BytesRef wkb) {
+        return new BytesRef(CARTESIAN.wkbToWkt(wkb));
+    }
+
+    @ConvertEvaluator(extraName = "FromCartesianShape")
+    static BytesRef fromCartesianShape(BytesRef wkb) {
+        return new BytesRef(GEO.wkbToWkt(wkb));
+    }
+
+    @ConvertEvaluator(extraName = "FromGeoShape")
+    static BytesRef fromGeoShape(BytesRef wkb) {
         return new BytesRef(CARTESIAN.wkbToWkt(wkb));
     }
 }

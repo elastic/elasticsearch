@@ -20,16 +20,18 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -66,7 +68,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
 
     private final SearchHits hits;
-    private final Aggregations aggregations;
+    private final InternalAggregations aggregations;
     private final Suggest suggest;
     private final SearchProfileResults profileResults;
     private final boolean timedOut;
@@ -81,9 +83,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final Clusters clusters;
     private final long tookInMillis;
 
+    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
+        @Override
+        protected void closeInternal() {
+            hits.decRef();
+        }
+    });
+
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
-        this.hits = new SearchHits(in);
+        this.hits = SearchHits.readFrom(in, true);
         this.aggregations = in.readBoolean() ? InternalAggregations.readFrom(in) : null;
         this.suggest = in.readBoolean() ? new Suggest(in) : null;
         this.timedOut = in.readBoolean();
@@ -110,7 +119,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public SearchResponse(
         SearchHits hits,
-        Aggregations aggregations,
+        InternalAggregations aggregations,
         Suggest suggest,
         boolean timedOut,
         Boolean terminatedEarly,
@@ -175,7 +184,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public SearchResponse(
         SearchHits hits,
-        Aggregations aggregations,
+        InternalAggregations aggregations,
         Suggest suggest,
         boolean timedOut,
         Boolean terminatedEarly,
@@ -191,6 +200,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         String pointInTimeId
     ) {
         this.hits = hits;
+        hits.incRef();
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;
@@ -210,6 +220,26 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
     }
 
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
     public RestStatus status() {
         return RestStatus.status(successfulShards, totalShards, shardFailures);
     }
@@ -218,6 +248,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * The search hits.
      */
     public SearchHits getHits() {
+        assert hasReferences();
         return hits;
     }
 
@@ -225,7 +256,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * Aggregations in this response. "empty" aggregations could be
      * either {@code null} or {@link InternalAggregations#EMPTY}.
      */
-    public @Nullable Aggregations getAggregations() {
+    public @Nullable InternalAggregations getAggregations() {
         return aggregations;
     }
 
@@ -267,6 +298,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      */
     public TimeValue getTook() {
         return new TimeValue(tookInMillis);
+    }
+
+    public long getTookInMillis() {
+        return tookInMillis;
     }
 
     /**
@@ -344,6 +379,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        assert hasReferences();
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             this.innerToXContentChunked(params),
@@ -416,7 +452,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser);
         String currentFieldName = parser.currentName();
         SearchHits hits = null;
-        Aggregations aggs = null;
+        InternalAggregations aggs = null;
         Suggest suggest = null;
         SearchProfileResults profile = null;
         boolean timedOut = false;
@@ -452,8 +488,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             } else if (token == Token.START_OBJECT) {
                 if (SearchHits.Fields.HITS.equals(currentFieldName)) {
                     hits = SearchHits.fromXContent(parser);
-                } else if (Aggregations.AGGREGATIONS_FIELD.equals(currentFieldName)) {
-                    aggs = Aggregations.fromXContent(parser);
+                } else if (InternalAggregations.AGGREGATIONS_FIELD.equals(currentFieldName)) {
+                    aggs = InternalAggregations.fromXContent(parser);
                 } else if (Suggest.NAME.equals(currentFieldName)) {
                     suggest = Suggest.fromXContent(parser);
                 } else if (SearchProfileResults.PROFILE_FIELD.equals(currentFieldName)) {
@@ -493,6 +529,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 }
             }
         }
+
         return new SearchResponse(
             hits,
             aggs,
@@ -514,8 +551,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert hasReferences();
         hits.writeTo(out);
-        out.writeOptionalWriteable((InternalAggregations) aggregations);
+        out.writeOptionalWriteable(aggregations);
         out.writeOptionalWriteable(suggest);
         out.writeBoolean(timedOut);
         out.writeOptionalBoolean(terminatedEarly);
@@ -537,7 +575,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return hasReferences() == false ? "SearchResponse[released]" : Strings.toString(this);
     }
 
     /**
@@ -1050,7 +1088,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             this.timedOut = in.readBoolean();
             this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_066)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 this.skipUnavailable = in.readBoolean();
             } else {
                 this.skipUnavailable = SKIP_UNAVAILABLE_DEFAULT;
@@ -1155,7 +1193,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeOptionalLong(took == null ? null : took.millis());
             out.writeBoolean(timedOut);
             out.writeCollection(failures);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESP_SKIP_UNAVAILABLE_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 out.writeBoolean(skipUnavailable);
             }
         }

@@ -59,6 +59,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHits;
@@ -76,6 +77,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -1696,7 +1698,7 @@ public class TransportSearchActionTests extends ESTestCase {
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
-        ThreadPool threadPool = new ThreadPool(settings);
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
         try {
             TransportService transportService = MockTransportService.createNewService(
                 Settings.EMPTY,
@@ -1734,7 +1736,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             );
 
             CountDownLatch latch = new CountDownLatch(1);

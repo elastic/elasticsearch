@@ -96,6 +96,7 @@ final class ExpandSearchPhase extends SearchPhase {
                             hit.setInnerHits(Maps.newMapWithExpectedSize(innerHitBuilders.size()));
                         }
                         hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
+                        innerHits.mustIncRef();
                     }
                 }
                 onPhaseDone();

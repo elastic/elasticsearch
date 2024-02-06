@@ -57,31 +57,35 @@ public class CsvTestsDataLoader {
     private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips", "mapping-clientips.json", "clientips.csv");
     private static final TestsDataset AIRPORTS = new TestsDataset("airports", "mapping-airports.json", "airports.csv");
     private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web", "mapping-airports_web.json", "airports_web.csv");
+    private static final TestsDataset COUNTRIES_BBOX = new TestsDataset(
+        "countries_bbox",
+        "mapping-countries_bbox.json",
+        "countries_bbox.csv"
+    );
+    private static final TestsDataset COUNTRIES_BBOX_WEB = new TestsDataset(
+        "countries_bbox_web",
+        "mapping-countries_bbox_web.json",
+        "countries_bbox_web.csv"
+    );
 
-    public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.of(
-        EMPLOYEES.indexName,
-        EMPLOYEES,
-        HOSTS.indexName,
-        HOSTS,
-        APPS.indexName,
-        APPS,
-        LANGUAGES.indexName,
-        LANGUAGES,
-        UL_LOGS.indexName,
-        UL_LOGS,
-        SAMPLE_DATA.indexName,
-        SAMPLE_DATA,
-        CLIENT_IPS.indexName,
-        CLIENT_IPS,
-        AIRPORTS.indexName,
-        AIRPORTS,
-        AIRPORTS_WEB.indexName,
-        AIRPORTS_WEB
+    public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
+        Map.entry(EMPLOYEES.indexName, EMPLOYEES),
+        Map.entry(HOSTS.indexName, HOSTS),
+        Map.entry(APPS.indexName, APPS),
+        Map.entry(LANGUAGES.indexName, LANGUAGES),
+        Map.entry(UL_LOGS.indexName, UL_LOGS),
+        Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
+        Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
+        Map.entry(AIRPORTS.indexName, AIRPORTS),
+        Map.entry(AIRPORTS_WEB.indexName, AIRPORTS_WEB),
+        Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
+        Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
     private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");
 
+    public static final List<String> ENRICH_SOURCE_INDICES = List.of("languages", "clientips");
     public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH, CLIENT_IPS_ENRICH);
 
     /**
@@ -239,7 +243,8 @@ public class CsvTestsDataLoader {
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
         Logger logger
     ) throws IOException {
-        Request request = new Request("POST", "/_bulk");
+        // The indexName is optional for a bulk request, but we use it for routing in MultiClusterSpecIT.
+        Request request = new Request("POST", "/" + indexName + "/_bulk");
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(resource)) {
             String line;
@@ -317,16 +322,22 @@ public class CsvTestsDataLoader {
                                     if (multiValues.length > 0) {// multi-value
                                         StringBuilder rowStringValue = new StringBuilder("[");
                                         for (String s : multiValues) {
-                                            rowStringValue.append("\"" + s + "\",");
+                                            if (entries[i].startsWith("\"") == false || entries[i].endsWith("\"") == false) {
+                                                rowStringValue.append("\"" + s + "\",");
+                                            } else {
+                                                rowStringValue.append(s + ",");
+                                            }
                                         }
                                         // remove the last comma and put a closing bracket instead
                                         rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
                                         entries[i] = rowStringValue.toString();
                                     } else {
-                                        entries[i] = "\"" + entries[i] + "\"";
+                                        if (entries[i].startsWith("\"") == false || entries[i].endsWith("\"") == false) {
+                                            entries[i] = "\"" + entries[i] + "\"";
+                                        }
                                     }
                                     // replace any escaped commas with single comma
-                                    entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
+                                    entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
                                     row.append("\"" + columns[i] + "\":" + entries[i]);
                                 } catch (Exception e) {
                                     throw new IllegalArgumentException(

@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactor
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
+import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -85,6 +86,7 @@ public class DeploymentManager {
     private final ExecutorService executorServiceForDeployment;
     private final ExecutorService executorServiceForProcess;
     private final ThreadPool threadPool;
+    private final SystemAuditor systemAuditor;
     private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
     private final int maxProcesses;
 
@@ -93,12 +95,14 @@ public class DeploymentManager {
         NamedXContentRegistry xContentRegistry,
         ThreadPool threadPool,
         PyTorchProcessFactory pyTorchProcessFactory,
-        int maxProcesses
+        int maxProcesses,
+        SystemAuditor systemAuditor
     ) {
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.pyTorchProcessFactory = Objects.requireNonNull(pyTorchProcessFactory);
         this.threadPool = Objects.requireNonNull(threadPool);
+        this.systemAuditor = Objects.requireNonNull(systemAuditor);
         this.executorServiceForDeployment = threadPool.executor(UTILITY_THREAD_POOL_NAME);
         this.executorServiceForProcess = threadPool.executor(MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME);
         this.maxProcesses = maxProcesses;
@@ -550,12 +554,17 @@ public class DeploymentManager {
             return (reason) -> {
                 if (isThisProcessOlderThan1Day()) {
                     startsCount.set(1);
-                    logger.error(
-                        "[{}] inference process crashed due to reason [{}]. This process was started more than 24 hours ago; "
-                            + "the starts count is reset to 1.",
-                        task.getDeploymentId(),
-                        reason
-                    );
+                    {
+                        String logAndAuditMessage = "["
+                            + task.getDeploymentId()
+                            + "] inference process crashed due to reason ["
+                            + reason
+                            + "]. This process was started more than 24 hours ago; "
+                            + "the starts count is reset to 1.";
+                        logger.error(logAndAuditMessage);
+                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                            .execute(() -> systemAuditor.error(logAndAuditMessage));
+                    }
                 } else {
                     logger.error("[{}] inference process crashed due to reason [{}]", task.getDeploymentId(), reason);
                 }
@@ -566,7 +575,15 @@ public class DeploymentManager {
                 stateStreamer.cancel();
 
                 if (startsCount.get() <= NUM_RESTART_ATTEMPTS) {
-                    logger.info("[{}] restarting inference process after [{}] starts", task.getDeploymentId(), startsCount.get());
+                    {
+                        String logAndAuditMessage = "["
+                            + task.getDeploymentId()
+                            + "] restarting inference process after ["
+                            + startsCount.get()
+                            + "] starts";
+                        logger.info(logAndAuditMessage);
+                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> systemAuditor.info(logAndAuditMessage));
+                    }
                     priorityProcessWorker.shutdownNow(); // TODO what to do with these tasks?
                     ActionListener<TrainedModelDeploymentTask> errorListener = ActionListener.wrap((trainedModelDeploymentTask -> {
                         logger.debug("Completed restart of inference process, the [{}] start", startsCount);

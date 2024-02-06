@@ -151,6 +151,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         TimeValue timeout,
         TrainedModelPrefixStrings.PrefixType prefixType,
         CancellableTask parentActionTask,
+        boolean chunkResponse,
         ActionListener<InferenceResults> listener
     ) {
         if (inferenceConfigHolder.get() == null) {
@@ -172,7 +173,17 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             return;
         }
         var updatedConfig = update.isEmpty() ? inferenceConfigHolder.get() : inferenceConfigHolder.get().apply(update);
-        trainedModelAssignmentNodeService.infer(this, updatedConfig, input, skipQueue, timeout, prefixType, parentActionTask, listener);
+        trainedModelAssignmentNodeService.infer(
+            this,
+            updatedConfig,
+            input,
+            skipQueue,
+            timeout,
+            prefixType,
+            parentActionTask,
+            chunkResponse,
+            listener
+        );
     }
 
     public Optional<ModelStats> modelStats() {

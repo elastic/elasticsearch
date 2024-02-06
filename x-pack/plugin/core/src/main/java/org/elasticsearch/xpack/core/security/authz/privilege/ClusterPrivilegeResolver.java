@@ -166,7 +166,9 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> CROSS_CLUSTER_SEARCH_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
         RemoteClusterNodesAction.TYPE.name(),
-        XPackInfoAction.NAME
+        XPackInfoAction.NAME,
+        // esql enrich
+        "cluster:monitor/xpack/enrich/esql/resolve_policy"
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
@@ -333,7 +335,11 @@ public class ClusterPrivilegeResolver {
 
     public static final NamedClusterPrivilege WRITE_CONNECTOR_SECRETS = new ActionClusterPrivilege(
         "write_connector_secrets",
-        Set.of("cluster:admin/xpack/connector/secret/post", "cluster:admin/xpack/connector/secret/delete")
+        Set.of(
+            "cluster:admin/xpack/connector/secret/delete",
+            "cluster:admin/xpack/connector/secret/post",
+            "cluster:admin/xpack/connector/secret/put"
+        )
     );
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(

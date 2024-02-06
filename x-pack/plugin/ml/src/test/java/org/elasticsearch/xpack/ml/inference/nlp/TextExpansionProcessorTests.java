@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
@@ -20,10 +21,29 @@ import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResu
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.core.IsNot.not;
 
 public class TextExpansionProcessorTests extends ESTestCase {
+
+    public static final List<String> TEST_CASED_VOCAB = List.of(
+        BertTokenizer.PAD_TOKEN,
+        "Elasticsearch",
+        "is",
+        "fun",
+        "my",
+        "little",
+        "red",
+        "car",
+        "darts",
+        "champion",
+        BertTokenizer.CLASS_TOKEN,
+        BertTokenizer.SEPARATOR_TOKEN,
+        BertTokenizer.MASK_TOKEN,
+        BertTokenizer.UNKNOWN_TOKEN
+    );
 
     public void testProcessResult() {
         double[][][] pytorchResult = new double[][][] { { { 0.0, 1.0, 0.0, 3.0, 4.0, 0.0, 0.0 } } };
@@ -34,7 +54,8 @@ public class TextExpansionProcessorTests extends ESTestCase {
             tokenizationResult,
             new PyTorchInferenceResult(pytorchResult),
             Map.of(),
-            "foo"
+            "foo",
+            false
         );
         assertThat(inferenceResult, instanceOf(TextExpansionResults.class));
         var results = (TextExpansionResults) inferenceResult;
@@ -47,30 +68,6 @@ public class TextExpansionProcessorTests extends ESTestCase {
         assertEquals(new TextExpansionResults.WeightedToken("b", 1.0f), weightedTokens.get(2));
     }
 
-    public void testProcessResultMultipleVectors() {
-        double[][][] pytorchResult = new double[][][] { { { 0.0, 1.0, 0.0, 1.0, 4.0, 0.0, 0.0 }, { 1.0, 2.0, 0.0, 3.0, 4.0, 0.0, 0.1 } } };
-
-        TokenizationResult tokenizationResult = new BertTokenizationResult(List.of("a", "b", "c", "d", "e", "f", "g"), List.of(), 0);
-
-        var inferenceResult = TextExpansionProcessor.processResult(
-            tokenizationResult,
-            new PyTorchInferenceResult(pytorchResult),
-            Map.of(),
-            "foo"
-        );
-        assertThat(inferenceResult, instanceOf(TextExpansionResults.class));
-        var results = (TextExpansionResults) inferenceResult;
-        assertEquals(results.getResultsField(), "foo");
-
-        var weightedTokens = results.getWeightedTokens();
-        assertThat(weightedTokens, hasSize(5));
-        assertEquals(new TextExpansionResults.WeightedToken("e", 4.0f), weightedTokens.get(0));
-        assertEquals(new TextExpansionResults.WeightedToken("d", 3.0f), weightedTokens.get(1));
-        assertEquals(new TextExpansionResults.WeightedToken("b", 2.0f), weightedTokens.get(2));
-        assertEquals(new TextExpansionResults.WeightedToken("a", 1.0f), weightedTokens.get(3));
-        assertEquals(new TextExpansionResults.WeightedToken("g", 0.1f), weightedTokens.get(4));
-    }
-
     public void testSanitiseVocab() {
         double[][][] pytorchResult = new double[][][] { { { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 } } };
 
@@ -80,7 +77,8 @@ public class TextExpansionProcessorTests extends ESTestCase {
             tokenizationResult,
             new PyTorchInferenceResult(pytorchResult),
             Map.of(4, "XXX", 3, "YYY"),
-            "foo"
+            "foo",
+            false
         );
         assertThat(inferenceResult, instanceOf(TextExpansionResults.class));
         var results = (TextExpansionResults) inferenceResult;
@@ -113,7 +111,7 @@ public class TextExpansionProcessorTests extends ESTestCase {
         var pytorchResult = new PyTorchInferenceResult(new double[][][] { { { 1.0, 2.0, 3.0, 4.0, 5.0 } } });
         TokenizationResult tokenizationResult = new BertTokenizationResult(vocab, List.of(), 0);
 
-        TextExpansionResults results = (TextExpansionResults) resultProcessor.processResult(tokenizationResult, pytorchResult);
+        TextExpansionResults results = (TextExpansionResults) resultProcessor.processResult(tokenizationResult, pytorchResult, false);
         var weightedTokens = results.getWeightedTokens();
         assertThat(weightedTokens, hasSize(5));
         assertEquals(new TextExpansionResults.WeightedToken("##__", 5.0f), weightedTokens.get(0));
@@ -121,5 +119,31 @@ public class TextExpansionProcessorTests extends ESTestCase {
         assertEquals(new TextExpansionResults.WeightedToken("cc", 3.0f), weightedTokens.get(2));
         assertEquals(new TextExpansionResults.WeightedToken("bb", 2.0f), weightedTokens.get(3));
         assertEquals(new TextExpansionResults.WeightedToken("aa", 1.0f), weightedTokens.get(4));
+    }
+
+    public void testChunking() {
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(
+                TEST_CASED_VOCAB,
+                new BertTokenization(null, false, 5, Tokenization.Truncate.NONE, 0)
+            ).build()
+        ) {
+            var pytorchResult = new PyTorchInferenceResult(
+                new double[][][] { { { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 }, { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 } } }
+            );
+
+            var input = "Elasticsearch darts champion little red is fun car";
+            var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0, null);
+            var tokenizationResult = new BertTokenizationResult(TEST_CASED_VOCAB, tokenization, 0);
+            var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, pytorchResult, Map.of(), "foo", true);
+            assertThat(inferenceResult, instanceOf(ChunkedTextExpansionResults.class));
+
+            var chunkedResult = (ChunkedTextExpansionResults) inferenceResult;
+            assertThat(chunkedResult.getChunks(), hasSize(2));
+            assertEquals("Elasticsearch darts champion little red", chunkedResult.getChunks().get(0).matchedText());
+            assertEquals("is fun car", chunkedResult.getChunks().get(1).matchedText());
+            assertThat(chunkedResult.getChunks().get(0).weightedTokens(), not(empty()));
+            assertThat(chunkedResult.getChunks().get(1).weightedTokens(), not(empty()));
+        }
     }
 }

@@ -62,9 +62,10 @@ public class IdLoaderTests extends ESTestCase {
             LeafReader leafReader = indexReader.leaves().get(0).reader();
             assertThat(leafReader.numDocs(), equalTo(3));
             var leaf = idLoader.leaf(null, leafReader, new int[] { 0, 1, 2 });
-            assertThat(leaf.getId(0), equalTo(expectedId(routing, docs.get(0))));
-            assertThat(leaf.getId(1), equalTo(expectedId(routing, docs.get(1))));
-            assertThat(leaf.getId(2), equalTo(expectedId(routing, docs.get(2))));
+            // NOTE: time series data is ordered by (tsid, timestamp)
+            assertThat(leaf.getId(0), equalTo(expectedId(routing, docs.get(2))));
+            assertThat(leaf.getId(1), equalTo(expectedId(routing, docs.get(0))));
+            assertThat(leaf.getId(2), equalTo(expectedId(routing, docs.get(1))));
         };
         prepareIndexReader(indexAndForceMerge(routing, docs), verify, false);
     }
@@ -234,7 +235,7 @@ public class IdLoaderTests extends ESTestCase {
                 fields.add(new SortedSetDocValuesField(dimension.field, new BytesRef(dimension.value.toString())));
             }
         }
-        BytesRef tsid = builder.build().toBytesRef();
+        BytesRef tsid = builder.buildTsidHash().toBytesRef();
         fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, tsid));
         iw.addDocument(fields);
     }
@@ -252,7 +253,7 @@ public class IdLoaderTests extends ESTestCase {
         return TsidExtractingIdFieldMapper.createId(
             false,
             routingBuilder,
-            timeSeriesIdBuilder.build().toBytesRef(),
+            timeSeriesIdBuilder.buildTsidHash().toBytesRef(),
             doc.timestamp,
             new byte[16]
         );

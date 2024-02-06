@@ -166,6 +166,11 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_COHERE_EMBEDDINGS_ADDED = def(8_579_00_0);
     public static final TransportVersion DESIRED_NODE_VERSION_OPTIONAL_STRING = def(8_580_00_0);
     public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED = def(8_581_00_0);
+    public static final TransportVersion ASYNC_SEARCH_STATUS_SUPPORTS_KEEP_ALIVE = def(8_582_00_0);
+    public static final TransportVersion KNN_QUERY_NUMCANDS_AS_OPTIONAL_PARAM = def(8_583_00_0);
+    public static final TransportVersion TRANSFORM_GET_BASIC_STATS = def(8_584_00_0);
+    public static final TransportVersion NLP_DOCUMENT_CHUNKING_ADDED = def(8_585_00_0);
+    public static final TransportVersion QUERY_PHASE_TIMEOUT_EXCEPTION_ADDED = def(8_586_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -219,9 +224,6 @@ public class TransportVersions {
      *
      * In branches 8.7-8.10 see server/src/main/java/org/elasticsearch/TransportVersion.java for the equivalent definitions.
      */
-
-    // Placeholder for features that require the next lucene version. Its id needs to be adjusted when merging lucene_snapshot into main.
-    public static final TransportVersion UPGRADE_TO_LUCENE_9_10 = def(8_900_00_0);
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.

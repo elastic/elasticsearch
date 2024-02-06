@@ -105,6 +105,7 @@ public class DeploymentManagerTests extends ESTestCase {
             TimeValue.timeValueMinutes(1),
             TrainedModelPrefixStrings.PrefixType.NONE,
             null,
+            randomBoolean(),
             ActionListener.wrap(result -> fail("unexpected success"), e -> assertThat(e, instanceOf(EsRejectedExecutionException.class)))
         );
 

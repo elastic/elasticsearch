@@ -56,7 +56,7 @@ public class CohereServiceSettings implements ServiceSettings {
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (logDeprecations && model != null) {
-            logger.info("The cohere service_settings.model field is deprecated. Please use model_id instead.");
+            logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
         }
 
         if (validationException.validationErrors().isEmpty() == false) {

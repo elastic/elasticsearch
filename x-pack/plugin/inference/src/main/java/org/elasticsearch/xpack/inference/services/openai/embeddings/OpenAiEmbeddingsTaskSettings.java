@@ -35,12 +35,13 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
  */
 public record OpenAiEmbeddingsTaskSettings(String modelId, @Nullable String user) implements TaskSettings {
 
-    private static final Logger logger = LogManager.getLogger(OpenAiEmbeddingsTaskSettings.class);
     public static final String NAME = "openai_embeddings_task_settings";
     public static final String MODEL = "model";
     public static final String MODEL_ID = "model_id";
     public static final String USER = "user";
-    static final String MODEL_DEPRECATION_MESSAGE = "The openai task_settings.model field is deprecated. Please use model_id instead.";
+    private static final String MODEL_DEPRECATION_MESSAGE =
+        "The openai [task_settings.model] field is deprecated. Please use [task_settings.model_id] instead.";
+    private static final Logger logger = LogManager.getLogger(OpenAiEmbeddingsTaskSettings.class);
 
     public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, boolean logDeprecations) {
         ValidationException validationException = new ValidationException();

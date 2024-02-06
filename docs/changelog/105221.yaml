@@ -5,8 +5,10 @@ type: breaking
 issues: []
 breaking:
   title: "ESQL: Grammar - FROM METADATA no longer require []"
-  area: Compute Engine
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: ES|QL
+  details: "Remove [ ] for METADATA option inside FROM command statements"
+  impact: "Previously to return metadata fields, one had to use square brackets:\
+    \(eg. 'FROM index [METADATA _index]')\
+    \Since this release, the [ ] are dropped and do not have to be specified,\
+    \thus simplifying the command above to:'FROM index METADATA _index'"
   notable: false

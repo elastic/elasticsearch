@@ -46,7 +46,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -106,8 +105,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        @Nullable InferenceServiceRegistry inferenceServiceRegistry,
-        @Nullable ModelRegistry modelRegistry
+        InferenceServiceRegistry inferenceServiceRegistry,
+        ModelRegistry modelRegistry
     ) {
         this(
             threadPool,
@@ -136,8 +135,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider,
-        @Nullable InferenceServiceRegistry inferenceServiceRegistry,
-        @Nullable ModelRegistry modelRegistry
+        InferenceServiceRegistry inferenceServiceRegistry,
+        ModelRegistry modelRegistry
     ) {
         this(
             BulkAction.INSTANCE,
@@ -170,8 +169,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider,
-        @Nullable InferenceServiceRegistry inferenceServiceRegistry,
-        @Nullable ModelRegistry modelRegistry
+        InferenceServiceRegistry inferenceServiceRegistry,
+        ModelRegistry modelRegistry
     ) {
         super(bulkAction.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         Objects.requireNonNull(relativeTimeProvider);

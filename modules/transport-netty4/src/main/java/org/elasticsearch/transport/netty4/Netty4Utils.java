@@ -72,9 +72,13 @@ public class Netty4Utils {
      * pages of the BytesReference. Don't free the bytes of reference before the ByteBuf goes out of scope.
      */
     public static ByteBuf toByteBuf(final BytesReference reference) {
-        if (reference.length() == 0) {
-            return Unpooled.EMPTY_BUFFER;
+        if (reference.hasArray()) {
+            return Unpooled.wrappedBuffer(reference.array(), reference.arrayOffset(), reference.length());
         }
+        return compositeReferenceToByteBuf(reference);
+    }
+
+    private static ByteBuf compositeReferenceToByteBuf(BytesReference reference) {
         final BytesRefIterator iterator = reference.iterator();
         // usually we have one, two, or three components from the header, the message, and a buffer
         final List<ByteBuf> buffers = new ArrayList<>(3);

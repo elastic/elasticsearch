@@ -34,7 +34,7 @@ setup:
   - do:
       field_caps:
         include_empty_field: false
-        index: 'test1'
+        index: test1
         fields: "*"
 
   - match: {indices:                                      ["test-1"]}

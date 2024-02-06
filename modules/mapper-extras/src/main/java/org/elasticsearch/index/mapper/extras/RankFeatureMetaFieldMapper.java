@@ -38,7 +38,8 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
         public static final RankFeatureMetaFieldType INSTANCE = new RankFeatureMetaFieldType();
 
-        private RankFeatureMetaFieldType() {
+        // made visible for tests
+        RankFeatureMetaFieldType() {
             super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 

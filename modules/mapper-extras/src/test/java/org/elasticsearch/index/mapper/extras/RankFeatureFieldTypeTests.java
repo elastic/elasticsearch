@@ -82,5 +82,4 @@ public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
             randomBoolean()
         );
     }
-
 }

@@ -22,7 +22,6 @@ public abstract class InstanceShardOperationRequestBuilder<
         Response> {
     private String index;
     private TimeValue timeout;
-    private String timeoutString;
 
     protected InstanceShardOperationRequestBuilder(ElasticsearchClient client, ActionType<Response> action) {
         super(client, action);
@@ -52,7 +51,7 @@ public abstract class InstanceShardOperationRequestBuilder<
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setTimeout(String timeout) {
-        this.timeoutString = timeout;
+        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return (RequestBuilder) this;
     }
 
@@ -62,15 +61,6 @@ public abstract class InstanceShardOperationRequestBuilder<
         }
         if (timeout != null) {
             request.timeout(timeout);
-        }
-        if (timeoutString != null) {
-            request.timeout(timeoutString);
-        }
-    }
-
-    protected void validate() throws IllegalStateException {
-        if (timeoutString != null && timeout != null) {
-            throw new IllegalStateException("Must use only one setTimeout method");
         }
     }
 }

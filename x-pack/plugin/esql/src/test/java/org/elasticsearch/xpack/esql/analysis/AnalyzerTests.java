@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -1554,6 +1555,112 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [bar]"));
     }
 
+    public void testRegularStats() {
+        var plan = analyze("""
+            from tests
+            | stats by salary
+            """);
+
+        var limit = as(plan, Limit.class);
+    }
+
+    public void testLiteralInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats 1
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [1]"));
+    }
+
+    public void testLiteralBehindEvalInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |eval x = 1
+            |stats x
+            """));
+
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
+    }
+
+    public void testLiteralsInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats 1 + 2
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [1 + 2]"));
+    }
+
+    public void testLiteralsBehindEvalInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |eval x = 1 + 2
+            |stats x
+            """));
+
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
+    }
+
+    public void testFoldableInAggregateWithGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats 1 + 2 by languages
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [1 + 2]"));
+    }
+
+    public void testLiteralsInAggregateWithGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats "a" by languages
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [\"a\"]"));
+    }
+
+    public void testFoldableBehindEvalInAggregateWithGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |eval x = 1 + 2
+            |stats x by languages
+            """));
+
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
+    }
+
+    public void testFoldableInGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats x by 1
+            """));
+
+        assertThat(e.getMessage(), containsString("[x] is not an aggregate function"));
+    }
+
+    public void testScalarFunctionsInStats() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats salary % 3 by languages
+            """));
+
+        assertThat(
+            e.getMessage(),
+            containsString("column [salary] must appear in the STATS BY clause or be used in an aggregate function")
+        );
+    }
+
+    public void testDeferredGroupingInStats() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+             |eval x = first_name
+             |stats x by first_name
+            """));
+
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
+    }
+
     public void testUnsupportedTypesInStats() {
         verifyUnsupported(
             """
@@ -1653,5 +1760,10 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation esRelation = (EsRelation) plan;
         assertThat(esRelation.output(), equalTo(NO_FIELDS));
         assertTrue(esRelation.index().mapping().isEmpty());
+    }
+
+    @Override
+    protected IndexAnalyzers createDefaultIndexAnalyzers() {
+        return super.createDefaultIndexAnalyzers();
     }
 }

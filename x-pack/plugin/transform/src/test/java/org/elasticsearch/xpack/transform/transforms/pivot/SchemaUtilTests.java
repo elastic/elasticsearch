@@ -17,25 +17,39 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
 
 import java.math.BigInteger;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
@@ -98,16 +112,14 @@ public class SchemaUtilTests extends ESTestCase {
 
     public void testGetSourceFieldMappings() throws InterruptedException {
         try (var threadPool = createThreadPool()) {
-            final var client = new FieldCapsMockClient(threadPool);
+            final var client = new FieldCapsMockClient(threadPool, emptySet());
             // fields is null
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
                     emptyMap(),
-                    new String[] { "index-1", "index-2" },
-                    QueryBuilders.matchAllQuery(),
+                    new SourceConfig(new String[] { "index-1", "index-2" }),
                     null,
-                    emptyMap(),
                     listener
                 ),
                 mappings -> {
@@ -121,44 +133,8 @@ public class SchemaUtilTests extends ESTestCase {
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
                     emptyMap(),
-                    new String[] { "index-1", "index-2" },
-                    QueryBuilders.matchAllQuery(),
+                    new SourceConfig(new String[] { "index-1", "index-2" }),
                     new String[] {},
-                    emptyMap(),
-                    listener
-                ),
-                mappings -> {
-                    assertNotNull(mappings);
-                    assertTrue(mappings.isEmpty());
-                }
-            );
-
-            // indices is null
-            this.<Map<String, String>>assertAsync(
-                listener -> SchemaUtil.getSourceFieldMappings(
-                    client,
-                    emptyMap(),
-                    null,
-                    QueryBuilders.matchAllQuery(),
-                    new String[] { "field-1", "field-2" },
-                    emptyMap(),
-                    listener
-                ),
-                mappings -> {
-                    assertNotNull(mappings);
-                    assertTrue(mappings.isEmpty());
-                }
-            );
-
-            // indices is empty
-            this.<Map<String, String>>assertAsync(
-                listener -> SchemaUtil.getSourceFieldMappings(
-                    client,
-                    emptyMap(),
-                    new String[] {},
-                    QueryBuilders.matchAllQuery(),
-                    new String[] { "field-1", "field-2" },
-                    emptyMap(),
                     listener
                 ),
                 mappings -> {
@@ -172,10 +148,8 @@ public class SchemaUtilTests extends ESTestCase {
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
                     emptyMap(),
-                    new String[] { "index-1", "index-2" },
-                    QueryBuilders.matchAllQuery(),
+                    new SourceConfig(new String[] { "index-1", "index-2" }),
                     new String[] { "field-1", "field-2" },
-                    emptyMap(),
                     listener
                 ),
                 mappings -> {
@@ -196,15 +170,13 @@ public class SchemaUtilTests extends ESTestCase {
             }
         };
         try (var threadPool = createThreadPool()) {
-            final var client = new FieldCapsMockClient(threadPool);
+            final var client = new FieldCapsMockClient(threadPool, emptySet());
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
                     emptyMap(),
-                    new String[] { "index-1", "index-2" },
-                    QueryBuilders.matchAllQuery(),
+                    new SourceConfig(new String[] { "index-1", "index-2" }, QueryConfig.matchAll(), runtimeMappings),
                     new String[] { "field-1", "field-2" },
-                    runtimeMappings,
                     listener
                 ),
                 mappings -> {
@@ -240,9 +212,74 @@ public class SchemaUtilTests extends ESTestCase {
         assertFalse(SchemaUtil.isDateType("keyword"));
     }
 
+    public void testDeduceMappings_AllMappingsArePresent() throws InterruptedException {
+        testDeduceMappings(
+            emptySet(),
+            Map.of("by-day", "long", "by-user", "long", "by-business", "long", "timestamp", "long", "review_score", "double")
+        );
+    }
+
+    public void testDeduceMappings_GroupByFieldMappingIsMissing() throws InterruptedException {
+        testDeduceMappings(
+            Set.of("business_id"),
+            // Note that the expected mapping of the "by-business" target field is "keyword"
+            Map.of("by-day", "long", "by-user", "long", "by-business", "keyword", "timestamp", "long", "review_score", "double")
+        );
+    }
+
+    public void testDeduceMappings_AggregationFieldMappingIsMissing() throws InterruptedException {
+        testDeduceMappings(
+            Set.of("review_score"),
+            Map.of("by-day", "long", "by-user", "long", "by-business", "long", "timestamp", "long", "review_score", "double")
+        );
+    }
+
+    private void testDeduceMappings(Set<String> fieldsWithoutMappings, Map<String, String> expectedMappings) throws InterruptedException {
+        try (var threadPool = createThreadPool()) {
+            final var client = new FieldCapsMockClient(threadPool, fieldsWithoutMappings);
+            var groups = Map.of(
+                "by-day",
+                new DateHistogramGroupSource(
+                    "timestamp",
+                    null,
+                    false,
+                    new DateHistogramGroupSource.CalendarInterval(DateHistogramInterval.DAY),
+                    null,
+                    null
+                ),
+                "by-user",
+                new TermsGroupSource("user_id", null, false),
+                "by-business",
+                new TermsGroupSource("business_id", null, false)
+            );
+            var aggs = AggregatorFactories.builder()
+                .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
+                .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+            var groupConfig = new GroupConfig(emptyMap() /* unused anyway */, groups);
+            var aggregationConfig = new AggregationConfig(emptyMap() /* unused anyway */, aggs);
+            var pivotConfig = new PivotConfig(groupConfig, aggregationConfig, null);
+            this.<Map<String, String>>assertAsync(
+                listener -> SchemaUtil.deduceMappings(
+                    client,
+                    emptyMap(),
+                    "my-transform",
+                    new SettingsConfig.Builder().setDeduceMappings(randomBoolean() ? randomBoolean() : null).build(),
+                    pivotConfig,
+                    new SourceConfig(new String[] { "index-1", "index-2" }),
+                    listener
+                ),
+                mappings -> assertThat(mappings, is(equalTo(expectedMappings)))
+            );
+        }
+    }
+
     private static class FieldCapsMockClient extends NoOpClient {
-        FieldCapsMockClient(ThreadPool threadPool) {
+
+        private final Set<String> fieldsWithoutMappings;
+
+        FieldCapsMockClient(ThreadPool threadPool, Set<String> fieldsWithoutMappings) {
             super(threadPool);
+            this.fieldsWithoutMappings = Objects.requireNonNull(fieldsWithoutMappings);
         }
 
         @SuppressWarnings("unchecked")
@@ -255,7 +292,11 @@ public class SchemaUtilTests extends ESTestCase {
             if (request instanceof FieldCapabilitiesRequest fieldCapsRequest) {
                 Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
                 for (String field : fieldCapsRequest.fields()) {
-                    responseMap.put(field, singletonMap(field, createFieldCapabilities(field, "long")));
+                    if (fieldsWithoutMappings.contains(field)) {
+                        // If the field mappings should be missing, do **not** put it in the response.
+                    } else {
+                        responseMap.put(field, singletonMap(field, createFieldCapabilities(field, "long")));
+                    }
                 }
                 for (Map.Entry<String, Object> runtimeField : fieldCapsRequest.runtimeFields().entrySet()) {
                     String field = runtimeField.getKey();

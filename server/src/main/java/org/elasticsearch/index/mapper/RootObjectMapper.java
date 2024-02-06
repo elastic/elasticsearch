@@ -45,6 +45,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 public class RootObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
+    private static final int MAX_NESTING_LEVEL_FOR_PASS_THROUGH_OBJECTS = 20;
 
     /**
      * Parameter used when serializing {@link RootObjectMapper} and request that the runtime section is skipped.
@@ -111,7 +112,11 @@ public class RootObjectMapper extends ObjectMapper {
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
             Map<String, Mapper> mappers = buildMappers(context);
-            mappers.putAll(getAliasMappers(mappers, context));
+
+            Map<String, Mapper> aliasMappers = new HashMap<>();
+            getAliasMappers(mappers, aliasMappers, context, 0);
+            mappers.putAll(aliasMappers);
+
             return new RootObjectMapper(
                 name,
                 enabled,
@@ -126,8 +131,11 @@ public class RootObjectMapper extends ObjectMapper {
             );
         }
 
-        Map<String, Mapper> getAliasMappers(Map<String, Mapper> mappers, MapperBuilderContext context) {
-            Map<String, Mapper> aliasMappers = new HashMap<>();
+        void getAliasMappers(Map<String, Mapper> mappers, Map<String, Mapper> aliasMappers, MapperBuilderContext context, int level) {
+            if (level >= MAX_NESTING_LEVEL_FOR_PASS_THROUGH_OBJECTS) {
+                logger.warn("Exceeded maximum nesting level for searching for pass-through object fields within object fields.");
+                return;
+            }
             for (Mapper mapper : mappers.values()) {
                 // Create aliases for all fields in child passthrough mappers and place them under the root object.
                 if (mapper instanceof PassThroughObjectMapper passthroughMapper) {
@@ -154,9 +162,11 @@ public class RootObjectMapper extends ObjectMapper {
                             }
                         }
                     }
+                } else if (mapper instanceof ObjectMapper objectMapper) {
+                    // Call recursively to check child fields. The level guards against long recursive call sequences.
+                    getAliasMappers(objectMapper.mappers, aliasMappers, context, level + 1);
                 }
             }
-            return aliasMappers;
         }
     }
 
@@ -566,11 +576,7 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public int mapperSize() {
-        int size = runtimeFields().size();
-        for (Mapper mapper : this) {
-            size += mapper.mapperSize();
-        }
-        return size;
+    public int getTotalFieldsCount() {
+        return mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum() + runtimeFields.size();
     }
 }

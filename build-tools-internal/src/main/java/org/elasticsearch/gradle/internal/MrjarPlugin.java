@@ -53,7 +53,7 @@ public class MrjarPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(JavaLibraryPlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
 
         var srcDir = project.getProjectDir().toPath().resolve("src");

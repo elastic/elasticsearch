@@ -57,7 +57,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), TASK_SETTINGS);
         }
 
-        public static Request parseRequest(String inferenceEntityId, String taskType, XContentParser parser) {
+        public static Request parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) {
             Request.Builder builder = PARSER.apply(parser, null);
             builder.setInferenceEntityId(inferenceEntityId);
             builder.setTaskType(taskType);
@@ -197,13 +197,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
-            public Builder setTaskType(String taskTypeStr) {
-                try {
-                    TaskType taskType = TaskType.fromString(taskTypeStr);
-                    this.taskType = Objects.requireNonNull(taskType);
-                } catch (IllegalArgumentException e) {
-                    throw new ElasticsearchStatusException("Unknown task_type [{}]", RestStatus.BAD_REQUEST, taskTypeStr);
-                }
+            public Builder setTaskType(TaskType taskType) {
+                this.taskType = taskType;
                 return this;
             }
 

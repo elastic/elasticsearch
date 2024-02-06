@@ -11,7 +11,6 @@ package org.elasticsearch.preallocate;
 import com.sun.jna.FunctionMapper;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
-import com.sun.jna.NativeLibrary;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Platform;
 import com.sun.jna.Structure;
@@ -47,46 +46,44 @@ abstract class AbstractPosixPreallocator implements Preallocator {
         }
     }
 
-    private static class NativeFunctions {
-        static native String strerror(int errno);
+    private interface NativeFunctions extends Library {
+        String strerror(int errno);
 
-        static native int open(String filename, int flags, Object... mode);
+        int open(String filename, int flags, Object... mode);
 
-        static native int close(int fd);
+        int close(int fd);
     }
 
-    private static class FStat64Function {
-        static native int fstat64(int fd, Stat64 stat);
+    private interface FStat64Function extends Library {
+        int fstat64(int fd, Stat64 stat);
     }
 
     public static final boolean NATIVES_AVAILABLE;
+    private static final NativeFunctions functions;
+    private static final FStat64Function fstat64;
 
     static {
-        NATIVES_AVAILABLE = AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> loadFstat() && loadNatives());
-    }
-
-    private static boolean loadFstat() {
-        try {
-            Native.register(FStat64Function.class, Platform.C_LIBRARY_NAME);
-        } catch (final UnsatisfiedLinkError e) {
+        functions = AccessController.doPrivileged((PrivilegedAction<NativeFunctions>) () -> {
             try {
-                // on Linux fstat64 isn't available as a symbol, but instead uses a special __ name
-                var options = Map.of(Library.OPTION_FUNCTION_MAPPER, (FunctionMapper) (lib, method) -> "__fxstat64");
-                Native.register(FStat64Function.class, NativeLibrary.getInstance(Platform.C_LIBRARY_NAME, options));
-            } catch (UnsatisfiedLinkError e2) {
-                return false;
+                return Native.load(Platform.C_LIBRARY_NAME, NativeFunctions.class);
+            } catch (final UnsatisfiedLinkError e) {
+                return null;
             }
-        }
-        return true;
-    }
-
-    private static boolean loadNatives() {
-        try {
-            Native.register(NativeFunctions.class, Platform.C_LIBRARY_NAME);
-        } catch (final UnsatisfiedLinkError e) {
-            return false;
-        }
-        return true;
+        });
+        fstat64 = AccessController.doPrivileged((PrivilegedAction<FStat64Function>) () -> {
+            try {
+                return Native.load(Platform.C_LIBRARY_NAME, FStat64Function.class);
+            } catch (final UnsatisfiedLinkError e) {
+                try {
+                    // on Linux fstat64 isn't available as a symbol, but instead uses a special __ name
+                    var options = Map.of(Library.OPTION_FUNCTION_MAPPER, (FunctionMapper) (lib, method) -> "__fxstat64");
+                    return Native.load(Platform.C_LIBRARY_NAME, FStat64Function.class, options);
+                } catch (UnsatisfiedLinkError e2) {
+                    return null;
+                }
+            }
+        });
+        NATIVES_AVAILABLE = functions != null && fstat64 != null;
     }
 
     private class PosixNativeFileHandle implements NativeFileHandle {
@@ -105,7 +102,7 @@ abstract class AbstractPosixPreallocator implements Preallocator {
         @Override
         public long getSize() throws IOException {
             var stat = new Stat64(SIZEOF_STAT, STAT_ST_SIZE_OFFSET);
-            if (FStat64Function.fstat64(fd, stat) == -1) {
+            if (fstat64.fstat64(fd, stat) == -1) {
                 throw newIOException("Could not get size of file");
             }
             return stat.st_size.longValue();
@@ -113,7 +110,7 @@ abstract class AbstractPosixPreallocator implements Preallocator {
 
         @Override
         public void close() throws IOException {
-            if (NativeFunctions.close(fd) != 0) {
+            if (functions.close(fd) != 0) {
                 throw newIOException("Could not close file");
             }
         }
@@ -126,7 +123,7 @@ abstract class AbstractPosixPreallocator implements Preallocator {
 
     @Override
     public NativeFileHandle open(String path) throws IOException {
-        int fd = NativeFunctions.open(path, O_WRONLY, O_CREAT);
+        int fd = functions.open(path, O_WRONLY, O_CREAT);
         if (fd < 0) {
             throw newIOException(String.format(Locale.ROOT, "Could not open file [%s] for preallocation", path));
         }
@@ -135,11 +132,11 @@ abstract class AbstractPosixPreallocator implements Preallocator {
 
     @Override
     public String error(int errno) {
-        return NativeFunctions.strerror(errno);
+        return functions.strerror(errno);
     }
 
     private static IOException newIOException(String prefix) {
         int errno = Native.getLastError();
-        return new IOException(String.format(Locale.ROOT, "%s(errno=%d): %s", prefix, errno, NativeFunctions.strerror(errno)));
+        return new IOException(String.format(Locale.ROOT, "%s(errno=%d): %s", prefix, errno, functions.strerror(errno)));
     }
 }

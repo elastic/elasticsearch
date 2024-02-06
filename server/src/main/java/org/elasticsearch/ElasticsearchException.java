@@ -1902,7 +1902,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             QueryPhaseTimeoutException.class,
             QueryPhaseTimeoutException::new,
             176,
-            TransportVersions.QUERY_PHASE_TIMEOUT_EXCEPTION
+            TransportVersions.QUERY_PHASE_TIMEOUT_EXCEPTION_ADDED
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

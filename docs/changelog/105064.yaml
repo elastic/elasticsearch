@@ -1,0 +1,12 @@
+pr: 105064
+summary: "ES|QL: remove PROJECT keyword from the grammar"
+area: ES|QL
+type: breaking
+issues: []
+breaking:
+  title: "ES|QL: remove PROJECT keyword from the grammar"
+  area: ES|QL
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

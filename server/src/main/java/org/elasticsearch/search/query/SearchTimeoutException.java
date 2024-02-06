@@ -10,20 +10,21 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
 
 /**
- * Specific instance of QueryPhaseExecutionException that indicates that a search timeout occurred.
+ * Specific instance of {@link SearchException} that indicates that a search timeout occurred.
  * Always returns http status 504 (Gateway Timeout)
  */
-public class QueryPhaseTimeoutException extends QueryPhaseExecutionException {
-    public QueryPhaseTimeoutException(SearchShardTarget shardTarget, String msg) {
+public class SearchTimeoutException extends SearchException {
+    public SearchTimeoutException(SearchShardTarget shardTarget, String msg) {
         super(shardTarget, msg);
     }
 
-    public QueryPhaseTimeoutException(StreamInput in) throws IOException {
+    public SearchTimeoutException(StreamInput in) throws IOException {
         super(in);
     }
 

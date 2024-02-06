@@ -111,6 +111,7 @@ public class BulkOperationTests extends ESTestCase {
             fieldsForModels,
             modelRegistry,
             inferenceServiceRegistry,
+            true,
             bulkOperationListener
         );
         verify(bulkOperationListener).onResponse(any());
@@ -151,6 +152,7 @@ public class BulkOperationTests extends ESTestCase {
             modelRegistry,
             inferenceServiceRegistry,
             bulkOperationListener,
+            true,
             request -> new BulkShardResponse(
                 request.shardId(),
                 new BulkItemResponse[] {
@@ -217,6 +219,7 @@ public class BulkOperationTests extends ESTestCase {
             fieldsForModels,
             modelRegistry,
             inferenceServiceRegistry,
+            true,
             bulkOperationListener
         );
         verify(bulkOperationListener).onResponse(any());
@@ -267,16 +270,8 @@ public class BulkOperationTests extends ESTestCase {
         ArgumentCaptor<BulkResponse> bulkResponseCaptor = ArgumentCaptor.forClass(BulkResponse.class);
         @SuppressWarnings("unchecked")
         ActionListener<BulkResponse> bulkOperationListener = mock(ActionListener.class);
-        BulkShardRequest bulkShardRequest = runBulkOperation(
-            originalSource,
-            fieldsForModels,
-            modelRegistry,
-            inferenceServiceRegistry,
-            bulkOperationListener
-        );
-        BulkItemRequest[] items = bulkShardRequest.items();
-        assertThat(items.length, equalTo(1));
-        assertNull(items[0]);
+        runBulkOperation(originalSource, fieldsForModels, modelRegistry, inferenceServiceRegistry, false, bulkOperationListener);
+
         verify(bulkOperationListener).onResponse(bulkResponseCaptor.capture());
         BulkResponse bulkResponse = bulkResponseCaptor.getValue();
         assertTrue(bulkResponse.hasFailures());
@@ -313,16 +308,10 @@ public class BulkOperationTests extends ESTestCase {
         ArgumentCaptor<BulkResponse> bulkResponseCaptor = ArgumentCaptor.forClass(BulkResponse.class);
         @SuppressWarnings("unchecked")
         ActionListener<BulkResponse> bulkOperationListener = mock(ActionListener.class);
-        BulkShardRequest bulkShardRequest = runBulkOperation(
-            originalSource,
-            fieldsForModels,
-            modelRegistry,
-            inferenceServiceRegistry,
-            bulkOperationListener
-        );
-        BulkItemRequest[] items = bulkShardRequest.items();
-        assertThat(items.length, equalTo(1));
-        assertNull(items[0]);
+        doAnswer(invocation -> null).when(bulkOperationListener).onResponse(bulkResponseCaptor.capture());
+
+        runBulkOperation(originalSource, fieldsForModels, modelRegistry, inferenceServiceRegistry, false, bulkOperationListener);
+
         verify(bulkOperationListener).onResponse(bulkResponseCaptor.capture());
         BulkResponse bulkResponse = bulkResponseCaptor.getValue();
         assertTrue(bulkResponse.hasFailures());
@@ -392,6 +381,7 @@ public class BulkOperationTests extends ESTestCase {
         Map<String, Set<String>> fieldsForModels,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry inferenceServiceRegistry,
+        boolean expectTransportShardBulkActionToExecute,
         ActionListener<BulkResponse> bulkOperationListener
     ) {
         return runBulkOperation(
@@ -400,6 +390,7 @@ public class BulkOperationTests extends ESTestCase {
             modelRegistry,
             inferenceServiceRegistry,
             bulkOperationListener,
+            expectTransportShardBulkActionToExecute,
             successfulBulkShardResponse
         );
     }
@@ -410,6 +401,7 @@ public class BulkOperationTests extends ESTestCase {
         ModelRegistry modelRegistry,
         InferenceServiceRegistry inferenceServiceRegistry,
         ActionListener<BulkResponse> bulkOperationListener,
+        boolean expectTransportShardBulkActionToExecute,
         Function<BulkShardRequest, BulkShardResponse> bulkShardResponseSupplier
     ) {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
@@ -456,9 +448,12 @@ public class BulkOperationTests extends ESTestCase {
         );
 
         bulkOperation.doRun();
-        verify(client).executeLocally(eq(TransportShardBulkAction.TYPE), any(), any());
+        if (expectTransportShardBulkActionToExecute) {
+            verify(client).executeLocally(eq(TransportShardBulkAction.TYPE), any(), any());
+            return bulkShardRequestCaptor.getValue();
+        }
 
-        return bulkShardRequestCaptor.getValue();
+        return null;
     }
 
     private static final Function<BulkShardRequest, BulkShardResponse> successfulBulkShardResponse = (request) -> {

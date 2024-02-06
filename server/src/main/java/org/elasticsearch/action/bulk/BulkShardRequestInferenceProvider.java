@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.InferenceResults;
@@ -26,6 +25,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelRegistry;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -106,10 +107,20 @@ public class BulkShardRequestInferenceProvider {
         }
     }
 
+    /**
+     * Performs inference on the fields that have inference models for a bulk shard request. Bulk items from
+     * the original request will be modified with the inference results, to avoid copying the entire requests from
+     * the original bulk request.
+     *
+     * @param bulkShardRequest original BulkShardRequest that will be modified with inference results.
+     * @param listener        listener to be called when the inference process is finished with the new BulkShardRequest,
+     *                        which may have fewer items than the original because of inference failures
+     * @param onBulkItemFailure invoked when a bulk item fails inference
+     */
     public void processBulkShardRequest(
         BulkShardRequest bulkShardRequest,
         ActionListener<BulkShardRequest> listener,
-        TriConsumer<BulkItemRequest, Integer, Exception> onBulkItemFailure
+        BiConsumer<BulkItemRequest, Exception> onBulkItemFailure
     ) {
 
         Map<String, Set<String>> fieldsForModels = clusterState.metadata()
@@ -121,14 +132,41 @@ public class BulkShardRequestInferenceProvider {
             return;
         }
 
-        Runnable onInferenceComplete = () -> { listener.onResponse(bulkShardRequest); };
+        Set<Integer> failedItems = Collections.synchronizedSet(new HashSet<>());
+        Runnable onInferenceComplete = () -> {
+            if (failedItems.isEmpty()) {
+                listener.onResponse(bulkShardRequest);
+                return;
+            }
+            // Remove failed items from the original bulk shard request
+            BulkItemRequest[] originalItems = bulkShardRequest.items();
+            BulkItemRequest[] newItems = new BulkItemRequest[originalItems.length - failedItems.size()];
+            for (int i = 0, j = 0; i < originalItems.length; i++) {
+                if (failedItems.contains(i) == false) {
+                    newItems[j++] = originalItems[i];
+                }
+            }
+            BulkShardRequest newBulkShardRequest = new BulkShardRequest(
+                bulkShardRequest.shardId(),
+                bulkShardRequest.getRefreshPolicy(),
+                newItems
+            );
+            listener.onResponse(newBulkShardRequest);
+        };
         try (var bulkItemReqRef = new RefCountingRunnable(onInferenceComplete)) {
             BulkItemRequest[] items = bulkShardRequest.items();
             for (int i = 0; i < items.length; i++) {
                 BulkItemRequest bulkItemRequest = items[i];
                 // Bulk item might be null because of previous errors, skip in that case
                 if (bulkItemRequest != null) {
-                    performInferenceOnBulkItemRequest(bulkItemRequest, i, fieldsForModels, onBulkItemFailure, bulkItemReqRef.acquire());
+                    performInferenceOnBulkItemRequest(
+                        bulkItemRequest,
+                        fieldsForModels,
+                        i,
+                        onBulkItemFailure,
+                        failedItems,
+                        bulkItemReqRef.acquire()
+                    );
                 }
             }
         }
@@ -136,9 +174,10 @@ public class BulkShardRequestInferenceProvider {
 
     private void performInferenceOnBulkItemRequest(
         BulkItemRequest bulkItemRequest,
-        int bulkItemIndex,
         Map<String, Set<String>> fieldsForModels,
-        TriConsumer<BulkItemRequest, Integer, Exception> onBulkItemFailure,
+        Integer itemIndex,
+        BiConsumer<BulkItemRequest, Exception> onBulkItemFailure,
+        Set<Integer> failedItems,
         Releasable releaseOnFinish
     ) {
 
@@ -186,9 +225,9 @@ public class BulkShardRequestInferenceProvider {
 
                 InferenceProvider inferenceProvider = inferenceProvidersMap.get(modelId);
                 if (inferenceProvider == null) {
-                    onBulkItemFailure.apply(
+                    failedItems.add(itemIndex);
+                    onBulkItemFailure.accept(
                         bulkItemRequest,
-                        bulkItemIndex,
                         new IllegalArgumentException("No inference provider found for model ID " + modelId)
                     );
                     continue;
@@ -223,7 +262,8 @@ public class BulkShardRequestInferenceProvider {
 
                     @Override
                     public void onFailure(Exception e) {
-                        onBulkItemFailure.apply(bulkItemRequest, bulkItemIndex, e);
+                        failedItems.add(itemIndex);
+                        onBulkItemFailure.accept(bulkItemRequest, e);
                     }
                 };
                 inferenceProvider.service()

@@ -326,8 +326,8 @@ FROM airports
 | STATS centroid=ST_CENTROID(location), count=COUNT()
 ;
 
-centroid:geo_point            | count:long
-POINT(-2.597342 54.335512)    | 17
+centroid:geo_point                              | count:long
+POINT (-2.597342072712148 54.33551226578214)    | 17
 ;
 
 centroidFromAirportsAfterIntersectsPredicateCountryUK#[skip:-8.12.99, reason:st_centroid added in 8.13]
@@ -336,8 +336,8 @@ FROM airports
 | STATS centroid=ST_CENTROID(location), count=COUNT()
 ;
 
-centroid:geo_point            | count:long
-POINT(-2.597342 54.335512)    | 17
+centroid:geo_point                              | count:long
+POINT (-2.597342072712148 54.33551226578214)    | 17
 ;
 
 centroidFromAirportsAfterIntersectsPredicate#[skip:-8.12.99, reason:st_centroid added in 8.13]
@@ -346,8 +346,8 @@ FROM airports
 | STATS centroid=ST_CENTROID(location), count=COUNT()
 ;
 
-centroid:geo_point                        | count:long
-POINT(42.97109630194 14.7552534413725)    | 1
+centroid:geo_point                            | count:long
+POINT (42.97109629958868 14.7552534006536)    | 1
 ;
 
 pointIntersectsStringPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]

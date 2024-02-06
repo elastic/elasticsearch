@@ -28,7 +28,9 @@ import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.apache.lucene.document.ShapeField.QueryRelation.DISJOINT;
@@ -266,6 +269,11 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
 
     protected boolean isConstantExpression(Expression expression) {
         return isString(expression.dataType()) && expression.foldable();
+    }
+
+    public boolean hasFieldAttribute(Set<Attribute> foundAttributes) {
+        return left() instanceof FieldAttribute leftField && foundAttributes.contains(leftField)
+            || right() instanceof FieldAttribute rightField && foundAttributes.contains(rightField);
     }
 
     protected abstract static class SpatialEvaluatorFactory<V extends Object, T extends Object> {

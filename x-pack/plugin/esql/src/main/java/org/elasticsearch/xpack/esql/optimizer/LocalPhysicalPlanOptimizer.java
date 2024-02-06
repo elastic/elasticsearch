@@ -509,6 +509,13 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                         );
                     }
                 }
+                if (exec instanceof FilterExec filterExec) {
+                    if (filterExec.condition() instanceof SpatialRelatesFunction spatialRelatesFunction) {
+                        if (spatialRelatesFunction.hasFieldAttribute(foundAttributes)) {
+                            exec = new FilterExec(filterExec.source(), filterExec.child(), spatialRelatesFunction.withDocValues());
+                        }
+                    }
+                }
                 if (exec instanceof FieldExtractExec fieldExtractExec) {
                     // Tell the field extractor that it should extract the field from doc-values instead of source values
                     var attributesToExtract = fieldExtractExec.attributesToExtract();

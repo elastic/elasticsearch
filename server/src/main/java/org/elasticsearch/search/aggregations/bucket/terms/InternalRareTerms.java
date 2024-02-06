@@ -21,7 +21,6 @@ import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -149,14 +148,13 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
 
     @Override
     protected B reduceBucket(List<B> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
+        assert buckets.isEmpty() == false;
         long docCount = 0;
-        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
         for (B bucket : buckets) {
             docCount += bucket.docCount;
-            aggregationsList.add(bucket.aggregations);
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         return createBucket(docCount, aggs, buckets.get(0));
     }
 

@@ -54,7 +54,7 @@ public class CohereService extends SenderService {
 
     @Override
     public CohereModel parseRequestConfig(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Set<String> platformArchitectures
@@ -63,12 +63,13 @@ public class CohereService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
         CohereModel model = createModel(
-            modelId,
+            inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
             serviceSettingsMap,
-            TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME)
+            TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
+            true
         );
 
         throwIfNotEmptyMap(config, NAME);
@@ -78,23 +79,43 @@ public class CohereService extends SenderService {
         return model;
     }
 
-    private static CohereModel createModel(
-        String modelId,
+    private static CohereModel createModelWithoutLoggingDeprecations(
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage
     ) {
+        return createModel(inferenceEntityId, taskType, serviceSettings, taskSettings, secretSettings, failureMessage, false);
+    }
+
+    private static CohereModel createModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        @Nullable Map<String, Object> secretSettings,
+        String failureMessage,
+        boolean logDeprecations
+    ) {
         return switch (taskType) {
-            case TEXT_EMBEDDING -> new CohereEmbeddingsModel(modelId, taskType, NAME, serviceSettings, taskSettings, secretSettings);
+            case TEXT_EMBEDDING -> new CohereEmbeddingsModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                logDeprecations
+            );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
 
     @Override
     public CohereModel parsePersistedConfigWithSecrets(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
@@ -103,22 +124,29 @@ public class CohereService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        return createModel(
-            modelId,
+        return createModelWithoutLoggingDeprecations(
+            inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
     }
 
     @Override
-    public CohereModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+    public CohereModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        return createModel(modelId, taskType, serviceSettingsMap, taskSettingsMap, null, parsePersistedConfigErrorMsg(modelId, NAME));
+        return createModelWithoutLoggingDeprecations(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            null,
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+        );
     }
 
     @Override
@@ -180,7 +208,7 @@ public class CohereService extends SenderService {
                 SimilarityMeasure.DOT_PRODUCT,
                 embeddingSize,
                 model.getServiceSettings().getCommonSettings().getMaxInputTokens(),
-                model.getServiceSettings().getCommonSettings().getModel()
+                model.getServiceSettings().getCommonSettings().getModelId()
             ),
             model.getServiceSettings().getEmbeddingType()
         );

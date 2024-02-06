@@ -645,8 +645,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         try {
             Files.createSymbolicLink(symLinkPath, dataPath);
         } catch (FileSystemException e) {
-            if (IOUtils.WINDOWS && e.getMessage().equals("A required privilege is not held by the client")) {
-                throw new AssumptionViolatedException("Symlinks on windows needs admin privileges", e);
+            if (IOUtils.WINDOWS && "A required privilege is not held by the client".equals(e.getReason())) {
+                throw new AssumptionViolatedException("Symlinks on Windows need admin privileges", e);
             } else {
                 throw e;
             }

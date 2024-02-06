@@ -5,9 +5,8 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.analysis;
+package org.elasticsearch.xpack.esql;
 
-import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.ql.common.Failure;
 
 import java.util.Collection;
@@ -17,7 +16,7 @@ public class VerificationException extends EsqlClientException {
         super(message, args);
     }
 
-    protected VerificationException(Collection<Failure> sources) {
+    public VerificationException(Collection<Failure> sources) {
         super(Failure.failMessage(sources));
     }
 

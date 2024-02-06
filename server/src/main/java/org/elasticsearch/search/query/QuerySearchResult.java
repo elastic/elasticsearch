@@ -240,11 +240,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * @throws IllegalStateException if {@link #releaseAggs()} has already being called.
      */
     public void releaseAggs() {
-        if (aggregations == null) {
-            throw new IllegalStateException("aggs already released");
+        if (aggregations != null) {
+            aggregations.close();
+            aggregations = null;
         }
-        aggregations.close();
-        aggregations = null;
     }
 
     public void addReleasable(Releasable releasable) {

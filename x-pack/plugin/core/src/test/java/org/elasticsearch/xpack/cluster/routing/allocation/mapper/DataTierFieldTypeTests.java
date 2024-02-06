@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation.mapper;
 
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -128,6 +129,6 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
 
     public void testConstantFieldAlwaysHaveValue() {
         MappedFieldType fieldType = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        assertTrue(fieldType.fieldHasValue(List.of()));
+        assertTrue(fieldType.fieldHasValue(FieldInfos.EMPTY));
     }
 }

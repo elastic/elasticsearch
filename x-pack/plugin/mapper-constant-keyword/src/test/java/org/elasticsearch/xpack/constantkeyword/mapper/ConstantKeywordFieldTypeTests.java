@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.util.automaton.RegExp;
@@ -129,6 +130,6 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testConstantFieldAlwaysHaveValue() {
         MappedFieldType fieldType = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        assertTrue(fieldType.fieldHasValue(List.of()));
+        assertTrue(fieldType.fieldHasValue(FieldInfos.EMPTY));
     }
 }

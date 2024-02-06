@@ -11,29 +11,27 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueue;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -49,51 +47,103 @@ import static org.elasticsearch.core.Strings.format;
  * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
  */
-class HttpRequestExecutorService implements ExecutorService {
-    private static final Logger logger = LogManager.getLogger(HttpRequestExecutorService.class);
+class RequestExecutorService implements RequestExecutor {
 
+    private static final AdjustableCapacityBlockingQueue.QueueCreator<AbstractRunnable> QUEUE_CREATOR =
+        new AdjustableCapacityBlockingQueue.QueueCreator<>() {
+            @Override
+            public BlockingQueue<AbstractRunnable> create(int capacity) {
+                BlockingQueue<AbstractRunnable> queue;
+                if (capacity <= 0) {
+                    queue = create();
+                } else {
+                    queue = new LinkedBlockingQueue<>(capacity);
+                }
+
+                return queue;
+            }
+
+            @Override
+            public BlockingQueue<AbstractRunnable> create() {
+                return new LinkedBlockingQueue<>();
+            }
+        };
+
+    private static final Logger logger = LogManager.getLogger(RequestExecutorService.class);
     private final String serviceName;
-    private final BlockingQueue<HttpTask> queue;
+    private final AdjustableCapacityBlockingQueue<AbstractRunnable> queue;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
     private final HttpClientContext httpContext;
     private final HttpClient httpClient;
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
+    private final BlockingQueue<Runnable> controlQueue = new LinkedBlockingQueue<>();
 
-    @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
-    HttpRequestExecutorService(String serviceName, HttpClient httpClient, ThreadPool threadPool, @Nullable CountDownLatch startupLatch) {
-        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(), startupLatch);
-    }
-
-    @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
-    HttpRequestExecutorService(
+    RequestExecutorService(
         String serviceName,
         HttpClient httpClient,
         ThreadPool threadPool,
-        int capacity,
-        @Nullable CountDownLatch startupLatch
+        @Nullable CountDownLatch startupLatch,
+        RequestExecutorServiceSettings settings
     ) {
-        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(capacity), startupLatch);
+        this(serviceName, httpClient, threadPool, QUEUE_CREATOR, startupLatch, settings);
+    }
+
+    private static BlockingQueue<AbstractRunnable> buildQueue(int capacity) {
+        BlockingQueue<AbstractRunnable> queue;
+        if (capacity <= 0) {
+            queue = new LinkedBlockingQueue<>();
+        } else {
+            queue = new LinkedBlockingQueue<>(capacity);
+        }
+
+        return queue;
     }
 
     /**
      * This constructor should only be used directly for testing.
      */
-    @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
-    HttpRequestExecutorService(
+    RequestExecutorService(
         String serviceName,
         HttpClient httpClient,
         ThreadPool threadPool,
-        BlockingQueue<HttpTask> queue,
-        @Nullable CountDownLatch startupLatch
+        AdjustableCapacityBlockingQueue.QueueCreator<AbstractRunnable> createQueue,
+        @Nullable CountDownLatch startupLatch,
+        RequestExecutorServiceSettings settings
     ) {
         this.serviceName = Objects.requireNonNull(serviceName);
         this.httpClient = Objects.requireNonNull(httpClient);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.httpContext = HttpClientContext.create();
-        this.queue = queue;
+        this.queue = new AdjustableCapacityBlockingQueue<>(createQueue, settings.getQueueCapacity());
         this.startupLatch = startupLatch;
+
+        Objects.requireNonNull(settings);
+        settings.registerQueueCapacityCallback(this::onCapacityChange);
+    }
+
+    private void onCapacityChange(int capacity) {
+        logger.debug(() -> Strings.format("Setting queue capacity to [%s]", capacity));
+
+        var enqueuedCapacityCommand = controlQueue.offer(() -> updateCapacity(capacity));
+        if (enqueuedCapacityCommand == false) {
+            logger.warn("Failed to change request batching service queue capacity. Control queue was full, please try again later.");
+        } else {
+            // ensure that the task execution loop wakes up
+            queue.offer(new NoopTask());
+        }
+    }
+
+    private void updateCapacity(int newCapacity) {
+        try {
+            queue.setCapacity(newCapacity);
+        } catch (Exception e) {
+            logger.warn(
+                format("Failed to set the capacity of the task queue to [%s] for request batching service [%s]", newCapacity, serviceName),
+                e
+            );
+        }
     }
 
     /**
@@ -125,13 +175,18 @@ class HttpRequestExecutorService implements ExecutorService {
      * Protects the task retrieval logic from an unexpected exception.
      *
      * @throws InterruptedException rethrows the exception if it occurred retrieving a task because the thread is likely attempting to
-     * shut down
+     *                              shut down
      */
     private void handleTasks() throws InterruptedException {
         try {
-            HttpTask task = queue.take();
-            if (task.shouldShutdown() || running.get() == false) {
-                running.set(false);
+            AbstractRunnable task = queue.take();
+
+            var command = controlQueue.poll();
+            if (command != null) {
+                command.run();
+            }
+
+            if (running.get() == false) {
                 logger.debug(() -> format("Http executor service [%s] exiting", serviceName));
             } else {
                 executeTask(task);
@@ -143,7 +198,7 @@ class HttpRequestExecutorService implements ExecutorService {
         }
     }
 
-    private void executeTask(HttpTask task) {
+    private void executeTask(AbstractRunnable task) {
         try {
             task.run();
         } catch (Exception e) {
@@ -155,18 +210,16 @@ class HttpRequestExecutorService implements ExecutorService {
         assert isShutdown() : "Requests should only be notified if the executor is shutting down";
 
         try {
-            List<HttpTask> notExecuted = new ArrayList<>();
+            List<AbstractRunnable> notExecuted = new ArrayList<>();
             queue.drainTo(notExecuted);
 
-            for (HttpTask task : notExecuted) {
-                rejectTask(task);
-            }
+            rejectTasks(notExecuted, this::rejectTaskBecauseOfShutdown);
         } catch (Exception e) {
             logger.warn(format("Failed to notify tasks of queuing service [%s] shutdown", serviceName));
         }
     }
 
-    private void rejectTask(HttpTask task) {
+    private void rejectTaskBecauseOfShutdown(AbstractRunnable task) {
         try {
             task.onRejection(
                 new EsRejectedExecutionException(
@@ -181,6 +234,12 @@ class HttpRequestExecutorService implements ExecutorService {
         }
     }
 
+    private void rejectTasks(List<AbstractRunnable> tasks, Consumer<AbstractRunnable> rejectionFunction) {
+        for (var task : tasks) {
+            rejectionFunction.accept(task);
+        }
+    }
+
     public int queueSize() {
         return queue.size();
     }
@@ -189,14 +248,8 @@ class HttpRequestExecutorService implements ExecutorService {
     public void shutdown() {
         if (running.compareAndSet(true, false)) {
             // if this fails because the queue is full, that's ok, we just want to ensure that queue.take() returns
-            queue.offer(new ShutdownTask());
+            queue.offer(new NoopTask());
         }
-    }
-
-    @Override
-    public List<Runnable> shutdownNow() {
-        shutdown();
-        return new ArrayList<>(queue);
     }
 
     @Override
@@ -216,13 +269,14 @@ class HttpRequestExecutorService implements ExecutorService {
 
     /**
      * Send the request at some point in the future.
-     * @param request the http request to send
-     * @param timeout the maximum time to wait for this request to complete (failing or succeeding). Once the time elapses, the
-     *                listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
-     *                If null, then the request will wait forever
+     *
+     * @param request  the http request to send
+     * @param timeout  the maximum time to wait for this request to complete (failing or succeeding). Once the time elapses, the
+     *                 listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
+     *                 If null, then the request will wait forever
      * @param listener an {@link ActionListener<HttpResult>} for the response or failure
      */
-    public void send(HttpRequest request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
+    public void execute(HttpRequest request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
         RequestTask task = new RequestTask(request, httpClient, httpContext, timeout, threadPool, listener);
 
         if (isShutdown()) {
@@ -251,69 +305,8 @@ class HttpRequestExecutorService implements ExecutorService {
         }
     }
 
-    /**
-     * This method is not supported. Use {@link #send} instead.
-     * @param runnable the runnable task
-     */
-    @Override
-    public void execute(Runnable runnable) {
-        throw new UnsupportedOperationException("use send instead");
-    }
-
-    /**
-     * This method is not supported. Use {@link #send} instead.
-     */
-    @Override
-    public <T> Future<T> submit(Callable<T> task) {
-        throw new UnsupportedOperationException("use send instead");
-    }
-
-    /**
-     * This method is not supported. Use {@link #send} instead.
-     */
-    @Override
-    public <T> Future<T> submit(Runnable task, T result) {
-        throw new UnsupportedOperationException("use send instead");
-    }
-
-    /**
-     * This method is not supported. Use {@link #send} instead.
-     */
-    @Override
-    public Future<?> submit(Runnable task) {
-        throw new UnsupportedOperationException("use send instead");
-    }
-
-    /**
-     * This method is not supported. Use {@link #send} instead.
-     */
-    @Override
-    public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) throws InterruptedException {
-        throw new UnsupportedOperationException("use send instead");
-    }
-
-    /**
-     * This method is not supported. Use {@link #send} instead.
-     */
-    @Override
-    public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) throws InterruptedException {
-        throw new UnsupportedOperationException("use send instead");
-    }
-
-    /**
-     * This method is not supported. Use {@link #send} instead.
-     */
-    @Override
-    public <T> T invokeAny(Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
-        throw new UnsupportedOperationException("use send instead");
-    }
-
-    /**
-     * This method is not supported. Use {@link #send} instead.
-     */
-    @Override
-    public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) throws InterruptedException,
-        ExecutionException, TimeoutException {
-        throw new UnsupportedOperationException("use send instead");
+    // default for testing
+    int remainingQueueCapacity() {
+        return queue.remainingCapacity();
     }
 }

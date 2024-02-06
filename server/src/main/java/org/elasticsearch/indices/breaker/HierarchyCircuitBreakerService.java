@@ -739,7 +739,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                     if (initialCollectionCount != gcCountSupplier.getAsLong()) {
                         break;
                     }
-                    localBlackHole += new byte[allocationSize].hashCode();
+                    localBlackHole += System.identityHashCode(new byte[allocationSize]);
                 }
 
                 blackHole += localBlackHole;

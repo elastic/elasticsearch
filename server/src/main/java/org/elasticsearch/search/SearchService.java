@@ -1281,6 +1281,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 new IllegalArgumentException("disabling [track_total_hits] is not allowed in a scroll context")
             );
         }
+        if (source.trackTotalHitsUpTo() != null) {
+            context.trackTotalHitsUpTo(source.trackTotalHitsUpTo());
+        }
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
         }

@@ -21,7 +21,8 @@ For each cluster in the index expression, information is returned about:
 2. whether each remote cluster is configured with `skip_unavailable` as `true` or `false`
 3. whether there are any indices, aliases or data streams on that cluster that match
    the index expression
-4. whether the search is likely to have errors returned when you do the {ccs}
+4. whether the search is likely to have errors returned when you do the {ccs} (including any
+   authorization errors if your user does not have permission to query the index)
 5. cluster version information, including the Elasticsearch server version
 
 ////

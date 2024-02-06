@@ -47,10 +47,10 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
         return NAME;
     }
 
-    public static final class TransportAutoRolloverAction extends TransportRolloverAction {
+    public static final class TransportLazyRolloverAction extends TransportRolloverAction {
 
         @Inject
-        public TransportAutoRolloverAction(
+        public TransportLazyRolloverAction(
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,

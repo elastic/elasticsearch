@@ -437,7 +437,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }, refs.acquire()));
             }
             for (String dataStream : dataStreamsToBeRolledOver) {
-                autoRolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
+                lazyRolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
 
                     @Override
                     public void onResponse(RolloverResponse result) {
@@ -446,7 +446,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // - A request had conditions that were not met
                         // Since none of the above apply, getting a response with rolled_over false is considered a bug
                         // that should be caught here and inform the developer.
-                        assert result.isRolledOver() : "An successful auto rollover should always result in a rolled over data stream";
+                        assert result.isRolledOver() : "An successful lazy rollover should always result in a rolled over data stream";
                     }
 
                     @Override
@@ -574,7 +574,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
     }
 
-    void autoRolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {
+    void lazyRolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
         rolloverRequest.masterNodeTimeout(timeout);
         // We are executing a lazy rollover because it is an action specialised for this situation, when we want an

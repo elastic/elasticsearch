@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
@@ -225,7 +226,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             HttpRequestSenderFactory.HttpRequestSender.getSettings(),
             ThrottlerManager.getSettings(),
             RetrySettings.getSettingsDefinitions(),
-            Truncator.getSettings()
+            Truncator.getSettings(),
+            RequestExecutorServiceSettings.getSettingsDefinitions()
         ).flatMap(Collection::stream).collect(Collectors.toList());
     }
 

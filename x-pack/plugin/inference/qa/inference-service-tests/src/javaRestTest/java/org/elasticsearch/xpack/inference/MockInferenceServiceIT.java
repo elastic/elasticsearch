@@ -29,7 +29,7 @@ public class MockInferenceServiceIT extends InferenceBaseRestTest {
         }
 
         // The response is randomly generated, the input can be anything
-        var inference = inferOnMockService(inferenceEntityId, TaskType.SPARSE_EMBEDDING, List.of(randomAlphaOfLength(10)));
+        var inference = inferOnMockService(inferenceEntityId, List.of(randomAlphaOfLength(10)));
         assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
     }
 

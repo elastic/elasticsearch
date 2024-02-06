@@ -30,7 +30,7 @@ setup:
           name: my-connector-2
           language: en
           is_native: true
-          service_type: super-connector
+          service_type: extra-connector
 
 ---
 "List Connectors":
@@ -161,6 +161,61 @@ setup:
   - match: { count: 1 }
   - match: { results.0.index_name: "search-2-test" }
   - match: { results.0.name: "my-connector-2" }
+
+
+---
+"List Connector - filter by service type":
+  - do:
+      connector.list:
+        service_type: super-connector
+
+  - match: { count: 2 }
+  - match: { results.0.id: "connector-a" }
+  - match: { results.1.id: "connector-c" }
+
+  - do:
+      connector.list:
+        service_type: extra-connector
+
+  - match: { count: 1 }
+  - match: { results.0.id: "connector-b" }
+
+---
+"List Connector - filter by multiple service types":
+  - do:
+      connector.list:
+        service_type: super-connector,extra-connector
+
+  - match: { count: 3 }
+
+---
+"List Connector - filter by search query":
+  - do:
+      connector.list:
+        query: my-connector-1
+
+  - match: { count: 1 }
+  - match: { results.0.id: "connector-a" }
+
+  - do:
+      connector.list:
+        query: my-connector
+
+  - match: { count: 3 }
+
+
+  - do:
+      connector.list:
+        query: search-3-test
+
+  - match: { count: 1 }
+
+  - do:
+      connector.list:
+        query: search-
+
+  - match: { count: 3 }
+
 
 
 

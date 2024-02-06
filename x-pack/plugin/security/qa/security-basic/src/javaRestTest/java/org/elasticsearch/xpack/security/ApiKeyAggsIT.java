@@ -368,6 +368,29 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 assertThat(((Map<String, Object>) aggs.get("type_value_count")).get("value"), is(4));
             }
         });
+        // runtime type field is disallowed
+        {
+            Request request = new Request("GET", "/_security/_query/api_key");
+            request.setOptions(
+                request.getOptions()
+                    .toBuilder()
+                    .addHeader(HttpHeaders.AUTHORIZATION, randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER))
+            );
+            request.setJsonEntity("""
+                {
+                  "aggs": {
+                    "type_value_count": {
+                      "value_count": {
+                        "field": "runtime_key_type"
+                      }
+                    }
+                  }
+                }
+                """);
+            ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
+            assertThat(exception.getMessage(), containsString("Field [runtime_key_type] is not allowed for API Key query or aggregation"));
+        }
     }
 
     void assertAggs(String authHeader, String body, Consumer<Map<String, Object>> aggsVerifier) throws IOException {

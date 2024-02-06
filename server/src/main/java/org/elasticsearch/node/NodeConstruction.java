@@ -68,6 +68,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.logging.LoggingContextProvider;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -145,6 +146,7 @@ import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.InferenceRegistryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.LoggingContextPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -995,6 +997,14 @@ class NodeConstruction {
             systemIndices.getExecutorSelector(),
             telemetryProvider.getTracer()
         );
+
+        final Stream<LoggingContextPlugin> loggingContextPlugins = pluginsService.filterPlugins(LoggingContextPlugin.class);
+        loggingContextPlugins.findFirst()
+            .ifPresent(
+                loggingContextPlugin -> LoggingContextProvider.registerLoggingContextProvider(
+                    loggingContextPlugin.getLoggingContextSupplier()
+                )
+            );
 
         modules.add(
             loadPersistentTasksService(

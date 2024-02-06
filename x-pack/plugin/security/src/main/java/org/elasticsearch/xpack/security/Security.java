@@ -75,6 +75,7 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.LoggingContextPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -425,7 +426,8 @@ public class Security extends Plugin
         ExtensiblePlugin,
         SearchPlugin,
         RestServerActionPlugin,
-        ReloadablePlugin {
+        ReloadablePlugin,
+        LoggingContextPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
@@ -1993,6 +1995,17 @@ public class Security extends Plugin
             future
         );
         future.actionGet();
+    }
+
+    @Override
+    public Supplier<Map<String, String>> getLoggingContextSupplier() {
+        return () -> {
+            if (this.securityContext.get() == null || this.securityContext.get().getAuthentication() == null) {
+                return Map.of();
+            }
+            String principal = this.securityContext.get().getAuthentication().getEffectiveSubject().getUser().principal();
+            return Map.of("effective_user", principal);
+        };
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

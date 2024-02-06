@@ -214,7 +214,7 @@ setup:
 "field collapsing and scroll":
 
   - do:
-      catch:      /\[collapse\] cannot be used in a scroll context/
+      catch:      /cannot use \`collapse\` in a scroll context/
       search:
         rest_total_hits_as_int: true
         index: test
@@ -285,7 +285,7 @@ setup:
 "field collapsing and rescore":
 
   - do:
-      catch:      /\[collapse\] cannot be used in conjunction with \[rescore\]/
+      catch:      /cannot use \`collapse\` in conjunction with \`rescore\`/
       search:
         rest_total_hits_as_int: true
         index: test

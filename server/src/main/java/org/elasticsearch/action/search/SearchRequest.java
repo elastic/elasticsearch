@@ -344,7 +344,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     validationException = addValidationError("[search_after] cannot be used in a scroll context", validationException);
                 }
                 if (source.collapse() != null) {
-                    validationException = addValidationError("[collapse] cannot be used in a scroll context", validationException);
+                    validationException = addValidationError("cannot use `collapse` in a scroll context", validationException);
                 }
             }
             if (requestCache != null && requestCache) {
@@ -367,7 +367,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 );
             }
             if (source.collapse() != null && source.rescores() != null && source.rescores().isEmpty() == false) {
-                validationException = addValidationError("[collapse] cannot be used in conjunction with [rescore]", validationException);
+                validationException = addValidationError("cannot use `collapse` in conjunction with `rescore`", validationException);
             }
             if (source.storedFields() != null) {
                 if (source.storedFields().fetchFields() == false) {

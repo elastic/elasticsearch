@@ -5,7 +5,7 @@ type: breaking
 issues: []
 breaking:
   title: "ES|QL: remove PROJECT keyword from the grammar"
-  area: ES|QL
+  area: REST API
   details: "Removes the PROJECT keyword (an alias for KEEP) from ES|QL grammar"
   impact: "Before this change, users could use PROJECT as an alias for KEEP in ESQL queries,\
     \ (eg. 'FROM idx | PROJECT name, surname')\

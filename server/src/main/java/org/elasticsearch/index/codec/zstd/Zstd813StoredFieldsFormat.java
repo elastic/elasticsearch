@@ -41,7 +41,7 @@ public final class Zstd813StoredFieldsFormat extends Lucene90CompressingStoredFi
 
     public enum Mode {
         BEST_SPEED(0, BEST_SPEED_BLOCK_SIZE, 128),
-        BEST_COMPRESSION(9, BEST_COMPRESSION_BLOCK_SIZE, 2048);
+        BEST_COMPRESSION(3, BEST_COMPRESSION_BLOCK_SIZE, 2048);
 
         final int level, blockSizeInBytes, blockDocCount;
 

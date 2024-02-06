@@ -105,8 +105,3 @@ include::{esql-specs}/docs.csv-spec[tag=keepWildcardLowest]
 |===
 include::{esql-specs}/docs.csv-spec[tag=keep-wildcard-lowest-result]
 |===
-
-
-
-
-

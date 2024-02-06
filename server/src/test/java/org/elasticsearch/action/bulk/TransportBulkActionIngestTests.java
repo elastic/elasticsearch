@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
@@ -55,13 +56,16 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
@@ -83,6 +87,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
      */
     private static final String WITH_DEFAULT_PIPELINE = "index_with_default_pipeline";
     private static final String WITH_DEFAULT_PIPELINE_ALIAS = "alias_for_index_with_default_pipeline";
+    private static final String WITH_FAILURE_STORE_ENABLED = "data-stream-failure-store-enabled";
 
     private static final Settings SETTINGS = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true).build();
 
@@ -96,6 +101,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     ThreadPool threadPool;
 
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
+    @Captor
+    ArgumentCaptor<Predicate<String>> redirectPredicate;
+    @Captor
+    ArgumentCaptor<TriConsumer<Integer, String, Exception>> redirectHandler;
     @Captor
     ArgumentCaptor<BiConsumer<Integer, Exception>> failureHandler;
     @Captor
@@ -177,7 +186,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     }
 
     @Before
-    public void setupAction() {
+    public void setupAction() throws IOException {
         // initialize captors, which must be members to use @Capture because of generics
         threadPool = mock(ThreadPool.class);
         MockitoAnnotations.openMocks(this);
@@ -215,6 +224,15 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                         .system(true)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
+                        .build()
+                )
+            )
+            .indexTemplates(
+                Map.of(
+                    WITH_FAILURE_STORE_ENABLED,
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(WITH_FAILURE_STORE_ENABLED + "*"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
                         .build()
                 )
             )
@@ -263,8 +281,12 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         IndexRequest indexRequest2 = new IndexRequest("index").id("id");
         indexRequest2.source(Collections.emptyMap());
         indexRequest2.setPipeline("testpipeline");
+        IndexRequest indexRequest3 = new IndexRequest("index").id("id");
+        indexRequest3.source(Collections.emptyMap());
+        indexRequest3.setPipeline("testpipeline");
         bulkRequest.add(indexRequest1);
         bulkRequest.add(indexRequest2);
+        bulkRequest.add(indexRequest3);
 
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
@@ -285,6 +307,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
+            redirectPredicate.capture(),
+            redirectHandler.capture(),
             failureHandler.capture(),
             completionHandler.capture(),
             eq(Names.WRITE)
@@ -296,7 +320,11 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         Iterator<DocWriteRequest<?>> req = bulkDocsItr.getValue().iterator();
         failureHandler.getValue().accept(0, exception); // have an exception for our one index request
         indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
+        assertTrue(redirectPredicate.getValue().test(WITH_FAILURE_STORE_ENABLED + "-1")); // ensure redirects on failure store data stream
+        assertFalse(redirectPredicate.getValue().test(WITH_DEFAULT_PIPELINE)); // no redirects for random existing indices
+        assertFalse(redirectPredicate.getValue().test("index")); // no redirects for non-existant indices with no templates
+        redirectHandler.getValue().apply(2, WITH_FAILURE_STORE_ENABLED + "-1", exception); // exception and redirect for request 3 (slot 2)
+        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null); // all ingestion completed
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
         verifyNoMoreInteractions(transportService);
@@ -326,6 +354,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
+            any(),
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
@@ -373,6 +403,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
+            any(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
             eq(Names.SYSTEM_WRITE)
@@ -406,7 +438,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(action, null, bulkRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -446,7 +478,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -530,6 +562,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
+            any(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
             eq(Names.WRITE)
@@ -577,6 +611,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
+            any(),
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
@@ -672,6 +708,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             eq(1),
             bulkDocsItr.capture(),
             any(),
+            any(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
             eq(Names.WRITE)
@@ -710,6 +748,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             eq(1),
             bulkDocsItr.capture(),
             any(),
+            any(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
             eq(Names.WRITE)
@@ -736,6 +776,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
+            any(),
+            any(),
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
@@ -773,6 +815,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
+            any(),
             any(),
             failureHandler.capture(),
             completionHandler.capture(),

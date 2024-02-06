@@ -37,10 +37,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -50,6 +52,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
@@ -64,6 +67,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
@@ -328,7 +332,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executorName, l);
+                    processBulkIndexIngestRequest(task, bulkRequest, executorName, metadata, l);
                 } else {
                     ingestForwarder.forwardIngestRequest(bulkAction, bulkRequest, l);
                 }
@@ -639,6 +643,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Task task,
         BulkRequest original,
         String executorName,
+        Metadata metadata,
         ActionListener<BulkResponse> listener
     ) {
         final long ingestStartTimeInNanos = System.nanoTime();
@@ -647,6 +652,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             original.numberOfActions(),
             () -> bulkRequestModifier,
             bulkRequestModifier::markItemAsDropped,
+            (indexName) -> shouldStoreFailure(indexName, metadata, threadPool.absoluteTimeInMillis()),
+            bulkRequestModifier::markItemForFailureStore,
             bulkRequestModifier::markItemAsFailed,
             (originalThread, exception) -> {
                 if (exception != null) {
@@ -694,4 +701,79 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         );
     }
 
+    /**
+     * Determines if an index name is associated with either an existing data stream or a template
+     * for one that has the failure store enabled.
+     * @param indexName The index name to check.
+     * @param metadata Cluster state metadata.
+     * @param epochMillis A timestamp to use when resolving date math in the index name.
+     * @return true if the given index name corresponds to a data stream with a failure store,
+     * or if it matches a template that has a data stream failure store enabled.
+     */
+    static boolean shouldStoreFailure(String indexName, Metadata metadata, long epochMillis) {
+        return DataStream.isFailureStoreEnabled()
+            && resolveFailureStoreFromMetadata(indexName, metadata, epochMillis).or(
+                () -> resolveFailureStoreFromTemplate(indexName, metadata)
+            ).orElse(false);
+    }
+
+    /**
+     * Determines if an index name is associated with an existing data stream that has a failure store enabled.
+     * @param indexName The index name to check.
+     * @param metadata Cluster state metadata.
+     * @param epochMillis A timestamp to use when resolving date math in the index name.
+     * @return true if the given index name corresponds to an existing data stream with a failure store enabled.
+     */
+    private static Optional<Boolean> resolveFailureStoreFromMetadata(String indexName, Metadata metadata, long epochMillis) {
+        if (indexName == null) {
+            return Optional.empty();
+        }
+
+        // Get index abstraction, resolving date math if it exists
+        IndexAbstraction indexAbstraction = metadata.getIndicesLookup()
+            .get(IndexNameExpressionResolver.resolveDateMathExpression(indexName, epochMillis));
+
+        // We only store failures if the failure is being written to a data stream,
+        // not when directly writing to backing indices/failure stores
+        if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
+            return Optional.empty();
+        }
+
+        // Locate the write index for the abstraction, and check if it has a data stream associated with it.
+        // This handles alias resolution as well as data stream resolution.
+        Index writeIndex = indexAbstraction.getWriteIndex();
+        assert writeIndex != null : "Could not resolve write index for resource [" + indexName + "]";
+        IndexAbstraction writeAbstraction = metadata.getIndicesLookup().get(writeIndex.getName());
+        DataStream targetDataStream = writeAbstraction.getParentDataStream();
+
+        // We will store the failure if the write target belongs to a data stream with a failure store.
+        return Optional.of(targetDataStream != null && targetDataStream.isFailureStore());
+    }
+
+    /**
+     * Determines if an index name is associated with an index template that has a data stream failure store enabled.
+     * @param indexName The index name to check.
+     * @param metadata Cluster state metadata.
+     * @return true if the given index name corresponds to an index template with a data stream failure store enabled.
+     */
+    private static Optional<Boolean> resolveFailureStoreFromTemplate(String indexName, Metadata metadata) {
+        if (indexName == null) {
+            return Optional.empty();
+        }
+
+        // Check to see if the index name matches any templates such that an index would have been attributed
+        // We don't check v1 templates at all because failure stores can only exist on data streams via a v2 template
+        String template = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
+        if (template != null) {
+            // Check if this is a data stream template or if it is just a normal index.
+            ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(template);
+            if (composableIndexTemplate.getDataStreamTemplate() != null) {
+                // Check if the data stream has the failure store enabled
+                return Optional.of(composableIndexTemplate.getDataStreamTemplate().hasFailureStore());
+            }
+        }
+
+        // Could not locate a failure store via template
+        return Optional.empty();
+    }
 }

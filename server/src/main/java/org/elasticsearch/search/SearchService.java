@@ -1273,10 +1273,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.trackTotalHitsUpTo() != null
             && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
             && context.scrollContext() != null) {
-            //this check is now performed in the coord node, data nodes still need to check it for bw comp.
+            // this check is now performed in the coord node, data nodes still need to check it for bw comp.
             // You could have a coord node in the previous version that does not perform the check, in which case the shard must check.
-            throw new SearchException(shardTarget, "disabling [track_total_hits] is not allowed in a scroll context",
-                new IllegalArgumentException("disabling [track_total_hits] is not allowed in a scroll context"));
+            throw new SearchException(
+                shardTarget,
+                "disabling [track_total_hits] is not allowed in a scroll context",
+                new IllegalArgumentException("disabling [track_total_hits] is not allowed in a scroll context")
+            );
         }
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
@@ -1402,15 +1405,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.groupStats(source.stats());
         }
         if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
-            //these checks are now performed in the coord node, data nodes still need to check it for bw comp.
+            // these checks are now performed in the coord node, data nodes still need to check it for bw comp.
             // You could have a coord node in the previous version that does not perform the check, in which case the shard must check.
             if (context.scrollContext() != null) {
-                throw new SearchException(shardTarget, "`search_after` cannot be used in a scroll context.",
-                    new IllegalArgumentException("`search_after` cannot be used in a scroll context."));
+                throw new SearchException(
+                    shardTarget,
+                    "`search_after` cannot be used in a scroll context.",
+                    new IllegalArgumentException("`search_after` cannot be used in a scroll context.")
+                );
             }
             if (context.from() > 0) {
-                throw new SearchException(shardTarget, "`from` parameter must be set to 0 when `search_after` is used.",
-                    new IllegalArgumentException("`from` parameter must be set to 0 when `search_after` is used."));
+                throw new SearchException(
+                    shardTarget,
+                    "`from` parameter must be set to 0 when `search_after` is used.",
+                    new IllegalArgumentException("`from` parameter must be set to 0 when `search_after` is used.")
+                );
             }
             String collapseField = source.collapse() != null ? source.collapse().getField() : null;
             FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter(), collapseField);
@@ -1419,40 +1428,55 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (source.slice() != null) {
             if (source.pointInTimeBuilder() == null && context.scrollContext() == null) {
-                //this check is now performed in the coord node, data nodes still need to check it for bw comp.
+                // this check is now performed in the coord node, data nodes still need to check it for bw comp.
                 // You could have a coord node in the previous version that does not perform the check, then the shard must check.
-                throw new SearchException(shardTarget, "[slice] can only be used with [scroll] or [point-in-time] requests",
-                    new IllegalArgumentException("[slice] can only be used with [scroll] or [point-in-time] requests"));
+                throw new SearchException(
+                    shardTarget,
+                    "[slice] can only be used with [scroll] or [point-in-time] requests",
+                    new IllegalArgumentException("[slice] can only be used with [scroll] or [point-in-time] requests")
+                );
             }
             context.sliceBuilder(source.slice());
         }
 
         if (source.storedFields() != null) {
             if (source.storedFields().fetchFields() == false) {
-                //these checks are now performed in the coord node, data nodes still need to check it for bw comp.
+                // these checks are now performed in the coord node, data nodes still need to check it for bw comp.
                 // You could have a coord node in the previous version that does not perform the check, in which case the shard must check.
                 if (context.sourceRequested()) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [_source] is requested",
-                        new IllegalArgumentException("[stored_fields] cannot be disabled if [_source] is requested"));
+                    throw new SearchException(
+                        shardTarget,
+                        "[stored_fields] cannot be disabled if [_source] is requested",
+                        new IllegalArgumentException("[stored_fields] cannot be disabled if [_source] is requested")
+                    );
                 }
                 if (context.fetchFieldsContext() != null) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled when using the [fields] option",
-                        new IllegalArgumentException("[stored_fields] cannot be disabled if [_source] is requested"));
+                    throw new SearchException(
+                        shardTarget,
+                        "[stored_fields] cannot be disabled when using the [fields] option",
+                        new IllegalArgumentException("[stored_fields] cannot be disabled if [_source] is requested")
+                    );
                 }
             }
             context.storedFieldsContext(source.storedFields());
         }
 
         if (source.collapse() != null) {
-            //these checks are now performed in the coord node, data nodes still need to check it for bw comp.
+            // these checks are now performed in the coord node, data nodes still need to check it for bw comp.
             // You could have a coord node in the previous version that does not perform the check, in which case the shard must check.
             if (context.scrollContext() != null) {
-                throw new SearchException(shardTarget, "cannot use `collapse` in a scroll context",
-                    new IllegalArgumentException("cannot use `collapse` in a scroll context"));
+                throw new SearchException(
+                    shardTarget,
+                    "cannot use `collapse` in a scroll context",
+                    new IllegalArgumentException("cannot use `collapse` in a scroll context")
+                );
             }
             if (context.rescore() != null && context.rescore().isEmpty() == false) {
-                throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `rescore`",
-                    new IllegalArgumentException("cannot use `collapse` in a scroll context"));
+                throw new SearchException(
+                    shardTarget,
+                    "cannot use `collapse` in conjunction with `rescore`",
+                    new IllegalArgumentException("cannot use `collapse` in a scroll context")
+                );
             }
             final CollapseContext collapseContext = source.collapse().build(searchExecutionContext);
             context.collapse(collapseContext);

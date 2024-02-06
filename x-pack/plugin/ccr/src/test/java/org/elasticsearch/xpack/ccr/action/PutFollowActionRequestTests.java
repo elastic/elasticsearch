@@ -64,7 +64,7 @@ public class PutFollowActionRequestTests extends AbstractXContentSerializingTest
         PutFollowAction.Request request = PutFollowAction.Request.fromXContent(parser);
         request.waitForActiveShards(ActiveShardCount.DEFAULT);
         request.setFollowerIndex("followerIndex");
-        return PutFollowAction.Request.fromXContent(parser);
+        return request;
     }
 
     @Override

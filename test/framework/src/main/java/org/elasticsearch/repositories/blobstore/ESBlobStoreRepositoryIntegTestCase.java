@@ -326,7 +326,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         }
 
         Set<String> closeIndices = new HashSet<>(Arrays.asList(indexNames));
-        closeIndices.removeAll(deleteIndices);
+        deleteIndices.forEach(closeIndices::remove);
 
         if (closeIndices.size() > 0) {
             for (String index : closeIndices) {

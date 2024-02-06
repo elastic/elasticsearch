@@ -44,10 +44,9 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 final class SimilarityProviders {
 
@@ -236,8 +235,10 @@ final class SimilarityProviders {
     }
 
     static void assertSettingsIsSubsetOf(String type, IndexVersion version, Settings settings, String... supportedSettings) {
-        Set<String> unknownSettings = new HashSet<>(settings.keySet());
-        unknownSettings.removeAll(Arrays.asList(supportedSettings));
+        Set<String> unknownSettings = new TreeSet<>(settings.keySet());
+        for (String setting : supportedSettings) {
+            unknownSettings.remove(setting);
+        }
         unknownSettings.remove("type"); // used to figure out which sim this is
         if (unknownSettings.isEmpty() == false) {
             if (version.onOrAfter(IndexVersions.V_7_0_0)) {

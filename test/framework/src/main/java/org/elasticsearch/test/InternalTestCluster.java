@@ -1078,7 +1078,9 @@ public final class InternalTestCluster extends TestCluster {
             assert Thread.holdsLock(InternalTestCluster.this);
             NodeEnvironment nodeEnv = this.node.getNodeEnvironment();
             if (nodeEnv.hasNodeFile()) {
-                dataDirToClean.removeAll(Arrays.asList(nodeEnv.nodeDataPaths()));
+                for (Path path : nodeEnv.nodeDataPaths()) {
+                    dataDirToClean.remove(path);
+                }
             }
         }
     }

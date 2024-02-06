@@ -207,7 +207,7 @@ public class TransportEstimateModelMemoryAction extends HandledTransportAction<
         // Influencers that are also by/over/partition fields do not consume extra memory by being influencers
         Set<String> pureInfluencers = new HashSet<>(analysisConfig.getInfluencers());
         for (Detector detector : analysisConfig.getDetectors()) {
-            pureInfluencers.removeAll(detector.extractAnalysisFields());
+            detector.extractAnalysisFields().forEach(pureInfluencers::remove);
         }
 
         long totalInfluencerCardinality = pureInfluencers.stream()

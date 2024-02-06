@@ -245,7 +245,7 @@ public class EsqlSession {
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 AttributeSet dissectRefs = p.references();
                 // don't add to the list of fields the extracted ones (they are not real fields in mappings)
-                dissectRefs.removeAll(re.extractedFields());
+                re.extractedFields().forEach(dissectRefs::remove);
                 references.addAll(dissectRefs);
                 // also remove other down-the-tree references to the extracted fields
                 for (Attribute extracted : re.extractedFields()) {

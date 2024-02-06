@@ -77,6 +77,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -101,13 +102,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.MINUTES;
     private static final int ADDITIONAL_CONFIG_TIMEOUT = 15;
     private static final TimeUnit ADDITIONAL_CONFIG_TIMEOUT_UNIT = TimeUnit.SECONDS;
-    private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
+    private static final Set<String> OVERRIDABLE_SETTINGS = Set.of(
         "path.repo",
         "discovery.seed_providers",
         "cluster.deprecation_indexing.enabled",
         "cluster.initial_master_nodes",
         "xpack.security.enabled"
-
     );
 
     private static final int TAIL_LOG_MESSAGES_COUNT = 40;
@@ -1374,16 +1374,16 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         baseConfig.put("action.destructive_requires_name", "false");
 
-        HashSet<String> overriden = new HashSet<>(baseConfig.keySet());
-        overriden.retainAll(settings.keySet());
-        overriden.removeAll(OVERRIDABLE_SETTINGS);
-        if (overriden.isEmpty() == false) {
+        Set<String> overridden = new TreeSet<>(baseConfig.keySet());
+        overridden.retainAll(settings.keySet());
+        overridden.removeAll(OVERRIDABLE_SETTINGS);
+        if (overridden.isEmpty() == false) {
             throw new IllegalArgumentException(
-                "Testclusters does not allow the following settings to be changed:" + overriden + " for " + this
+                "Testclusters does not allow the following settings to be changed:" + overridden + " for " + this
             );
         }
         // Make sure no duplicate config keys
-        settings.keySet().stream().filter(OVERRIDABLE_SETTINGS::contains).forEach(baseConfig::remove);
+        OVERRIDABLE_SETTINGS.stream().filter(settings::containsKey).forEach(baseConfig::remove);
 
         final Path configFileRoot = configFile.getParent();
         try {

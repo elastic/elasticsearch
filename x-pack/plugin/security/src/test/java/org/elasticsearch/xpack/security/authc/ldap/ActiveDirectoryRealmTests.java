@@ -637,8 +637,6 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                         + realm.type()
                         + " realm authentication will fail. Specify a bind password via ["
                         + getFullSettingKey(config, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD)
-                        + "] or ["
-                        + getFullSettingKey(config, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD)
                         + "]."
                 )
             );

@@ -105,7 +105,7 @@ public class CohereServiceTests extends ESTestCase {
 
                 var embeddingsModel = (CohereEmbeddingsModel) model;
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
                 MatcherAssert.assertThat(
                     embeddingsModel.getTaskSettings(),
@@ -126,17 +126,6 @@ public class CohereServiceTests extends ESTestCase {
                 modelListener
             );
 
-            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
-
-            var embeddingsModel = (CohereEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
-            MatcherAssert.assertThat(
-                embeddingsModel.getTaskSettings(),
-                is(new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START))
-            );
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 

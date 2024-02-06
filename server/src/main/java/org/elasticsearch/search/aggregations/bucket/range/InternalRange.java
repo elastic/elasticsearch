@@ -373,7 +373,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         long docCount = 0;
         for (Bucket bucket : buckets) {
             docCount += bucket.docCount;
-            ;
         }
         final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
         final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);

@@ -1,0 +1,44 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test-1
+          body:
+            mappings:
+              properties:
+                foo:
+                  type: long
+                bar:
+                  type: keyword
+                empty-field:
+                  type: text
+                baz:
+                  type: constant_keyword
+                  value: constant_baz
+
+  - do:
+      index:
+        index:  test-1
+        body:   { foo: "42", "bar": "bar-keyword" }
+
+  - do:
+      indices.refresh:
+        index: [test-1]
+
+---
+"Field caps with with include_empty_field:false":
+  - skip:
+      version: " - 8.12.99"
+      reason: include_empty_field has been added in 8.13.0
+
+  - do:
+      field_caps:
+        include_empty_field: false
+        index: 'test1'
+        fields: [*]
+
+  - match: {indices:                                      ["test-1"]}
+  - is_true: fields.foo
+  - is_true: fields.bar
+  - is_false: fields.empty-field
+  - is_true: fields.baz

@@ -8,33 +8,47 @@ package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
-import java.util.function.Function;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
-public class Equals extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals implements EvaluatorMapper {
+public class Equals extends EsqlBinaryComparison implements Negatable<BinaryComparison> {
+    private static final Map<DataType, BinaryEvaluator> evaluatorMap = Map.ofEntries(
+        Map.entry(DataTypes.BOOLEAN, EqualsBoolsEvaluator.Factory::new),
+        Map.entry(DataTypes.INTEGER, EqualsIntsEvaluator.Factory::new),
+        Map.entry(DataTypes.DOUBLE, EqualsDoublesEvaluator.Factory::new),
+        Map.entry(DataTypes.LONG, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataTypes.UNSIGNED_LONG, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataTypes.DATETIME, EqualsLongsEvaluator.Factory::new),
+        Map.entry(EsqlDataTypes.GEO_POINT, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(EsqlDataTypes.CARTESIAN_POINT, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(EsqlDataTypes.GEO_SHAPE, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(EsqlDataTypes.CARTESIAN_SHAPE, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataTypes.KEYWORD, EqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataTypes.TEXT, EqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataTypes.VERSION, EqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataTypes.IP, EqualsKeywordsEvaluator.Factory::new)
+    );
+
     public Equals(Source source, Expression left, Expression right) {
-        super(source, left, right);
+        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.EQ, evaluatorMap);
     }
 
     public Equals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, zoneId);
+        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.EQ, zoneId, evaluatorMap);
     }
 
     @Override
@@ -43,7 +57,7 @@ public class Equals extends org.elasticsearch.xpack.ql.expression.predicate.oper
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals> info() {
+    protected NodeInfo<Equals> info() {
         return NodeInfo.create(this, Equals::new, left(), right(), zoneId());
     }
 
@@ -55,6 +69,11 @@ public class Equals extends org.elasticsearch.xpack.ql.expression.predicate.oper
     @Override
     public Equals swapLeftAndRight() {
         return new Equals(source(), right(), left(), zoneId());
+    }
+
+    @Override
+    public BinaryComparison reverse() {
+        return this;
     }
 
     @Override
@@ -92,37 +111,4 @@ public class Equals extends org.elasticsearch.xpack.ql.expression.predicate.oper
         return lhs.equals(rhs);
     }
 
-    @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator) {
-        // Our type is always boolean, so figure out the evaluator type from the inputs
-        DataType commonType = EsqlDataTypeRegistry.INSTANCE.commonType(left().dataType(), right().dataType());
-        var lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
-        var rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
-        if (DataTypes.isDateTime(commonType)) {
-            return new EqualsLongsEvaluator.Factory(source(), lhs, rhs);
-        }
-        if (EsqlDataTypes.isSpatial(commonType)) {
-            return new EqualsGeometriesEvaluator.Factory(source(), lhs, rhs);
-        }
-        if (commonType.equals(DataTypes.INTEGER)) {
-            return new EqualsIntsEvaluator.Factory(source(), lhs, rhs);
-        }
-        if (commonType.equals(DataTypes.LONG) || commonType.equals(DataTypes.UNSIGNED_LONG)) {
-            return new EqualsLongsEvaluator.Factory(source(), lhs, rhs);
-        }
-        if (commonType.equals(DataTypes.DOUBLE)) {
-            return new EqualsDoublesEvaluator.Factory(source(), lhs, rhs);
-        }
-        if (commonType.equals(DataTypes.BOOLEAN)) {
-            return new EqualsBoolsEvaluator.Factory(source(), lhs, rhs);
-        }
-        if (DataTypes.isString(commonType) || commonType.equals(DataTypes.VERSION) || commonType.equals(DataTypes.IP)) {
-            return new EqualsKeywordsEvaluator.Factory(source(), lhs, rhs);
-        }
-        throw new EsqlIllegalArgumentException("Unsupported type " + left().dataType());
-    }
-    @Override
-    public Boolean fold() {
-        return (Boolean) EvaluatorMapper.super.fold();
-    }
 }

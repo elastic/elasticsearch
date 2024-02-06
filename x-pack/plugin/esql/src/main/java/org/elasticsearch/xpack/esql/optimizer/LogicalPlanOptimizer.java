@@ -1007,8 +1007,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return new In(key.source(), key, values);
         }
 
-        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
-            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
+        protected org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals createEquals(
+            Expression k,
+            Set<Expression> v,
+            ZoneId finalZoneId
+        ) {
+            return new org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals(
+                k.source(),
+                k,
+                v.iterator().next(),
+                finalZoneId
+            );
         }
     }
 

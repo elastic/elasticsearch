@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class PutConnectorSecretRequest extends ActionRequest implements ToXContentObject {
 
@@ -53,7 +53,7 @@ public class PutConnectorSecretRequest extends ActionRequest implements ToXConte
     );
 
     static {
-        PARSER.declareString(optionalConstructorArg(), new ParseField("value"));
+        PARSER.declareString(constructorArg(), new ParseField("value"));
     }
 
     public static PutConnectorSecretRequest fromXContentBytes(String id, BytesReference source, XContentType xContentType) {

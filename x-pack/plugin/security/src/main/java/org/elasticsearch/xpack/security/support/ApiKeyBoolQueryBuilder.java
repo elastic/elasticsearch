@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction.API_KEY_TYPE_RUNTIME_MAPPING_FIELD;
+import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.translateQueryBuilderFields;
 
 public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
@@ -68,7 +69,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     ) {
         final ApiKeyBoolQueryBuilder finalQuery = new ApiKeyBoolQueryBuilder();
         if (queryBuilder != null) {
-            QueryBuilder processedQuery = ApiKeyFieldNameTranslators.translateQueryFields(queryBuilder, fieldNameVisitor);
+            QueryBuilder processedQuery = translateQueryBuilderFields(queryBuilder, fieldNameVisitor);
             finalQuery.must(processedQuery);
         }
         finalQuery.filter(QueryBuilders.termQuery("doc_type", "api_key"));

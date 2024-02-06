@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -44,7 +46,9 @@ import org.elasticsearch.xpack.ql.util.Check;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
@@ -66,7 +70,7 @@ public final class EsqlTranslatorHandler extends QlTranslatorHandler {
         new ExpressionTranslators.StringQueries(),
         new ExpressionTranslators.Matches(),
         new ExpressionTranslators.MultiMatches(),
-        new ExpressionTranslators.Scalars()
+        new Scalars()
     );
 
     @Override
@@ -243,6 +247,28 @@ public final class EsqlTranslatorHandler extends QlTranslatorHandler {
             }
 
             return minValue.compareTo(decimalValue) <= 0 && maxValue.compareTo(decimalValue) >= 0;
+        }
+    }
+
+    public static class Scalars extends ExpressionTranslator<ScalarFunction> {
+        @Override
+        protected Query asQuery(ScalarFunction f, TranslatorHandler handler) {
+            return doTranslate(f, handler);
+        }
+
+        public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
+            if (f instanceof CIDRMatch cm) {
+                if (cm.ipField() instanceof FieldAttribute fa && Expressions.foldable(cm.matches())) {
+                    String targetFieldName = handler.nameOf(fa.exactAttribute());
+                    Set<Object> set = new LinkedHashSet<>(Expressions.fold(cm.matches()));
+
+                    Query query = new TermsQuery(f.source(), targetFieldName, set);
+                    // CIDR_MATCH applies only to single values.
+                    return handler.wrapFunctionQuery(f, cm.ipField(), () -> query);
+                }
+            }
+
+            return ExpressionTranslators.Scalars.doTranslate(f, handler);
         }
     }
 }

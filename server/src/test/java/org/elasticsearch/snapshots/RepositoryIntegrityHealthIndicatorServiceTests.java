@@ -38,6 +38,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPARATOR;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.health.HealthStatus.GREEN;
+import static org.elasticsearch.health.HealthStatus.UNKNOWN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.repositories.RepositoryData.CORRUPTED_REPO_GEN;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
@@ -233,6 +234,28 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     RepositoryIntegrityHealthIndicatorService.NO_REPOS_CONFIGURED,
                     HealthIndicatorDetails.EMPTY,
+                    Collections.emptyList(),
+                    Collections.emptyList()
+                )
+            )
+        );
+    }
+
+    public void testIsUnknownWhenNoHealthInfoIsAvailable() {
+        var repos = randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false));
+        var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
+        var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(true, new HealthInfo(Map.of(), null, Map.of())),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    UNKNOWN,
+                    RepositoryIntegrityHealthIndicatorService.NO_REPO_HEALTH_INFO,
+                    new SimpleHealthIndicatorDetails(
+                        Map.of("total_repositories", repos.size(), "corrupted_repositories", 0, "corrupted", List.of())
+                    ),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )

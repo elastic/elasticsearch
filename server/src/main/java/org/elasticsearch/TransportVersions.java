@@ -225,9 +225,17 @@ public class TransportVersions {
      * In branches 8.7-8.10 see server/src/main/java/org/elasticsearch/TransportVersion.java for the equivalent definitions.
      */
 
-    static final VersionLookup VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class);
-
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
+
+    // the highest transport version constant defined in this file, used as a fallback for TransportVersion.current()
+    static final TransportVersion LATEST_DEFINED;
+    static {
+        LATEST_DEFINED = VERSION_IDS.lastEntry().getValue();
+
+        // see comment on IDS field
+        // now we're registered all the transport versions, we can clear the map
+        IDS = null;
+    }
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.
@@ -240,6 +248,8 @@ public class TransportVersions {
      * This should be the transport version used by the previous minor release.
      */
     public static final TransportVersion MINIMUM_CCS_VERSION;
+
+    static final VersionLookup VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class);
 
     static {
         NavigableSet<Version> allVersions = Version.getDeclaredVersions(Version.class);
@@ -270,16 +280,6 @@ public class TransportVersions {
                 throw new IllegalStateException("Could not find transport version constant for id " + tvCcsId);
             }
         }
-    }
-
-    // the highest transport version constant defined in this file, used as a fallback for TransportVersion.current()
-    static final TransportVersion LATEST_DEFINED;
-    static {
-        LATEST_DEFINED = VERSION_IDS.lastEntry().getValue();
-
-        // see comment on IDS field
-        // now we're registered all the transport versions, we can clear the map
-        IDS = null;
     }
 
     public static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {

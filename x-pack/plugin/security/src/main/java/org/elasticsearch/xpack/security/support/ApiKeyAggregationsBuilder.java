@@ -94,8 +94,6 @@ public class ApiKeyAggregationsBuilder {
                     fieldNameVisitor.accept(translatedFieldName);
                 }
                 return compositeAggregationBuilder;
-            } else if (copiedAggsBuilder instanceof GlobalAggregationBuilder) {
-                return copiedAggsBuilder;
             } else if (copiedAggsBuilder instanceof FilterAggregationBuilder filterAggregationBuilder) {
                 // filters the aggregation query to user's allowed API Keys only
                 FilterAggregationBuilder newFilterAggregationBuilder = new FilterAggregationBuilder(
@@ -135,6 +133,9 @@ public class ApiKeyAggregationsBuilder {
                 }
                 return newFiltersAggregationBuilder;
             } else {
+                // BEWARE: global agg type must NOT be supported!
+                // This is because "global" breaks out of the search execution context and will expose disallowed API Keys
+                // (e.g. keys with different owners), as well as other .security docs
                 throw new IllegalArgumentException(
                     "Unsupported API Keys agg [" + copiedAggsBuilder.getName() + "] of type [" + copiedAggsBuilder.getType() + "]"
                 );

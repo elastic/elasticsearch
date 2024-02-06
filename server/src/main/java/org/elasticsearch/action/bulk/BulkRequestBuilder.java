@@ -201,6 +201,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
 
     @Override
     public BulkRequest request() {
+        assert requestPreviouslyCalled == false : "Cannot call request() multiple times on the same BulkRequestBuilder object";
         if (requestPreviouslyCalled) {
             throw new IllegalStateException("Cannot call request() multiple times on the same BulkRequestBuilder object");
         }

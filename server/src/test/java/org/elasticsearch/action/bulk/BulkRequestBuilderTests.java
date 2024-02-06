@@ -34,6 +34,6 @@ public class BulkRequestBuilderTests extends ESTestCase {
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
         // Make sure that the bulk request builder is no longer holding onto the child request builders:
         assertThat(bulkRequestBuilder.numberOfActions(), equalTo(0));
-        expectThrows(IllegalStateException.class, bulkRequestBuilder::request);
+        expectThrows(AssertionError.class, bulkRequestBuilder::request);
     }
 }

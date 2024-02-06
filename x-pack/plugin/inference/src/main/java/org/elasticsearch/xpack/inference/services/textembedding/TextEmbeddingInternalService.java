@@ -49,6 +49,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings.MODEL_ID;
@@ -114,16 +115,11 @@ public class TextEmbeddingInternalService implements InferenceService {
                         + "]. You may need to load it into the cluster using eland."
                 );
             } else {
+                var customElandInternalServiceSettings = (CustomElandInternalServiceSettings) CustomElandInternalServiceSettings.fromMap(
+                    serviceSettingsMap
+                ).build();
                 throwIfNotEmptyMap(serviceSettingsMap, name());
-                serviceSettingsMap.put(MODEL_ID, response.getResources().results().get(0).getModelId());
-                delegate.onResponse(
-                    new CustomElandModel(
-                        inferenceEntityId,
-                        taskType,
-                        name(),
-                        (CustomElandInternalServiceSettings) CustomElandInternalServiceSettings.fromMap(serviceSettingsMap).build()
-                    )
-                );
+                delegate.onResponse(new CustomElandModel(inferenceEntityId, taskType, name(), customElandInternalServiceSettings));
             }
         });
 

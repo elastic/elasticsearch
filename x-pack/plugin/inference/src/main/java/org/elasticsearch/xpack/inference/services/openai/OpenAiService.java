@@ -63,15 +63,15 @@ public class OpenAiService extends SenderService {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        OpenAiModel model = createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            serviceSettingsMap,
-            TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-            true
-        );
+            OpenAiModel model = createModel(
+                inferenceEntityId,
+                taskType,
+                serviceSettingsMap,
+                taskSettingsMap,
+                serviceSettingsMap,
+                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
+                true
+            );
 
             throwIfNotEmptyMap(config, NAME);
             throwIfNotEmptyMap(serviceSettingsMap, NAME);

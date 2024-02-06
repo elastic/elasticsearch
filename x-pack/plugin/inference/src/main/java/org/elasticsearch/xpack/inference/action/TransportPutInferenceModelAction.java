@@ -185,21 +185,28 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         Set<String> platformArchitectures,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
-        var model = service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures);
-
-        service.checkModelConfig(
-            model,
-            listener.delegateFailureAndWrap(
-                // model is valid good to persist then start
-                (delegate, verifiedModel) -> modelRegistry.storeModel(
-                    verifiedModel,
-                    delegate.delegateFailureAndWrap((l, r) -> startModel(service, verifiedModel, l))
+        ActionListener<Model> modelListener = listener.delegateFailureAndWrap((delegate, model) -> {
+            service.checkModelConfig(
+                model,
+                delegate.delegateFailureAndWrap(
+                    // model is valid, ok to persist then start
+                    (delegate2, verifiedModel) -> modelRegistry.storeModel(
+                        verifiedModel,
+                        delegate2.delegateFailureAndWrap((l, r) -> putAndStartModel(service, verifiedModel, l))
+                    )
                 )
-            )
-        );
+            );
+        });
+
+        service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures, modelListener);
+
     }
 
-    private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> finalListener) {
+    private static void putAndStartModel(
+        InferenceService service,
+        Model model,
+        ActionListener<PutInferenceModelAction.Response> finalListener
+    ) {
         SubscribableListener.<Boolean>newForked((listener1) -> { service.putModel(model, listener1); }).<
             PutInferenceModelAction.Response>andThen((listener2, modelDidPut) -> {
                 if (modelDidPut) {

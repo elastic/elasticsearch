@@ -100,13 +100,13 @@ teardown:
 - match: { acknowledged: true }
 
 - do:
-    catch: /illegal_state_exception/
+    catch: /pipeline_graph_structure_exception/
     index:
       index: test
       id: "1"
       pipeline: "outer"
       body: {}
-- match: { error.root_cause.0.type: "illegal_state_exception" }
+- match: { error.root_cause.0.type: "pipeline_graph_structure_exception" }
 - match: { error.root_cause.0.reason: "Cycle detected for pipeline: outer" }
 
 ---

@@ -1147,41 +1147,15 @@ x:s        | y:d        | z:i
 1.010097   | -16701.0   | 1
 ;
 
-nestedAggsAliasedOverGrouping#[skip:-8.12.99,reason:supported in 8.13]
+nestedAggsOverGroupingWithAlias#[skip:-8.12.99,reason:supported in 8.13]
 FROM employees
-| STATS e = max(languages) + languages by l = languages
-;
-
-e:l | l:i
-0   | 0
-;
-
-nestedAggsAliasedOverGrouping#[skip:-8.12.99,reason:supported in 8.13]
-FROM employees
-| STATS max(languages) + languages by l = languages
-;
-
-max(languages) + languages:l | l:i
-0   | 0
-;
-
-nestedAggsOverGroupingWithMulti#[skip:-8.12.99,reason:supported in 8.13]
-FROM employees
-| STATS max(languages + 1) , m = languages + min(salary + 1) by l = languages, s = salary
-;
-
-max(languages + 1): l | m:l | l:i | s:i
-0                     | 0   | 0   | 0
-;
-
-scalarFunctionOverGroupingColumn
-FROM employees 
-| STATS length(first_name), count(1) by first_name
-| SORT first_name
+| STATS e = max(languages) + 1 by l = languages
+| SORT l
 | LIMIT 3
 ;
 
-// TODO: update results
-length(first_name):i| count(1):i | first_name:s
-12                  | 100        | 0  
+e:i | l:i
+2   | 1
+3   | 2
+4   | 3
 ;

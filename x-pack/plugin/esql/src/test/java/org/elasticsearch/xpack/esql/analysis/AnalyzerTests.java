@@ -1194,18 +1194,6 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(agg.groupings(), agg.aggregates());
     }
 
-    public void testAggsWithPartialGrouping() {
-        analyze("from test| stats max(languages) by l = languages + 1 + 2 + 3");
-    }
-
-    public void testAggsWithExpressionOverAggs() {
-        analyze("from test | stats max(languages + 1) , m = languages + min(salary + 1) by l = languages, s = salary");
-    }
-
-    public void testAggScalarOverGroupingColumn() {
-        analyze("from test | stats length(first_name), count(1) by first_name");
-    }
-
     public void testEmptyEsRelationOnLimitZeroWithCount() throws IOException {
         var query = """
             from test*
@@ -1576,7 +1564,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats 1
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function but got [1]"));
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [1]"));
     }
 
     public void testLiteralBehindEvalInAggregateNoGrouping() {
@@ -1586,7 +1574,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats x
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function but got [x] referencing [1]"));
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
     }
 
     public void testLiteralsInAggregateNoGrouping() {
@@ -1595,7 +1583,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats 1 + 2
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function but got [1 + 2]"));
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [1 + 2]"));
     }
 
     public void testLiteralsBehindEvalInAggregateNoGrouping() {
@@ -1605,7 +1593,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats x
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function but got [x]"));
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
     }
 
     public void testFoldableInAggregateWithGrouping() {
@@ -1614,7 +1602,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats 1 + 2 by languages
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function but got [1 + 2]"));
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [1 + 2]"));
     }
 
     public void testLiteralsInAggregateWithGrouping() {
@@ -1623,7 +1611,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats "a" by languages
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function but got [\"a\"] of type [Literal]"));
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [\"a\"]"));
     }
 
     public void testFoldableBehindEvalInAggregateWithGrouping() {
@@ -1633,7 +1621,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats x by languages
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function but got [x] referencing [1 + 2]"));
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
     }
 
     public void testFoldableInGrouping() {
@@ -1651,14 +1639,10 @@ public class AnalyzerTests extends ESTestCase {
             |stats salary % 3 by languages
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function but got [salary % 3] of type [Mod]"));
-    }
-
-    public void testGroupingInAggs() {
-        assertProjection("""
-             from test
-            |stats e = salary + max(salary) by languages
-            """, "e", "languages");
+        assertThat(
+            e.getMessage(),
+            containsString("column [salary] must appear in the STATS BY clause or be used in an aggregate function")
+        );
     }
 
     public void testDeferredGroupingInStats() {
@@ -1668,7 +1652,7 @@ public class AnalyzerTests extends ESTestCase {
              |stats x by first_name
             """));
 
-        assertThat(e.getMessage(), containsString("expected an aggregate function but got [x] referencing [first_name]"));
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
     }
 
     public void testUnsupportedTypesInStats() {

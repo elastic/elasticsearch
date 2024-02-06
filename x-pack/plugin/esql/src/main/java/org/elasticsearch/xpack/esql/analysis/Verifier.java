@@ -165,26 +165,31 @@ public class Verifier {
             // specified in the grouping clause
             agg.aggregates().forEach(e -> {
                 var exp = Alias.unwrap(e);
+                if (exp.foldable()) {
+                    failures.add(fail(exp, "expected an aggregate function but found [{}]", exp.sourceText()));
+                }
                 // traverse the tree to find invalid matches
-                checkInvalidNamedExpressionUsage(exp, nakedGroups, failures);
+                checkInvalidNamedExpressionUsage(exp, nakedGroups, failures, 0);
             });
         }
     }
 
     // traverse the expression and look either for an agg function or a grouping match
     // stop either when no children are left, the leaves are literals or a reference attribute is given
-    private static void checkInvalidNamedExpressionUsage(Expression e, List<Expression> groups, Set<Failure> failures) {
+    private static void checkInvalidNamedExpressionUsage(Expression e, List<Expression> groups, Set<Failure> failures, int level) {
         // found an aggregate, constant or a group, bail out
         if (e instanceof AggregateFunction af) {
             af.field().forEachDown(AggregateFunction.class, f -> {
                 failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
             });
-            return;
+        } else if (e.foldable()) {
+            // don't do anything
         }
-        if (e.foldable() || groups.contains(e))
-
-        {
-            return;
+        // don't allow nested groupings for now stats substring(group) by group as we don't optimize yet for them
+        else if (groups.contains(e)) {
+            if (level != 0) {
+                failures.add(fail(e, "scalar functions over groupings [{}] not allowed yet", e.sourceText()));
+            }
         }
         // if a reference is found, mark it as an error
         else if (e instanceof NamedExpression ne) {
@@ -193,7 +198,7 @@ public class Verifier {
         // other keep on going
         else {
             for (Expression child : e.children()) {
-                checkInvalidNamedExpressionUsage(child, groups, failures);
+                checkInvalidNamedExpressionUsage(child, groups, failures, level + 1);
             }
         }
     }

@@ -258,9 +258,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
 
         static String extractString(Expression ex) {
-            return ex instanceof NamedExpression ne
-                ? ne.name()
-                : limitToString(ex.sourceText()).replace(' ', '_');
+            return ex instanceof NamedExpression ne ? ne.name() : limitToString(ex.sourceText()).replace(' ', '_');
         }
 
         static String limitToString(String string) {

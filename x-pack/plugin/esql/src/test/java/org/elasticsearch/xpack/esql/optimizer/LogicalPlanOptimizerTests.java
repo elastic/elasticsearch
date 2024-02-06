@@ -1800,11 +1800,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         var aggs = agg.aggregates();
         var a = as(aggs.get(0), Alias.class);
-        assertThat(a.name(), startsWith("__a_SUM@"));
+        assertThat(a.name(), startsWith("$$SUM$a$"));
         var sum = as(a.child(), Sum.class);
 
         a = as(aggs.get(1), Alias.class);
-        assertThat(a.name(), startsWith("__a_COUNT@"));
+        assertThat(a.name(), startsWith("$$COUNT$a$"));
         var count = as(a.child(), Count.class);
 
         assertThat(Expressions.names(agg.groupings()), contains("last_name"));
@@ -1861,7 +1861,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         var aggs = agg.aggregates();
         var a = as(aggs.get(0), Alias.class);
-        assertThat(a.name(), startsWith("__a_COUNT@"));
+        assertThat(a.name(), startsWith("$$COUNT$a$0"));
         var sum = as(a.child(), Count.class);
 
         a = as(aggs.get(1), Alias.class);

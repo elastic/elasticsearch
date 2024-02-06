@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      version: " - 8.1.99,8.7.00 - 8.12.99"
+      version: "- 8.12.99"
       reason: _tsid hashing introduced in 8.13
 
   - do:

@@ -1898,7 +1898,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             175,
             TransportVersions.MISSED_INDICES_UPDATE_EXCEPTION_ADDED
         ),
-        QUERY_PHASE_TIMEOUT_EXCEPTION(
+        SEARCH_TIMEOUT_EXCEPTION(
             SearchTimeoutException.class,
             SearchTimeoutException::new,
             176,

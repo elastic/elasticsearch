@@ -8,11 +8,9 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestLazyBuilder;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.RequestBuilder;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
@@ -46,14 +44,13 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      */
     private final List<DocWriteRequest<?>> requests = new ArrayList<>();
     private final List<FramedData> framedData = new ArrayList<>();
-    private final List<RequestBuilder<? extends ActionRequest, ? extends ActionResponse>> requestBuilders = new ArrayList<>();
+    private final List<ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse>> requestBuilders =
+        new ArrayList<>();
     private ActiveShardCount waitForActiveShards;
     private TimeValue timeout;
-    private String timeoutString;
     private String globalPipeline;
     private String globalRouting;
     private WriteRequest.RefreshPolicy refreshPolicy;
-    private String refreshPolicyString;
 
     public BulkRequestBuilder(ElasticsearchClient client, @Nullable String globalIndex) {
         super(client, BulkAction.INSTANCE);
@@ -167,7 +164,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final BulkRequestBuilder setTimeout(String timeout) {
-        this.timeoutString = timeout;
+        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return this;
     }
 
@@ -196,7 +193,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
 
     @Override
     public BulkRequestBuilder setRefreshPolicy(String refreshPolicy) {
-        this.refreshPolicyString = refreshPolicy;
+        this.refreshPolicy = WriteRequest.RefreshPolicy.parse(refreshPolicy);
         return this;
     }
 
@@ -204,9 +201,9 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     public BulkRequest request() {
         validate();
         BulkRequest request = new BulkRequest(globalIndex);
-        for (RequestBuilder<? extends ActionRequest, ? extends ActionResponse> requestBuilder : requestBuilders) {
-            ActionRequest childRequest = requestBuilder.request();
-            request.add((DocWriteRequest<?>) childRequest);
+        for (ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse> requestBuilder : requestBuilders) {
+            DocWriteRequest<?> childRequest = requestBuilder.request();
+            request.add(childRequest);
         }
         for (DocWriteRequest<?> childRequest : requests) {
             request.add(childRequest);
@@ -224,9 +221,6 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
         if (timeout != null) {
             request.timeout(timeout);
         }
-        if (timeoutString != null) {
-            request.timeout(timeoutString);
-        }
         if (globalPipeline != null) {
             request.pipeline(globalPipeline);
         }
@@ -236,9 +230,6 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
         if (refreshPolicy != null) {
             request.setRefreshPolicy(refreshPolicy);
         }
-        if (refreshPolicyString != null) {
-            request.setRefreshPolicy(refreshPolicyString);
-        }
         return request;
     }
 
@@ -247,12 +238,6 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
             throw new IllegalStateException(
                 "Must use only request builders, requests, or byte arrays within a single bulk request. Cannot mix and match"
             );
-        }
-        if (timeout != null && timeoutString != null) {
-            throw new IllegalStateException("Must use only one setTimeout method");
-        }
-        if (refreshPolicy != null && refreshPolicyString != null) {
-            throw new IllegalStateException("Must use only one setRefreshPolicy method");
         }
     }
 

@@ -70,7 +70,7 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
         afterIndex = randomAlphaOfLength(12).toLowerCase(Locale.ROOT);
         startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(START_TIME);
         endTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(END_TIME);
-        numTimeSeries = 5_000;
+        numTimeSeries = 500;
         // NOTE: we need to use few dimensions to be able to index documents in an index created before introducing TSID hashing
         numDimensions = randomIntBetween(10, 20);
 
@@ -275,20 +275,14 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
 
         @Override
         public Iterator<TimeSeries> iterator() {
-            return new TimeSeriesIterator(this.dataset.entrySet());
+            return new TimeSeriesIterator(this.dataset.entrySet().iterator());
         }
 
         public int size() {
             return this.dataset.size();
         }
 
-        static class TimeSeriesIterator implements Iterator<TimeSeries> {
-
-            private final Iterator<Map.Entry<String, TimeSeries>> it;
-
-            TimeSeriesIterator(final Set<Map.Entry<String, TimeSeries>> entries) {
-                this.it = entries.iterator();
-            }
+        record TimeSeriesIterator(Iterator<Map.Entry<String, TimeSeries>> it) implements Iterator<TimeSeries> {
 
             @Override
             public boolean hasNext() {

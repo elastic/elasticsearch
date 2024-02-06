@@ -61,7 +61,9 @@ FROM employees
 // end::keepWildcard[]
 | LIMIT 0;
 
+// tag::keep-wildcard-result[]
 height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date
+// end::keep-wildcard-result[]
 ;
 
 docsKeepDoubleWildcard
@@ -71,19 +73,9 @@ FROM employees
 // end::keepDoubleWildcard[]
 | LIMIT 0;
 
+// tag::keep-double-wildcard-result[]
 height:double | height.float:double | height.half_float:double | height.scaled_float:double |       hire_date:date | avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long |still_hired:boolean
-;
-
-docsKeepMultipleMatch#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
-// tag::keepMultipleMatch[]
-FROM employees
-| KEEP first_name, last_name, first_name
-// end::keepMultipleMatch[]
-| LIMIT 0;
-
-// tag::keep-multiple-match-result[]
-last_name:keyword | first_name:keyword
-// end::keep-multiple-match-result[]
+// end::keep-double-wildcard-result[]
 ;
 
 docsKeepCompleteName#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
@@ -120,30 +112,6 @@ FROM employees
 // tag::keep-wildcard-lowest-result[]
 avg_worked_seconds:long|birth_date:date|emp_no:integer|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date|is_rehired:boolean|job_positions:keyword|languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|first_name:keyword
 // end::keep-wildcard-lowest-result[]
-;
-
-docskeepWildcardLowest2#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
-// tag::keepWildcardLowest2[]
-FROM employees
-| KEEP first_name, *
-// end::keepWildcardLowest2[]
-| LIMIT 0;
-
-// tag::keep-wildcard-lowest-result2[]
-first_name:keyword |avg_worked_seconds:long|birth_date:date|emp_no:integer|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date|is_rehired:boolean|job_positions:keyword|languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean
-// end::keep-wildcard-lowest-result2[]
-;
-
-docskeepWildcardLowest3#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
-// tag::keepWildcardLowest3[]
-FROM employees
-| KEEP last_name*, first_name, *
-// end::keepWildcardLowest3[]
-| LIMIT 0;
-
-// tag::keep-wildcard-lowest-result3[]
-last_name:keyword | first_name:keyword | avg_worked_seconds:long | birth_date:date | emp_no:integer | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | salary:integer | salary_change:double | salary_change.int:integer | salary_change.keyword:keyword | salary_change.long:long | still_hired:boolean
-// end::keep-wildcard-lowest-result3[]
 ;
 
 docsRename

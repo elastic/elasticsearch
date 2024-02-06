@@ -40,13 +40,14 @@ public record OpenAiEmbeddingsTaskSettings(String modelId, @Nullable String user
     public static final String MODEL = "model";
     public static final String MODEL_ID = "model_id";
     public static final String USER = "user";
+    static final String MODEL_DEPRECATION_MESSAGE = "The openai task_settings.model field is deprecated. Please use model_id instead.";
 
     public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, boolean logDeprecations) {
         ValidationException validationException = new ValidationException();
 
         String model = extractOptionalString(map, MODEL, ModelConfigurations.TASK_SETTINGS, validationException);
         if (logDeprecations && model != null) {
-            logger.info("The openai task_settings.model field is deprecated. Please use model_id instead.");
+            logger.info(MODEL_DEPRECATION_MESSAGE);
         }
 
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.TASK_SETTINGS, validationException);
@@ -82,7 +83,7 @@ public record OpenAiEmbeddingsTaskSettings(String modelId, @Nullable String user
         OpenAiEmbeddingsTaskSettings originalSettings,
         OpenAiEmbeddingsRequestTaskSettings requestSettings
     ) {
-        var modelToUse = requestSettings.model() == null ? originalSettings.modelId : requestSettings.model();
+        var modelToUse = requestSettings.modelId() == null ? originalSettings.modelId : requestSettings.modelId();
         var userToUse = requestSettings.user() == null ? originalSettings.user : requestSettings.user();
 
         return new OpenAiEmbeddingsTaskSettings(modelToUse, userToUse);

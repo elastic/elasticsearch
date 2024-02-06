@@ -19,21 +19,21 @@ public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
         var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
 
-        assertNull(settings.model());
+        assertNull(settings.modelId());
         assertNull(settings.user());
     }
 
     public void testFromMap_ReturnsEmptySettings_WhenTheMapDoesNotContainTheFields() {
         var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of("key", "model")));
 
-        assertNull(settings.model());
+        assertNull(settings.modelId());
         assertNull(settings.user());
     }
 
     public void testFromMap_ReturnsEmptyModel_WhenTheMapDoesNotContainThatField() {
         var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")));
 
-        assertNull(settings.model());
+        assertNull(settings.modelId());
         assertThat(settings.user(), is("user"));
     }
 
@@ -41,7 +41,16 @@ public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
         var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model")));
 
         assertNull(settings.user());
-        assertThat(settings.model(), is("model"));
+        assertThat(settings.modelId(), is("model"));
+    }
+
+    public void testFromMap_PrefersModelId_OverModel() {
+        var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.MODEL_ID, "model_id"))
+        );
+
+        assertNull(settings.user());
+        assertThat(settings.modelId(), is("model_id"));
     }
 
     public static Map<String, Object> getRequestTaskSettingsMap(@Nullable String model, @Nullable String user) {
@@ -49,6 +58,24 @@ public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
 
         if (model != null) {
             map.put(OpenAiEmbeddingsTaskSettings.MODEL, model);
+        }
+
+        if (user != null) {
+            map.put(OpenAiEmbeddingsTaskSettings.USER, user);
+        }
+
+        return map;
+    }
+
+    public static Map<String, Object> getRequestTaskSettingsMap(@Nullable String model, @Nullable String modelId, @Nullable String user) {
+        var map = new HashMap<String, Object>();
+
+        if (model != null) {
+            map.put(OpenAiEmbeddingsTaskSettings.MODEL, model);
+        }
+
+        if (modelId != null) {
+            map.put(OpenAiEmbeddingsTaskSettings.MODEL_ID, model);
         }
 
         if (user != null) {

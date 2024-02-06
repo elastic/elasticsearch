@@ -7,23 +7,30 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings.MODEL;
+import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings.MODEL_DEPRECATION_MESSAGE;
+import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings.USER;
 
 /**
  * This class handles extracting OpenAI task settings from a request. The difference between this class and
  * {@link OpenAiEmbeddingsTaskSettings} is that this class considers all fields as optional. It will not throw an error if a field
  * is missing. This allows overriding persistent task settings.
- * @param model the name of the model to use with this request
+ * @param modelId the name of the model to use with this request
  * @param user a unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
  */
-public record OpenAiEmbeddingsRequestTaskSettings(String model, String user) {
+public record OpenAiEmbeddingsRequestTaskSettings(@Nullable String modelId, @Nullable String user) {
+    private static final Logger logger = LogManager.getLogger(OpenAiEmbeddingsRequestTaskSettings.class);
+
     public static final OpenAiEmbeddingsRequestTaskSettings EMPTY_SETTINGS = new OpenAiEmbeddingsRequestTaskSettings(null, null);
 
     /**
@@ -40,12 +47,23 @@ public record OpenAiEmbeddingsRequestTaskSettings(String model, String user) {
         ValidationException validationException = new ValidationException();
 
         String model = extractOptionalString(map, MODEL, ModelConfigurations.TASK_SETTINGS, validationException);
+        if (model != null) {
+            logger.info(MODEL_DEPRECATION_MESSAGE);
+        }
+
+        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.TASK_SETTINGS, validationException);
         String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
+
+        var modelIdToUse = getModelId(model, modelId);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new OpenAiEmbeddingsRequestTaskSettings(model, user);
+        return new OpenAiEmbeddingsRequestTaskSettings(modelIdToUse, user);
+    }
+
+    private static String getModelId(@Nullable String model, @Nullable String modelId) {
+        return modelId != null ? modelId : model;
     }
 }

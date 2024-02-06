@@ -123,6 +123,8 @@ import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
@@ -141,6 +143,7 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
+import org.elasticsearch.plugins.InferenceRegistryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -168,6 +171,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -880,6 +884,7 @@ class NodeConstruction {
         );
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
         final SearchTransportAPMMetrics searchTransportAPMMetrics = new SearchTransportAPMMetrics(telemetryProvider.getMeterRegistry());
+        final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());
         final SearchTransportService searchTransportService = new SearchTransportService(
             transportService,
             client,
@@ -974,7 +979,7 @@ class NodeConstruction {
             repositoryService
         );
 
-        final TimeValue metricsInterval = settings.getAsTime("tracing.apm.agent.metrics_interval", TimeValue.timeValueSeconds(10));
+        final TimeValue metricsInterval = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));
         final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
 
         final SearchService searchService = serviceProvider.newSearchService(
@@ -1058,6 +1063,7 @@ class NodeConstruction {
             b.bind(MetadataUpdateSettingsService.class).toInstance(metadataUpdateSettingsService);
             b.bind(SearchService.class).toInstance(searchService);
             b.bind(SearchTransportAPMMetrics.class).toInstance(searchTransportAPMMetrics);
+            b.bind(SearchResponseMetrics.class).toInstance(searchResponseMetrics);
             b.bind(SearchTransportService.class).toInstance(searchTransportService);
             b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
             b.bind(Transport.class).toInstance(transport);
@@ -1086,6 +1092,18 @@ class NodeConstruction {
                 serviceProvider.newReadinessService(pluginsService, clusterService, environment)
             );
         }
+
+        // Register noop versions of inference services if Inference plugin is not available
+        Optional<InferenceRegistryPlugin> inferenceRegistryPlugin = getSinglePlugin(InferenceRegistryPlugin.class);
+        modules.bindToInstance(
+            InferenceServiceRegistry.class,
+            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getInferenceServiceRegistry)
+                .orElse(new InferenceServiceRegistry.NoopInferenceServiceRegistry())
+        );
+        modules.bindToInstance(
+            ModelRegistry.class,
+            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getModelRegistry).orElse(new ModelRegistry.NoopModelRegistry())
+        );
 
         injector = modules.createInjector();
 

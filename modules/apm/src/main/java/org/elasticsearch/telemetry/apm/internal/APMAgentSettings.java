@@ -37,23 +37,24 @@ public class APMAgentSettings {
 
     private static final Logger LOGGER = LogManager.getLogger(APMAgentSettings.class);
 
-    public void addClusterSettingsListeners(
-        ClusterService clusterService,
-        APMTelemetryProvider apmTelemetryProvider,
-        APMMeterService apmMeterService
-    ) {
+    public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider apmTelemetryProvider) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final APMTracer apmTracer = apmTelemetryProvider.getTracer();
+        final APMMeterService apmMeterService = apmTelemetryProvider.getMeterService();
 
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
-            this.setAgentSetting("instrument", Boolean.toString(enabled));
+            // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
+            // minimise its impact to a running Elasticsearch.
+            boolean recording = enabled || clusterSettings.get(TELEMETRY_METRICS_ENABLED_SETTING);
+            this.setAgentSetting("recording", Boolean.toString(recording));
         });
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_METRICS_ENABLED_SETTING, enabled -> {
             apmMeterService.setEnabled(enabled);
             // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
             // minimise its impact to a running Elasticsearch.
-            this.setAgentSetting("recording", Boolean.toString(enabled));
+            boolean recording = enabled || clusterSettings.get(TELEMETRY_TRACING_ENABLED_SETTING);
+            this.setAgentSetting("recording", Boolean.toString(recording));
         });
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_INCLUDE_SETTING, apmTracer::setIncludeNames);
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING, apmTracer::setExcludeNames);
@@ -62,11 +63,15 @@ public class APMAgentSettings {
     }
 
     /**
-     * Copies APM settings from the provided settings object into the corresponding system properties.
+     * Initialize APM settings from the provided settings object into the corresponding system properties.
+     * Later updates to these settings are synchronized using update consumers.
      * @param settings the settings to apply
      */
-    public void syncAgentSystemProperties(Settings settings) {
-        this.setAgentSetting("recording", Boolean.toString(TELEMETRY_TRACING_ENABLED_SETTING.get(settings)));
+    public void initAgentSystemProperties(Settings settings) {
+        boolean tracing = TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
+        boolean metrics = TELEMETRY_METRICS_ENABLED_SETTING.get(settings);
+
+        this.setAgentSetting("recording", Boolean.toString(tracing || metrics));
         // Apply values from the settings in the cluster state
         APM_AGENT_SETTINGS.getAsMap(settings).forEach(this::setAgentSetting);
     }
@@ -113,7 +118,8 @@ public class APMAgentSettings {
 
         // Core:
         // forbid 'enabled', must remain enabled to dynamically enable tracing / metrics
-        // forbid 'recording' / 'instrument', controlled by 'telemetry.metrics.enabled' / 'tracing.apm.enabled'
+        // forbid 'recording', controlled by 'telemetry.metrics.enabled' / 'telemetry.tracing.enabled'
+        // forbid 'instrument', automatic instrumentation can cause issues
         "service_name",
         "service_node_name",
         // forbid 'service_version', forced by APMJvmOptions
@@ -200,8 +206,8 @@ public class APMAgentSettings {
         "profiling_inferred_spans_lib_directory",
 
         // Reporter:
-        // forbid secret_token: use tracing.apm.secret_token instead
-        // forbid api_key: use tracing.apm.api_key instead
+        // forbid secret_token: use telemetry.secret_token instead
+        // forbid api_key: use telemetry.api_key instead
         "server_url",
         "server_urls",
         "disable_send",

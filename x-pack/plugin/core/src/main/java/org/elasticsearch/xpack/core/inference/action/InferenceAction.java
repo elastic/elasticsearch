@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -60,6 +61,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             Request.Builder builder = PARSER.apply(parser, null);
             builder.setInferenceEntityId(inferenceEntityId);
             builder.setTaskType(taskType);
+            // For rest requests we won't know what the input type is
+            builder.setInputType(InputType.UNSPECIFIED);
             return builder.build();
         }
 
@@ -96,7 +99,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
                 this.inputType = in.readEnum(InputType.class);
             } else {
-                this.inputType = InputType.INGEST;
+                this.inputType = InputType.UNSPECIFIED;
             }
         }
 
@@ -146,9 +149,20 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeString(input.get(0));
             }
             out.writeGenericMap(taskSettings);
+            // in version ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED the input type enum was added, so we only want to write the enum if we're
+            // at that version or later
             if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
-                out.writeEnum(inputType);
+                out.writeEnum(getInputTypeToWrite(out.getTransportVersion()));
             }
+        }
+
+        private InputType getInputTypeToWrite(TransportVersion version) {
+            // in version ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED the UNSPECIFIED value was added, so if we're before that
+            // version other nodes won't know about it, so set it to INGEST instead
+            if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED) && inputType == InputType.UNSPECIFIED) {
+                return InputType.INGEST;
+            }
+            return inputType;
         }
 
         @Override
@@ -173,6 +187,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private TaskType taskType;
             private String inferenceEntityId;
             private List<String> input;
+            private InputType inputType = InputType.UNSPECIFIED;
             private Map<String, Object> taskSettings = Map.of();
 
             private Builder() {}
@@ -197,13 +212,18 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
+            public Builder setInputType(InputType inputType) {
+                this.inputType = inputType;
+                return this;
+            }
+
             public Builder setTaskSettings(Map<String, Object> taskSettings) {
                 this.taskSettings = taskSettings;
                 return this;
             }
 
             public Request build() {
-                return new Request(taskType, inferenceEntityId, input, taskSettings, InputType.INGEST);
+                return new Request(taskType, inferenceEntityId, input, taskSettings, inputType);
             }
         }
     }

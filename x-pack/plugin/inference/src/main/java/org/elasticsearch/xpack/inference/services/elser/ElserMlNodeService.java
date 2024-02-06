@@ -16,14 +16,19 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
@@ -32,7 +37,9 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -210,16 +217,19 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener) {
+    public void infer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ActionListener<InferenceServiceResults> listener
+    ) {
         // No task settings to override with requestTaskSettings
 
-        if (TaskType.SPARSE_EMBEDDING.isAnyOrSame(model.getConfigurations().getTaskType()) == false) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), NAME),
-                    RestStatus.BAD_REQUEST
-                )
-            );
+        try {
+            checkCompatibleTaskType(model.getConfigurations().getTaskType());
+        } catch (Exception e) {
+            listener.onFailure(e);
             return;
         }
 
@@ -234,6 +244,47 @@ public class ElserMlNodeService implements InferenceService {
             request,
             listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getResults())))
         );
+    }
+
+    @Override
+    public void chunkedInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ChunkingOptions chunkingOptions,
+        ActionListener<ChunkedInferenceServiceResults> listener
+    ) {
+        try {
+            checkCompatibleTaskType(model.getConfigurations().getTaskType());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        var configUpdate = chunkingOptions.settingsArePresent()
+            ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
+            : TextExpansionConfigUpdate.EMPTY_UPDATE;
+
+        var request = InferTrainedModelDeploymentAction.Request.forTextInput(
+            model.getConfigurations().getInferenceEntityId(),
+            configUpdate,
+            input,
+            TimeValue.timeValueSeconds(10)  // TODO get timeout from request
+        );
+        request.setChunkResults(true);
+
+        client.execute(
+            InferTrainedModelDeploymentAction.INSTANCE,
+            request,
+            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(translateChunkedResults(inferenceResult.getResults())))
+        );
+    }
+
+    private void checkCompatibleTaskType(TaskType taskType) {
+        if (TaskType.SPARSE_EMBEDDING.isAnyOrSame(taskType) == false) {
+            throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
+        }
     }
 
     @Override
@@ -270,6 +321,27 @@ public class ElserMlNodeService implements InferenceService {
 
         // no config options yet
         return ElserMlNodeTaskSettings.DEFAULT;
+    }
+
+    private ChunkedSparseEmbeddingResults translateChunkedResults(List<InferenceResults> inferenceResults) {
+        if (inferenceResults.size() != 1) {
+            throw new ElasticsearchStatusException(
+                "Expected exactly one chunked sparse embedding result",
+                RestStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+
+        if (inferenceResults.get(0) instanceof ChunkedTextExpansionResults mlChunkedResult) {
+            return ChunkedSparseEmbeddingResults.ofMlResult(mlChunkedResult);
+        } else {
+            throw new ElasticsearchStatusException(
+                "Expected a chunked inference [{}] received [{}]",
+                RestStatus.INTERNAL_SERVER_ERROR,
+                ChunkedTextExpansionResults.NAME,
+                inferenceResults.get(0).getWriteableName()
+            );
+        }
+
     }
 
     @Override

@@ -13,7 +13,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -136,6 +139,7 @@ public class OpenAiService extends SenderService {
         Model model,
         List<String> input,
         Map<String, Object> taskSettings,
+        InputType inputType,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof OpenAiModel == false) {
@@ -148,6 +152,18 @@ public class OpenAiService extends SenderService {
 
         var action = openAiModel.accept(actionCreator, taskSettings);
         action.execute(input, listener);
+    }
+
+    @Override
+    protected void doChunkedInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ChunkingOptions chunkingOptions,
+        ActionListener<ChunkedInferenceServiceResults> listener
+    ) {
+        listener.onFailure(new ElasticsearchStatusException("Chunking not supported by the {} service", RestStatus.BAD_REQUEST, NAME));
     }
 
     /**

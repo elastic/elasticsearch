@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 public class EqualsTests extends AbstractFunctionTestCase {
@@ -113,7 +114,7 @@ public class EqualsTests extends AbstractFunctionTestCase {
             )
         );
         // Datetime
-        // TODO: I'm surprised this passes.  Shouldn't there be a cast from DateTime to Long?
+        // TODO: I'm surprised this passes. Shouldn't there be a cast from DateTime to Long?
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 "EqualsLongsEvaluator",
@@ -165,8 +166,46 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 List.of()
             )
         );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "EqualsGeometriesEvaluator",
+                "lhs",
+                "rhs",
+                Object::equals,
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.cartesianPointCases(),
+                TestCaseSupplier.cartesianPointCases(),
+                List.of()
+            )
+        );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "EqualsGeometriesEvaluator",
+                "lhs",
+                "rhs",
+                Object::equals,
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.cartesianShapeCases(),
+                TestCaseSupplier.cartesianShapeCases(),
+                List.of()
+            )
+        );
+
+
+        return parameterSuppliersFromTypedData(
+            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), EqualsTests::errorMessageString)
+        );
+    }
+
+    private static String errorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
+        try {
+            return typeErrorMessage(includeOrdinal, validPerPosition, types);
+        } catch (IllegalStateException e) {
+            // This means all the positional args were okay, so the expected error is from the combination
+            return "[==] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
+
+        }
     }
 
     @Override

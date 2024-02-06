@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
-abstract class EsqlArithmeticOperation extends ArithmeticOperation implements EvaluatorMapper {
+public abstract class EsqlArithmeticOperation extends ArithmeticOperation implements EvaluatorMapper {
 
     /**
      * The only role of this enum is to fit the super constructor that expects a BinaryOperation which is
@@ -139,7 +139,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    static String formatIncompatibleTypesMessage(String symbol, DataType leftType, DataType rightType) {
+    public static String formatIncompatibleTypesMessage(String symbol, DataType leftType, DataType rightType) {
         return format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol, leftType.typeName(), rightType.typeName());
     }
 

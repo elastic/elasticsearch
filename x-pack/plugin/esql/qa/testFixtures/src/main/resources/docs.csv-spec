@@ -86,8 +86,8 @@ last_name:keyword | first_name:keyword
 // end::keep-multiple-match-result[]
 ;
 
-docsKeepCompleteName
-// tag::keepCompleteName[]#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
+docsKeepCompleteName#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
+// tag::keepCompleteName[]
 FROM employees
 | KEEP first_name, last_name, first_name*
 // end::keepCompleteName[]

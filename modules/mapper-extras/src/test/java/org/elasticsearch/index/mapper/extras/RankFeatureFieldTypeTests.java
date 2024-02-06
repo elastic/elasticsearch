@@ -8,18 +8,25 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 
 public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsNotAggregatable() {
-        MappedFieldType fieldType = new RankFeatureFieldMapper.RankFeatureFieldType("field", Collections.emptyMap(), true, null);
+        MappedFieldType fieldType = getRankFeatureFieldType();
         assertFalse(fieldType.isAggregatable());
     }
 
@@ -32,4 +39,48 @@ public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(42.9f), fetchSourceValue(mapper, "42.9"));
         assertEquals(List.of(2.0f), fetchSourceValue(mapper, null));
     }
+
+    public void testFieldHasValueIf_featureIsPresentInFieldInfosList() {
+        MappedFieldType fieldType = getRankFeatureFieldType();
+        List<FieldInfos> fieldInfosList = List.of(new FieldInfos(new FieldInfo[] { getFieldInfoWithName("_feature") }));
+        assertTrue(fieldType.fieldHasValue(fieldInfosList));
+    }
+
+    public void testFieldEmptyIfNameIsPresentInFieldInfosList() {
+        MappedFieldType fieldType = getRankFeatureFieldType();
+        List<FieldInfos> fieldInfosList = List.of(new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") }));
+        assertFalse(fieldType.fieldHasValue(fieldInfosList));
+    }
+
+    public void testFieldEmptyIfEmptyFieldInfosList() {
+        MappedFieldType fieldType = getRankFeatureFieldType();
+        List<FieldInfos> fieldInfosList = List.of(new FieldInfos(new FieldInfo[] {}));
+        assertFalse(fieldType.fieldHasValue(fieldInfosList));
+    }
+
+    private RankFeatureFieldMapper.RankFeatureFieldType getRankFeatureFieldType() {
+        return new RankFeatureFieldMapper.RankFeatureFieldType("field", Collections.emptyMap(), true, null);
+    }
+
+    private FieldInfo getFieldInfoWithName(String name) {
+        return new FieldInfo(
+            name,
+            1,
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            -1,
+            new HashMap<>(),
+            1,
+            1,
+            1,
+            1,
+            VectorEncoding.BYTE,
+            VectorSimilarityFunction.COSINE,
+            randomBoolean()
+        );
+    }
+
 }

@@ -758,7 +758,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             }
             """);
         assertEquals(1, results.size());
-        assertFalse(((List<String>)((Map<String, ?>) results.get(0)).get("_ignored")).isEmpty());
+        assertFalse(((List<String>) ((Map<String, ?>) results.get(0)).get("_ignored")).isEmpty());
 
     }
 

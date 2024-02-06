@@ -12,12 +12,25 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class BulkRequestBuilderTests extends ESTestCase {
 
     public void testValidation() {
         BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(null, null);
         bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
         bulkRequestBuilder.add(new IndexRequest());
+        expectThrows(IllegalStateException.class, bulkRequestBuilder::request);
+    }
+
+    public void testRequestTwice() {
+        BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(null, null);
+        bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
+        bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
+        bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
+        BulkRequest bulkRequest = bulkRequestBuilder.request();
+        assertNotNull(bulkRequest);
+        assertThat(bulkRequest.numberOfActions(), equalTo(3));
         expectThrows(IllegalStateException.class, bulkRequestBuilder::request);
     }
 }

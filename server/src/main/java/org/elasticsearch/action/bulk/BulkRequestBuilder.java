@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -51,6 +52,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     private String globalPipeline;
     private String globalRouting;
     private WriteRequest.RefreshPolicy refreshPolicy;
+    private boolean requestPreviouslyCalled = false;
 
     public BulkRequestBuilder(ElasticsearchClient client, @Nullable String globalIndex) {
         super(client, BulkAction.INSTANCE);
@@ -199,11 +201,17 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
 
     @Override
     public BulkRequest request() {
+        if (requestPreviouslyCalled) {
+            throw new IllegalStateException("Cannot call request() multiple times on the same BulkRequestBuilder object");
+        }
+        requestPreviouslyCalled = true;
         validate();
         BulkRequest request = new BulkRequest(globalIndex);
-        for (ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse> requestBuilder : requestBuilders) {
-            DocWriteRequest<?> childRequest = requestBuilder.request();
+        for (Iterator<ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse>> requestsIter = requestBuilders
+            .iterator(); requestsIter.hasNext();) {
+            DocWriteRequest<?> childRequest = requestsIter.next().request();
             request.add(childRequest);
+            requestsIter.remove(); // The inner request builder can now be garbage collected
         }
         for (DocWriteRequest<?> childRequest : requests) {
             request.add(childRequest);

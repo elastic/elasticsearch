@@ -1,0 +1,5 @@
+pr: 99747
+summary: TSDB dimensions encoding
+area: TSDB
+type: enhancement
+issues: []

@@ -67,7 +67,8 @@ public class FillMaskProcessorTests extends ESTestCase {
             new PyTorchInferenceResult(scores),
             tokenizer,
             4,
-            resultsField
+            resultsField,
+            false
         );
         assertThat(result.asMap().get(resultsField), equalTo("France"));
         assertThat(result.getTopClasses(), hasSize(4));
@@ -94,7 +95,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult(new double[][][] { { {} } });
         expectThrows(
             ElasticsearchStatusException.class,
-            () -> FillMaskProcessor.processResult(tokenization, pyTorchResult, tokenizer, 5, randomAlphaOfLength(10))
+            () -> FillMaskProcessor.processResult(tokenization, pyTorchResult, tokenizer, 5, randomAlphaOfLength(10), false)
         );
     }
 

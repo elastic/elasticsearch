@@ -45,6 +45,7 @@ import org.mockito.ArgumentMatcher;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -95,9 +96,9 @@ public class BulkOperationTests extends ESTestCase {
         );
 
         Model model1 = mock(Model.class);
-        InferenceService inferenceService1 = createInferenceService(model1, INFERENCE_SERVICE_1_ID, 2);
+        InferenceService inferenceService1 = createInferenceService(model1, INFERENCE_SERVICE_1_ID);
         Model model2 = mock(Model.class);
-        InferenceService inferenceService2 = createInferenceService(model2, INFERENCE_SERVICE_2_ID, 1);
+        InferenceService inferenceService2 = createInferenceService(model2, INFERENCE_SERVICE_2_ID);
         InferenceServiceRegistry inferenceServiceRegistry = createInferenceServiceRegistry(
             Map.of(SERVICE_1_ID, inferenceService1, SERVICE_2_ID, inferenceService2)
         );
@@ -133,8 +134,7 @@ public class BulkOperationTests extends ESTestCase {
 
         Map<String, Object> writtenDocSource = ((IndexRequest) items[0].request()).sourceAsMap();
         // Original doc source is preserved
-        assertTrue(writtenDocSource.keySet().containsAll(originalSource.keySet()));
-        assertTrue(writtenDocSource.values().containsAll(originalSource.values()));
+        originalSource.forEach((key, value) -> assertThat(writtenDocSource.get(key), equalTo(value)));
 
         // Check inference results
         verifyInferenceServiceInvoked(
@@ -145,13 +145,13 @@ public class BulkOperationTests extends ESTestCase {
             List.of(firstInferenceTextService1, secondInferenceTextService1)
         );
         verifyInferenceServiceInvoked(modelRegistry, INFERENCE_SERVICE_2_ID, inferenceService2, model2, List.of(inferenceTextService2));
-        Map<String, Object> inferenceRootResultField = (Map<String, Object>) writtenDocSource.get(
-            BulkShardRequestInferenceProvider.ROOT_INFERENCE_FIELD
+        checkInferenceResult(
+            originalSource,
+            writtenDocSource,
+            FIRST_INFERENCE_FIELD_SERVICE_1,
+            SECOND_INFERENCE_FIELD_SERVICE_1,
+            INFERENCE_FIELD_SERVICE_2
         );
-
-        checkInferenceResult(inferenceRootResultField, FIRST_INFERENCE_FIELD_SERVICE_1, firstInferenceTextService1);
-        checkInferenceResult(inferenceRootResultField, SECOND_INFERENCE_FIELD_SERVICE_1, secondInferenceTextService1);
-        checkInferenceResult(inferenceRootResultField, INFERENCE_FIELD_SERVICE_2, inferenceTextService2);
     }
 
     public void testFailedInference() {
@@ -208,7 +208,7 @@ public class BulkOperationTests extends ESTestCase {
         ModelRegistry modelRegistry = createModelRegistry(Map.of(INFERENCE_SERVICE_1_ID, SERVICE_1_ID));
 
         Model model = mock(Model.class);
-        InferenceService inferenceService = createInferenceService(model, INFERENCE_SERVICE_1_ID, 1);
+        InferenceService inferenceService = createInferenceService(model, INFERENCE_SERVICE_1_ID);
         InferenceServiceRegistry inferenceServiceRegistry = createInferenceServiceRegistry(Map.of(SERVICE_1_ID, inferenceService));
 
         String firstInferenceTextService1 = "firstInferenceTextService1";
@@ -238,14 +238,30 @@ public class BulkOperationTests extends ESTestCase {
         );
     }
 
-    private static void checkInferenceResult(Map<String, Object> inferenceRootResultField, String fieldName, String expectedText) {
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> inferenceService1FieldResults = (List<Map<String, Object>>) inferenceRootResultField.get(fieldName);
-        assertNotNull(inferenceService1FieldResults);
-        assertThat(inferenceService1FieldResults.size(), equalTo(1));
-        Map<String, Object> inferenceResultElement = inferenceService1FieldResults.get(0);
-        assertNotNull(inferenceResultElement.get(BulkShardRequestInferenceProvider.SPARSE_VECTOR_SUBFIELD_NAME));
-        assertThat(inferenceResultElement.get(BulkShardRequestInferenceProvider.TEXT_SUBFIELD_NAME), equalTo(expectedText));
+    @SuppressWarnings("unchecked")
+    private static void checkInferenceResult(
+        Map<String, String> docSource,
+        Map<String, Object> writtenDocSource,
+        String... inferenceFieldNames
+    ) {
+
+        Map<String, Object> inferenceRootResultField = (Map<String, Object>) writtenDocSource.get(
+            BulkShardRequestInferenceProvider.ROOT_INFERENCE_FIELD
+        );
+
+        for (String inferenceFieldName : inferenceFieldNames) {
+            List<Map<String, Object>> inferenceService1FieldResults = (List<Map<String, Object>>) inferenceRootResultField.get(
+                inferenceFieldName
+            );
+            assertNotNull(inferenceService1FieldResults);
+            assertThat(inferenceService1FieldResults.size(), equalTo(1));
+            Map<String, Object> inferenceResultElement = inferenceService1FieldResults.get(0);
+            assertNotNull(inferenceResultElement.get(BulkShardRequestInferenceProvider.SPARSE_VECTOR_SUBFIELD_NAME));
+            assertThat(
+                inferenceResultElement.get(BulkShardRequestInferenceProvider.TEXT_SUBFIELD_NAME),
+                equalTo(docSource.get(inferenceFieldName))
+            );
+        }
     }
 
     private static void verifyInferenceServiceInvoked(
@@ -253,15 +269,15 @@ public class BulkOperationTests extends ESTestCase {
         String inferenceService1Id,
         InferenceService inferenceService,
         Model model,
-        List<String> inferenceTexts
+        Collection<String> inferenceTexts
     ) {
         verify(modelRegistry).getModel(eq(inferenceService1Id), any());
         verify(inferenceService).parsePersistedConfig(eq(inferenceService1Id), eq(TaskType.SPARSE_EMBEDDING), anyMap());
-        verify(inferenceService).infer(eq(model), argThat(containsAll(inferenceTexts)), anyMap(), eq(InputType.INGEST), any());
+        verify(inferenceService).infer(eq(model), argThat(containsInAnyOrder(inferenceTexts)), anyMap(), eq(InputType.INGEST), any());
         verifyNoMoreInteractions(inferenceService);
     }
 
-    private static ArgumentMatcher<List<String>> containsAll(List<String> expected) {
+    private static ArgumentMatcher<List<String>> containsInAnyOrder(Collection<String> expected) {
         return new ArgumentMatcher<>() {
             @Override
             public boolean matches(List<String> argument) {
@@ -352,17 +368,19 @@ public class BulkOperationTests extends ESTestCase {
         return bulkShardRequestCaptor.getValue();
     }
 
-    private static InferenceService createInferenceService(Model model, String inferenceServiceId, int numResults) {
+    private static InferenceService createInferenceService(Model model, String inferenceServiceId) {
         InferenceService inferenceService = mock(InferenceService.class);
         when(inferenceService.parsePersistedConfig(eq(inferenceServiceId), eq(TaskType.SPARSE_EMBEDDING), anyMap())).thenReturn(model);
-        InferenceServiceResults inferenceServiceResults = mock(InferenceServiceResults.class);
-        List<InferenceResults> inferenceResults = new ArrayList<>();
-        for (int i = 0; i < numResults; i++) {
-            inferenceResults.add(createInferenceResults());
-        }
-        doReturn(inferenceResults).when(inferenceServiceResults).transformToLegacyFormat();
         doAnswer(invocation -> {
             ActionListener<InferenceServiceResults> listener = invocation.getArgument(4);
+            InferenceServiceResults inferenceServiceResults = mock(InferenceServiceResults.class);
+            List<String> texts = invocation.getArgument(1);
+            List<InferenceResults> inferenceResults = new ArrayList<>();
+            for (int i = 0; i < texts.size(); i++) {
+                inferenceResults.add(createInferenceResults());
+            }
+            doReturn(inferenceResults).when(inferenceServiceResults).transformToLegacyFormat();
+
             listener.onResponse(inferenceServiceResults);
             return null;
         }).when(inferenceService).infer(eq(model), anyList(), anyMap(), eq(InputType.INGEST), any());

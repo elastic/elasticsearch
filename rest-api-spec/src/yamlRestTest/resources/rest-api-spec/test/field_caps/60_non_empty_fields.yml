@@ -26,7 +26,7 @@ setup:
         index: [test-1]
 
 ---
-"Field caps with with include_empty_field:false":
+"Field caps with with include_empty_field false":
   - skip:
       version: " - 8.12.99"
       reason: include_empty_field has been added in 8.13.0
@@ -35,7 +35,7 @@ setup:
       field_caps:
         include_empty_field: false
         index: 'test1'
-        fields: [*]
+        fields: "*"
 
   - match: {indices:                                      ["test-1"]}
   - is_true: fields.foo

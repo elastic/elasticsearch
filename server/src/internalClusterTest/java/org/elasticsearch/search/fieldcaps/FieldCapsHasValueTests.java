@@ -28,7 +28,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class FieldCapsHasValueIT extends ESIntegTestCase {
+public class FieldCapsHasValueTests extends ESIntegTestCase {
     private final String INDEX1 = "index-1";
     private final String ALIAS1 = "alias-1";
     private final String INDEX2 = "index-2";

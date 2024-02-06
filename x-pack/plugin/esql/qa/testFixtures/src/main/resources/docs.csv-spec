@@ -74,7 +74,7 @@ FROM employees
 height:double | height.float:double | height.half_float:double | height.scaled_float:double |       hire_date:date | avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long |still_hired:boolean
 ;
 
-docsKeepMultipleMatch
+docsKeepMultipleMatch#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
 // tag::keepMultipleMatch[]
 FROM employees
 | KEEP first_name, last_name, first_name
@@ -87,7 +87,7 @@ last_name:keyword | first_name:keyword
 ;
 
 docsKeepCompleteName
-// tag::keepCompleteName[]
+// tag::keepCompleteName[]#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
 FROM employees
 | KEEP first_name, last_name, first_name*
 // end::keepCompleteName[]
@@ -98,7 +98,7 @@ first_name:keyword | last_name:keyword
 // end::keep-complete-name-result[]
 ;
 
-docsKeepWildcardPrecedence
+docsKeepWildcardPrecedence#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
 // tag::keepWildcardPrecedence[]
 FROM employees
 | KEEP first_name*, last_name, first_na*
@@ -110,7 +110,7 @@ last_name:keyword | first_name:keyword
 // end::keep-wildcard-precedence-result[]
 ;
 
-docsKeepWildcardLowest
+docsKeepWildcardLowest#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
 // tag::keepWildcardLowest[]
 FROM employees
 | KEEP *, first_name
@@ -122,7 +122,7 @@ avg_worked_seconds:long|birth_date:date|emp_no:integer|gender:keyword|height:dou
 // end::keep-wildcard-lowest-result[]
 ;
 
-docskeepWildcardLowest2
+docskeepWildcardLowest2#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
 // tag::keepWildcardLowest2[]
 FROM employees
 | KEEP first_name, *
@@ -134,7 +134,7 @@ first_name:keyword |avg_worked_seconds:long|birth_date:date|emp_no:integer|gende
 // end::keep-wildcard-lowest-result2[]
 ;
 
-docskeepWildcardLowest3
+docskeepWildcardLowest3#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
 // tag::keepWildcardLowest3[]
 FROM employees
 | KEEP last_name*, first_name, *

@@ -18,7 +18,6 @@ import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.List;
 import java.util.Map;
@@ -30,41 +29,39 @@ import static org.hamcrest.Matchers.equalTo;
 public class DiskHealthIndicatorServiceIT extends ESIntegTestCase {
 
     public void testGreen() throws Exception {
-        try (InternalTestCluster internalCluster = internalCluster()) {
-            internalCluster.startMasterOnlyNode();
-            internalCluster.startDataOnlyNode();
-            ensureStableCluster(internalCluster.getNodeNames().length);
-            waitForAllNodesToReportHealth();
-            for (String node : internalCluster.getNodeNames()) {
-                HealthService healthService = internalCluster.getInstance(HealthService.class, node);
-                List<HealthIndicatorResult> resultList = getHealthServiceResults(healthService, node);
-                assertNotNull(resultList);
-                assertThat(resultList.size(), equalTo(1));
-                HealthIndicatorResult testIndicatorResult = resultList.get(0);
-                assertThat(testIndicatorResult.status(), equalTo(HealthStatus.GREEN));
-                assertThat(testIndicatorResult.symptom(), equalTo("The cluster has enough available disk space."));
-            }
+        final var internalCluster = internalCluster();
+        internalCluster.startMasterOnlyNode();
+        internalCluster.startDataOnlyNode();
+        ensureStableCluster(internalCluster.getNodeNames().length);
+        waitForAllNodesToReportHealth();
+        for (String node : internalCluster.getNodeNames()) {
+            HealthService healthService = internalCluster.getInstance(HealthService.class, node);
+            List<HealthIndicatorResult> resultList = getHealthServiceResults(healthService, node);
+            assertNotNull(resultList);
+            assertThat(resultList.size(), equalTo(1));
+            HealthIndicatorResult testIndicatorResult = resultList.get(0);
+            assertThat(testIndicatorResult.status(), equalTo(HealthStatus.GREEN));
+            assertThat(testIndicatorResult.symptom(), equalTo("The cluster has enough available disk space."));
         }
     }
 
     public void testRed() throws Exception {
-        try (InternalTestCluster internalCluster = internalCluster()) {
-            internalCluster.startMasterOnlyNode(getVeryLowWatermarksSettings());
-            internalCluster.startDataOnlyNode(getVeryLowWatermarksSettings());
-            ensureStableCluster(internalCluster.getNodeNames().length);
-            waitForAllNodesToReportHealth();
-            for (String node : internalCluster.getNodeNames()) {
-                HealthService healthService = internalCluster.getInstance(HealthService.class, node);
-                List<HealthIndicatorResult> resultList = getHealthServiceResults(healthService, node);
-                assertNotNull(resultList);
-                assertThat(resultList.size(), equalTo(1));
-                HealthIndicatorResult testIndicatorResult = resultList.get(0);
-                assertThat(testIndicatorResult.status(), equalTo(HealthStatus.RED));
-                assertThat(
-                    testIndicatorResult.symptom(),
-                    equalTo("2 nodes with roles: [data, master] are out of disk or running low on disk space.")
-                );
-            }
+        final var internalCluster = internalCluster();
+        internalCluster.startMasterOnlyNode(getVeryLowWatermarksSettings());
+        internalCluster.startDataOnlyNode(getVeryLowWatermarksSettings());
+        ensureStableCluster(internalCluster.getNodeNames().length);
+        waitForAllNodesToReportHealth();
+        for (String node : internalCluster.getNodeNames()) {
+            HealthService healthService = internalCluster.getInstance(HealthService.class, node);
+            List<HealthIndicatorResult> resultList = getHealthServiceResults(healthService, node);
+            assertNotNull(resultList);
+            assertThat(resultList.size(), equalTo(1));
+            HealthIndicatorResult testIndicatorResult = resultList.get(0);
+            assertThat(testIndicatorResult.status(), equalTo(HealthStatus.RED));
+            assertThat(
+                testIndicatorResult.symptom(),
+                equalTo("2 nodes with roles: [data, master] are out of disk or running low on disk space.")
+            );
         }
     }
 

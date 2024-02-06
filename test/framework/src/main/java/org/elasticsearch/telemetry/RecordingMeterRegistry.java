@@ -8,12 +8,14 @@
 
 package org.elasticsearch.telemetry;
 
+import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
+import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -104,6 +106,36 @@ public class RecordingMeterRegistry implements MeterRegistry {
         LongCounter instrument = buildLongCounter(name, description, unit);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
+    }
+
+    @Override
+    public LongAsyncCounter registerLongAsyncCounter(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
+        LongAsyncCounter instrument = new RecordingInstruments.RecordingAsyncLongCounter(name, observer, recorder);
+        recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
+        return instrument;
+    }
+
+    @Override
+    public LongAsyncCounter getLongAsyncCounter(String name) {
+        return (LongAsyncCounter) recorder.getInstrument(InstrumentType.LONG_ASYNC_COUNTER, name);
+    }
+
+    @Override
+    public DoubleAsyncCounter registerDoubleAsyncCounter(
+        String name,
+        String description,
+        String unit,
+        Supplier<DoubleWithAttributes> observer
+    ) {
+        DoubleAsyncCounter instrument = new RecordingInstruments.RecordingAsyncDoubleCounter(name, observer, recorder);
+        recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
+        return instrument;
+    }
+
+    @Override
+    public DoubleAsyncCounter getDoubleAsyncCounter(String name) {
+        return (DoubleAsyncCounter) recorder.getInstrument(InstrumentType.DOUBLE_ASYNC_COUNTER, name);
+
     }
 
     @Override

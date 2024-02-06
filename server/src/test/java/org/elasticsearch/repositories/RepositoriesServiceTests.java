@@ -39,7 +39,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -484,7 +483,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
                 Map.of("bucket", "bucket-a"),
-                MeterRegistry.NOOP
+                RepositoriesMetrics.NOOP
             );
         }
 
@@ -512,7 +511,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
                 Map.of("bucket", "bucket-b"),
-                MeterRegistry.NOOP
+                RepositoriesMetrics.NOOP
             );
         }
 

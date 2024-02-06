@@ -61,6 +61,7 @@ public class CancellationIT extends ProfilingTestCase {
         restRequest.setEntity(new StringEntity("""
                 {
                   "sample_size": 10000,
+                  "requested_duration": 33,
                   "query": {
                     "bool": {
                       "filter": [

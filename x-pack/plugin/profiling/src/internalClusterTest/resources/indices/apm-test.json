@@ -1,7 +1,8 @@
 {
   "settings": {
     "index" : {
-      "number_of_replicas" : 0
+      "number_of_replicas" : 0,
+      "number_of_shards": 1
     }
   },
   "mappings": {
@@ -13,7 +14,7 @@
           "type": "date"
         },
         "transaction.profiler_stack_trace_ids": {
-          "type": "keyword"
+          "type": "counted_keyword"
         },
         "transaction.name": {
           "type": "keyword"

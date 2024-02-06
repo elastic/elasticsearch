@@ -13,8 +13,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -82,7 +82,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             numInitialDocs = between(10, 100);
             ensureGreen();
             for (int i = 0; i < numInitialDocs; i++) {
-                client().prepareIndex("test").setId("init" + i).setSource("test", "init").get();
+                prepareIndex("test").setId("init" + i).setSource("test", "init").get();
             }
             indicesAdmin().prepareRefresh("test").execute().get();
             indicesAdmin().prepareFlush("test").execute().get();
@@ -121,8 +121,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             added[i] = false;
             try {
-                DocWriteResponse indexResponse = client().prepareIndex("test")
-                    .setId(Integer.toString(i))
+                DocWriteResponse indexResponse = prepareIndex("test").setId(Integer.toString(i))
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test", English.intToEnglish(i))
                     .get();
@@ -136,7 +135,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         ESIntegTestCase.NumShards numShards = getNumShards("test");
         logger.info("Start Refresh");
         // don't assert on failures here
-        final RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().get();
+        final BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().get();
         final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
         logger.info(
             "Refresh failed [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",

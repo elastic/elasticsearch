@@ -35,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public abstract class AbstractSynonymsPagedResultAction<T extends ActionResponse> extends ActionType<T> {
 
     public AbstractSynonymsPagedResultAction(String name, Writeable.Reader<T> reader) {
-        super(name, reader);
+        super(name);
     }
 
     /**

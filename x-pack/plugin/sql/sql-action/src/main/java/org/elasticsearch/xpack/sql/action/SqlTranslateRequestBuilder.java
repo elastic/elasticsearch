@@ -25,10 +25,9 @@ import static java.util.Collections.emptyMap;
  * Builder for the request for the sql action for translating SQL queries into ES requests
  */
 public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslateRequest, SqlTranslateResponse> {
-    public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action) {
+    public SqlTranslateRequestBuilder(ElasticsearchClient client) {
         this(
             client,
-            action,
             null,
             null,
             emptyMap(),
@@ -43,7 +42,6 @@ public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslat
 
     public SqlTranslateRequestBuilder(
         ElasticsearchClient client,
-        SqlTranslateAction action,
         String query,
         QueryBuilder filter,
         Map<String, Object> runtimeMappings,
@@ -56,7 +54,7 @@ public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslat
     ) {
         super(
             client,
-            action,
+            SqlTranslateAction.INSTANCE,
             new SqlTranslateRequest(query, params, filter, runtimeMappings, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo)
         );
     }

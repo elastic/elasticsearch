@@ -22,6 +22,7 @@ module org.elasticsearch.xcore {
     requires unboundid.ldapsdk;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.xcore.templates;
+    requires com.nimbusds.jose.jwt;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
@@ -72,12 +73,14 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ilm.step.info;
     exports org.elasticsearch.xpack.core.ilm;
     exports org.elasticsearch.xpack.core.indexing;
+    exports org.elasticsearch.xpack.core.inference.action;
+    exports org.elasticsearch.xpack.core.inference.results;
+    exports org.elasticsearch.xpack.core.inference;
     exports org.elasticsearch.xpack.core.logstash;
     exports org.elasticsearch.xpack.core.ml.action;
     exports org.elasticsearch.xpack.core.ml.annotations;
     exports org.elasticsearch.xpack.core.ml.autoscaling;
     exports org.elasticsearch.xpack.core.ml.calendars;
-    exports org.elasticsearch.xpack.core.ml.datafeed.extractor;
     exports org.elasticsearch.xpack.core.ml.datafeed;
     exports org.elasticsearch.xpack.core.ml.dataframe.analyses;
     exports org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
@@ -222,6 +225,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.trigger;
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
+    exports org.elasticsearch.xpack.core.ml.ltr;
 
     provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
         with

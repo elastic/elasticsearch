@@ -126,19 +126,18 @@ public class StringTermsIT extends AbstractTermsTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             builders.add(
-                client().prepareIndex("idx")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field(SINGLE_VALUED_FIELD_NAME, "val" + i)
-                            .field("i", i)
-                            .field("constant", 1)
-                            .field("tag", i < 5 / 2 + 1 ? "more" : "less")
-                            .startArray(MULTI_VALUED_FIELD_NAME)
-                            .value("val" + i)
-                            .value("val" + (i + 1))
-                            .endArray()
-                            .endObject()
-                    )
+                prepareIndex("idx").setSource(
+                    jsonBuilder().startObject()
+                        .field(SINGLE_VALUED_FIELD_NAME, "val" + i)
+                        .field("i", i)
+                        .field("constant", 1)
+                        .field("tag", i < 5 / 2 + 1 ? "more" : "less")
+                        .startArray(MULTI_VALUED_FIELD_NAME)
+                        .value("val" + i)
+                        .value("val" + (i + 1))
+                        .endArray()
+                        .endObject()
+                )
             );
         }
 
@@ -150,24 +149,22 @@ public class StringTermsIT extends AbstractTermsTestCase {
         );
         for (int i = 0; i < 100; i++) {
             builders.add(
-                client().prepareIndex("high_card_idx")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field(SINGLE_VALUED_FIELD_NAME, "val" + Strings.padStart(i + "", 3, '0'))
-                            .startArray(MULTI_VALUED_FIELD_NAME)
-                            .value("val" + Strings.padStart(i + "", 3, '0'))
-                            .value("val" + Strings.padStart((i + 1) + "", 3, '0'))
-                            .endArray()
-                            .endObject()
-                    )
+                prepareIndex("high_card_idx").setSource(
+                    jsonBuilder().startObject()
+                        .field(SINGLE_VALUED_FIELD_NAME, "val" + Strings.padStart(i + "", 3, '0'))
+                        .startArray(MULTI_VALUED_FIELD_NAME)
+                        .value("val" + Strings.padStart(i + "", 3, '0'))
+                        .value("val" + Strings.padStart((i + 1) + "", 3, '0'))
+                        .endArray()
+                        .endObject()
+                )
             );
         }
         prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer").get();
 
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx")
-                    .setId("" + i)
+                prepareIndex("empty_bucket_idx").setId("" + i)
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject())
             );
         }
@@ -227,45 +224,55 @@ public class StringTermsIT extends AbstractTermsTestCase {
         );
         for (int i = 1; i <= 3; i++) {
             builders.add(
-                client().prepareIndex("sort_idx")
-                    .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val1").field("l", 1).field("d", i).endObject())
+                prepareIndex("sort_idx").setSource(
+                    jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val1").field("l", 1).field("d", i).endObject()
+                )
             );
             builders.add(
-                client().prepareIndex("sort_idx")
-                    .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val2").field("l", 2).field("d", i).endObject())
+                prepareIndex("sort_idx").setSource(
+                    jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val2").field("l", 2).field("d", i).endObject()
+                )
             );
         }
         builders.add(
-            client().prepareIndex("sort_idx")
-                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val3").field("l", 3).field("d", 1).endObject())
+            prepareIndex("sort_idx").setSource(
+                jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val3").field("l", 3).field("d", 1).endObject()
+            )
         );
         builders.add(
-            client().prepareIndex("sort_idx")
-                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val3").field("l", 3).field("d", 2).endObject())
+            prepareIndex("sort_idx").setSource(
+                jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val3").field("l", 3).field("d", 2).endObject()
+            )
         );
         builders.add(
-            client().prepareIndex("sort_idx")
-                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val4").field("l", 3).field("d", 1).endObject())
+            prepareIndex("sort_idx").setSource(
+                jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val4").field("l", 3).field("d", 1).endObject()
+            )
         );
         builders.add(
-            client().prepareIndex("sort_idx")
-                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val4").field("l", 3).field("d", 3).endObject())
+            prepareIndex("sort_idx").setSource(
+                jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val4").field("l", 3).field("d", 3).endObject()
+            )
         );
         builders.add(
-            client().prepareIndex("sort_idx")
-                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val5").field("l", 5).field("d", 1).endObject())
+            prepareIndex("sort_idx").setSource(
+                jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val5").field("l", 5).field("d", 1).endObject()
+            )
         );
         builders.add(
-            client().prepareIndex("sort_idx")
-                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val5").field("l", 5).field("d", 2).endObject())
+            prepareIndex("sort_idx").setSource(
+                jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val5").field("l", 5).field("d", 2).endObject()
+            )
         );
         builders.add(
-            client().prepareIndex("sort_idx")
-                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val6").field("l", 5).field("d", 1).endObject())
+            prepareIndex("sort_idx").setSource(
+                jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val6").field("l", 5).field("d", 1).endObject()
+            )
         );
         builders.add(
-            client().prepareIndex("sort_idx")
-                .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val7").field("l", 5).field("d", 1).endObject())
+            prepareIndex("sort_idx").setSource(
+                jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val7").field("l", 5).field("d", 1).endObject()
+            )
         );
     }
 
@@ -922,7 +929,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(BucketOrder.aggregation("stats", true))
                         .subAggregation(stats("stats").field("i"))
-                ).execute().actionGet();
+                ).get();
 
                 fail(
                     "Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation "
@@ -1185,8 +1192,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx").setId("1").setSource("s", "foo"),
-            client().prepareIndex("cache_test_idx").setId("2").setSource("s", "bar")
+            prepareIndex("cache_test_idx").setId("1").setSource("s", "foo"),
+            prepareIndex("cache_test_idx").setId("2").setSource("s", "bar")
         );
 
         // Make sure we are starting with a clear cache

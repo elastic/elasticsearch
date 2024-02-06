@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -41,7 +42,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -117,8 +117,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     public void testMappingParamAndNestedMismatch() throws Exception {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject())
-                .get()
+            prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject())
         );
         assertThat(e.getMessage(), startsWith("Failed to parse mapping: Root mapping definition has unsupported parameters"));
     }
@@ -213,7 +212,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setSource("index_version", indexVersion.get()).get();
+            prepareIndex("test").setSource("index_version", indexVersion.get()).get();
         }
         synchronized (indexVersionLock) { // not necessarily needed here but for completeness we lock here too
             indexVersion.incrementAndGet();
@@ -226,7 +225,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                     public void run() {
                         try {
                             // recreate that index
-                            client().prepareIndex("test").setSource("index_version", indexVersion.get()).get();
+                            prepareIndex("test").setSource("index_version", indexVersion.get()).get();
                             synchronized (indexVersionLock) {
                                 // we sync here since we have to ensure that all indexing operations below for a given ID are done before
                                 // we increment the index version otherwise a doc that is in-flight could make it into an index that it
@@ -252,10 +251,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             try {
                 synchronized (indexVersionLock) {
-                    client().prepareIndex("test")
-                        .setSource("index_version", indexVersion.get())
-                        .setTimeout(TimeValue.timeValueSeconds(10))
-                        .get();
+                    prepareIndex("test").setSource("index_version", indexVersion.get()).setTimeout(TimeValue.timeValueSeconds(10)).get();
                 }
             } catch (IndexNotFoundException inf) {
                 // fine
@@ -296,10 +292,10 @@ public class CreateIndexIT extends ESIntegTestCase {
             .build();
         assertAcked(indicesAdmin().prepareCreate("test-idx-1").setSettings(settings).addAlias(new Alias("alias1").writeIndex(true)).get());
 
-        assertRequestBuilderThrows(
-            indicesAdmin().prepareCreate("test-idx-2").setSettings(settings).addAlias(new Alias("alias1").writeIndex(true)),
-            IllegalStateException.class
-        );
+        ActionRequestBuilder<?, ?> builder = indicesAdmin().prepareCreate("test-idx-2")
+            .setSettings(settings)
+            .addAlias(new Alias("alias1").writeIndex(true));
+        expectThrows(IllegalStateException.class, builder);
 
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, internalCluster().getMasterName());
         for (IndexService indexService : indicesService) {
@@ -338,7 +334,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                         .put("index.number_of_shards", shards)
                         .put("index.number_of_routing_shards", shards)
                         .put("index.routing_partition_size", partitionSize)
-                ).execute().actionGet();
+                ).get();
             } catch (IllegalStateException | IllegalArgumentException e) {
                 return false;
             }

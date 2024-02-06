@@ -62,7 +62,7 @@
       Elasticsearch is the search and analytics engine that powers the Elastic Stack.
     </p>
     <p>
-      <a href="https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its-solutions/current/getting-started-guides.html">
+      <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/getting-started.html">
         <button class="btn btn-primary">Get started</button>
       </a>
     </p>
@@ -214,6 +214,12 @@
     </li>
     <li>
       <a href="https://www.elastic.co/guide/en/elasticsearch/plugins/current/index.html">Plugins and integrations</a>
+    </li>
+     <li>
+      <a href="https://www.elastic.co/search-labs">Search Labs</a>
+    </li>
+    <li>
+      <a href="https://www.elastic.co/search-labs/tutorials/examples">Notebook examples</a>
     </li>
   </ul>
 </div>

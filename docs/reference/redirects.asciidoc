@@ -1720,11 +1720,6 @@ See <<rollup-apis>>.
 
 See <<configuring-stack-security>>.
 
-[role="exclude",id="getting-started"]
-=== Quick start
-
-See {estc-welcome}/getting-started-general-purpose.html[Set up a general purpose Elastic deployment].
-
 [role="exclude",id="getting-started-index"]
 === Index some documents
 

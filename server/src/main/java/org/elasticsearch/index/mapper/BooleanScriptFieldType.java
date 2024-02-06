@@ -112,7 +112,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return BooleanScriptBlockDocValuesReader.blockLoader(leafFactory(blContext.lookup()));
+        return new BooleanScriptBlockDocValuesReader.BooleanScriptBlockLoader(leafFactory(blContext.lookup()));
     }
 
     @Override

@@ -48,6 +48,7 @@ import static org.elasticsearch.indices.state.CloseIndexIT.assertException;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsClosed;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsOpened;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -94,7 +95,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                     createIndex(indexName);
                     indexRandom(
                         randomBoolean(),
-                        IntStream.range(0, nbDocs).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).toList()
+                        IntStream.range(0, nbDocs).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).toList()
                     );
                 }
                 default -> {
@@ -241,20 +242,22 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             ensureGreen(indices);
 
             for (String index : acknowledgedCloses) {
-                long docsCount = prepareSearch(index).setSize(0).setTrackTotalHits(true).get().getHits().getTotalHits().value;
-                assertEquals(
-                    "Expected "
-                        + docsPerIndex.get(index)
-                        + " docs in index "
-                        + index
-                        + " but got "
-                        + docsCount
-                        + " (close acknowledged="
-                        + acknowledgedCloses.contains(index)
-                        + ")",
-                    (long) docsPerIndex.get(index),
-                    docsCount
-                );
+                assertResponse(prepareSearch(index).setSize(0).setTrackTotalHits(true), response -> {
+                    long docsCount = response.getHits().getTotalHits().value;
+                    assertEquals(
+                        "Expected "
+                            + docsPerIndex.get(index)
+                            + " docs in index "
+                            + index
+                            + " but got "
+                            + docsCount
+                            + " (close acknowledged="
+                            + acknowledgedCloses.contains(index)
+                            + ")",
+                        (long) docsPerIndex.get(index),
+                        docsCount
+                    );
+                });
             }
         } finally {
             updateClusterSettings(Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()));

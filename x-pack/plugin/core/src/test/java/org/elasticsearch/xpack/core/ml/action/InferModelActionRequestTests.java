@@ -130,7 +130,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
         return r;
     }
 
-    private static InferenceConfigUpdate randomInferenceConfigUpdate() {
+    public static InferenceConfigUpdate randomInferenceConfigUpdate() {
         return randomFrom(
             RegressionConfigUpdateTests.randomRegressionConfigUpdate(),
             ClassificationConfigUpdateTests.randomClassificationConfigUpdate(),
@@ -146,28 +146,8 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
         );
     }
 
-    private static Map<String, Object> randomMap() {
-        return Stream.generate(() -> randomAlphaOfLength(10))
-            .limit(randomInt(10))
-            .collect(Collectors.toMap(Function.identity(), (v) -> randomAlphaOfLength(10)));
-    }
-
-    @Override
-    protected Writeable.Reader<Request> instanceReader() {
-        return Request::new;
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        return new NamedWriteableRegistry(entries);
-    }
-
-    @Override
-    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
+    public static InferenceConfigUpdate mutateInferenceConfigUpdate(InferenceConfigUpdate currentUpdate, TransportVersion version) {
         InferenceConfigUpdate adjustedUpdate;
-        InferenceConfigUpdate currentUpdate = instance.getUpdate();
         if (currentUpdate instanceof NlpConfigUpdate nlpConfigUpdate) {
             if (nlpConfigUpdate instanceof TextClassificationConfigUpdate update) {
                 adjustedUpdate = TextClassificationConfigUpdateTests.mutateForVersion(update, version);
@@ -191,6 +171,31 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
         } else {
             adjustedUpdate = currentUpdate;
         }
+
+        return adjustedUpdate;
+    }
+
+    private static Map<String, Object> randomMap() {
+        return Stream.generate(() -> randomAlphaOfLength(10))
+            .limit(randomInt(10))
+            .collect(Collectors.toMap(Function.identity(), (v) -> randomAlphaOfLength(10)));
+    }
+
+    @Override
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        return new NamedWriteableRegistry(entries);
+    }
+
+    @Override
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
+        InferenceConfigUpdate adjustedUpdate = mutateInferenceConfigUpdate(instance.getUpdate(), version);
 
         if (version.before(TransportVersions.V_8_3_0)) {
             return new Request(

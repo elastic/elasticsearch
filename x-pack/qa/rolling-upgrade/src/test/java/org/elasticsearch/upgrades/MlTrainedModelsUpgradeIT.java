@@ -8,7 +8,6 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
@@ -57,7 +56,6 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelInference() throws Exception {
-        assumeTrue("We should only test if old cluster is after trained models went GA", isOriginalClusterVersionAtLeast(Version.V_7_13_1));
         switch (CLUSTER_TYPE) {
             case OLD -> {
                 createIndexWithName(INDEX_NAME);

@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
@@ -15,12 +16,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Split}.
  * This class is generated. Do not edit it.
  */
 public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator str;
 
   private final byte delim;
@@ -29,8 +34,9 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
 
   private final DriverContext driverContext;
 
-  public SplitSingleByteEvaluator(EvalOperator.ExpressionEvaluator str, byte delim,
+  public SplitSingleByteEvaluator(Source source, EvalOperator.ExpressionEvaluator str, byte delim,
       BytesRef scratch, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.str = str;
     this.delim = delim;
     this.scratch = scratch;
@@ -38,14 +44,13 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref strRef = str.eval(page)) {
-      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
       BytesRefVector strVector = strBlock.asVector();
       if (strVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), strBlock));
+        return eval(page.getPositionCount(), strBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), strVector));
+      return eval(page.getPositionCount(), strVector);
     }
   }
 
@@ -53,7 +58,14 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+        if (strBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (strBlock.getValueCount(p) != 1) {
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -84,14 +96,17 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
     private final EvalOperator.ExpressionEvaluator.Factory str;
 
     private final byte delim;
 
     private final Function<DriverContext, BytesRef> scratch;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory str, byte delim,
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str, byte delim,
         Function<DriverContext, BytesRef> scratch) {
+      this.source = source;
       this.str = str;
       this.delim = delim;
       this.scratch = scratch;
@@ -99,7 +114,7 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
 
     @Override
     public SplitSingleByteEvaluator get(DriverContext context) {
-      return new SplitSingleByteEvaluator(str.get(context), delim, scratch.apply(context), context);
+      return new SplitSingleByteEvaluator(source, str.get(context), delim, scratch.apply(context), context);
     }
 
     @Override

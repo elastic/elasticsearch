@@ -62,7 +62,6 @@ public class FileSettingsServiceTests extends ESTestCase {
     private ThreadPool threadpool;
 
     @Before
-    @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
 
@@ -83,7 +82,6 @@ public class FileSettingsServiceTests extends ESTestCase {
             .build();
         doAnswer((Answer<ClusterState>) invocation -> clusterState).when(clusterService).state();
 
-        clusterService.setRerouteService(mock(RerouteService.class));
         clusterService.setNodeConnectionsService(mock(NodeConnectionsService.class));
         clusterService.getClusterApplierService().setInitialState(clusterState);
         clusterService.getMasterService().setClusterStatePublisher((e, pl, al) -> {
@@ -101,7 +99,11 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        controller = new ReservedClusterStateService(clusterService, List.of(new ReservedClusterSettingsAction(clusterSettings)));
+        controller = new ReservedClusterStateService(
+            clusterService,
+            mock(RerouteService.class),
+            List.of(new ReservedClusterSettingsAction(clusterSettings))
+        );
         fileSettingsService = spy(new FileSettingsService(clusterService, controller, env));
     }
 

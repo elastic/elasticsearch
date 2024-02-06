@@ -18,6 +18,8 @@ public final class XPackField {
     public static final String GRAPH = "graph";
     /** Name constant for the machine learning feature. */
     public static final String MACHINE_LEARNING = "ml";
+    /** Name constant for the inference feature. */
+    public static final String INFERENCE = "inference";
     /** Name constant for the Logstash feature. */
     public static final String LOGSTASH = "logstash";
     /** Name constant for the Beats feature. */

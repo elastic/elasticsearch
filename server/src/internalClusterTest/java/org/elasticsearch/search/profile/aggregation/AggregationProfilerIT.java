@@ -105,14 +105,13 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             builders.add(
-                client().prepareIndex("idx")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field(STRING_FIELD, randomFrom(randomStrings))
-                            .field(NUMBER_FIELD, randomIntBetween(0, 9))
-                            .field(TAG_FIELD, randomBoolean() ? "more" : "less")
-                            .endObject()
-                    )
+                prepareIndex("idx").setSource(
+                    jsonBuilder().startObject()
+                        .field(STRING_FIELD, randomFrom(randomStrings))
+                        .field(NUMBER_FIELD, randomIntBetween(0, 9))
+                        .field(TAG_FIELD, randomBoolean() ? "more" : "less")
+                        .endObject()
+                )
             );
         }
 
@@ -643,7 +642,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2; i++) {
             String date = Instant.ofEpochSecond(i).toString();
-            builders.add(client().prepareIndex("dateidx").setSource(jsonBuilder().startObject().field("date", date).endObject()));
+            builders.add(prepareIndex("dateidx").setSource(jsonBuilder().startObject().field("date", date).endObject()));
         }
         indexRandom(true, false, builders);
 
@@ -721,8 +720,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2; i++) {
                 String date = Instant.ofEpochSecond(i).toString();
                 builders.add(
-                    client().prepareIndex("date_filter_by_filter_disabled")
-                        .setSource(jsonBuilder().startObject().field("date", date).endObject())
+                    prepareIndex("date_filter_by_filter_disabled").setSource(jsonBuilder().startObject().field("date", date).endObject())
                 );
             }
             indexRandom(true, false, builders);

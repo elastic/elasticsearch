@@ -537,7 +537,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             assertThat(indexShardSnapshotStatus.getStage(), is(IndexShardSnapshotStatus.Stage.DONE));
             assertThat(
                 indexShardSnapshotStatus.getTotalSize(),
-                equalTo(indexStats.getIndexShards().get(shardId).getPrimary().getStore().getSizeInBytes())
+                equalTo(indexStats.getIndexShards().get(shardId).getPrimary().getStore().sizeInBytes())
             );
         }
 
@@ -594,7 +594,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             assertThat(
                 "Snapshot shard size fetched for follower shard [" + shardId + "] does not match leader store size",
                 fetchedSnapshotShardSizes.get(shardId),
-                equalTo(indexStats.getIndexShards().get(shardId).getPrimary().getStore().getSizeInBytes())
+                equalTo(indexStats.getIndexShards().get(shardId).getPrimary().getStore().sizeInBytes())
             );
         }
 

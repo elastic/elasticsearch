@@ -37,7 +37,6 @@ public class OriginSettingClientTests extends ESTestCase {
                     ActionListener<Response> listener
                 ) {
                     assertEquals(origin, threadPool().getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
-                    super.doExecute(action, request, listener);
                 }
             };
 

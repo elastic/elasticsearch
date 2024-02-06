@@ -12,12 +12,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -67,8 +67,8 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
     private void executeBulkRejectionLoad(int maxRetries, boolean rejectedExecutionExpected) throws Throwable {
         int numberOfAsyncOps = randomIntBetween(600, 700);
         final CountDownLatch latch = new CountDownLatch(numberOfAsyncOps);
-        final Set<BulkResponse> successfulResponses = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        final Set<Tuple<BulkRequest, Throwable>> failedResponses = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        final Set<BulkResponse> successfulResponses = ConcurrentCollections.newConcurrentSet();
+        final Set<Tuple<BulkRequest, Throwable>> failedResponses = ConcurrentCollections.newConcurrentSet();
 
         assertAcked(prepareCreate(INDEX_NAME));
         ensureGreen();
@@ -152,9 +152,7 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
     private static void indexDocs(BulkProcessor2 processor, int numDocs) {
         for (int i = 1; i <= numDocs; i++) {
             processor.add(
-                client().prepareIndex()
-                    .setIndex(INDEX_NAME)
-                    .setId(Integer.toString(i))
+                prepareIndex(INDEX_NAME).setId(Integer.toString(i))
                     .setSource("field", randomRealisticUnicodeOfLengthBetween(1, 30))
                     .request()
             );

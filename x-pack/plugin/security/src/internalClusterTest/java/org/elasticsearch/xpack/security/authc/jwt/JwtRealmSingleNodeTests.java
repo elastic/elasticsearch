@@ -16,12 +16,15 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.http.HttpEntity;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -34,7 +37,17 @@ import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.Grant;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtAuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -44,17 +57,24 @@ import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
@@ -107,7 +127,20 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             .put("xpack.security.authc.realms.jwt.jwt2.claims.groups", "groups")
             .put("xpack.security.authc.realms.jwt.jwt2.client_authentication.type", "shared_secret")
             .put("xpack.security.authc.realms.jwt.jwt2.client_authentication.rotation_grace_period", "0s")
-            .putList("xpack.security.authc.realms.jwt.jwt2.allowed_signature_algorithms", "HS256", "HS384");
+            .putList("xpack.security.authc.realms.jwt.jwt2.allowed_signature_algorithms", "HS256", "HS384")
+            // 4th JWT realm
+            .put("xpack.security.authc.realms.jwt.jwt3.order", 40)
+            .put("xpack.security.authc.realms.jwt.jwt3.token_type", "id_token")
+            .put("xpack.security.authc.realms.jwt.jwt3.allowed_issuer", "my-issuer-04")
+            .put("xpack.security.authc.realms.jwt.jwt3.allowed_subjects", "user-04")
+            .put("xpack.security.authc.realms.jwt.jwt3.allowed_audiences", "es-04")
+            .put("xpack.security.authc.realms.jwt.jwt3.claims.principal", "sub")
+            .put("xpack.security.authc.realms.jwt.jwt3.claims.groups", "groups")
+            .put("xpack.security.authc.realms.jwt.jwt3.client_authentication.type", "NONE")
+            .put(
+                "xpack.security.authc.realms.jwt.jwt3.pkc_jwkset_path",
+                getDataPath("/org/elasticsearch/xpack/security/authc/apikey/rsa-public-jwkset.json")
+            );
 
         SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
             secureSettings.setString("xpack.security.authc.realms.jwt.jwt0.hmac_key", jwtHmacKey);
@@ -132,6 +165,76 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
 
     protected boolean addMockHttpTransport() {
         return false;
+    }
+
+    @TestLogging(value = "org.elasticsearch.xpack.security.authc.jwt:DEBUG", reason = "failures can be very difficult to troubleshoot")
+    public void testGrantApiKeyForJWT() throws Exception {
+        final JWTClaimsSet.Builder jwtClaims = new JWTClaimsSet.Builder();
+        final String subject;
+        final String sharedSecret;
+        // id_token or access_token
+        if (randomBoolean()) {
+            subject = "me";
+            // JWT "id_token" valid for jwt0
+            jwtClaims.audience("es-01")
+                .issuer("my-issuer-01")
+                .subject(subject)
+                .claim("groups", "admin")
+                .issueTime(Date.from(Instant.now()))
+                .expirationTime(Date.from(Instant.now().plusSeconds(600)))
+                .build();
+            sharedSecret = jwt0SharedSecret;
+        } else {
+            subject = "me@example.com";
+            // JWT "access_token" valid for jwt2
+            jwtClaims.audience("es-03")
+                .issuer("my-issuer-03")
+                .subject("user-03")
+                .claim("groups", "admin")
+                .claim("email", subject)
+                .issueTime(Date.from(Instant.now()))
+                .expirationTime(Date.from(Instant.now().plusSeconds(300)));
+            sharedSecret = jwt2SharedSecret;
+        }
+        {
+            // JWT is valid but the client authentication is NOT
+            GrantApiKeyRequest grantApiKeyRequest = getGrantApiKeyForJWT(getSignedJWT(jwtClaims.build()), randomFrom("WRONG", null));
+            ElasticsearchSecurityException e = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("unable to authenticate user"));
+        }
+        {
+            // both JWT and client authentication are valid
+            GrantApiKeyRequest grantApiKeyRequest = getGrantApiKeyForJWT(getSignedJWT(jwtClaims.build()), sharedSecret);
+            CreateApiKeyResponse createApiKeyResponse = client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet();
+            assertThat(createApiKeyResponse.getId(), notNullValue());
+            assertThat(createApiKeyResponse.getKey(), notNullValue());
+            assertThat(createApiKeyResponse.getName(), is(grantApiKeyRequest.getApiKeyRequest().getName()));
+            final String base64ApiKeyKeyValue = Base64.getEncoder()
+                .encodeToString((createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey()).getBytes(StandardCharsets.UTF_8));
+            AuthenticateResponse authenticateResponse = client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue))
+                .execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE)
+                .actionGet();
+            assertThat(authenticateResponse.authentication().getEffectiveSubject().getUser().principal(), is(subject));
+            assertThat(authenticateResponse.authentication().getAuthenticationType(), is(Authentication.AuthenticationType.API_KEY));
+        }
+        {
+            // client authentication is valid but the JWT is not
+            final SignedJWT wrongJWT;
+            if (randomBoolean()) {
+                wrongJWT = getSignedJWT(jwtClaims.build(), ("wrong key that's longer than 256 bits").getBytes(StandardCharsets.UTF_8));
+            } else {
+                wrongJWT = getSignedJWT(jwtClaims.audience("wrong audience claim value").build());
+            }
+            GrantApiKeyRequest grantApiKeyRequest = getGrantApiKeyForJWT(wrongJWT, sharedSecret);
+            ElasticsearchSecurityException e = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("unable to authenticate user"));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -327,79 +430,208 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             200,
             client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret)).getStatusLine().getStatusCode()
         );
-        // update the secret in the secure settings
-        final MockSecureSettings newSecureSettings = new MockSecureSettings();
-        newSecureSettings.setString(
-            "xpack.security.authc.realms.jwt." + realm0.name() + ".client_authentication.shared_secret",
-            "realm0updatedSecret"
-        );
-        newSecureSettings.setString(
-            "xpack.security.authc.realms.jwt." + realm1.name() + ".client_authentication.shared_secret",
-            "realm1updatedSecret"
-        );
-        newSecureSettings.setString(
-            "xpack.security.authc.realms.jwt." + realm2.name() + ".client_authentication.shared_secret",
-            "realm2updatedSecret"
-        );
-        // reload settings
         final PluginsService plugins = getInstanceFromNode(PluginsService.class);
         final LocalStateSecurity localStateSecurity = plugins.filterPlugins(LocalStateSecurity.class).findFirst().get();
-        for (Plugin p : localStateSecurity.plugins()) {
-            if (p instanceof Security securityPlugin) {
-                Settings.Builder newSettingsBuilder = Settings.builder().setSecureSettings(newSecureSettings);
-                securityPlugin.reload(newSettingsBuilder.build());
+        // update the secret in the secure settings
+        try {
+            final MockSecureSettings newSecureSettings = new MockSecureSettings();
+            newSecureSettings.setString(
+                "xpack.security.authc.realms.jwt." + realm0.name() + ".client_authentication.shared_secret",
+                "realm0updatedSecret"
+            );
+            newSecureSettings.setString(
+                "xpack.security.authc.realms.jwt." + realm1.name() + ".client_authentication.shared_secret",
+                "realm1updatedSecret"
+            );
+            newSecureSettings.setString(
+                "xpack.security.authc.realms.jwt." + realm2.name() + ".client_authentication.shared_secret",
+                "realm2updatedSecret"
+            );
+            // reload settings
+            for (Plugin p : localStateSecurity.plugins()) {
+                if (p instanceof Security securityPlugin) {
+                    Settings.Builder newSettingsBuilder = Settings.builder().setSecureSettings(newSecureSettings);
+                    securityPlugin.reload(newSettingsBuilder.build());
+                }
+            }
+            // ensure the old value still works for realm 0 (default grace period)
+            assertEquals(
+                200,
+                client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), jwt0SharedSecret)).getStatusLine().getStatusCode()
+            );
+            assertEquals(
+                200,
+                client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), "realm0updatedSecret")).getStatusLine().getStatusCode()
+            );
+            // ensure the old value still works for realm 1 (explicit grace period)
+            assertEquals(
+                200,
+                client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), jwt1SharedSecret)).getStatusLine().getStatusCode()
+            );
+            assertEquals(
+                200,
+                client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), "realm1updatedSecret")).getStatusLine().getStatusCode()
+            );
+            // ensure the old value does not work for realm 2 (no grace period)
+            ResponseException exception = expectThrows(
+                ResponseException.class,
+                () -> client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret)).getStatusLine().getStatusCode()
+            );
+            assertEquals(401, exception.getResponse().getStatusLine().getStatusCode());
+            assertEquals(
+                200,
+                client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), "realm2updatedSecret")).getStatusLine().getStatusCode()
+            );
+        } finally {
+            // update them back to their original values
+            final MockSecureSettings newSecureSettings = new MockSecureSettings();
+            newSecureSettings.setString(
+                "xpack.security.authc.realms.jwt." + realm0.name() + ".client_authentication.shared_secret",
+                jwt0SharedSecret
+            );
+            newSecureSettings.setString(
+                "xpack.security.authc.realms.jwt." + realm1.name() + ".client_authentication.shared_secret",
+                jwt1SharedSecret
+            );
+            newSecureSettings.setString(
+                "xpack.security.authc.realms.jwt." + realm2.name() + ".client_authentication.shared_secret",
+                jwt2SharedSecret
+            );
+            // reload settings
+            for (Plugin p : localStateSecurity.plugins()) {
+                if (p instanceof Security securityPlugin) {
+                    Settings.Builder newSettingsBuilder = Settings.builder().setSecureSettings(newSecureSettings);
+                    securityPlugin.reload(newSettingsBuilder.build());
+                }
             }
         }
-        // ensure the old value still works for realm 0 (default grace period)
-        assertEquals(
-            200,
-            client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), jwt0SharedSecret)).getStatusLine().getStatusCode()
-        );
-        assertEquals(
-            200,
-            client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), "realm0updatedSecret")).getStatusLine().getStatusCode()
-        );
-        // ensure the old value still works for realm 1 (explicit grace period)
-        assertEquals(
-            200,
-            client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), jwt1SharedSecret)).getStatusLine().getStatusCode()
-        );
-        assertEquals(
-            200,
-            client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), "realm1updatedSecret")).getStatusLine().getStatusCode()
-        );
-        // ensure the old value does not work for realm 2 (no grace period)
-        ResponseException exception = expectThrows(
-            ResponseException.class,
-            () -> client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret)).getStatusLine().getStatusCode()
-        );
-        assertEquals(401, exception.getResponse().getStatusLine().getStatusCode());
-        assertEquals(
-            200,
-            client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), "realm2updatedSecret")).getStatusLine().getStatusCode()
-        );
     }
 
-    private SignedJWT getSignedJWT(JWTClaimsSet claimsSet) throws Exception {
+    public void testValidationDuringReloadingClientSecrets() {
+        final Map<String, JwtRealm> realmsByName = getJwtRealms().stream().collect(Collectors.toMap(Realm::name, r -> r));
+        final Set<JwtRealm> realmsWithSharedSecret = Set.of(realmsByName.get("jwt0"), realmsByName.get("jwt1"), realmsByName.get("jwt2"));
+        final JwtRealm realmWithoutSharedSecret = realmsByName.get("jwt3");
+
+        // Sanity check all client_authentication.type settings.
+        for (JwtRealm realm : realmsWithSharedSecret) {
+            assertThat(getClientAuthenticationType(realm), equalTo(JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET));
+        }
+        assertThat(getClientAuthenticationType(realmWithoutSharedSecret), equalTo(JwtRealmSettings.ClientAuthenticationType.NONE));
+
+        // Randomly chose one JWT realm which requires shared secret and omit it.
+        final MockSecureSettings newSecureSettings = new MockSecureSettings();
+        final JwtRealm chosenRealmToRemoveSharedSecret = randomFrom(realmsWithSharedSecret);
+        for (JwtRealm realm : realmsWithSharedSecret) {
+            if (realm != chosenRealmToRemoveSharedSecret) {
+                newSecureSettings.setString(
+                    "xpack.security.authc.realms.jwt." + realm.name() + ".client_authentication.shared_secret",
+                    realm.name() + "_shared_secret"
+                );
+            }
+        }
+
+        // Reload settings and check if validation prevented updating for randomly chosen realm.
+        final PluginsService plugins = getInstanceFromNode(PluginsService.class);
+        final LocalStateSecurity localStateSecurity = plugins.filterPlugins(LocalStateSecurity.class).findFirst().get();
+        final Security securityPlugin = localStateSecurity.plugins()
+            .stream()
+            .filter(p -> p instanceof Security)
+            .map(Security.class::cast)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("Security plugin not found!"));
+
+        Settings.Builder newSettingsBuilder = Settings.builder().setSecureSettings(newSecureSettings);
+        {
+            var e = expectThrows(ElasticsearchException.class, () -> securityPlugin.reload(newSettingsBuilder.build()));
+            assertThat(e.getMessage(), containsString("secure settings reload failed for one or more security component"));
+
+            var suppressedExceptions = e.getSuppressed();
+            assertThat(suppressedExceptions.length, equalTo(1));
+            assertThat(suppressedExceptions[0].getMessage(), containsString("secure settings reload failed for one or more realms"));
+
+            var realmSuppressedExceptions = suppressedExceptions[0].getSuppressed();
+            assertThat(realmSuppressedExceptions.length, equalTo(1));
+            assertThat(
+                realmSuppressedExceptions[0].getMessage(),
+                containsString(
+                    "Missing setting for [xpack.security.authc.realms.jwt."
+                        + chosenRealmToRemoveSharedSecret.name()
+                        + ".client_authentication.shared_secret]. It is required when setting [xpack.security.authc.realms.jwt."
+                        + chosenRealmToRemoveSharedSecret.name()
+                        + ".client_authentication.type] is ["
+                        + JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET.value()
+                        + "]"
+                )
+            );
+        }
+
+        // Add missing required shared secret setting in order
+        // to avoid raising an exception for realm which has
+        // client_authentication.type set to shared_secret.
+        newSecureSettings.setString(
+            "xpack.security.authc.realms.jwt." + chosenRealmToRemoveSharedSecret.name() + ".client_authentication.shared_secret",
+            chosenRealmToRemoveSharedSecret.name() + "_shared_secret"
+        );
+        // Add shared secret for realm which does not require it,
+        // because it has client_authentication.type set to NONE.
+        newSecureSettings.setString(
+            "xpack.security.authc.realms.jwt." + realmWithoutSharedSecret.name() + ".client_authentication.shared_secret",
+            realmWithoutSharedSecret.name() + "_shared_secret"
+        );
+
+        {
+            var e = expectThrows(ElasticsearchException.class, () -> securityPlugin.reload(newSettingsBuilder.build()));
+            assertThat(e.getMessage(), containsString("secure settings reload failed for one or more security component"));
+
+            var suppressedExceptions = e.getSuppressed();
+            assertThat(suppressedExceptions.length, equalTo(1));
+            assertThat(suppressedExceptions[0].getMessage(), containsString("secure settings reload failed for one or more realms"));
+
+            var realmSuppressedExceptions = suppressedExceptions[0].getSuppressed();
+            assertThat(realmSuppressedExceptions.length, equalTo(1));
+            assertThat(
+                realmSuppressedExceptions[0].getMessage(),
+                containsString(
+                    "Setting [xpack.security.authc.realms.jwt."
+                        + realmWithoutSharedSecret.name()
+                        + ".client_authentication.shared_secret] is not supported, because setting [xpack.security.authc.realms.jwt."
+                        + realmWithoutSharedSecret.name()
+                        + ".client_authentication.type] is ["
+                        + JwtRealmSettings.ClientAuthenticationType.NONE.value()
+                        + "]"
+                )
+            );
+        }
+    }
+
+    private SignedJWT getSignedJWT(JWTClaimsSet claimsSet, byte[] hmacKeyBytes) throws Exception {
         JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.HS256).build();
-        OctetSequenceKey.Builder jwt0signer = new OctetSequenceKey.Builder(jwtHmacKey.getBytes(StandardCharsets.UTF_8));
+        OctetSequenceKey.Builder jwt0signer = new OctetSequenceKey.Builder(hmacKeyBytes);
         jwt0signer.algorithm(JWSAlgorithm.HS256);
         SignedJWT jwt = new SignedJWT(jwtHeader, claimsSet);
         jwt.sign(new MACSigner(jwt0signer.build()));
         return jwt;
     }
 
-    private Request getRequest(SignedJWT jwt, String shardSecret) {
+    private SignedJWT getSignedJWT(JWTClaimsSet claimsSet) throws Exception {
+        return getSignedJWT(claimsSet, jwtHmacKey.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private Request getRequest(SignedJWT jwt, String sharedSecret) {
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
         options.addHeader("Authorization", "Bearer  " + jwt.serialize());
-        options.addHeader("ES-Client-Authentication", "SharedSecret " + shardSecret);
+        options.addHeader("ES-Client-Authentication", "SharedSecret " + sharedSecret);
         request.setOptions(options);
         return request;
     }
 
     private TimeValue getGracePeriod(JwtRealm realm) {
         return realm.getConfig().getConcreteSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD).get(realm.getConfig().settings());
+    }
+
+    private JwtRealmSettings.ClientAuthenticationType getClientAuthenticationType(JwtRealm realm) {
+        return realm.getConfig().getConcreteSetting(CLIENT_AUTHENTICATION_TYPE).get(realm.getConfig().settings());
     }
 
     private void assertJwtToken(JwtAuthenticationToken token, String tokenPrincipal, String sharedSecret, SignedJWT signedJWT)
@@ -446,9 +678,22 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         if (clientSecret != null) {
             threadContext.putHeader(
                 JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + clientSecret
+                JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + clientSecret
             );
         }
         return threadContext;
+    }
+
+    private static GrantApiKeyRequest getGrantApiKeyForJWT(SignedJWT signedJWT, String sharedSecret) {
+        GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
+        grantApiKeyRequest.getGrant().setType("access_token");
+        grantApiKeyRequest.getGrant().setAccessToken(new SecureString(signedJWT.serialize().toCharArray()));
+        if (sharedSecret != null) {
+            grantApiKeyRequest.getGrant()
+                .setClientAuthentication(new Grant.ClientAuthentication("SharedSecret", new SecureString(sharedSecret.toCharArray())));
+        }
+        grantApiKeyRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+        grantApiKeyRequest.getApiKeyRequest().setName(randomAlphaOfLength(8));
+        return grantApiKeyRequest;
     }
 }

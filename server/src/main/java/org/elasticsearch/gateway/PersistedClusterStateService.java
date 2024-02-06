@@ -61,6 +61,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
@@ -438,6 +439,10 @@ public class PersistedClusterStateService {
                                 PrintStream printStream = new PrintStream(outputStream, true, StandardCharsets.UTF_8);
                                 CheckIndex checkIndex = new CheckIndex(directory)
                             ) {
+                                // Setting thread count to 1 prevents Lucene from starting disposable threads to execute the check and runs
+                                // the check on this thread which is potentially faster for a small index like the cluster state and saves
+                                // resources during test execution
+                                checkIndex.setThreadCount(1);
                                 checkIndex.setInfoStream(printStream);
                                 checkIndex.setChecksumsOnly(true);
                                 isClean = checkIndex.checkIndex().clean;
@@ -668,8 +673,7 @@ public class PersistedClusterStateService {
     }
 
     private <T> T readXContent(BytesReference bytes, CheckedFunction<XContentParser, T, IOException> reader) throws IOException {
-        final XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(parserConfig, bytes.streamInput());
-        try {
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, bytes, XContentType.SMILE)) {
             return reader.apply(parser);
         } catch (Exception e) {
             throw new CorruptStateException(e);

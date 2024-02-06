@@ -239,7 +239,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
             indexingBuffer = ByteSizeValue.ofBytes(random().nextLong() & ((1L << 40) - 1));
         }
         return new NodeInfo(
-            VersionUtils.randomVersion(random()),
+            randomAlphaOfLengthBetween(6, 32),
             TransportVersionUtils.randomVersion(random()),
             IndexVersionUtils.randomVersion(random()),
             componentVersions,

@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DiskHealthInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
@@ -252,7 +253,7 @@ public class HealthServiceTests extends ESTestCase {
             randomAlphaOfLength(30),
             new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
         );
-        HealthInfo healthInfo = new HealthInfo(diskHealthInfoMap);
+        HealthInfo healthInfo = new HealthInfo(diskHealthInfoMap, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS);
 
         var service = new HealthService(
             // The preflight indicator does not get data because the data is not fetched until after the preflight check

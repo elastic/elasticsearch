@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -48,8 +49,8 @@ import org.elasticsearch.xpack.core.ilm.StopILMRequest;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -153,9 +154,9 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertThat(exception.getMessage(), containsString("Lifecycle policy not found: [non-existent-policy]"));
 
         logger.info("Creating lifecycle [test_lifecycle]");
-        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
         long lowerBoundModifiedDate = Instant.now().toEpochMilli();
-        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
         long upperBoundModifiedDate = Instant.now().toEpochMilli();
 
         // assert version and modified_date
@@ -183,8 +184,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
             LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
-                .execute()
-                .actionGet()
+                .get()
                 .getState()
                 .getMetadata()
                 .index("test")
@@ -199,8 +199,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         phases.put("hot", new Phase("hot", TimeValue.ZERO, Map.of()));
         LifecyclePolicy policy = new LifecyclePolicy("mypolicy", phases);
 
-        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(policy);
-        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(policy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request())
             .get();
@@ -210,8 +210,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertThat(responseItem.getVersion(), equalTo(1L));
 
         // Put the same policy in place, which should be a no-op
-        putLifecycleRequest = new PutLifecycleAction.Request(policy);
-        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+        putLifecycleRequest = new PutLifecycleRequest(policy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request()).get();
         assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
@@ -225,8 +225,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         newPhases.put("cold", new Phase("cold", TimeValue.timeValueDays(1), Map.of()));
         policy = new LifecyclePolicy("mypolicy", newPhases);
 
-        putLifecycleRequest = new PutLifecycleAction.Request(policy);
-        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+        putLifecycleRequest = new PutLifecycleRequest(policy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request()).get();
         assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
@@ -241,8 +241,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         logger.info("Starting server1");
         internalCluster().startNode();
         logger.info("Creating lifecycle [test_lifecycle]");
-        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request())
             .get();
@@ -314,8 +314,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         logger.info("Starting server2");
         internalCluster().startNode();
         logger.info("Creating lifecycle [test_lifecycle]");
-        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request())
             .get();
@@ -402,8 +402,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         }
 
         logger.info("Creating lifecycle [test_lifecycle]");
-        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
@@ -415,8 +415,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertBusy(() -> assertTrue(indexExists("test")));
         assertBusy(() -> {
             LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
-                .execute()
-                .actionGet()
+                .get()
                 .getState()
                 .getMetadata()
                 .index("test")
@@ -431,17 +430,17 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         final String server_1 = internalCluster().startNode();
         final String node1 = getLocalNodeId(server_1);
 
-        assertAcked(client().execute(StopILMAction.INSTANCE, new StopILMRequest()).get());
+        assertAcked(client().execute(ILMActions.STOP, new StopILMRequest()).get());
         assertBusy(() -> {
-            OperationMode mode = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get().getMode();
+            OperationMode mode = client().execute(GetStatusAction.INSTANCE, new AcknowledgedRequest.Plain()).get().getMode();
             logger.info("--> waiting for STOPPED, currently: {}", mode);
             assertThat(mode, equalTo(OperationMode.STOPPED));
         });
 
         logger.info("Creating lifecycle [test_lifecycle]");
-        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
         long lowerBoundModifiedDate = Instant.now().toEpochMilli();
-        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
         long upperBoundModifiedDate = Instant.now().toEpochMilli();
 
         // assert version and modified_date
@@ -457,7 +456,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             is(both(greaterThanOrEqualTo(lowerBoundModifiedDate)).and(lessThanOrEqualTo(upperBoundModifiedDate)))
         );
         // assert ILM is still stopped
-        GetStatusAction.Response statusResponse = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get();
+        GetStatusAction.Response statusResponse = client().execute(GetStatusAction.INSTANCE, new AcknowledgedRequest.Plain()).get();
         assertThat(statusResponse.getMode(), equalTo(OperationMode.STOPPED));
     }
 

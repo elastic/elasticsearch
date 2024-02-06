@@ -1,0 +1,5 @@
+pr: 101640
+summary: Support cross clusters query in ESQL
+area: ES|QL
+type: enhancement
+issues: []

@@ -56,7 +56,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return BlockDocValuesReader.longs(name());
+            return new BlockDocValuesReader.LongsBlockLoader(name());
         }
 
         @Override

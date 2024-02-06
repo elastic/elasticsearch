@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.remote;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -76,7 +76,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             }
             nodeInfos.add(
                 new NodeInfo(
-                    Version.CURRENT,
+                    Build.current().version(),
                     TransportVersion.current(),
                     IndexVersion.current(),
                     Map.of(),
@@ -154,7 +154,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             expectedRemoteNodes.add(node);
             nodeInfos.add(
                 new NodeInfo(
-                    Version.CURRENT,
+                    Build.current().version(),
                     TransportVersion.current(),
                     IndexVersion.current(),
                     Map.of(),

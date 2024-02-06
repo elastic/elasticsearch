@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
@@ -38,26 +38,10 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     private final List<Integer> sourceLines;
     private final List<Long> countInclusive;
     private final List<Long> countExclusive;
-
-    public GetFlamegraphResponse(StreamInput in) throws IOException {
-        this.size = in.readInt();
-        this.samplingRate = in.readDouble();
-        this.edges = in.readCollectionAsList(i -> i.readMap(StreamInput::readInt));
-        this.fileIds = in.readCollectionAsList(StreamInput::readString);
-        this.frameTypes = in.readCollectionAsList(StreamInput::readInt);
-        this.inlineFrames = in.readCollectionAsList(StreamInput::readBoolean);
-        this.fileNames = in.readCollectionAsList(StreamInput::readString);
-        this.addressOrLines = in.readCollectionAsList(StreamInput::readInt);
-        this.functionNames = in.readCollectionAsList(StreamInput::readString);
-        this.functionOffsets = in.readCollectionAsList(StreamInput::readInt);
-        this.sourceFileNames = in.readCollectionAsList(StreamInput::readString);
-        this.sourceLines = in.readCollectionAsList(StreamInput::readInt);
-        this.countInclusive = in.readCollectionAsList(StreamInput::readLong);
-        this.countExclusive = in.readCollectionAsList(StreamInput::readLong);
-        this.selfCPU = in.readLong();
-        this.totalCPU = in.readLong();
-        this.totalSamples = in.readLong();
-    }
+    private final List<Double> annualCO2TonsInclusive;
+    private final List<Double> annualCO2TonsExclusive;
+    private final List<Double> annualCostsUSDInclusive;
+    private final List<Double> annualCostsUSDExclusive;
 
     public GetFlamegraphResponse(
         int size,
@@ -74,6 +58,10 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         List<Integer> sourceLines,
         List<Long> countInclusive,
         List<Long> countExclusive,
+        List<Double> annualCO2TonsInclusive,
+        List<Double> annualCO2TonsExclusive,
+        List<Double> annualCostsUSDInclusive,
+        List<Double> annualCostsUSDExclusive,
         long selfCPU,
         long totalCPU,
         long totalSamples
@@ -92,6 +80,10 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         this.sourceLines = sourceLines;
         this.countInclusive = countInclusive;
         this.countExclusive = countExclusive;
+        this.annualCO2TonsInclusive = annualCO2TonsInclusive;
+        this.annualCO2TonsExclusive = annualCO2TonsExclusive;
+        this.annualCostsUSDInclusive = annualCostsUSDInclusive;
+        this.annualCostsUSDExclusive = annualCostsUSDExclusive;
         this.selfCPU = selfCPU;
         this.totalCPU = totalCPU;
         this.totalSamples = totalSamples;
@@ -99,23 +91,7 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(this.size);
-        out.writeDouble(this.samplingRate);
-        out.writeCollection(this.edges, (o, v) -> o.writeMap(v, StreamOutput::writeString, StreamOutput::writeInt));
-        out.writeCollection(this.fileIds, StreamOutput::writeString);
-        out.writeCollection(this.frameTypes, StreamOutput::writeInt);
-        out.writeCollection(this.inlineFrames, StreamOutput::writeBoolean);
-        out.writeCollection(this.fileNames, StreamOutput::writeString);
-        out.writeCollection(this.addressOrLines, StreamOutput::writeInt);
-        out.writeCollection(this.functionNames, StreamOutput::writeString);
-        out.writeCollection(this.functionOffsets, StreamOutput::writeInt);
-        out.writeCollection(this.sourceFileNames, StreamOutput::writeString);
-        out.writeCollection(this.sourceLines, StreamOutput::writeInt);
-        out.writeCollection(this.countInclusive, StreamOutput::writeLong);
-        out.writeCollection(this.countExclusive, StreamOutput::writeLong);
-        out.writeLong(this.selfCPU);
-        out.writeLong(this.totalCPU);
-        out.writeLong(this.totalSamples);
+        TransportAction.localOnly();
     }
 
     public int getSize() {
@@ -174,6 +150,14 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         return sourceLines;
     }
 
+    public List<Double> getAnnualCO2TonsInclusive() {
+        return annualCO2TonsInclusive;
+    }
+
+    public List<Double> getAnnualCostsUSDInclusive() {
+        return annualCostsUSDInclusive;
+    }
+
     public long getSelfCPU() {
         return selfCPU;
     }
@@ -212,6 +196,22 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
             ChunkedToXContentHelper.array("SourceLine", Iterators.map(sourceLines.iterator(), e -> (b, p) -> b.value(e))),
             ChunkedToXContentHelper.array("CountInclusive", Iterators.map(countInclusive.iterator(), e -> (b, p) -> b.value(e))),
             ChunkedToXContentHelper.array("CountExclusive", Iterators.map(countExclusive.iterator(), e -> (b, p) -> b.value(e))),
+            ChunkedToXContentHelper.array(
+                "AnnualCO2TonsInclusive",
+                Iterators.map(annualCO2TonsInclusive.iterator(), e -> (b, p) -> b.value(e))
+            ),
+            ChunkedToXContentHelper.array(
+                "AnnualCO2TonsExclusive",
+                Iterators.map(annualCO2TonsExclusive.iterator(), e -> (b, p) -> b.value(e))
+            ),
+            ChunkedToXContentHelper.array(
+                "AnnualCostsUSDInclusive",
+                Iterators.map(annualCostsUSDInclusive.iterator(), e -> (b, p) -> b.value(e))
+            ),
+            ChunkedToXContentHelper.array(
+                "AnnualCostsUSDExclusive",
+                Iterators.map(annualCostsUSDExclusive.iterator(), e -> (b, p) -> b.value(e))
+            ),
             Iterators.single((b, p) -> b.field("Size", size)),
             Iterators.single((b, p) -> b.field("SamplingRate", samplingRate)),
             Iterators.single((b, p) -> b.field("SelfCPU", selfCPU)),

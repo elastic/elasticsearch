@@ -181,7 +181,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
                 source.put(RETURN_NOOP_FIELD, true);
                 noopDocs++;
             }
-            indexRequests.add(client().prepareIndex(sourceIndex).setId(Integer.toString(i)).setSource(source));
+            indexRequests.add(prepareIndex(sourceIndex).setId(Integer.toString(i)).setSource(source));
         }
         indexRandom(true, indexRequests);
 
@@ -209,7 +209,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
                 .addSort(SORTING_FIELD, SortOrder.DESC),
             response -> {
                 // Modify a subset of the target documents concurrently
-                final List<SearchHit> originalDocs = Arrays.asList(response.getHits().getHits());
+                final List<SearchHit> originalDocs = Arrays.asList(response.getHits().asUnpooled().getHits());
                 docsModifiedConcurrently.addAll(randomSubsetOf(finalConflictingOps, originalDocs));
             }
         );

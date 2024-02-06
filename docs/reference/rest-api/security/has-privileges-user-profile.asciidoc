@@ -96,31 +96,33 @@ requested set of cluster, index, and application privileges:
 
 [source,console]
 --------------------------------------------------
-POST /_security/user/_has_privileges
+POST /_security/profile/_has_privileges
 {
   "uids": [
     "u_LQPnxDxEjIH0GOUoFkZr5Y57YUwSkL9Joiq-g4OCbPc_0",
     "u_rzRnxDgEHIH0GOUoFkZr5Y27YUwSk19Joiq=g4OCxxB_1",
     "u_does-not-exist_0"
   ],
-  "cluster": [ "monitor", "create_snapshot", "manage_ml" ],
-  "index" : [
-    {
-      "names": [ "suppliers", "products" ],
-      "privileges": [ "create_doc"]
-    },
-    {
-      "names": [ "inventory" ],
-      "privileges" : [ "read", "write" ]
-    }
-  ],
-  "application": [
-    {
-      "application": "inventory_manager",
-      "privileges" : [ "read", "data:write/inventory" ],
-      "resources" : [ "product/1852563" ]
-    }
-  ]
+  "privileges": {
+    "cluster": [ "monitor", "create_snapshot", "manage_ml" ],
+    "index" : [
+      {
+        "names": [ "suppliers", "products" ],
+        "privileges": [ "create_doc"]
+      },
+      {
+        "names": [ "inventory" ],
+        "privileges" : [ "read", "write" ]
+      }
+    ],
+    "application": [
+      {
+        "application": "inventory_manager",
+        "privileges" : [ "read", "data:write/inventory" ],
+        "resources" : [ "product/1852563" ]
+      }
+    ]
+  }
 }
 --------------------------------------------------
 // TEST[skip:TODO setup and tests will be possible once the profile uid is predictable]

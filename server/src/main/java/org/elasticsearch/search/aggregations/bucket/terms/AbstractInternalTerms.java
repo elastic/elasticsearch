@@ -105,7 +105,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                     docCountError += bucket.getDocCountError();
                 }
             }
-            aggregationsList.add((InternalAggregations) bucket.getAggregations());
+            aggregationsList.add(bucket.getAggregations());
         }
         InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
         return createBucket(docCount, aggs, docCountError, buckets.get(0));
@@ -300,7 +300,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             TopBucketBuilder<B> top = TopBucketBuilder.build(
                 getRequiredSize(),
                 getOrder(),
-                removed -> { otherDocCount[0] += removed.getDocCount(); }
+                removed -> otherDocCount[0] += removed.getDocCount()
             );
             thisReduceOrder = reduceBuckets(aggregations, reduceContext, bucket -> {
                 if (bucket.getDocCount() >= getMinDocCount()) {
@@ -346,7 +346,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                 .map(
                     b -> createBucket(
                         samplingContext.scaleUp(b.getDocCount()),
-                        InternalAggregations.finalizeSampling((InternalAggregations) b.getAggregations(), samplingContext),
+                        InternalAggregations.finalizeSampling(b.getAggregations(), samplingContext),
                         b.getShowDocCountError() ? samplingContext.scaleUp(b.getDocCountError()) : 0,
                         b
                     )

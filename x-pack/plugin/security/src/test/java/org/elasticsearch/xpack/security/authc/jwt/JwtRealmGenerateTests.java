@@ -23,6 +23,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtUtil;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -428,7 +429,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
                 + (Strings.hasText(clientSecret)
                     ? JwtRealm.HEADER_CLIENT_AUTHENTICATION
                         + ": "
-                        + JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME
+                        + JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME
                         + " "
                         + clientSecret
                         + "\n"

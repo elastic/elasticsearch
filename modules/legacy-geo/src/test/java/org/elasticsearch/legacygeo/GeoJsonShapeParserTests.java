@@ -181,34 +181,37 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
             .endArray()
             .endObject();
 
-        XContentParser parser = createParser(pointGeoJson);
-        parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
-        assertNull(parser.nextToken());
+        XContentBuilder lineGeoJson;
+        try (XContentParser parser = createParser(pointGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
 
-        // multi dimension linestring
-        XContentBuilder lineGeoJson = XContentFactory.jsonBuilder()
-            .startObject()
-            .field("type", "LineString")
-            .startArray("coordinates")
-            .startArray()
-            .value(100.0)
-            .value(0.0)
-            .value(15.0)
-            .endArray()
-            .startArray()
-            .value(101.0)
-            .value(1.0)
-            .value(18.0)
-            .value(19.0)
-            .endArray()
-            .endArray()
-            .endObject();
+            // multi dimension linestring
+            lineGeoJson = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("type", "LineString")
+                .startArray("coordinates")
+                .startArray()
+                .value(100.0)
+                .value(0.0)
+                .value(15.0)
+                .endArray()
+                .startArray()
+                .value(101.0)
+                .value(1.0)
+                .value(18.0)
+                .value(19.0)
+                .endArray()
+                .endArray()
+                .endObject();
+        }
 
-        parser = createParser(lineGeoJson);
-        parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
-        assertNull(parser.nextToken());
+        try (var parser = createParser(lineGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
+        }
     }
 
     @Override

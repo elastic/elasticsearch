@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -123,7 +122,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -213,11 +212,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             @SuppressWarnings("unchecked")
             InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
             for (B bucket : terms.getBuckets()) {
-                List<B> existingBuckets = buckets.get(bucket.getKeyAsString());
-                if (existingBuckets == null) {
-                    existingBuckets = new ArrayList<>(aggregations.size());
-                    buckets.put(bucket.getKeyAsString(), existingBuckets);
-                }
+                List<B> existingBuckets = buckets.computeIfAbsent(bucket.getKeyAsString(), k -> new ArrayList<>(aggregations.size()));
                 // Adjust the buckets with the global stats representing the
                 // total size of the pots from which the stats are drawn
                 existingBuckets.add(

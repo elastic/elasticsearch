@@ -74,13 +74,12 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
                 }
             });
 
+        boolean isModule = GradleUtils.isModuleProject(project.getPath());
+        boolean isXPackModule = isModule && project.getPath().startsWith(":x-pack");
+        if (isModule == false || isXPackModule) {
+            addNoticeGeneration(project, extension);
+        }
         project.afterEvaluate(p -> {
-            boolean isModule = GradleUtils.isModuleProject(p.getPath());
-            boolean isXPackModule = isModule && p.getPath().startsWith(":x-pack");
-            if (isModule == false || isXPackModule) {
-                addNoticeGeneration(p, extension);
-            }
-
             @SuppressWarnings("unchecked")
             NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
                 .getExtensions()

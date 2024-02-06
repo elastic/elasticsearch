@@ -11,9 +11,11 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Authenticator;
@@ -53,7 +55,11 @@ public class JwtTokenExtractionTests extends ESTestCase {
         Realms realms = mock(Realms.class);
         // mock realm sits in-between
         when(realms.getActiveRealms()).thenReturn(List.of(jwtRealm1, mockRealm, jwtRealm2));
-        RealmsAuthenticator realmsAuthenticator = new RealmsAuthenticator(mock(AtomicLong.class), (Cache<String, Realm>) mock(Cache.class));
+        RealmsAuthenticator realmsAuthenticator = new RealmsAuthenticator(
+            mock(AtomicLong.class),
+            (Cache<String, Realm>) mock(Cache.class),
+            MeterRegistry.NOOP
+        );
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             mock(AuthenticationService.AuditableRequest.class),
@@ -69,7 +75,7 @@ public class JwtTokenExtractionTests extends ESTestCase {
             if (randomBoolean()) {
                 threadContext.putHeader(
                     JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                    JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + "some shared secret"
+                    JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + "some shared secret"
                 );
             }
             AuthenticationToken authenticationToken = realmsAuthenticator.extractCredentials(context);

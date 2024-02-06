@@ -87,6 +87,9 @@ public class StackTraceTests extends ESTestCase {
             .array("file_ids", "AAAAAAAAAAUAAAAAAAAB3g")
             .array("frame_ids", "AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u")
             .array("type_ids", new int[] { 2 })
+            .field("annual_co2_tons", 0.3d)
+            .field("annual_costs_usd", 2.7d)
+            .field("count", 1)
             .endObject();
 
         XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
@@ -94,7 +97,10 @@ public class StackTraceTests extends ESTestCase {
             List.of(1027822),
             List.of("AAAAAAAAAAUAAAAAAAAB3g"),
             List.of("AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u"),
-            List.of(2)
+            List.of(2),
+            0.3d,
+            2.7d,
+            1
         );
         stackTrace.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
 
@@ -106,7 +112,10 @@ public class StackTraceTests extends ESTestCase {
             List.of(102782),
             List.of("AAAAAAAAAAUAAAAAAAAB3g"),
             List.of("AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u"),
-            List.of(2)
+            List.of(2),
+            0.3d,
+            2.7d,
+            1
         );
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -115,7 +124,10 @@ public class StackTraceTests extends ESTestCase {
                 new ArrayList<>(o.addressOrLines),
                 new ArrayList<>(o.fileIds),
                 new ArrayList<>(o.frameIds),
-                new ArrayList<>(o.typeIds)
+                new ArrayList<>(o.typeIds),
+                0.3d,
+                2.7d,
+                1
             ))
         );
     }

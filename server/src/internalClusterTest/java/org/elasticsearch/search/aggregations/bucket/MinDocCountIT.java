@@ -113,16 +113,15 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
             for (int j = 0; j < frequency; ++j) {
                 indexRequests.add(
-                    client().prepareIndex("idx")
-                        .setSource(
-                            jsonBuilder().startObject()
-                                .field("s", stringTerm)
-                                .field("l", longTerm)
-                                .field("d", doubleTerm)
-                                .field("date", dateTerm)
-                                .field("match", randomBoolean())
-                                .endObject()
-                        )
+                    prepareIndex("idx").setSource(
+                        jsonBuilder().startObject()
+                            .field("s", stringTerm)
+                            .field("l", longTerm)
+                            .field("d", doubleTerm)
+                            .field("date", dateTerm)
+                            .field("match", randomBoolean())
+                            .endObject()
+                    )
                 );
             }
         }

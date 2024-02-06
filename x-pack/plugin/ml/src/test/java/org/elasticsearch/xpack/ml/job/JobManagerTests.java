@@ -443,17 +443,6 @@ public class JobManagerTests extends ESTestCase {
         return builder;
     }
 
-    private Job.Builder createJob() {
-        Detector.Builder d = new Detector.Builder("info_content", "domain").setOverFieldName("client");
-        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
-
-        Job.Builder builder = new Job.Builder();
-        builder.setId("foo");
-        builder.setAnalysisConfig(ac);
-        builder.setDataDescription(new DataDescription.Builder());
-        return builder;
-    }
-
     private JobManager createJobManager(Client client) {
         return new JobManager(
             jobResultsProvider,
@@ -467,12 +456,6 @@ public class JobManagerTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(),
             () -> ByteSizeValue.ZERO
         );
-    }
-
-    private ClusterState createClusterState() {
-        ClusterState.Builder builder = ClusterState.builder(new ClusterName("_name"));
-        builder.metadata(Metadata.builder());
-        return builder.build();
     }
 
     private BytesReference toBytesReference(ToXContent content) throws IOException {

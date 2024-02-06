@@ -12,7 +12,7 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.core.Strings;
@@ -51,17 +51,17 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     public void testIndex() {
         createIndex("test1", "index1");
-        client().prepareIndex("test1").setId("id").setSource("field", "value").get();
+        prepareIndex("test1").setId("id").setSource("field", "value").get();
 
         assertThrowsAuthorizationExceptionDefaultUsers(
-            client().prepareIndex("index1").setId("id").setSource("field", "value")::get,
+            prepareIndex("index1").setId("id").setSource("field", "value")::get,
             BulkAction.NAME + "[s]"
         );
 
-        client().prepareIndex("test4").setId("id").setSource("field", "value").get();
+        prepareIndex("test4").setId("id").setSource("field", "value").get();
         // the missing index gets automatically created (user has permissions for that), but indexing fails due to missing authorization
         assertThrowsAuthorizationExceptionDefaultUsers(
-            client().prepareIndex("missing").setId("id").setSource("field", "value")::get,
+            prepareIndex("missing").setId("id").setSource("field", "value")::get,
             BulkAction.NAME + "[s]"
         );
         ensureGreen();
@@ -69,7 +69,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     public void testDelete() {
         createIndex("test1", "index1");
-        client().prepareIndex("test1").setId("id").setSource("field", "value").get();
+        prepareIndex("test1").setId("id").setSource("field", "value").get();
         assertEquals(RestStatus.OK, client().prepareDelete("test1", "id").get().status());
 
         assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("index1", "id")::get, BulkAction.NAME + "[s]");
@@ -80,7 +80,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     public void testUpdate() {
         createIndex("test1", "index1");
-        client().prepareIndex("test1").setId("id").setSource("field", "value").get();
+        prepareIndex("test1").setId("id").setSource("field", "value").get();
         assertEquals(
             RestStatus.OK,
             client().prepareUpdate("test1", "id").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2").get().status()
@@ -88,7 +88,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
         assertThrowsAuthorizationExceptionDefaultUsers(
             client().prepareUpdate("index1", "id").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")::get,
-            UpdateAction.NAME
+            TransportUpdateAction.NAME
         );
 
         expectThrows(
@@ -98,7 +98,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
         assertThrowsAuthorizationExceptionDefaultUsers(
             client().prepareUpdate("missing", "id").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")::get,
-            UpdateAction.NAME
+            TransportUpdateAction.NAME
         );
         ensureGreen();
     }

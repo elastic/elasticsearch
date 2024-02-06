@@ -11,9 +11,9 @@ package org.elasticsearch.analysis.common;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.Response;
-import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
+import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -91,8 +91,8 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                 .setMapping("field", "type=text,analyzer=standard,search_analyzer=" + SYNONYM_ANALYZER_NAME)
         );
 
-        client().prepareIndex(INDEX_NAME).setId("1").setSource("field", "Foo").get();
-        assertNoFailures(indicesAdmin().prepareRefresh(INDEX_NAME).execute().actionGet());
+        prepareIndex(INDEX_NAME).setId("1").setSource("field", "Foo").get();
+        assertNoFailures(indicesAdmin().prepareRefresh(INDEX_NAME).get());
 
         assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
         assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "buzz")), 0L);
@@ -121,7 +121,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
             out.println("foo, baz, buzz");
         }
         ReloadAnalyzersResponse reloadResponse = client().execute(
-            ReloadAnalyzerAction.INSTANCE,
+            TransportReloadAnalyzersAction.TYPE,
             new ReloadAnalyzersRequest(null, preview, INDEX_NAME)
         ).actionGet();
         assertNoFailures(reloadResponse);
@@ -161,8 +161,8 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                 .setMapping("field", "type=text,analyzer=standard,search_analyzer=" + SYNONYM_ANALYZER_NAME)
         );
 
-        client().prepareIndex(INDEX_NAME).setId("1").setSource("field", "foo").get();
-        assertNoFailures(indicesAdmin().prepareRefresh(INDEX_NAME).execute().actionGet());
+        prepareIndex(INDEX_NAME).setId("1").setSource("field", "foo").get();
+        assertNoFailures(indicesAdmin().prepareRefresh(INDEX_NAME).get());
 
         assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
         assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "buzz")), 0L);
@@ -183,7 +183,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
             out.println("foo, baz, buzz");
         }
         ReloadAnalyzersResponse reloadResponse = client().execute(
-            ReloadAnalyzerAction.INSTANCE,
+            TransportReloadAnalyzersAction.TYPE,
             new ReloadAnalyzersRequest(null, false, INDEX_NAME)
         ).actionGet();
         assertNoFailures(reloadResponse);
@@ -303,7 +303,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         }
 
         ReloadAnalyzersResponse reloadResponse = client().execute(
-            ReloadAnalyzerAction.INSTANCE,
+            TransportReloadAnalyzersAction.TYPE,
             new ReloadAnalyzersRequest(null, false, INDEX_NAME)
         ).actionGet();
         assertNoFailures(reloadResponse);

@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.license.License;
@@ -109,7 +109,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         );
         assertThat(exceptionHolder.get(), is(nullValue()));
 
-        AtomicReference<RefreshResponse> refreshResponseAtomicReference = new AtomicReference<>();
+        AtomicReference<BroadcastResponse> refreshResponseAtomicReference = new AtomicReference<>();
         blockingCall(
             listener -> trainedModelProvider.refreshInferenceIndex(listener),
             refreshResponseAtomicReference,
@@ -198,7 +198,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         );
         blockingCall(
             listener -> trainedModelProvider.refreshInferenceIndex(listener),
-            new AtomicReference<RefreshResponse>(),
+            new AtomicReference<BroadcastResponse>(),
             new AtomicReference<>()
         );
 
@@ -322,8 +322,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         ) {
             AtomicReference<DocWriteResponse> putDocHolder = new AtomicReference<>();
             blockingCall(
-                listener -> client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                listener -> prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .setSource(xContentBuilder)
                     .setId(TrainedModelDefinitionDoc.docId(modelId, 0))
                     .execute(listener),
@@ -372,8 +371,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             TrainedModelDefinitionDoc doc = docBuilders.get(i).build();
             try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
 
-                IndexRequestBuilder indexRequestBuilder = client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
-                    .setSource(xContentBuilder)
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME).setSource(xContentBuilder)
                     .setId(TrainedModelDefinitionDoc.docId(modelId, i));
 
                 bulkRequestBuilder.add(indexRequestBuilder);
@@ -413,8 +411,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         for (int i = 0; i < docBuilders.size(); i++) {
             TrainedModelDefinitionDoc doc = docBuilders.get(i).build();
             try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-                IndexRequestBuilder indexRequestBuilder = client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
-                    .setSource(xContentBuilder)
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME).setSource(xContentBuilder)
                     .setId(TrainedModelDefinitionDoc.docId(modelId, i));
 
                 bulkRequestBuilder.add(indexRequestBuilder);

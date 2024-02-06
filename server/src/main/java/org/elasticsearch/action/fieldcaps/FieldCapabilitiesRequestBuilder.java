@@ -15,8 +15,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import java.util.Map;
 
 public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
-    public FieldCapabilitiesRequestBuilder(ElasticsearchClient client, FieldCapabilitiesAction action, String... indices) {
-        super(client, action, new FieldCapabilitiesRequest().indices(indices));
+    public FieldCapabilitiesRequestBuilder(ElasticsearchClient client, String... indices) {
+        super(client, TransportFieldCapabilitiesAction.TYPE, new FieldCapabilitiesRequest().indices(indices));
     }
 
     /**

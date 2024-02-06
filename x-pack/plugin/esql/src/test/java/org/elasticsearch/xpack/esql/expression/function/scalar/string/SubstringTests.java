@@ -50,6 +50,20 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
             );
+        }), new TestCaseSupplier("Substring basic test with text input", () -> {
+            int start = between(1, 8);
+            int length = between(1, 10 - start);
+            String text = randomAlphaOfLength(10);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
+                ),
+                "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
+                DataTypes.KEYWORD,
+                equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
+            );
         })));
     }
 
@@ -139,9 +153,9 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
                     length == null ? null : new Literal(Source.EMPTY, length, DataTypes.INTEGER)
                 )
             ).get(driverContext());
-            Block.Ref ref = eval.eval(row(List.of(new BytesRef(str))))
+            Block block = eval.eval(row(List.of(new BytesRef(str))))
         ) {
-            return ref.block().isNull(0) ? null : ((BytesRef) toJavaObject(ref.block(), 0)).utf8ToString();
+            return block.isNull(0) ? null : ((BytesRef) toJavaObject(block, 0)).utf8ToString();
         }
     }
 

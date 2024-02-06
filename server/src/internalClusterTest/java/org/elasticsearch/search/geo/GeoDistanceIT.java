@@ -22,7 +22,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.range.InternalGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -109,8 +109,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testDistanceScript() throws Exception {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "TestPosition")
@@ -191,8 +190,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testGeoDistanceAggregation() throws IOException {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "TestPosition")
@@ -218,7 +216,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addRange(0, 25000)
                 ),
             response -> {
-                Aggregations aggregations = response.getAggregations();
+                InternalAggregations aggregations = response.getAggregations();
                 assertNotNull(aggregations);
                 InternalGeoDistance geoDistance = aggregations.get(name);
                 assertNotNull(geoDistance);

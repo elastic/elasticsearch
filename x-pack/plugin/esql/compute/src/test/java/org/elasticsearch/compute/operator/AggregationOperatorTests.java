@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
@@ -35,7 +33,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
+    protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
         List<Integer> sumChannels, maxChannels;
         if (mode.isInputPartial()) {
             int sumInterChannelCount = SumLongAggregatorFunction.intermediateStateDesc().size();
@@ -48,8 +46,8 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
 
         return new AggregationOperator.AggregationOperatorFactory(
             List.of(
-                new SumLongAggregatorFunctionSupplier(bigArrays, sumChannels).aggregatorFactory(mode),
-                new MaxLongAggregatorFunctionSupplier(bigArrays, maxChannels).aggregatorFactory(mode)
+                new SumLongAggregatorFunctionSupplier(sumChannels).aggregatorFactory(mode),
+                new MaxLongAggregatorFunctionSupplier(maxChannels).aggregatorFactory(mode)
             ),
             mode
         );
@@ -80,11 +78,5 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
         Block maxs = results.get(0).getBlock(1);
         sum.assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), sums);
         max.assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), maxs);
-    }
-
-    @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big array so never breaks", false);
-        return null;
     }
 }

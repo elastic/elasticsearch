@@ -25,6 +25,10 @@ public interface MachineLearningExtension {
 
     boolean isNlpEnabled();
 
+    default boolean isLearningToRankEnabled() {
+        return false;
+    }
+
     String[] getAnalyticsDestIndexAllowedSettings();
 
     AbstractNodeAvailabilityZoneMapper getNodeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings);

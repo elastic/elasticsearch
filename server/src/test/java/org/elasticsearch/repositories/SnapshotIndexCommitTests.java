@@ -15,7 +15,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -71,31 +70,6 @@ public class SnapshotIndexCommitTests extends ESTestCase {
         assertTrue(isClosed.get());
 
         assertOnCompletionBehaviour(throwOnClose, outerException, indexCommitRef);
-    }
-
-    private void runConcurrentTest(boolean throwOnClose) throws Exception {
-        final var isClosed = new AtomicBoolean();
-        final var indexCommitRef = getSnapshotIndexCommit(throwOnClose, isClosed);
-        final var completeFuture = new PlainActionFuture<String>();
-        final var closingActionListener = indexCommitRef.closingBefore(completeFuture);
-
-        final var barrier = new CyclicBarrier(2);
-        final var completeThread = new Thread(() -> {
-            safeAwait(barrier);
-            closingActionListener.onResponse("success");
-        });
-        completeThread.start();
-
-        final var abortThread = new Thread(() -> {
-            safeAwait(barrier);
-            indexCommitRef.onAbort();
-        });
-        abortThread.start();
-
-        completeThread.join();
-        abortThread.join();
-
-        assertOnCompletionFuture(throwOnClose, null, completeFuture);
     }
 
     private SnapshotIndexCommit getSnapshotIndexCommit(boolean throwOnClose, AtomicBoolean isClosed) {

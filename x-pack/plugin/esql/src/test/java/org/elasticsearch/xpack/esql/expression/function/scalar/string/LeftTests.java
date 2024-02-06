@@ -154,6 +154,19 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(""))
             );
         }));
+        suppliers.add(new TestCaseSupplier("ascii as text input", () -> {
+            String text = randomAlphaOfLengthBetween(1, 64);
+            int length = between(1, text.length());
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                ),
+                "LeftEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
+                DataTypes.KEYWORD,
+                equalTo(new BytesRef(unicodeLeftSubstring(text, length)))
+            );
+        }));
 
         return parameterSuppliersFromTypedData(suppliers);
     }
@@ -201,12 +214,12 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
             EvalOperator.ExpressionEvaluator eval = evaluator(
                 new Left(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, length, DataTypes.INTEGER))
             ).get(driverContext());
-            Block.Ref ref = eval.eval(row(List.of(new BytesRef(str))))
+            Block block = eval.eval(row(List.of(new BytesRef(str))))
         ) {
-            if (ref.block().isNull(0)) {
+            if (block.isNull(0)) {
                 return null;
             }
-            BytesRef resultByteRef = ((BytesRef) toJavaObject(ref.block(), 0));
+            BytesRef resultByteRef = ((BytesRef) toJavaObject(block, 0));
             return resultByteRef == null ? null : resultByteRef.utf8ToString();
         }
     }

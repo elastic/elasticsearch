@@ -1,0 +1,71 @@
+
+// tag::cloud[]
+include::{docs-root}/shared/cloud/ess-getting-started.asciidoc[tag=generic]
+
+. Click **Continue** to open {kib}, the user interface for {ecloud}.
+
+. Click **Explore on my own**.
+// end::cloud[]
+
+// tag::self-managed[]
+*Start a single-node cluster*
+
+We'll use a single-node {es} cluster in this quick start, which makes sense for testing and development.
+Refer to <<docker>> for advanced Docker documentation.
+
+. Run the following Docker commands:
++
+[source,sh,subs="attributes"]
+----
+docker network create elastic
+docker pull {docker-image}
+docker run --name es01 --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t {docker-image}
+----
+
+. Copy the generated `elastic` password and enrollment token, which are output to your terminal.
+You'll use these to enroll {kib} with your {es} cluster and log in.
+These credentials are only shown when you start {es} for the first time.
++
+We recommend storing the `elastic` password as an environment variable in your shell. Example:
++
+[source,sh]
+----
+export ELASTIC_PASSWORD="your_password"
+----
++
+. Copy the `http_ca.crt` SSL certificate from the container to your local machine.
++
+[source,sh]
+----
+docker cp es01:/usr/share/elasticsearch/config/certs/http_ca.crt .
+----
++
+. Make a REST API call to {es} to ensure the {es} container is running.
++
+[source,sh]
+----
+curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200
+----
+// NOTCONSOLE
+
+*Run {kib}*
+
+{kib} is the user interface for Elastic.
+It's great for getting started with {es} and exploring your data.  
+We'll be using the Dev Tools *Console* in {kib} to make REST API calls to {es}.
+
+In a new terminal session, start {kib} and connect it to your {es} container:
+
+[source,sh,subs="attributes"]
+----
+docker pull {kib-docker-image}
+docker run --name kibana --net elastic -p 5601:5601 {kib-docker-image}
+----
+
+When you start {kib}, a unique URL is output to your terminal.
+To access {kib}:
+
+. Open the generated URL in your browser.
+. Paste the enrollment token that you copied earlier, to connect your {kib} instance with {es}.
+. Log in to {kib} as the `elastic` user with the password that was generated when you started {es}.
+// end::self-managed[]

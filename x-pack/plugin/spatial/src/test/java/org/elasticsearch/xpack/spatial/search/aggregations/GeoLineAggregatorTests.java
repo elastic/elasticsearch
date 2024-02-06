@@ -38,11 +38,13 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.simplify.SimplificationErrorCalculator;
 import org.elasticsearch.geometry.simplify.StreamingGeometrySimplifier;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -63,7 +65,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -96,6 +97,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .size(10);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("groups").field("group_id")
+
             .subAggregation(lineAggregationBuilder);
 
         long lonLat = (((long) GeoEncodingUtils.encodeLongitude(90.0)) << 32) | GeoEncodingUtils.encodeLatitude(45.0) & 0xffffffffL;
@@ -146,6 +148,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .size(10);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("groups").field("group_id")
+
             .subAggregation(lineAggregationBuilder);
 
         // input
@@ -177,6 +180,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .size(10);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("groups").field("group_id")
+
             .subAggregation(lineAggregationBuilder);
 
         testCase(aggregationBuilder, iw -> {
@@ -317,6 +321,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .sort(sortConfig)
             .size(size);
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("groups").field("group_id")
+
             .subAggregation(lineAggregationBuilder);
         double lon = GeoEncodingUtils.decodeLongitude(randomInt());
         double lat = GeoEncodingUtils.decodeLatitude(randomInt());
@@ -547,9 +552,6 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             return GeoEncodingUtils.decodeLatitude((int) (encoded & 0xffffffffL));
         }
 
-        private void reset(int index) {
-            super.reset(index, this.x(), this.y());
-        }
     }
 
     /** Allow test to use own objects for internal use in geometry simplifier, so we can track the sort-fields together with the points */
@@ -803,7 +805,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                     ArrayList<Field> fields = new ArrayList<>(
                         Arrays.asList(
                             new SortedDocValuesField("group_id", new BytesRef(testData.groups[g])),
-                            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.build().toBytesRef())
+                            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.buildTsidHash().toBytesRef())
                         )
                     );
                     GeoPoint point = points.get(i);
@@ -950,7 +952,13 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 fieldTypes.add(new GeoPointFieldMapper.GeoPointFieldType("value_field"));
             }
             fieldTypes.add(new DateFieldMapper.DateFieldType("time_field"));
-            fieldTypes.add(new KeywordFieldMapper.KeywordFieldType("group_id", false, true, Collections.emptyMap()));
+            fieldTypes.add(
+                new KeywordFieldMapper.Builder("group_id", IndexVersion.current()).dimension(true)
+                    .docValues(true)
+                    .indexed(false)
+                    .build(MapperBuilderContext.root(true, true))
+                    .fieldType()
+            );
             fieldTypes.add(new NumberFieldMapper.NumberFieldType("sort_field", NumberFieldMapper.NumberType.LONG));
             AggTestConfig aggTestConfig = new AggTestConfig(aggregationBuilder, fieldTypes.toArray(new MappedFieldType[0]));
 

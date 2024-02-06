@@ -14,6 +14,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportMessage;
 
 import java.util.List;
 import java.util.Map;
@@ -30,24 +31,32 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
             randomValueOtherThanMany(searchPhase::containsKey, SearchProfileResultsBuilderTests::randomTarget),
             null
         );
-        Exception e = expectThrows(IllegalStateException.class, () -> builder(searchPhase).build(List.of(fetchPhase)));
-        assertThat(
-            e.getMessage(),
-            matchesPattern(
-                "Profile returned fetch phase information for .+ but didn't return query phase information\\. Query phase keys were .+"
-            )
-        );
+        try {
+            Exception e = expectThrows(IllegalStateException.class, () -> builder(searchPhase).build(List.of(fetchPhase)));
+            assertThat(
+                e.getMessage(),
+                matchesPattern(
+                    "Profile returned fetch phase information for .+ but didn't return query phase information\\. Query phase keys were .+"
+                )
+            );
+        } finally {
+            fetchPhase.decRef();
+        }
     }
 
     public void testQueryWithoutAnyFetch() {
         Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults(between(1, 2));
         FetchSearchResult fetchPhase = fetchResult(searchPhase.keySet().iterator().next(), null);
-        SearchProfileResults result = builder(searchPhase).build(List.of(fetchPhase));
-        assertThat(
-            result.getShardResults().values().stream().filter(r -> r.getQueryPhase() != null).count(),
-            equalTo((long) searchPhase.size())
-        );
-        assertThat(result.getShardResults().values().stream().filter(r -> r.getFetchPhase() != null).count(), equalTo(0L));
+        try {
+            SearchProfileResults result = builder(searchPhase).build(List.of(fetchPhase));
+            assertThat(
+                result.getShardResults().values().stream().filter(r -> r.getQueryPhase() != null).count(),
+                equalTo((long) searchPhase.size())
+            );
+            assertThat(result.getShardResults().values().stream().filter(r -> r.getFetchPhase() != null).count(), equalTo(0L));
+        } finally {
+            fetchPhase.decRef();
+        }
     }
 
     public void testQueryAndFetch() {
@@ -56,15 +65,19 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
             .stream()
             .map(e -> fetchResult(e.getKey(), new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of())))
             .collect(toList());
-        SearchProfileResults result = builder(searchPhase).build(fetchPhase);
-        assertThat(
-            result.getShardResults().values().stream().filter(r -> r.getQueryPhase() != null).count(),
-            equalTo((long) searchPhase.size())
-        );
-        assertThat(
-            result.getShardResults().values().stream().filter(r -> r.getFetchPhase() != null).count(),
-            equalTo((long) searchPhase.size())
-        );
+        try {
+            SearchProfileResults result = builder(searchPhase).build(fetchPhase);
+            assertThat(
+                result.getShardResults().values().stream().filter(r -> r.getQueryPhase() != null).count(),
+                equalTo((long) searchPhase.size())
+            );
+            assertThat(
+                result.getShardResults().values().stream().filter(r -> r.getFetchPhase() != null).count(),
+                equalTo((long) searchPhase.size())
+            );
+        } finally {
+            fetchPhase.forEach(TransportMessage::decRef);
+        }
     }
 
     private static Map<SearchShardTarget, SearchProfileQueryPhaseResult> randomSearchPhaseResults(int size) {

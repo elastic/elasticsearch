@@ -19,6 +19,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.RotatableSecret;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -30,7 +31,9 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtAuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtUtil;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
@@ -38,6 +41,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
+import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -49,13 +53,14 @@ import java.util.Objects;
 
 import static java.lang.String.join;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET;
 import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD;
 
 /**
  * JWT realms supports JWTs as bearer tokens for authenticating to Elasticsearch.
  * For security, it is recommended to authenticate the client too.
  */
-public class JwtRealm extends Realm implements CachingRealm, Releasable {
+public class JwtRealm extends Realm implements CachingRealm, ReloadableSecurityComponent, Releasable {
 
     private static final String LATEST_MALFORMED_JWT = "_latest_malformed_jwt";
 
@@ -64,7 +69,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public static final String HEADER_END_USER_AUTHENTICATION = "Authorization";
     public static final String HEADER_CLIENT_AUTHENTICATION = "ES-Client-Authentication";
     public static final String HEADER_END_USER_AUTHENTICATION_SCHEME = "Bearer";
-    public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 
     private final Cache<BytesArray, ExpiringUser> jwtCache;
     private final CacheIteratorHelper<BytesArray, ExpiringUser> jwtCacheHelper;
@@ -193,7 +197,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final SecureString clientCredentials = JwtUtil.getHeaderValue(
             threadContext,
             JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
+            JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
             true
         );
         return new JwtAuthenticationToken(signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
@@ -398,8 +402,23 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }, listener::onFailure));
     }
 
-    public void rotateClientSecret(SecureString clientSecret) {
-        this.clientAuthenticationSharedSecret.rotate(clientSecret, config.getSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD));
+    @Override
+    public void reload(Settings settings) {
+        final SecureString newClientSharedSecret = CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(
+            this.realmRef().getName()
+        ).get(settings);
+
+        JwtUtil.validateClientAuthenticationSettings(
+            RealmSettings.getFullSettingKey(this.config, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
+            this.clientAuthenticationType,
+            RealmSettings.getFullSettingKey(this.config, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
+            new RotatableSecret(newClientSharedSecret)
+        );
+
+        this.clientAuthenticationSharedSecret.rotate(
+            newClientSharedSecret,
+            config.getSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD)
+        );
     }
 
     /**

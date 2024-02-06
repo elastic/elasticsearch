@@ -29,10 +29,7 @@ import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.specs.NotSpec;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.Sync;
-import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.bundling.Zip;
-
-import java.util.Collections;
 
 import javax.inject.Inject;
 
@@ -131,11 +128,7 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
     }
 
     private void configureCacheability(StandaloneRestIntegTestTask testTask) {
-        TaskContainer tasks = project.getTasks();
-        Spec<Task> taskSpec = t -> tasks.withType(StandaloneRestIntegTestTask.class)
-            .stream()
-            .filter(task -> task != testTask)
-            .anyMatch(task -> Collections.disjoint(task.getClusters(), testTask.getClusters()) == false);
+        Spec<Task> taskSpec = task -> testTask.getClusters().stream().anyMatch(ElasticsearchCluster::isShared);
         testTask.getOutputs()
             .doNotCacheIf(
                 "Caching disabled for this task since it uses a cluster shared by other tasks",

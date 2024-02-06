@@ -49,21 +49,20 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardReduceIT extends ESIntegTestCase {
 
     private IndexRequestBuilder indexDoc(String date, int value) throws Exception {
-        return client().prepareIndex("idx")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("value", value)
-                    .field("ip", "10.0.0." + value)
-                    .field("location", Geohash.stringEncode(5, 52, Geohash.PRECISION))
-                    .field("date", date)
-                    .field("term-l", 1)
-                    .field("term-d", 1.5)
-                    .field("term-s", "term")
-                    .startObject("nested")
-                    .field("date", date)
-                    .endObject()
-                    .endObject()
-            );
+        return prepareIndex("idx").setSource(
+            jsonBuilder().startObject()
+                .field("value", value)
+                .field("ip", "10.0.0." + value)
+                .field("location", Geohash.stringEncode(5, 52, Geohash.PRECISION))
+                .field("date", date)
+                .field("term-l", 1)
+                .field("term-d", 1.5)
+                .field("term-s", "term")
+                .startObject("nested")
+                .field("date", date)
+                .endObject()
+                .endObject()
+        );
     }
 
     @Override

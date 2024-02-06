@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -19,16 +20,26 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.util.Map;
 
 public class OpenAiEmbeddingsModel extends OpenAiModel {
+
+    public static OpenAiEmbeddingsModel of(OpenAiEmbeddingsModel model, Map<String, Object> taskSettings) {
+        if (taskSettings == null || taskSettings.isEmpty()) {
+            return model;
+        }
+
+        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
+        return new OpenAiEmbeddingsModel(model, OpenAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+    }
+
     public OpenAiEmbeddingsModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        Map<String, Object> secrets
+        @Nullable Map<String, Object> secrets
     ) {
         this(
-            modelId,
+            inferenceEntityId,
             taskType,
             service,
             OpenAiServiceSettings.fromMap(serviceSettings),
@@ -39,27 +50,22 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
 
     // Should only be used directly for testing
     OpenAiEmbeddingsModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         OpenAiServiceSettings serviceSettings,
         OpenAiEmbeddingsTaskSettings taskSettings,
-        DefaultSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
     }
 
     private OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiEmbeddingsTaskSettings taskSettings) {
-        super(
-            new ModelConfigurations(
-                originalModel.getConfigurations().getModelId(),
-                originalModel.getConfigurations().getTaskType(),
-                originalModel.getConfigurations().getService(),
-                originalModel.getServiceSettings(),
-                taskSettings
-            ),
-            new ModelSecrets(originalModel.getSecretSettings())
-        );
+        super(originalModel, taskSettings);
+    }
+
+    public OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiServiceSettings serviceSettings) {
+        super(originalModel, serviceSettings);
     }
 
     @Override
@@ -80,11 +86,5 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
     @Override
     public ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
-    }
-
-    public OpenAiEmbeddingsModel overrideWith(Map<String, Object> taskSettings) {
-        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
-
-        return new OpenAiEmbeddingsModel(this, getTaskSettings().overrideWith(requestTaskSettings));
     }
 }

@@ -1,5 +1,7 @@
 ---
 "Search float indices created in old cluster":
+  - skip:
+      features: close_to
   - do:
       search:
         index: test-float-index
@@ -15,11 +17,11 @@
                   field: bdv
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 27 }
+  - close_to: { hits.hits.0._score: { value: 27.0, error: 0.00001 } }
   - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 21 }
+  - close_to: { hits.hits.1._score: { value: 21.0, error: 0.00001 } }
   - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 15 }
+  - close_to: { hits.hits.2._score: { value: 15.0, error: 0.00001 } }
 
   - do:
       search:
@@ -36,11 +38,11 @@
                   field: knn
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 27 }
+  - close_to: { hits.hits.0._score: { value: 27.0, error: 0.00001 } }
   - match: { hits.hits.1._id: "5" }
-  - match: { hits.hits.1._score: 25 }
+  - close_to: { hits.hits.1._score: { value: 25.0, error: 0.00001 } }
   - match: { hits.hits.2._id: "7" }
-  - match: { hits.hits.2._score: 23 }
+  - close_to: { hits.hits.2._score: { value: 23.0, error: 0.00001 } }
 
   - do:
       search:
@@ -72,6 +74,8 @@
 
 ---
 "Search byte indices created in old cluster":
+  - skip:
+      features: close_to
   - do:
       search:
         index: test-byte-index
@@ -87,11 +91,11 @@
                   field: bdv
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 27 }
+  - close_to: { hits.hits.0._score: { value: 27.0, error: 0.00001 } }
   - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 21 }
+  - close_to: { hits.hits.1._score: { value: 21.0, error: 0.00001 } }
   - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 15 }
+  - close_to: { hits.hits.2._score: { value: 15.0, error: 0.00001 } }
 
   - do:
       search:
@@ -108,11 +112,12 @@
                   field: knn
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 27 }
+  - close_to: { hits.hits.0._score: { value: 27.0, error: 0.00001 } }
   - match: { hits.hits.1._id: "5" }
-  - match: { hits.hits.1._score: 25 }
+  - close_to: { hits.hits.1._score: { value: 25.0, error: 0.00001 } }
   - match: { hits.hits.2._id: "7" }
-  - match: { hits.hits.2._score: 23 }
+  - close_to: { hits.hits.2._score: { value: 23.0, error: 0.00001 } }
+
 
   - do:
       search:

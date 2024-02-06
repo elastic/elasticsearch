@@ -25,10 +25,10 @@ import java.net.InetSocketAddress;
  * This is a server which just accepts lines of JSON code and if the JSON
  * is valid and the root node is "transaction", then adds that JSON object
  * to a transaction list which is accessible externally to the class.
- *
+ * <p>
  * The Elastic agent sends lines of JSON code, and so this mock server
  * can be used as a basic APM server for testing.
- *
+ * <p>
  * The HTTP server used is the JDK embedded com.sun.net.httpserver
  */
 public class MockApmServer {
@@ -54,12 +54,16 @@ public class MockApmServer {
 
     /**
      * Start the Mock APM server. Just returns empty JSON structures for every incoming message
+     *
      * @return - the port the Mock APM server started on
      * @throws IOException
      */
     public synchronized int start() throws IOException {
         if (instance != null) {
-            throw new IOException("MockApmServer: Ooops, you can't start this instance more than once");
+            String hostname = instance.getAddress().getHostName();
+            int port = instance.getAddress().getPort();
+            logger.lifecycle("MockApmServer is already running. Reusing on address:port " + hostname + ":" + port);
+            return port;
         }
         InetSocketAddress addr = new InetSocketAddress("0.0.0.0", port);
         HttpServer server = HttpServer.create(addr, 10);

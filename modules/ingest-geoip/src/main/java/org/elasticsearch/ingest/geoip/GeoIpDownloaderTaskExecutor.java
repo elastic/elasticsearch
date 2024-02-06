@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -197,8 +196,8 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         }
 
         DiscoveryNode masterNode = event.state().nodes().getMasterNode();
-        if (masterNode == null || masterNode.getVersion().before(Version.V_7_14_0)) {
-            // wait for master to be upgraded so it understands geoip task
+        if (masterNode == null) {
+            // no master yet
             return;
         }
 

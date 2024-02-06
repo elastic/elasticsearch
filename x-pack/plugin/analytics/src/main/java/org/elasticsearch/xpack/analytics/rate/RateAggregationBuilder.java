@@ -196,7 +196,6 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
                 null,
                 null,
                 1.0,
-                null,
                 DocValueFormat.RAW,
                 context::nowInMillis
             );

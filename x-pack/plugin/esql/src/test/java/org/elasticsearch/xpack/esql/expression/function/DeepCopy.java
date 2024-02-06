@@ -37,9 +37,9 @@ public class DeepCopy extends UnaryExpression implements EvaluatorMapper {
             private final EvalOperator.ExpressionEvaluator child = childEval.get(ctx);
 
             @Override
-            public Block.Ref eval(Page page) {
-                try (Block.Ref ref = child.eval(page)) {
-                    return Block.Ref.floating(BlockUtils.deepCopyOf(ref.block(), ctx.blockFactory()));
+            public Block eval(Page page) {
+                try (Block block = child.eval(page)) {
+                    return BlockUtils.deepCopyOf(block, ctx.blockFactory());
                 }
             }
 

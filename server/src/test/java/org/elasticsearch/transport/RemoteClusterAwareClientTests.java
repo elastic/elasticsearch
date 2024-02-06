@@ -10,9 +10,9 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -86,8 +86,6 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 service.acceptIncomingRequests();
 
                 final var client = new RemoteClusterAwareClient(
-                    Settings.EMPTY,
-                    threadPool,
                     service,
                     "cluster1",
                     threadPool.executor(TEST_THREAD_POOL_NAME),
@@ -104,7 +102,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 );
                 final SearchShardsResponse searchShardsResponse = PlainActionFuture.get(
                     future -> client.execute(
-                        SearchShardsAction.INSTANCE,
+                        TransportSearchShardsAction.REMOTE_TYPE,
                         searchShardsRequest,
                         ActionListener.runBefore(
                             future,
@@ -142,14 +140,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
 
-                final var client = new RemoteClusterAwareClient(
-                    Settings.EMPTY,
-                    threadPool,
-                    service,
-                    "cluster1",
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    randomBoolean()
-                );
+                final var client = new RemoteClusterAwareClient(service, "cluster1", EsExecutors.DIRECT_EXECUTOR_SERVICE, randomBoolean());
 
                 int numThreads = 10;
                 ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
@@ -169,7 +160,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                             null
                         );
                         client.execute(
-                            SearchShardsAction.INSTANCE,
+                            TransportSearchShardsAction.REMOTE_TYPE,
                             searchShardsRequest,
                             ActionListener.runBefore(
                                 future,

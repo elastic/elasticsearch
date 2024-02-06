@@ -58,6 +58,7 @@ public class SubSearchContext extends FilteredSearchContext {
         super(context);
         context.addReleasable(this);
         this.fetchSearchResult = new FetchSearchResult();
+        addReleasable(fetchSearchResult::decRef);
         this.querySearchResult = new QuerySearchResult();
     }
 

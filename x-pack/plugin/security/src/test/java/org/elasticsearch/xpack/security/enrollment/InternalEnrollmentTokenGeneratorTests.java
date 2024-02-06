@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.enrollment;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -28,6 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -83,6 +85,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "InternalEnrollmentTokenGeneratorTests").build();
         threadPool = new ThreadPool(
             settings,
+            MeterRegistry.NOOP,
             new FixedExecutorBuilder(
                 settings,
                 TokenService.THREAD_POOL_NAME,
@@ -231,7 +234,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 new ClusterName("cluster_name"),
                 List.of(
                     new NodeInfo(
-                        Version.CURRENT,
+                        Build.current().version(),
                         TransportVersion.current(),
                         IndexVersion.current(),
                         Map.of(),
@@ -266,7 +269,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 new ClusterName("cluster_name"),
                 List.of(
                     new NodeInfo(
-                        Version.CURRENT,
+                        Build.current().version(),
                         TransportVersion.current(),
                         IndexVersion.current(),
                         Map.of(),

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.action;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -56,12 +55,6 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             final AuthenticationToken authenticationToken = request.getGrant().getAuthenticationToken();
             assert authenticationToken != null : "authentication token must not be null";
-            if (authenticationToken == null) {
-                listener.onFailure(
-                    new ElasticsearchSecurityException("the grant type [{}] is not supported", request.getGrant().getType())
-                );
-                return;
-            }
 
             final String runAsUsername = request.getGrant().getRunAsUsername();
 

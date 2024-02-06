@@ -13,9 +13,7 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.ConstantBooleanVector;
-import org.elasticsearch.compute.data.ConstantDoubleVector;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -43,10 +41,6 @@ class SumDoubleAggregator {
         current.add(value, delta);
     }
 
-    public static void combineStates(SumState current, SumState state) {
-        current.add(state.value(), state.delta());
-    }
-
     public static void combineIntermediate(SumState state, double inValue, double inDelta, boolean seen) {
         if (seen) {
             combine(state, inValue, inDelta);
@@ -54,16 +48,17 @@ class SumDoubleAggregator {
         }
     }
 
-    public static void evaluateIntermediate(SumState state, Block[] blocks, int offset) {
+    public static void evaluateIntermediate(SumState state, DriverContext driverContext, Block[] blocks, int offset) {
         assert blocks.length >= offset + 3;
-        blocks[offset + 0] = new ConstantDoubleVector(state.value(), 1).asBlock();
-        blocks[offset + 1] = new ConstantDoubleVector(state.delta(), 1).asBlock();
-        blocks[offset + 2] = new ConstantBooleanVector(state.seen, 1).asBlock();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        blocks[offset + 0] = blockFactory.newConstantDoubleBlockWith(state.value(), 1);
+        blocks[offset + 1] = blockFactory.newConstantDoubleBlockWith(state.delta(), 1);
+        blocks[offset + 2] = blockFactory.newConstantBooleanBlockWith(state.seen(), 1);
     }
 
     public static Block evaluateFinal(SumState state, DriverContext driverContext) {
         double result = state.value();
-        return DoubleBlock.newConstantBlockWith(result, 1, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantDoubleBlockWith(result, 1);
     }
 
     public static GroupingSumState initGrouping(BigArrays bigArrays) {
@@ -95,9 +90,9 @@ class SumDoubleAggregator {
     ) {
         assert blocks.length >= offset + 3;
         try (
-            var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-            var deltaBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-            var seenBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())
+            var valuesBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
+            var deltaBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
+            var seenBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
@@ -117,7 +112,7 @@ class SumDoubleAggregator {
     }
 
     public static Block evaluateFinal(GroupingSumState state, IntVector selected, DriverContext driverContext) {
-        try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+        try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (state.hasValue(si) && si < state.values.size()) {
@@ -143,8 +138,8 @@ class SumDoubleAggregator {
         }
 
         @Override
-        public void toIntermediate(Block[] blocks, int offset) {
-            SumDoubleAggregator.evaluateIntermediate(this, blocks, offset);
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+            SumDoubleAggregator.evaluateIntermediate(this, driverContext, blocks, offset);
         }
 
         @Override

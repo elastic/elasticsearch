@@ -20,6 +20,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -29,6 +30,8 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -117,9 +120,13 @@ public final class CsvAssert {
             for (int pageIndex = 0; pageIndex < pages.size(); pageIndex++) {
                 var page = pages.get(pageIndex);
                 var block = page.getBlock(column);
-                var blockType = Type.asType(block.elementType());
+                var blockType = Type.asType(block.elementType(), actualType);
 
-                if (blockType == Type.LONG && (expectedType == Type.DATETIME || expectedType == UNSIGNED_LONG)) {
+                if (blockType == Type.LONG
+                    && (expectedType == Type.DATETIME
+                        || expectedType == Type.GEO_POINT
+                        || expectedType == Type.CARTESIAN_POINT
+                        || expectedType == UNSIGNED_LONG)) {
                     continue;
                 }
                 if (blockType == Type.KEYWORD && (expectedType == Type.IP || expectedType == Type.VERSION || expectedType == Type.TEXT)) {
@@ -149,7 +156,7 @@ public final class CsvAssert {
     }
 
     static void assertData(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
-        assertData(expected, actual.values(), ignoreOrder, logger, Function.identity());
+        assertData(expected, actual.values(), ignoreOrder, logger, (t, v) -> v);
     }
 
     public static void assertData(
@@ -157,7 +164,7 @@ public final class CsvAssert {
         Iterator<Iterator<Object>> actualValuesIterator,
         boolean ignoreOrder,
         Logger logger,
-        Function<Object, Object> valueTransformer
+        BiFunction<Type, Object, Object> valueTransformer
     ) {
         assertData(expected, EsqlTestUtils.getValuesList(actualValuesIterator), ignoreOrder, logger, valueTransformer);
     }
@@ -167,7 +174,7 @@ public final class CsvAssert {
         List<List<Object>> actualValues,
         boolean ignoreOrder,
         Logger logger,
-        Function<Object, Object> valueTransformer
+        BiFunction<Type, Object, Object> valueTransformer
     ) {
         if (ignoreOrder) {
             expected.values().sort(resultRowComparator(expected.columnTypes()));
@@ -189,12 +196,20 @@ public final class CsvAssert {
                 for (int column = 0; column < expectedRow.size(); column++) {
                     var expectedValue = expectedRow.get(column);
                     var actualValue = actualRow.get(column);
+                    var expectedType = expected.columnTypes().get(column);
 
                     if (expectedValue != null) {
-                        var expectedType = expected.columnTypes().get(column);
                         // convert the long from CSV back to its STRING form
                         if (expectedType == Type.DATETIME) {
                             expectedValue = rebuildExpected(expectedValue, Long.class, x -> UTC_DATE_TIME_FORMATTER.formatMillis((long) x));
+                        } else if (expectedType == Type.GEO_POINT) {
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
+                        } else if (expectedType == Type.CARTESIAN_POINT) {
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbToWkt((BytesRef) x));
+                        } else if (expectedType == Type.GEO_SHAPE) {
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
+                        } else if (expectedType == Type.CARTESIAN_SHAPE) {
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbToWkt((BytesRef) x));
                         } else if (expectedType == Type.IP) {
                             // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));
@@ -205,7 +220,11 @@ public final class CsvAssert {
                             expectedValue = rebuildExpected(expectedValue, Long.class, x -> unsignedLongAsNumber((long) x));
                         }
                     }
-                    assertEquals(valueTransformer.apply(expectedValue), valueTransformer.apply(actualValue));
+                    assertEquals(
+                        "Row[" + row + "] Column[" + column + "]",
+                        valueTransformer.apply(expectedType, expectedValue),
+                        valueTransformer.apply(expectedType, actualValue)
+                    );
                 }
 
                 var delta = actualRow.size() - expectedRow.size();

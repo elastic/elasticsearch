@@ -294,11 +294,17 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             final int numFilters = filters().size();
             List<FilterMatchingDisiWrapper> filterWrappers = new ArrayList<>();
             long totalCost = 0;
+            // trigger the parent circuit breaker to make sure we have enough heap to build the first scorer.
+            // note we might still fail if the scorer is huge.
+            addRequestCircuitBreakerBytes(0L);
             for (int filterOrd = 0; filterOrd < numFilters; filterOrd++) {
                 Scorer randomAccessScorer = filters().get(filterOrd).randomAccessScorer(aggCtx.getLeafReaderContext());
                 if (randomAccessScorer == null) {
                     continue;
                 }
+                // scorer can take a fair amount of heap, and we have no means to estimate the size, so
+                // we trigger the parent circuit breaker to at least fail if we are running out of heap
+                addRequestCircuitBreakerBytes(0L);
                 totalCost += randomAccessScorer.iterator().cost();
                 filterWrappers.add(
                     randomAccessScorer.twoPhaseIterator() == null

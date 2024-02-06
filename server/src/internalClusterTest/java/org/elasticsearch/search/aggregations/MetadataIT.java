@@ -30,7 +30,7 @@ public class MetadataIT extends ESIntegTestCase {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomInt(30)];
         for (int i = 0; i < builders.length; i++) {
             String name = "name_" + randomIntBetween(1, 10);
-            builders[i] = client().prepareIndex("idx").setSource("name", name, "value", randomInt());
+            builders[i] = prepareIndex("idx").setSource("name", name, "value", randomInt());
         }
         indexRandom(true, builders);
         ensureSearchable();
@@ -43,7 +43,7 @@ public class MetadataIT extends ESIntegTestCase {
                 terms("the_terms").setMetadata(metadata).field("name").subAggregation(sum("the_sum").setMetadata(metadata).field("value"))
             ).addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetadata(metadata)),
             response -> {
-                Aggregations aggs = response.getAggregations();
+                InternalAggregations aggs = response.getAggregations();
                 assertNotNull(aggs);
 
                 Terms terms = aggs.get("the_terms");
@@ -52,7 +52,7 @@ public class MetadataIT extends ESIntegTestCase {
 
                 List<? extends Terms.Bucket> buckets = terms.getBuckets();
                 for (Terms.Bucket bucket : buckets) {
-                    Aggregations subAggs = bucket.getAggregations();
+                    InternalAggregations subAggs = bucket.getAggregations();
                     assertNotNull(subAggs);
 
                     Sum sum = subAggs.get("the_sum");

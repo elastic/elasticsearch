@@ -39,7 +39,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
     public static final String NAME = GetCheckpointAction.NAME + "[n]";
 
     private GetCheckpointNodeAction() {
-        super(NAME, GetCheckpointNodeAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse {

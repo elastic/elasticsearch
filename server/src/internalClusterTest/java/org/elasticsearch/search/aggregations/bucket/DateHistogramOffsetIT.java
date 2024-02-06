@@ -61,8 +61,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[numHours];
         for (int i = idxIdStart; i < idxIdStart + reqs.length; i++) {
-            reqs[i - idxIdStart] = client().prepareIndex("idx2")
-                .setId("" + i)
+            reqs[i - idxIdStart] = prepareIndex("idx2").setId("" + i)
                 .setSource(jsonBuilder().startObject().timeField("date", date).endObject());
             date = date.plusHours(stepSizeHours);
         }

@@ -16,6 +16,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -31,12 +32,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.analysis.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -65,6 +68,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -81,6 +85,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     @Before
     public void setupIndex() {
         createAndPopulateIndex("test");
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        // TODO: Allow relocation once we have retry in ESQL (see #103081)
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("cluster.routing.rebalance.enable", "none")
+            .build();
     }
 
     public void testProjectConstant() {
@@ -781,7 +794,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             String id = "id-" + i;
             long value = randomLongBetween(-100_000, 100_000);
             docs.put(id, value);
-            indexRequests.add(client().prepareIndex().setIndex(indexName).setId(id).setSource(Map.of("val", value)));
+            indexRequests.add(prepareIndex(indexName).setId(id).setSource(Map.of("val", value)));
         }
         indexRandom(true, randomBoolean(), indexRequests);
         String command = "from test_filter | stats avg = avg(val)";
@@ -789,7 +802,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 1000);
         QueryBuilder filter = new RangeQueryBuilder("val").from(from, true).to(to, true);
         try (
-            EsqlQueryResponse results = new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(command)
+            EsqlQueryResponse results = EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client())
+                .query(command)
                 .filter(filter)
                 .pragmas(randomPragmas())
                 .get()
@@ -822,9 +836,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             Doc d = new Doc(i, "tag-" + randomIntBetween(1, 100));
             allDocs.add(d);
-            indexRequests.add(
-                client().prepareIndex().setIndex(indexName).setId(Integer.toString(i)).setSource(Map.of("val", d.val, "tag", d.tag))
-            );
+            indexRequests.add(prepareIndex(indexName).setId(Integer.toString(i)).setSource(Map.of("val", d.val, "tag", d.tag)));
         }
         indexRandom(true, randomBoolean(), indexRequests);
         int limit = randomIntBetween(1, 10);
@@ -980,7 +992,27 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest("test_overlapping_index_patterns_2").id("1").source("field", "foo"))
             .get();
 
-        expectThrows(VerificationException.class, () -> run("from test_overlapping_index_patterns_* | sort field"));
+        assertVerificationException("from test_overlapping_index_patterns_* | sort field");
+    }
+
+    public void testErrorMessageForUnknownColumn() {
+        var e = assertVerificationException("row a = 1 | eval x = b");
+        assertThat(e.getMessage(), containsString("Unknown column [b]"));
+    }
+
+    // Straightforward verification. Subclasses can override.
+    protected Exception assertVerificationException(String esqlCommand) {
+        return expectThrows(VerificationException.class, () -> run(esqlCommand));
+    }
+
+    public void testErrorMessageForEmptyParams() {
+        var e = assertParsingException("row a = 1 | eval x = ?");
+        assertThat(e.getMessage(), containsString("Not enough actual parameters 0"));
+    }
+
+    // Straightforward verification. Subclasses can override.
+    protected Exception assertParsingException(String esqlCommand) {
+        return expectThrows(ParsingException.class, () -> run(esqlCommand));
     }
 
     public void testEmptyIndex() {
@@ -1018,7 +1050,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                         new ColumnInfo("returnType", "keyword"),
                         new ColumnInfo("description", "keyword"),
                         new ColumnInfo("optionalArgs", "boolean"),
-                        new ColumnInfo("variadic", "boolean")
+                        new ColumnInfo("variadic", "boolean"),
+                        new ColumnInfo("isAggregation", "boolean")
                     )
                 )
             );
@@ -1174,7 +1207,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             if (values.isEmpty() == false) {
                 source.put("v", values);
             }
-            client().prepareIndex(indexName).setSource(source).get();
+            prepareIndex(indexName).setSource(source).get();
             if (randomInt(100) < 20) {
                 client().admin().indices().prepareRefresh(indexName).get();
             }
@@ -1212,8 +1245,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             long v = randomIntBetween(1, 10);
             groups.merge(k, v, Long::sum);
             groups.merge(null, v, Long::sum); // null group
-            client().prepareIndex("index-1").setSource("f1", k, "v", v).get();
-            client().prepareIndex("index-2").setSource("f2", k, "v", v).get();
+            prepareIndex("index-1").setSource("f1", k, "v", v).get();
+            prepareIndex("index-2").setSource("f2", k, "v", v).get();
         }
         client().admin().indices().prepareRefresh("index-1", "index-2").get();
         for (String field : List.of("f1", "f2")) {
@@ -1242,8 +1275,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testStatsNestFields() {
-        String node1 = internalCluster().startDataOnlyNode();
-        String node2 = internalCluster().startDataOnlyNode();
+        final String node1, node2;
+        if (randomBoolean()) {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            node1 = randomDataNode().getName();
+            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        } else {
+            node1 = randomDataNode().getName();
+            node2 = randomDataNode().getName();
+        }
         assertAcked(
             client().admin()
                 .indices()
@@ -1275,9 +1315,16 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testStatsMissingFields() {
-        String node1 = internalCluster().startDataOnlyNode();
-        String node2 = internalCluster().startDataOnlyNode();
+    public void testStatsMissingFieldWithStats() {
+        final String node1, node2;
+        if (randomBoolean()) {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            node1 = randomDataNode().getName();
+            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        } else {
+            node1 = randomDataNode().getName();
+            node2 = randomDataNode().getName();
+        }
         assertAcked(
             client().admin()
                 .indices()
@@ -1292,7 +1339,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
                 .setMapping("bar_int", "type=integer", "bar_long", "type=long", "bar_float", "type=float", "bar_double", "type=double")
         );
-
         var fields = List.of("foo_int", "foo_long", "foo_float", "foo_double");
         var functions = List.of("sum", "count", "avg", "count_distinct");
         for (String field : fields) {
@@ -1305,6 +1351,39 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     assertEquals(1, valuesList.size());
                 }
             }
+        }
+    }
+
+    public void testStatsMissingFieldKeepApp() {
+        final String node1, node2;
+        if (randomBoolean()) {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            node1 = randomDataNode().getName();
+            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        } else {
+            node1 = randomDataNode().getName();
+            node2 = randomDataNode().getName();
+        }
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("foo-index")
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", node1))
+                .setMapping("foo_int", "type=integer", "foo_long", "type=long", "foo_float", "type=float", "foo_double", "type=double")
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("bar-index")
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
+                .setMapping("bar_int", "type=integer", "bar_long", "type=long", "bar_float", "type=float", "bar_double", "type=double")
+        );
+        String command = String.format(Locale.ROOT, "from foo-index,bar-index");
+        try (var resp = run(command)) {
+            var valuesList = getValuesList(resp);
+            assertEquals(8, resp.columns().size());
+            assertEquals(0, valuesList.size());
+            assertEquals(Collections.emptyList(), valuesList);
         }
     }
 
@@ -1509,5 +1588,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         var clearSettingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(clearedSettings.build());
         admin().cluster().updateSettings(clearSettingsRequest).actionGet();
+    }
+
+    private DiscoveryNode randomDataNode() {
+        return randomFrom(clusterService().state().nodes().getDataNodes().values());
     }
 }

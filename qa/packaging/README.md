@@ -1,4 +1,4 @@
-# packaging tests
+# Packaging tests
 
 This project contains tests that verify the distributions we build work
 correctly on the operating systems we support. They're intended to cover the
@@ -6,18 +6,11 @@ steps a user would take when installing and configuring an Elasticsearch
 distribution. They're not intended to have significant coverage of the behavior
 of Elasticsearch's features.
 
-There are two types of tests in this project. The old tests live in
-`src/test/` and are written in [Bats](https://github.com/sstephenson/bats),
-which is a flavor of bash scripts that run as unit tests. These tests are
-deprecated because Bats is unmaintained and cannot run on Windows.
-
-The new tests live in `src/main/` and are written in Java. Like the old tests,
-this project's tests are run inside the VM, not on your host. All new packaging
-tests should be added to this set of tests if possible.
-
 ## Running these tests
 
-See the section in [TESTING.asciidoc](../../TESTING.asciidoc#testing-packaging)
+These tests should only be run on ephemeral machines. They will likely
+have undesired side effects on a developer's computer.
+For more information, see the section in [TESTING.asciidoc](../../TESTING.asciidoc#testing-packaging)
 
 ## Adding a new test class
 

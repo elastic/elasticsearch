@@ -157,13 +157,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     queryResult.size(1);
                     successfulOps.incrementAndGet();
                     queryResult.incRef();
-                    new Thread(() -> {
-                        try {
-                            listener.onResponse(queryResult);
-                        } finally {
-                            queryResult.decRef();
-                        }
-                    }).start();
+                    new Thread(() -> ActionListener.respondAndRelease(listener, queryResult)).start();
                 } finally {
                     queryResult.decRef();
                 }
@@ -193,69 +187,73 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         searchRequest.allowPartialSearchResults(false);
         SearchPhaseController controller = new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
-        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
-            searchRequest,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            controller,
-            task::isCancelled,
-            task.getProgressListener(),
-            shardsIter.size(),
-            exc -> {}
-        );
-        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
-            logger,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", AliasFilter.EMPTY),
-            Collections.emptyMap(),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            resultConsumer,
-            searchRequest,
-            null,
-            shardsIter,
-            timeProvider,
-            new ClusterState.Builder(new ClusterName("test")).build(),
-            task,
-            SearchResponse.Clusters.EMPTY
+        try (
+            QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                controller,
+                task::isCancelled,
+                task.getProgressListener(),
+                shardsIter.size(),
+                exc -> {}
+            )
         ) {
-            @Override
-            protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-                return new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        latch.countDown();
-                    }
-                };
-            }
-        };
-        action.start();
-        latch.await();
-        assertThat(successfulOps.get(), equalTo(numShards));
-        if (withScroll) {
-            assertFalse(canReturnNullResponse.get());
-            assertThat(numWithTopDocs.get(), equalTo(0));
-        } else {
-            assertTrue(canReturnNullResponse.get());
-            if (withCollapse) {
+            SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
+                logger,
+                null,
+                searchTransportService,
+                (clusterAlias, node) -> lookup.get(node),
+                Collections.singletonMap("_na_", AliasFilter.EMPTY),
+                Collections.emptyMap(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                resultConsumer,
+                searchRequest,
+                null,
+                shardsIter,
+                timeProvider,
+                new ClusterState.Builder(new ClusterName("test")).build(),
+                task,
+                SearchResponse.Clusters.EMPTY
+            ) {
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                    return new SearchPhase("test") {
+                        @Override
+                        public void run() {
+                            latch.countDown();
+                        }
+                    };
+                }
+            };
+            action.start();
+            latch.await();
+            assertThat(successfulOps.get(), equalTo(numShards));
+            if (withScroll) {
+                assertFalse(canReturnNullResponse.get());
                 assertThat(numWithTopDocs.get(), equalTo(0));
             } else {
-                assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
+                assertTrue(canReturnNullResponse.get());
+                if (withCollapse) {
+                    assertThat(numWithTopDocs.get(), equalTo(0));
+                } else {
+                    assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
+                }
             }
+            SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
+            assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
+            if (withScroll) {
+                assertThat(phase.totalHits().value, equalTo((long) numShards));
+                assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            } else {
+                assertThat(phase.totalHits().value, equalTo(2L));
+                assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+            }
+            assertThat(phase.sortedTopDocs().scoreDocs().length, equalTo(1));
+            assertThat(phase.sortedTopDocs().scoreDocs()[0], instanceOf(FieldDoc.class));
+            assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields.length, equalTo(1));
+            assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields[0], equalTo(0));
         }
-        SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
-        assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
-        if (withScroll) {
-            assertThat(phase.totalHits().value, equalTo((long) numShards));
-            assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
-        } else {
-            assertThat(phase.totalHits().value, equalTo(2L));
-            assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
-        }
-        assertThat(phase.sortedTopDocs().scoreDocs().length, equalTo(1));
-        assertThat(phase.sortedTopDocs().scoreDocs()[0], instanceOf(FieldDoc.class));
-        assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields.length, equalTo(1));
-        assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields[0], equalTo(0));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101932")
@@ -353,6 +351,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         final List<Object> responses = new ArrayList<>();
         SearchQueryThenFetchAsyncAction newSearchAsyncAction = new SearchQueryThenFetchAsyncAction(
             logger,
+            null,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),
@@ -501,6 +500,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
             logger,
+            null,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),
@@ -650,6 +650,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
             logger,
+            null,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),

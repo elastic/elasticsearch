@@ -228,7 +228,7 @@ public abstract class TransportBroadcastByNodeAction<
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        request.incRef();
+        request.mustIncRef();
         executor.execute(ActionRunnable.wrapReleasing(listener, request::decRef, l -> doExecuteForked(task, request, listener)));
     }
 
@@ -474,7 +474,7 @@ public abstract class TransportBroadcastByNodeAction<
         }
 
         NodeRequest(Request indicesLevelRequest, List<ShardRouting> shards, String nodeId) {
-            indicesLevelRequest.incRef();
+            indicesLevelRequest.mustIncRef();
             this.indicesLevelRequest = indicesLevelRequest;
             this.shards = shards;
             this.nodeId = nodeId;

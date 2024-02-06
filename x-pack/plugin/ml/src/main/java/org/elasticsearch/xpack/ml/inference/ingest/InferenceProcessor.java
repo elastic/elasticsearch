@@ -25,11 +25,11 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
+import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -170,7 +170,7 @@ public class InferenceProcessor extends AbstractProcessor {
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
-        this.inferenceConfig = ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
+        this.inferenceConfig = inferenceConfig;
         this.ignoreMissing = ignoreMissing;
 
         if (configuredWithInputsFields) {
@@ -191,7 +191,7 @@ public class InferenceProcessor extends AbstractProcessor {
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
 
-        InferModelAction.Request request;
+        CoordinatedInferenceAction.Request request;
         try {
             request = buildRequest(ingestDocument);
         } catch (ElasticsearchStatusException e) {
@@ -202,7 +202,7 @@ public class InferenceProcessor extends AbstractProcessor {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            InferModelAction.INSTANCE,
+            CoordinatedInferenceAction.INSTANCE,
             request,
             ActionListener.wrap(r -> handleResponse(r, ingestDocument, handler), e -> handler.accept(ingestDocument, e))
         );
@@ -223,7 +223,7 @@ public class InferenceProcessor extends AbstractProcessor {
         }
     }
 
-    InferModelAction.Request buildRequest(IngestDocument ingestDocument) {
+    CoordinatedInferenceAction.Request buildRequest(IngestDocument ingestDocument) {
         if (configuredWithInputsFields) {
             // ignore missing only applies when using an input field list
             List<String> requestInputs = new ArrayList<>();
@@ -246,10 +246,10 @@ public class InferenceProcessor extends AbstractProcessor {
                     }
                 }
             }
-            var request = InferModelAction.Request.forTextInput(
+            var request = CoordinatedInferenceAction.Request.forTextInput(
                 modelId,
-                inferenceConfig,
                 requestInputs,
+                inferenceConfig,
                 previouslyLicensed,
                 InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
             );
@@ -263,12 +263,13 @@ public class InferenceProcessor extends AbstractProcessor {
             }
 
             LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-            var request = InferModelAction.Request.forIngestDocs(
+            var request = CoordinatedInferenceAction.Request.forMapInput(
                 modelId,
                 List.of(fields),
                 inferenceConfig,
                 previouslyLicensed,
-                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST,
+                CoordinatedInferenceAction.Request.RequestModelType.UNKNOWN
             );
             request.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
             return request;
@@ -409,15 +410,9 @@ public class InferenceProcessor extends AbstractProcessor {
 
             String modelId = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_ID);
 
-            InferenceConfigUpdate inferenceConfigUpdate;
+            InferenceConfigUpdate inferenceConfigUpdate = null;
             Map<String, Object> inferenceConfigMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, INFERENCE_CONFIG);
-            if (inferenceConfigMap == null) {
-                if (minNodeVersion.before(EmptyConfigUpdate.minimumSupportedVersion())) {
-                    // an inference config is required when the empty update is not supported
-                    throw newConfigurationException(TYPE, tag, INFERENCE_CONFIG, "required property is missing");
-                }
-                inferenceConfigUpdate = new EmptyConfigUpdate();
-            } else {
+            if (inferenceConfigMap != null) {
                 inferenceConfigUpdate = inferenceConfigUpdateFromMap(inferenceConfigMap);
             }
 
@@ -445,7 +440,7 @@ public class InferenceProcessor extends AbstractProcessor {
                     );
                 }
 
-                if (inferenceConfigUpdate.getResultsField() != null) {
+                if (inferenceConfigUpdate != null && inferenceConfigUpdate.getResultsField() != null) {
                     throw newConfigurationException(
                         TYPE,
                         tag,

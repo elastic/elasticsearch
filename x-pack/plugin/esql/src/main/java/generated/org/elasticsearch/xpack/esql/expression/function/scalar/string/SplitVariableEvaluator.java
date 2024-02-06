@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
@@ -15,12 +16,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Split}.
  * This class is generated. Do not edit it.
  */
 public final class SplitVariableEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator str;
 
   private final EvalOperator.ExpressionEvaluator delim;
@@ -29,8 +34,9 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
 
   private final DriverContext driverContext;
 
-  public SplitVariableEvaluator(EvalOperator.ExpressionEvaluator str,
+  public SplitVariableEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator delim, BytesRef scratch, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.str = str;
     this.delim = delim;
     this.scratch = scratch;
@@ -38,20 +44,18 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref strRef = str.eval(page)) {
-      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
-      try (Block.Ref delimRef = delim.eval(page)) {
-        BytesRefBlock delimBlock = (BytesRefBlock) delimRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      try (BytesRefBlock delimBlock = (BytesRefBlock) delim.eval(page)) {
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, delimBlock));
+          return eval(page.getPositionCount(), strBlock, delimBlock);
         }
         BytesRefVector delimVector = delimBlock.asVector();
         if (delimVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, delimBlock));
+          return eval(page.getPositionCount(), strBlock, delimBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), strVector, delimVector));
+        return eval(page.getPositionCount(), strVector, delimVector);
       }
     }
   }
@@ -61,11 +65,25 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
       BytesRef strScratch = new BytesRef();
       BytesRef delimScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+        if (strBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (delimBlock.isNull(p) || delimBlock.getValueCount(p) != 1) {
+        if (strBlock.getValueCount(p) != 1) {
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (delimBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (delimBlock.getValueCount(p) != 1) {
+          if (delimBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -98,14 +116,17 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
     private final EvalOperator.ExpressionEvaluator.Factory str;
 
     private final EvalOperator.ExpressionEvaluator.Factory delim;
 
     private final Function<DriverContext, BytesRef> scratch;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
         EvalOperator.ExpressionEvaluator.Factory delim, Function<DriverContext, BytesRef> scratch) {
+      this.source = source;
       this.str = str;
       this.delim = delim;
       this.scratch = scratch;
@@ -113,7 +134,7 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
 
     @Override
     public SplitVariableEvaluator get(DriverContext context) {
-      return new SplitVariableEvaluator(str.get(context), delim.get(context), scratch.apply(context), context);
+      return new SplitVariableEvaluator(source, str.get(context), delim.get(context), scratch.apply(context), context);
     }
 
     @Override

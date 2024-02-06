@@ -9,25 +9,44 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.rest.TestFeatureService;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.is;
 
 public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
+    private static class MockTestFeatureService implements TestFeatureService {
+        @Override
+        public boolean clusterHasFeature(String featureId) {
+            return true;
+        }
+
+        @Override
+        public Set<String> getAllSupportedFeatures() {
+            return Set.of();
+        }
+    }
+
     public void testHeadersSupportStashedValueReplacement() throws IOException {
         final AtomicReference<Map<String, String>> headersRef = new AtomicReference<>();
-        final Version version = VersionUtils.randomVersion(random());
-        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
+        final String version = randomAlphaOfLength(10);
+        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(
+            null,
+            null,
+            randomBoolean(),
+            Set.of(version),
+            new MockTestFeatureService(),
+            Set.of("os")
+        ) {
             @Override
             ClientYamlTestResponse callApiInternal(
                 String apiName,
@@ -38,11 +57,6 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             ) {
                 headersRef.set(headers);
                 return null;
-            }
-
-            @Override
-            public Version esVersion() {
-                return version;
             }
         };
         final Map<String, String> headers = new HashMap<>();
@@ -62,8 +76,15 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
     }
 
     public void testStashHeadersOnException() throws IOException {
-        final Version version = VersionUtils.randomVersion(random());
-        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
+        final String version = randomAlphaOfLength(10);
+        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(
+            null,
+            null,
+            randomBoolean(),
+            Set.of(version),
+            new MockTestFeatureService(),
+            Set.of("os")
+        ) {
             @Override
             ClientYamlTestResponse callApiInternal(
                 String apiName,
@@ -73,11 +94,6 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
                 NodeSelector nodeSelector
             ) {
                 throw new RuntimeException("boom!");
-            }
-
-            @Override
-            public Version esVersion() {
-                return version;
             }
         };
         final Map<String, String> headers = new HashMap<>();

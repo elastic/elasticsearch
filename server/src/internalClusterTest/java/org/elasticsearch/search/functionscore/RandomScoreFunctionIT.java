@@ -112,7 +112,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                             CoreMatchers.equalTo(0)
                         );
                         final int hitCount = response.getHits().getHits().length;
-                        final SearchHit[] currentHits = response.getHits().getHits();
+                        final SearchHit[] currentHits = response.getHits().asUnpooled().getHits();
                         ArrayUtil.timSort(currentHits, (o1, o2) -> {
                             // for tie-breaking we have to resort here since if the score is
                             // identical we rely on collection order which might change.
@@ -157,8 +157,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
-            client().prepareIndex("test")
-                .setId("" + i)
+            prepareIndex("test").setId("" + i)
                 // we add 1 to the index field to make sure that the scripts below never compute log(0)
                 .setSource("body", randomFrom(Arrays.asList("foo", "bar", "baz")), "index", i + 1)
                 .get();

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +29,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import javax.crypto.SecretKeyFactory;
-import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
@@ -162,6 +160,12 @@ public class XPackSettings {
         Property.NodeScope
     );
 
+    /** Optional setting to prevent startup if required providers are not discovered at runtime */
+    public static final Setting<List<String>> FIPS_REQUIRED_PROVIDERS = Setting.stringListSetting(
+        "xpack.security.fips_mode.required_providers",
+        Property.NodeScope
+    );
+
     /**
      * Setting for enabling the enrollment process, ie the enroll APIs are enabled, and the initial cluster node generates and displays
      * enrollment tokens (for Kibana and sometimes for ES nodes) when starting up for the first time.
@@ -255,19 +259,7 @@ public class XPackSettings {
         }, Property.NodeScope);
     }
 
-    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
-
-    static {
-        boolean supportsTLSv13 = false;
-        try {
-            SSLContext.getInstance("TLSv1.3");
-            supportsTLSv13 = true;
-        } catch (NoSuchAlgorithmException e) {
-            // BCJSSE in FIPS mode doesn't support TLSv1.3 yet.
-            LogManager.getLogger(XPackSettings.class).debug("TLSv1.3 is not supported", e);
-        }
-        DEFAULT_SUPPORTED_PROTOCOLS = supportsTLSv13 ? Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1");
-    }
+    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1");
 
     public static final SslClientAuthenticationMode CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.REQUIRED;
     public static final SslClientAuthenticationMode HTTP_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;

@@ -24,6 +24,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
@@ -52,13 +53,13 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     public void testBasics() throws Exception {
         indexRandom(
             true,
-            client().prepareIndex("test").setId("1").setSource("foo", "a"),
-            client().prepareIndex("test").setId("2").setSource("foo", "a"),
-            client().prepareIndex("test").setId("3").setSource("foo", "b"),
-            client().prepareIndex("test").setId("4").setSource("foo", "c"),
-            client().prepareIndex("test").setId("5").setSource("foo", "d"),
-            client().prepareIndex("test").setId("6").setSource("foo", "e"),
-            client().prepareIndex("test").setId("7").setSource("foo", "f")
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "a"),
+            prepareIndex("test").setId("3").setSource("foo", "b"),
+            prepareIndex("test").setId("4").setSource("foo", "c"),
+            prepareIndex("test").setId("5").setSource("foo", "d"),
+            prepareIndex("test").setId("6").setSource("foo", "e"),
+            prepareIndex("test").setId("7").setSource("foo", "f")
         );
 
         assertHitCount(prepareSearch("test").setSize(0), 7);
@@ -87,7 +88,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
-            builders.add(client().prepareIndex("test").setId(String.valueOf(i)).setSource("fields1", 1));
+            builders.add(prepareIndex("test").setId(String.valueOf(i)).setSource("fields1", 1));
         }
         indexRandom(true, true, true, builders);
 
@@ -112,7 +113,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
 
             for (int j = 0; j < docs; j++) {
                 boolean candidate = (j < candidates[i]);
-                builders.add(client().prepareIndex("test-" + i).setId(String.valueOf(j)).setSource("candidate", candidate));
+                builders.add(prepareIndex("test-" + i).setId(String.valueOf(j)).setSource("candidate", candidate));
             }
         }
         indexRandom(true, true, true, builders);
@@ -129,7 +130,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testDeleteByQueryWithMissingIndex() throws Exception {
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource("foo", "a"));
+        indexRandom(true, prepareIndex("test").setId("1").setSource("foo", "a"));
         assertHitCount(prepareSearch().setSize(0), 1);
 
         try {
@@ -149,7 +150,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
-            builders.add(client().prepareIndex("test").setId(String.valueOf(i)).setRouting(String.valueOf(i)).setSource("field1", 1));
+            builders.add(prepareIndex("test").setId(String.valueOf(i)).setRouting(String.valueOf(i)).setSource("field1", 1));
         }
         indexRandom(true, true, true, builders);
 
@@ -159,7 +160,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         String routing = String.valueOf(randomIntBetween(2, docs));
 
         logger.info("--> counting documents with routing [{}]", routing);
-        long expected = prepareSearch().setSize(0).setRouting(routing).get().getHits().getTotalHits().value;
+        long expected = SearchResponseUtils.getTotalHitsValue(prepareSearch().setSize(0).setRouting(routing));
 
         logger.info("--> delete all documents with routing [{}] with a delete-by-query", routing);
         DeleteByQueryRequestBuilder delete = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery());
@@ -177,10 +178,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
             builders.add(
-                client().prepareIndex("test")
-                    .setId(Integer.toString(i))
-                    .setRouting(randomAlphaOfLengthBetween(1, 5))
-                    .setSource("foo", "bar")
+                prepareIndex("test").setId(Integer.toString(i)).setRouting(randomAlphaOfLengthBetween(1, 5)).setSource("foo", "bar")
             );
         }
         indexRandom(true, true, true, builders);
@@ -196,7 +194,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testDeleteByQueryWithDateMath() throws Exception {
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource("d", "2013-01-01"));
+        indexRandom(true, prepareIndex("test").setId("1").setSource("d", "2013-01-01"));
 
         DeleteByQueryRequestBuilder delete = deleteByQuery().source("test").filter(rangeQuery("d").to("now-1h"));
         assertThat(delete.refresh(true).get(), matcher().deleted(1L));
@@ -210,7 +208,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         final int docs = randomIntBetween(1, 50);
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
-            builders.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", 1));
+            builders.add(prepareIndex("test").setId(Integer.toString(i)).setSource("field", 1));
         }
         indexRandom(true, true, true, builders);
 
@@ -233,7 +231,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         final int docs = randomIntBetween(1, 50);
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
-            builders.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", 1));
+            builders.add(prepareIndex("test").setId(Integer.toString(i)).setSource("field", 1));
         }
         indexRandom(true, true, true, builders);
 
@@ -289,13 +287,13 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     public void testSlices() throws Exception {
         indexRandom(
             true,
-            client().prepareIndex("test").setId("1").setSource("foo", "a"),
-            client().prepareIndex("test").setId("2").setSource("foo", "a"),
-            client().prepareIndex("test").setId("3").setSource("foo", "b"),
-            client().prepareIndex("test").setId("4").setSource("foo", "c"),
-            client().prepareIndex("test").setId("5").setSource("foo", "d"),
-            client().prepareIndex("test").setId("6").setSource("foo", "e"),
-            client().prepareIndex("test").setId("7").setSource("foo", "f")
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "a"),
+            prepareIndex("test").setId("3").setSource("foo", "b"),
+            prepareIndex("test").setId("4").setSource("foo", "c"),
+            prepareIndex("test").setId("5").setSource("foo", "d"),
+            prepareIndex("test").setId("6").setSource("foo", "e"),
+            prepareIndex("test").setId("7").setSource("foo", "f")
         );
         assertHitCount(prepareSearch("test").setSize(0), 7);
 
@@ -326,7 +324,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             docs.put(indexName, new ArrayList<>());
             int numDocs = between(5, 15);
             for (int i = 0; i < numDocs; i++) {
-                docs.get(indexName).add(client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("foo", "a"));
+                docs.get(indexName).add(prepareIndex(indexName).setId(Integer.toString(i)).setSource("foo", "a"));
             }
         }
 

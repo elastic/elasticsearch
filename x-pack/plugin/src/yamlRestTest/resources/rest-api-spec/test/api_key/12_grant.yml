@@ -192,6 +192,7 @@ teardown:
   - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
   - match: { encoded: $login_creds }
 
+  # verify the granted API Key
   - do:
       headers:
         Authorization: ApiKey ${login_creds}
@@ -209,6 +210,41 @@ teardown:
         ids: "${api_key_id}"
 
   - match: { _nodes.failed: 0 }
+
+---
+"Test grant api key with non-JWT token and client authentication fails":
+  - do:
+      security.get_token:
+        body:
+          grant_type: "password"
+          username: "api_key_grant_target_user"
+          password: "x-pack-test-password-2"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: token }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9ncmFudGVyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_granter
+      catch: bad_request
+      security.grant_api_key:
+        body:  >
+          {
+            "api_key": {
+              "name": "wrong-api-key"
+            },
+            "grant_type": "access_token",
+            "access_token": "$token",
+            "client_authentication": {
+              "scheme": "SharedSecret",
+              "value": "whatever"
+            }
+          }
+
+  - match: { "error.type": "security_exception" }
+  - match:
+      "error.reason": "[client_authentication] not supported with the supplied access_token type"
 
 ---
 "Test grant api key forbidden":

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
@@ -24,9 +25,10 @@ public abstract class BaseSingleUpdateApiKeyRequest extends BaseUpdateApiKeyRequ
     public BaseSingleUpdateApiKeyRequest(
         @Nullable final List<RoleDescriptor> roleDescriptors,
         @Nullable final Map<String, Object> metadata,
+        @Nullable final TimeValue expiration,
         String id
     ) {
-        super(roleDescriptors, metadata);
+        super(roleDescriptors, metadata, expiration);
         this.id = Objects.requireNonNull(id, "API key ID must not be null");
     }
 
@@ -43,5 +45,22 @@ public abstract class BaseSingleUpdateApiKeyRequest extends BaseUpdateApiKeyRequ
 
     public String getId() {
         return id;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass() || super.equals(o)) return false;
+
+        BaseSingleUpdateApiKeyRequest that = (BaseSingleUpdateApiKeyRequest) o;
+        return Objects.equals(getId(), that.getId())
+            && Objects.equals(metadata, that.metadata)
+            && Objects.equals(expiration, that.expiration)
+            && Objects.equals(roleDescriptors, that.roleDescriptors);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getId(), expiration, metadata, roleDescriptors);
     }
 }

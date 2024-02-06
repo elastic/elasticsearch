@@ -362,7 +362,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
 
         for (String index : indices) {
-            client().prepareIndex(index).setSource("field", "value").get();
+            prepareIndex(index).setSource("field", "value").get();
         }
         refresh(indices);
     }

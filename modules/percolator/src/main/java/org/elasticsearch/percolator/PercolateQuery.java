@@ -143,7 +143,7 @@ final class PercolateQuery extends Query implements Accountable {
                         }
 
                         @Override
-                        public float score() throws IOException {
+                        public float score() {
                             return score;
                         }
                     };

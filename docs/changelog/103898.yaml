@@ -1,0 +1,14 @@
+pr: 103898
+summary: Change `index.look_ahead_time` index setting's default value from 2 hours to 30 minutes.
+area: TSDB
+type: breaking
+issues: []
+breaking:
+  title: Change `index.look_ahead_time` index setting's default value from 2 hours to 30 minutes.
+  area: Index setting
+  details: Lower the `index.look_ahead_time` index setting's max value from 2 hours to 30 minutes.
+  impact: >
+    Documents with @timestamp of 30 minutes or more in the future will be rejected.
+    Before documents with @timestamp of 2 hours or more in the future were rejected.
+    If the previous behaviour should be kept, then update the `index.look_ahead_time` setting to two hours before performing the upgrade.
+  notable: false

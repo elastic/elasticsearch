@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ccr.action.repositories;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,13 +35,21 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
     public static final String INTERNAL_NAME = "internal:admin/ccr/restore/file_chunk/get";
     public static final String NAME = "indices:internal/admin/ccr/restore/file_chunk/get";
     public static final GetCcrRestoreFileChunkAction INSTANCE = new GetCcrRestoreFileChunkAction(NAME);
+    public static final RemoteClusterActionType<GetCcrRestoreFileChunkResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        NAME,
+        GetCcrRestoreFileChunkResponse::new
+    );
+    public static final RemoteClusterActionType<GetCcrRestoreFileChunkResponse> REMOTE_INTERNAL_TYPE = new RemoteClusterActionType<>(
+        INTERNAL_NAME,
+        GetCcrRestoreFileChunkResponse::new
+    );
 
     private GetCcrRestoreFileChunkAction() {
         this(INTERNAL_NAME);
     }
 
     private GetCcrRestoreFileChunkAction(String name) {
-        super(name, GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse::new);
+        super(name);
     }
 
     abstract static class TransportGetCcrRestoreFileChunkAction extends HandledTransportAction<
@@ -85,7 +94,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
                 try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
                     long offsetAfterRead = sessionReader.readFileBytes(fileName, reference);
                     long offsetBeforeRead = offsetAfterRead - reference.length();
-                    listener.onResponse(new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference));
+                    ActionListener.respondAndRelease(listener, new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference));
                 }
             } catch (IOException e) {
                 listener.onFailure(e);

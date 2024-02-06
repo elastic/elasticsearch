@@ -1,0 +1,5 @@
+pr: 104936
+summary: Support enrich coordinator mode
+area: ES|QL
+type: enhancement
+issues: []

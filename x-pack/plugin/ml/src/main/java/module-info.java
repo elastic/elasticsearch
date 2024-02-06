@@ -17,6 +17,7 @@ module org.elasticsearch.ml {
     requires org.elasticsearch.grok;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.mustache;
     requires org.apache.httpcomponents.httpcore;
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.httpcomponents.httpasyncclient;
@@ -33,7 +34,6 @@ module org.elasticsearch.ml {
 
     provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.xpack.ml.MachineLearningPainlessExtension;
     provides org.elasticsearch.xpack.autoscaling.AutoscalingExtension with org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingExtension;
-    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.ml.MlFeatures;
 
     exports org.elasticsearch.xpack.ml;
     exports org.elasticsearch.xpack.ml.action;

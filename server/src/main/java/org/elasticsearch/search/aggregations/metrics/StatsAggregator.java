@@ -112,8 +112,7 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     public double metric(String name, long owningBucketOrd) {
         if (owningBucketOrd >= counts.size()) {
             return switch (InternalStats.Metrics.resolve(name)) {
-                case count -> 0;
-                case sum -> 0;
+                case count, sum -> 0;
                 case min -> Double.POSITIVE_INFINITY;
                 case max -> Double.NEGATIVE_INFINITY;
                 case avg -> Double.NaN;

@@ -9,8 +9,8 @@ package org.elasticsearch.license;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
@@ -529,7 +529,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         // Creating a pipeline should work
         PlainActionFuture<AcknowledgedResponse> putPipelineListener = new PlainActionFuture<>();
         client().execute(
-            PutPipelineAction.INSTANCE,
+            PutPipelineTransportAction.TYPE,
             new PutPipelineRequest(
                 "test_infer_license_pipeline",
                 new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
@@ -540,11 +540,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         AcknowledgedResponse putPipelineResponse = putPipelineListener.actionGet();
         assertTrue(putPipelineResponse.isAcknowledged());
 
-        client().prepareIndex("infer_license_test")
-            .setPipeline("test_infer_license_pipeline")
-            .setSource("{}", XContentType.JSON)
-            .execute()
-            .actionGet();
+        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
 
         String simulateSource = Strings.format("""
             {
@@ -573,11 +569,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // Inference against the previous pipeline should still work
         try {
-            client().prepareIndex("infer_license_test")
-                .setPipeline("test_infer_license_pipeline")
-                .setSource("{}", XContentType.JSON)
-                .execute()
-                .actionGet();
+            prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
         } catch (ElasticsearchSecurityException ex) {
             fail(ex.getMessage());
         }
@@ -585,7 +577,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         // Creating a new pipeline with an inference processor should work
         putPipelineListener = new PlainActionFuture<>();
         client().execute(
-            PutPipelineAction.INSTANCE,
+            PutPipelineTransportAction.TYPE,
             new PutPipelineRequest(
                 "test_infer_license_pipeline_again",
                 new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
@@ -598,11 +590,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // Inference against the new pipeline should fail since it has never previously succeeded
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
-            client().prepareIndex("infer_license_test")
-                .setPipeline("test_infer_license_pipeline_again")
-                .setSource("{}", XContentType.JSON)
-                .execute()
-                .actionGet();
+            prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline_again").setSource("{}", XContentType.JSON).get();
         });
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
         assertThat(e.getMessage(), containsString("non-compliant"));
@@ -623,7 +611,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         // test that license restricted apis do now work
         PlainActionFuture<AcknowledgedResponse> putPipelineListenerNewLicense = new PlainActionFuture<>();
         client().execute(
-            PutPipelineAction.INSTANCE,
+            PutPipelineTransportAction.TYPE,
             new PutPipelineRequest(
                 "test_infer_license_pipeline",
                 new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
@@ -645,16 +633,8 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // both ingest pipelines should work
 
-        client().prepareIndex("infer_license_test")
-            .setPipeline("test_infer_license_pipeline")
-            .setSource("{}", XContentType.JSON)
-            .execute()
-            .actionGet();
-        client().prepareIndex("infer_license_test")
-            .setPipeline("test_infer_license_pipeline_again")
-            .setSource("{}", XContentType.JSON)
-            .execute()
-            .actionGet();
+        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
+        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline_again").setSource("{}", XContentType.JSON).get();
     }
 
     public void testMachineLearningInferModelRestricted() {
@@ -776,7 +756,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         SearchRequest search = new SearchRequest(index);
         search.source().aggregation(termsAgg);
-        client().search(search).actionGet();
+        client().search(search).actionGet().decRef();
 
         // Pick a license that does not allow machine learning
         License.OperationMode mode = randomInvalidLicenseType();

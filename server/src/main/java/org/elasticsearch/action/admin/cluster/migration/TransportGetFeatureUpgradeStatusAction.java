@@ -55,6 +55,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     /**
      * Once all feature migrations for 8.x -> 9.x have been tested, we can bump this to Version.V_8_0_0
      */
+    @UpdateForV9
     public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_0_0;
     public static final IndexVersion NO_UPGRADE_REQUIRED_INDEX_VERSION = IndexVersions.V_7_0_0;
 

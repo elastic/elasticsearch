@@ -53,7 +53,8 @@ tokens can be issued by an OIDC Provider (OP), including ID Tokens.
 ID Tokens from an OIDC provider are well-defined JSON Web Tokens (JWT) and should be always compatible with
 a JWT realm of the `id_token` token type. The subject claim of an ID token represents the end-user.
 This means that ID tokens will generally have many allowed subjects.
-Therefore, a JWT realm of `id_token` token type does _not_ mandate the `allowed_subjects` validation.
+Therefore, a JWT realm of `id_token` token type does _not_ mandate the `allowed_subjects`
+(or `allowed_subject_patterns`) validation.
 
 NOTE: Because JWTs are obtained external to {es}, you can define a custom workflow
 instead of using the OIDC workflow. However, the JWT format must still be JSON
@@ -74,8 +75,8 @@ A typical usage of this flow is for an application to get a credential for itsel
 This is the use case that the `access_token` token type is designed for.
 It is likely that this application also obtains ID Tokens for its end-users.
 To prevent end-user ID Tokens being used to authenticate with the JWT realm configured
-for the application, we mandate `allowed_subjects` validation when a JWT realm
-has token type `access_token`.
+for the application, we mandate `allowed_subjects` or `allowed_subject_patterns`
+validation when a JWT realm has token type `access_token`.
 
 NOTE: Not every access token is formatted as a JSON Web Token (JWT).
 For it to be compatible with the JWT realm, it must at least use the JWT format and satisfies
@@ -123,8 +124,9 @@ Instructs the realm to treat and validate incoming JWTs as ID Tokens (`id_token`
 Specifies the client authentication type as `shared_secret`, which means that
 the client is authenticated using an HTTP request header that must match a
 pre-configured secret value. The client must provide this shared secret with
-every request in the `ES-Client-Authentication` header. The header value must be a
-case-sensitive match to the realm's `client_authentication.shared_secret`.
+every request in the `ES-Client-Authentication` header and using the
+`SharedSecret` scheme. The header value must be a case-sensitive match
+to the realm's `client_authentication.shared_secret`.
 
 `allowed_issuer`::
 Sets a verifiable identifier for your JWT issuer. This value is typically a
@@ -161,7 +163,8 @@ xpack.security.authc.realms.jwt.jwt2:
   token_type: access_token
   client_authentication.type: shared_secret
   allowed_issuer: "https://issuer.example.com/jwt/"
-  allowed_subjects: [ "123456-compute@developer.example.com" ]
+  allowed_subjects: [ "123456-compute@admin.example.com" ]
+  allowed_subject_patterns: [ "wild*@developer?.example.com", "/[a-z]+<1-10>\\@dev\\.example\\.com/"]
   allowed_audiences: [ "elasticsearch" ]
   required_claims:
     token_use: access
@@ -180,7 +183,21 @@ Instructs the realm to treat and validate incoming JWTs as access tokens (`acces
 Specifies a list of JWT subjects that the realm will allow.
 These values are typically URLs, UUIDs, or other case-sensitive string values.
 
-NOTE: This setting is mandatory for when `token_type` is `access_token`.
+`allowed_subject_patterns`::
+Analogous to `allowed_subjects` but it accepts a list of <<regexp-syntax,Lucene regexp>>
+and wildcards for the allowed JWT subjects. Wildcards use the `*` and `?` special
+characters (which are escaped by `\`) to mean "any string" and "any single character"
+respectively, for example "a?\\**", matches "a1*" and "ab*whatever", but not "a", "abc", or "abc*"
+(in Java strings `\` must itself be escaped by another `\`).
+<<regexp-syntax,Lucene regexp>> must be enclosed between `/`,
+for example "/https?://[^/]+/?/" matches any http or https URL with no path component
+(matches "https://elastic.co/" but not "https://elastic.co/guide").
+
+NOTE: At least one of the `allowed_subjects` or `allowed_subject_patterns` settings must be specified
+(and be non-empty) when `token_type` is `access_token`.
+
+NOTE: When both `allowed_subjects` and `allowed_subject_patterns` settings are specified
+an incoming JWT's `sub` claim is accepted if it matches any of the two lists.
 
 `required_claims`::
 Specifies a list of key/value pairs for additional verifications to be performed
@@ -519,6 +536,7 @@ After mapping the roles, you can make an
 <<security-api-authenticate,authenticated call>> to {es} using a JWT and include
 the `ES-Client-Authentication` header:
 
+[[jwt-auth-shared-secret-scheme-example]]
 [source,sh]
 ----
 curl -s -X GET -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhdWQiOlsiZXMwMSIsImVzMDIiLCJlczAzIl0sInN1YiI6InVzZXIyIiwiaXNzIjoibXktaXNzdWVyIiwiZXhwIjo0MDcwOTA4ODAwLCJpYXQiOjk0NjY4NDgwMCwiZW1haWwiOiJ1c2VyMkBzb21ldGhpbmcuZXhhbXBsZS5jb20ifQ.UgO_9w--EoRyUKcWM5xh9SimTfMzl1aVu6ZBsRWhxQA" -H "ES-Client-Authentication: sharedsecret test-secret" https://localhost:9200/_security/_authenticate

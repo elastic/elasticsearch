@@ -13,11 +13,13 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 
@@ -39,21 +41,31 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
 
     // note: this is an index action and requires `monitor` or `view_index_metadata`
     public static final String NAME = "indices:monitor/transform/checkpoint";
+    public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
 
     private GetCheckpointAction() {
-        super(NAME, GetCheckpointAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
         private String[] indices;
         private final IndicesOptions indicesOptions;
+        private final QueryBuilder query;
+        private final String cluster;
         private final TimeValue timeout;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             indices = in.readStringArray();
             indicesOptions = IndicesOptions.readIndicesOptions(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_CHECKPOINT_QUERY_AND_CLUSTER_ADDED)) {
+                query = in.readOptionalNamedWriteable(QueryBuilder.class);
+                cluster = in.readOptionalString();
+            } else {
+                query = null;
+                cluster = null;
+            }
             if (in.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED)) {
                 timeout = in.readOptionalTimeValue();
             } else {
@@ -61,9 +73,11 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             }
         }
 
-        public Request(String[] indices, IndicesOptions indicesOptions, TimeValue timeout) {
+        public Request(String[] indices, IndicesOptions indicesOptions, QueryBuilder query, String cluster, TimeValue timeout) {
             this.indices = indices != null ? indices : Strings.EMPTY_ARRAY;
             this.indicesOptions = indicesOptions;
+            this.query = query;
+            this.cluster = cluster;
             this.timeout = timeout;
         }
 
@@ -82,6 +96,14 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             return indicesOptions;
         }
 
+        public QueryBuilder getQuery() {
+            return query;
+        }
+
+        public String getCluster() {
+            return cluster;
+        }
+
         public TimeValue getTimeout() {
             return timeout;
         }
@@ -98,12 +120,14 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
 
             return Arrays.equals(indices, that.indices)
                 && Objects.equals(indicesOptions, that.indicesOptions)
+                && Objects.equals(query, that.query)
+                && Objects.equals(cluster, that.cluster)
                 && Objects.equals(timeout, that.timeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(Arrays.hashCode(indices), indicesOptions, timeout);
+            return Objects.hash(Arrays.hashCode(indices), indicesOptions, query, cluster, timeout);
         }
 
         @Override
@@ -111,6 +135,10 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             super.writeTo(out);
             out.writeStringArray(indices);
             indicesOptions.writeIndicesOptions(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_CHECKPOINT_QUERY_AND_CLUSTER_ADDED)) {
+                out.writeOptionalNamedWriteable(query);
+                out.writeOptionalString(cluster);
+            }
             if (out.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED)) {
                 out.writeOptionalTimeValue(timeout);
             }

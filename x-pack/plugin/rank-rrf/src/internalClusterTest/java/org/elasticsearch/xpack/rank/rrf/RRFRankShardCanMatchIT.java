@@ -129,13 +129,13 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
         int shardB = -1;
 
         for (int i = 0; i < 10; i++) {
-            DocWriteResponse ir = client().prepareIndex("value_index").setSource("value", "" + i).setRouting("a").get();
+            DocWriteResponse ir = prepareIndex("value_index").setSource("value", "" + i).setRouting("a").get();
             int a = ir.getShardId().id();
             assertTrue(shardA == a || shardA == -1);
             shardA = a;
         }
         for (int i = 10; i < 20; i++) {
-            DocWriteResponse ir = client().prepareIndex("value_index").setSource("value", "" + i).setRouting("b").get();
+            DocWriteResponse ir = prepareIndex("value_index").setSource("value", "" + i).setRouting("b").get();
             int b = ir.getShardId().id();
             assertTrue(shardB == b || shardB == -1);
             shardB = b;

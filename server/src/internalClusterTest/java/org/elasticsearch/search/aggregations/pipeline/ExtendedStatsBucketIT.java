@@ -31,7 +31,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestCase<ExtendedStatsBucket> {
+public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestCase<InternalExtendedStatsBucket> {
 
     @Override
     protected ExtendedStatsBucketPipelineAggregationBuilder BucketMetricsPipelineAgg(String name, String bucketsPath) {
@@ -43,7 +43,7 @@ public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestC
         IntToDoubleFunction buckets,
         Function<Integer, String> bucketKeys,
         int numBuckets,
-        ExtendedStatsBucket pipelineBucket
+        InternalExtendedStatsBucket pipelineBucket
     ) {
         double sum = 0;
         int count = 0;
@@ -71,7 +71,7 @@ public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestC
     }
 
     @Override
-    protected double getNestedMetric(ExtendedStatsBucket bucket) {
+    protected double getNestedMetric(InternalExtendedStatsBucket bucket) {
         return bucket.getAvg();
     }
 
@@ -85,8 +85,7 @@ public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestC
             // creates 6 documents where the value of the field is 0, 1, 2, 3,
             // 3, 5
             builders.add(
-                client().prepareIndex("idx_gappy")
-                    .setId("" + i)
+                prepareIndex("idx_gappy").setId("" + i)
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i == 4 ? 3 : i).endObject())
             );
         }
@@ -163,7 +162,7 @@ public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestC
                             .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                     )
                     .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum").sigma(-1.0))
-            ).get()
+            )
         );
         Throwable cause = ExceptionsHelper.unwrapCause(ex);
         if (cause == null) {

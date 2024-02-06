@@ -11,6 +11,7 @@ package org.elasticsearch.search.nested;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -47,8 +48,7 @@ public class VectorNestedIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startArray("nested")
@@ -63,12 +63,13 @@ public class VectorNestedIT extends ESIntegTestCase {
         waitForRelocation(ClusterHealthStatus.GREEN);
         GetResponse getResponse = client().prepareGet("test", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getSourceAsBytes(), notNullValue());
+        assertThat(getResponse.getSourceAsBytesRef(), notNullValue());
         refresh();
 
         assertResponse(
-            prepareSearch("test").setKnnSearch(List.of(new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, null)))
-                .setAllowPartialSearchResults(false),
+            prepareSearch("test").setKnnSearch(
+                List.of(new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, null).innerHit(new InnerHitBuilder()))
+            ).setAllowPartialSearchResults(false),
             response -> assertThat(response.getHits().getHits().length, greaterThan(0))
         );
     }

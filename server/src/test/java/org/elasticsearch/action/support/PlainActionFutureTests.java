@@ -34,13 +34,11 @@ public class PlainActionFutureTests extends ESTestCase {
 
         // test all possible methods that can be interrupted
         final Runnable runnable = () -> {
-            final int method = randomIntBetween(0, 4);
+            final int method = randomIntBetween(0, 2);
             switch (method) {
                 case 0 -> future.actionGet();
-                case 1 -> future.actionGet("30s");
-                case 2 -> future.actionGet(30000);
-                case 3 -> future.actionGet(TimeValue.timeValueSeconds(30));
-                case 4 -> future.actionGet(30, TimeUnit.SECONDS);
+                case 1 -> future.actionGet(TimeValue.timeValueSeconds(30));
+                case 2 -> future.actionGet(30, TimeUnit.SECONDS);
                 default -> throw new AssertionError(method);
             }
         };

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -25,7 +24,7 @@ public class DeleteTrainedModelAliasAction extends ActionType<AcknowledgedRespon
     public static final String NAME = "cluster:admin/xpack/ml/inference/model_aliases/delete";
 
     private DeleteTrainedModelAliasAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -59,11 +58,6 @@ public class DeleteTrainedModelAliasAction extends ActionType<AcknowledgedRespon
             super.writeTo(out);
             out.writeString(modelAlias);
             out.writeString(modelId);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

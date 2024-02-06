@@ -1,0 +1,63 @@
+[discrete]
+[[esql-date_diff]]
+=== `DATE_DIFF`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/date_diff.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`unit`::
+Time difference unit.
+
+`startTimestamp`::
+Start timestamp.
+
+`endTimestamp`::
+End timestamp.
+
+*Description*
+
+Subtracts the `startTimestamp` from the `endTimestamp` and returns the
+difference in multiples of `unit`. If `startTimestamp` is later than the
+`endTimestamp`, negative values are returned.
+
+[cols="^,^",role="styled"]
+|===
+2+h|Datetime difference units
+
+s|unit
+s|abbreviations
+
+| year        | years, yy, yyyy
+| quarter     | quarters, qq, q
+| month       | months, mm, m
+| dayofyear   | dy, y
+| day         | days, dd, d
+| week        | weeks, wk, ww
+| weekday     | weekdays, dw
+| hour        | hours, hh
+| minute      | minutes, mi, n
+| second      | seconds, ss, s
+| millisecond | milliseconds, ms
+| microsecond | microseconds, mcs
+| nanosecond  | nanoseconds, ns
+|===
+
+*Supported types*
+
+include::types/date_diff.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=docsDateDiff]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/date.csv-spec[tag=docsDateDiff-result]
+|===
+

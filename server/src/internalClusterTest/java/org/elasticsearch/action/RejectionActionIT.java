@@ -43,7 +43,7 @@ public class RejectionActionIT extends ESIntegTestCase {
 
     public void testSimulatedSearchRejectionLoad() throws Throwable {
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "1").get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "1").get();
         }
 
         int numberOfAsyncOps = randomIntBetween(200, 700);

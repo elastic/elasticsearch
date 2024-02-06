@@ -117,7 +117,7 @@ setup:
 "Test index templates with pipelines":
 
   - skip:
-      features: headers
+      features: [headers, allowed_warnings]
 
   - do:
       headers:
@@ -144,6 +144,8 @@ setup:
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [index-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template
         body:
@@ -194,7 +196,7 @@ setup:
 "Test bad pipeline substitution":
 
   - skip:
-      features: headers
+      features: [headers, allowed_warnings]
 
   - do:
       headers:
@@ -209,6 +211,8 @@ setup:
   - match: { acknowledged: true }
 
   - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [index-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template
         body:

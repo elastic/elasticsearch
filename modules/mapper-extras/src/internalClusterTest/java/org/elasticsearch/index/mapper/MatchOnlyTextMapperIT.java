@@ -55,7 +55,7 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
                             .startObject()
                             .field(
                                 "message",
-                                "[.ds-.slm-history-5-2023.09.20-"
+                                "[.ds-.slm-history-7-2023.09.20-"
                                     + randomInt()
                                     + "][0] marking and sending shard failed due to [failed recovery]"
                             )
@@ -104,7 +104,7 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
                             .startObject()
                             .field(
                                 "message",
-                                "[.ds-.slm-history-5-2023.09.20-"
+                                "[.ds-.slm-history-7-2023.09.20-"
                                     + randomInt()
                                     + "][0] marking and sending shard failed due to [failed recovery]"
                             )

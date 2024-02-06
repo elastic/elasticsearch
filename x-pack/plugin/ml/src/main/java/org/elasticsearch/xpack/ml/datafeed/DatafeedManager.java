@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,7 +20,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -100,7 +99,6 @@ public final class DatafeedManager {
     public void putDatafeed(
         PutDatafeedAction.Request request,
         ClusterState state,
-        XPackLicenseState licenseState,
         SecurityContext securityContext,
         ThreadPool threadPool,
         ActionListener<PutDatafeedAction.Response> listener
@@ -130,9 +128,9 @@ public final class DatafeedManager {
 
                 ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(response -> {
                     if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                        indicesPrivilegesBuilder.privileges(TransportSearchAction.TYPE.name());
                     } else {
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME, RollupSearchAction.NAME);
+                        indicesPrivilegesBuilder.privileges(TransportSearchAction.TYPE.name(), RollupSearchAction.NAME);
                     }
                     if (indices.length == 0) {
                         privResponseListener.onResponse(new HasPrivilegesResponse());
@@ -142,7 +140,7 @@ public final class DatafeedManager {
                     }
                 }, e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                        indicesPrivilegesBuilder.privileges(TransportSearchAction.TYPE.name());
                         privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
                         client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
                     } else {

@@ -85,12 +85,16 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
                     .setSize(1)
                     .setQuery(QueryBuilders.idsQuery().addIds(stateDocIdPrefix + ++docNum))
                     .get();
-                if (stateResponse.getHits().getHits().length == 0) {
-                    break;
+                try {
+                    if (stateResponse.getHits().getHits().length == 0) {
+                        break;
+                    }
+                    SearchHit stateDoc = stateResponse.getHits().getAt(0);
+                    logger.debug(() -> format("[%s] Restoring state document [%s]", config.jobId(), stateDoc.getId()));
+                    StateToProcessWriterHelper.writeStateToStream(stateDoc.getSourceRef(), restoreStream);
+                } finally {
+                    stateResponse.decRef();
                 }
-                SearchHit stateDoc = stateResponse.getHits().getAt(0);
-                logger.debug(() -> format("[%s] Restoring state document [%s]", config.jobId(), stateDoc.getId()));
-                StateToProcessWriterHelper.writeStateToStream(stateDoc.getSourceRef(), restoreStream);
             }
         }
     }

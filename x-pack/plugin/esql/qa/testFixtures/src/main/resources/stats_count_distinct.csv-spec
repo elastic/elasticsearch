@@ -87,7 +87,7 @@ COUNT_DISTINCT(ip0):long | COUNT_DISTINCT(ip1):long
 // end::count-distinct-result[]
 ;
 
-countDistinctOfIpPrecision
+countDistinctOfIpPrecision#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
 // tag::count-distinct-precision[]
 FROM hosts
 | STATS COUNT_DISTINCT(ip0, 80000), COUNT_DISTINCT(ip1, 5)
@@ -95,7 +95,7 @@ FROM hosts
 ;
 
 // tag::count-distinct-precision-result[]
-COUNT_DISTINCT(ip0,80000):long | COUNT_DISTINCT(ip1,5):long
+COUNT_DISTINCT(ip0, 80000):long | COUNT_DISTINCT(ip1, 5):long
 7                              | 9
 // end::count-distinct-precision-result[]
 ;
@@ -143,6 +143,31 @@ m:long  | languages:i
 
 countDistinctWithComplexPrecisionExpression
 from employees | stats m = count_distinct(height, 9876*3+(-9876*2)) by languages | sort languages;
+
+m:long  | languages:i
+13   | 1
+16   | 2
+14   | 3
+15   | 4
+20   | 5
+10   | null
+;
+
+docsCountDistinctWithExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsCountDistinctWithExpression[]
+ROW words="foo;bar;baz;qux;quux;foo"
+| STATS distinct_word_count = COUNT_DISTINCT(SPLIT(words, ";"))
+// end::docsCountDistinctWithExpression[]
+;
+
+// tag::docsCountDistinctWithExpression-result[]
+distinct_word_count:long
+5
+// end::docsCountDistinctWithExpression-result[]
+;
+
+countDistinctWithGroupPrecisionAndNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+from employees | stats m = count_distinct(height + 5, 9876) by languages | sort languages;
 
 m:long  | languages:i
 13   | 1

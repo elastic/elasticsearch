@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.security.authz;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -135,7 +135,7 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
             "WARN-Slow Index Resolution",
             timerLogger.getName(),
             Level.WARN,
-            Pattern.quote("Resolving [0] indices for action [" + SearchAction.NAME + "] and user [slow-user] took [")
+            Pattern.quote("Resolving [0] indices for action [" + TransportSearchAction.TYPE.name() + "] and user [slow-user] took [")
                 + "\\d{3}"
                 + Pattern.quote(
                     "ms] which is greater than the threshold of "
@@ -163,7 +163,7 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
             Level.INFO,
             Pattern.quote("Took [")
                 + "\\d{2,3}"
-                + Pattern.quote("ms] to resolve [0] indices for action [" + SearchAction.NAME + "] and user [slow-user]")
+                + Pattern.quote("ms] to resolve [0] indices for action [" + TransportSearchAction.TYPE.name() + "] and user [slow-user]")
         );
 
         testLogging(thresholds, elapsedMs, expectation);
@@ -182,7 +182,7 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
         final AuthorizationEngine.RequestInfo requestInfo = new AuthorizationEngine.RequestInfo(
             authentication,
             new SearchRequest(),
-            SearchAction.NAME,
+            TransportSearchAction.TYPE.name(),
             null
         );
 

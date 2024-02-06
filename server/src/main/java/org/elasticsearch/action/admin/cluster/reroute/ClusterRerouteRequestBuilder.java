@@ -19,8 +19,8 @@ public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<
     ClusterRerouteRequest,
     ClusterRerouteResponse,
     ClusterRerouteRequestBuilder> {
-    public ClusterRerouteRequestBuilder(ElasticsearchClient client, ClusterRerouteAction action) {
-        super(client, action, new ClusterRerouteRequest());
+    public ClusterRerouteRequestBuilder(ElasticsearchClient client) {
+        super(client, ClusterRerouteAction.INSTANCE, new ClusterRerouteRequest());
     }
 
     /**

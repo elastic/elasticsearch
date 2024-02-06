@@ -65,6 +65,14 @@ public class ActionTestUtils {
         action.execute(task, request, listener);
     }
 
+    public static <Request extends ActionRequest, Response extends ActionResponse> void execute(
+        TransportAction<Request, Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        action.execute(request.createTask(1L, "direct", action.actionName, TaskId.EMPTY_TASK_ID, Map.of()), request, listener);
+    }
+
     public static <T> ActionListener<T> assertNoFailureListener(CheckedConsumer<T, Exception> consumer) {
         return ActionListener.wrap(consumer, ESTestCase::fail);
     }

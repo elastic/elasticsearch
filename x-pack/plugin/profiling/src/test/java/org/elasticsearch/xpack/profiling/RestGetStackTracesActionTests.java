@@ -39,7 +39,7 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
             assertThat(request, instanceOf(GetStackTracesRequest.class));
             GetStackTracesRequest getStackTracesRequest = (GetStackTracesRequest) request;
-            assertThat(getStackTracesRequest.getSampleSize(), nullValue());
+            assertThat(getStackTracesRequest.getSampleSize(), is(20_000)); // expect the default value
             assertThat(getStackTracesRequest.getQuery(), nullValue());
             executeCalled.set(true);
             return new GetStackTracesResponse(
@@ -48,8 +48,8 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 0,
-                1.0,
-                0
+                1.0d,
+                0L
             );
         });
         RestRequest profilingRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
@@ -65,24 +65,45 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
             assertThat(request, instanceOf(GetStackTracesRequest.class));
             GetStackTracesRequest getStackTracesRequest = (GetStackTracesRequest) request;
-            assertThat(getStackTracesRequest.getSampleSize(), is(10000));
+            assertThat(getStackTracesRequest.getSampleSize(), is(10_000));
+            assertThat(getStackTracesRequest.getRequestedDuration(), is(3_600.0d));
+            assertThat(getStackTracesRequest.getAwsCostFactor(), is(1.0d));
+            assertThat(getStackTracesRequest.getCustomCO2PerKWH(), is(0.005d));
+            assertThat(getStackTracesRequest.getCustomDatacenterPUE(), is(1.5d));
+            assertThat(getStackTracesRequest.getCustomPerCoreWattX86(), is(7.5d));
+            assertThat(getStackTracesRequest.getCustomPerCoreWattARM64(), is(2.0d));
+            assertThat(getStackTracesRequest.getCustomCostPerCoreHour(), is(0.083d));
             assertThat(getStackTracesRequest.getQuery(), notNullValue(QueryBuilder.class));
             executeCalled.set(true);
-            return new GetStackTracesResponse(
-                Collections.emptyMap(),
-                Collections.emptyMap(),
-                Collections.emptyMap(),
-                Collections.emptyMap(),
-                0,
-                0.0,
-                0
-            );
+
+            GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder(getStackTracesRequest);
+            responseBuilder.setSamplingRate(0.04d);
+            responseBuilder.setTotalFrames(523);
+            responseBuilder.setTotalSamples(3L);
+
+            GetStackTracesResponse response = responseBuilder.build();
+            assertNull(response.getStackTraces());
+            assertNull(response.getStackFrames());
+            assertNull(response.getExecutables());
+            assertNull(response.getStackTraceEvents());
+            assertEquals(response.getSamplingRate(), 0.04d, 0.0001d);
+            assertEquals(response.getTotalFrames(), 523);
+            assertEquals(response.getTotalSamples(), 3L);
+
+            return response;
         });
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/_profiling/stacktraces")
             .withContent(new BytesArray("""
                             {
                               "sample_size": 10000,
+                              "requested_duration": 3600,
+                              "aws_cost_factor": 1.0,
+                              "co2_per_kwh": 0.005,
+                              "datacenter_pue": 1.5,
+                              "per_core_watt_x86": 7.5,
+                              "per_core_watt_arm64": 2.0,
+                              "cost_per_core_hour": 0.083,
                               "query": {
                                 "bool": {
                                   "filter": [

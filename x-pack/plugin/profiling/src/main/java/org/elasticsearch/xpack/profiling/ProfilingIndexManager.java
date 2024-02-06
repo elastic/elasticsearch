@@ -42,7 +42,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 class ProfilingIndexManager extends AbstractProfilingPersistenceManager<ProfilingIndexManager.ProfilingIndex> {
     // For testing
     public static final List<ProfilingIndex> PROFILING_INDICES = List.of(
-        ProfilingIndex.regular("profiling-costs", ProfilingIndexTemplateRegistry.PROFILING_COSTS_VERSION, OnVersionBump.KEEP_OLD),
         ProfilingIndex.regular(
             "profiling-returnpads-private",
             ProfilingIndexTemplateRegistry.PROFILING_RETURNPADS_PRIVATE_VERSION,

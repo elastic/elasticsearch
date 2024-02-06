@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.junit.Before;
@@ -31,13 +33,29 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     );
 
     protected static final String UPGRADE_FROM_VERSION = System.getProperty("tests.upgrade_from_version");
-
     protected static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
 
-    // TODO: replace with feature testing
-    @Deprecated
+    protected static boolean isOriginalCluster(String clusterVersion) {
+        return UPGRADE_FROM_VERSION.equals(clusterVersion);
+    }
+
+    /**
+     * Upgrade tests by design are also executed with the same version. We might want to skip some checks if that's the case, see
+     * for example gh#39102.
+     * @return true if the cluster version is the current version.
+     */
+    protected static boolean isOriginalClusterCurrent() {
+        return UPGRADE_FROM_VERSION.equals(Build.current().version());
+    }
+
+    @Deprecated(forRemoval = true)
+    @UpdateForV9
+    // Tests should be reworked to rely on features from the current cluster (old, mixed or upgraded).
+    // Version test against the original cluster will be removed
     protected static boolean isOriginalClusterVersionAtLeast(Version supportedVersion) {
-        return Version.fromString(UPGRADE_FROM_VERSION).onOrAfter(supportedVersion);
+        // Always assume non-semantic versions are OK: this method will be removed in V9, we are testing the pre-upgrade cluster version,
+        // and non-semantic versions are always V8+
+        return parseLegacyVersion(UPGRADE_FROM_VERSION).map(x -> x.onOrAfter(supportedVersion)).orElse(true);
     }
 
     @Override

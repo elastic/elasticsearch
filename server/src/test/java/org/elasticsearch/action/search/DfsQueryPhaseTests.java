@@ -44,6 +44,10 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+
 public class DfsQueryPhaseTests extends ESTestCase {
 
     private static DfsSearchResult newSearchResult(int shardIndex, ShardSearchContextId contextId, SearchShardTarget target) {
@@ -121,35 +125,38 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.searchRequest,
-            results.length(),
-            exc -> {}
-        );
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
-            @Override
-            public void run() throws IOException {
-                responseRef.set(response.results);
-            }
-        }, mockSearchPhaseContext);
-        assertEquals("dfs_query", phase.getName());
-        phase.run();
-        mockSearchPhaseContext.assertNoFailure();
-        assertNotNull(responseRef.get());
-        assertNotNull(responseRef.get().get(0));
-        assertNull(responseRef.get().get(0).fetchResult());
-        assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
-        assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
-        assertNotNull(responseRef.get().get(1));
-        assertNull(responseRef.get().get(1).fetchResult());
-        assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value);
-        assertEquals(84, responseRef.get().get(1).queryResult().topDocs().topDocs.scoreDocs[0].doc);
-        assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
-        assertEquals(2, mockSearchPhaseContext.numSuccess.get());
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.searchRequest,
+                results.length(),
+                exc -> {}
+            )
+        ) {
+            DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
+                @Override
+                public void run() throws IOException {
+                    responseRef.set(((QueryPhaseResultConsumer) response).results);
+                }
+            }, mockSearchPhaseContext);
+            assertEquals("dfs_query", phase.getName());
+            phase.run();
+            mockSearchPhaseContext.assertNoFailure();
+            assertNotNull(responseRef.get());
+            assertNotNull(responseRef.get().get(0));
+            assertNull(responseRef.get().get(0).fetchResult());
+            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
+            assertNotNull(responseRef.get().get(1));
+            assertNull(responseRef.get().get(1).fetchResult());
+            assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(84, responseRef.get().get(1).queryResult().topDocs().topDocs.scoreDocs[0].doc);
+            assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
+            assertEquals(2, mockSearchPhaseContext.numSuccess.get());
+        }
     }
 
     public void testDfsWith1ShardFailed() throws IOException {
@@ -203,37 +210,40 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.searchRequest,
-            results.length(),
-            exc -> {}
-        );
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
-            @Override
-            public void run() throws IOException {
-                responseRef.set(response.results);
-            }
-        }, mockSearchPhaseContext);
-        assertEquals("dfs_query", phase.getName());
-        phase.run();
-        mockSearchPhaseContext.assertNoFailure();
-        assertNotNull(responseRef.get());
-        assertNotNull(responseRef.get().get(0));
-        assertNull(responseRef.get().get(0).fetchResult());
-        assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
-        assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
-        assertNull(responseRef.get().get(1));
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.searchRequest,
+                results.length(),
+                exc -> {}
+            )
+        ) {
+            DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
+                @Override
+                public void run() throws IOException {
+                    responseRef.set(((QueryPhaseResultConsumer) response).results);
+                }
+            }, mockSearchPhaseContext);
+            assertEquals("dfs_query", phase.getName());
+            phase.run();
+            mockSearchPhaseContext.assertNoFailure();
+            assertNotNull(responseRef.get());
+            assertNotNull(responseRef.get().get(0));
+            assertNull(responseRef.get().get(0).fetchResult());
+            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
+            assertNull(responseRef.get().get(1));
 
-        assertEquals(1, mockSearchPhaseContext.numSuccess.get());
-        assertEquals(1, mockSearchPhaseContext.failures.size());
-        assertTrue(mockSearchPhaseContext.failures.get(0).getCause() instanceof MockDirectoryWrapper.FakeIOException);
-        assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
-        assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(new ShardSearchContextId("", 2L)));
-        assertNull(responseRef.get().get(1));
+            assertEquals(1, mockSearchPhaseContext.numSuccess.get());
+            assertEquals(1, mockSearchPhaseContext.failures.size());
+            assertTrue(mockSearchPhaseContext.failures.get(0).getCause() instanceof MockDirectoryWrapper.FakeIOException);
+            assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
+            assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(new ShardSearchContextId("", 2L)));
+            assertNull(responseRef.get().get(1));
+        }
     }
 
     public void testFailPhaseOnException() throws IOException {
@@ -278,7 +288,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         queryResult.decRef();
                     }
                 } else if (request.contextId().getId() == 2) {
-                    throw new UncheckedIOException(new MockDirectoryWrapper.FakeIOException());
+                    listener.onFailure(new UncheckedIOException(new MockDirectoryWrapper.FakeIOException()));
                 } else {
                     fail("no such request ID: " + request.contextId());
                 }
@@ -287,24 +297,29 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.searchRequest,
-            results.length(),
-            exc -> {}
-        );
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
-            @Override
-            public void run() throws IOException {
-                responseRef.set(response.results);
-            }
-        }, mockSearchPhaseContext);
-        assertEquals("dfs_query", phase.getName());
-        expectThrows(UncheckedIOException.class, phase::run);
-        assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty()); // phase execution will clean up on the contexts
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.searchRequest,
+                results.length(),
+                exc -> {}
+            )
+        ) {
+            DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
+                @Override
+                public void run() throws IOException {
+                    responseRef.set(((QueryPhaseResultConsumer) response).results);
+                }
+            }, mockSearchPhaseContext);
+            assertEquals("dfs_query", phase.getName());
+            phase.run();
+            assertThat(mockSearchPhaseContext.failures, hasSize(1));
+            assertThat(mockSearchPhaseContext.failures.get(0).getCause(), instanceOf(UncheckedIOException.class));
+            assertThat(mockSearchPhaseContext.releasedSearchContexts, hasSize(1)); // phase execution will clean up on the contexts
+        }
     }
 
     public void testRewriteShardSearchRequestWithRank() {
@@ -317,19 +332,32 @@ public class DfsQueryPhaseTests extends ESTestCase {
         );
         MockSearchPhaseContext mspc = new MockSearchPhaseContext(2);
         mspc.searchTransport = new SearchTransportService(null, null, null);
-        DfsQueryPhase dqp = new DfsQueryPhase(null, null, dkrs, null, null, mspc);
+        DfsQueryPhase dqp = new DfsQueryPhase(null, null, dkrs, mock(QueryPhaseResultConsumer.class), null, mspc);
 
         QueryBuilder bm25 = new TermQueryBuilder("field", "term");
         SearchSourceBuilder ssb = new SearchSourceBuilder().query(bm25)
-            .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0.0f }, 10, 100, null)))
+            .knnSearch(
+                List.of(
+                    new KnnSearchBuilder("vector", new float[] { 0.0f }, 10, 100, null),
+                    new KnnSearchBuilder("vector2", new float[] { 0.0f }, 10, 100, null)
+                )
+            )
             .rankBuilder(new TestRankBuilder(100));
         SearchRequest sr = new SearchRequest().allowPartialSearchResults(true).source(ssb);
         ShardSearchRequest ssr = new ShardSearchRequest(null, sr, new ShardId("test", "testuuid", 1), 1, 1, null, 1.0f, 0, null);
 
         dqp.rewriteShardSearchRequest(ssr);
 
-        KnnScoreDocQueryBuilder ksdqb0 = new KnnScoreDocQueryBuilder(new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1) });
-        KnnScoreDocQueryBuilder ksdqb1 = new KnnScoreDocQueryBuilder(new ScoreDoc[] { new ScoreDoc(1, 2.0f, 1) });
+        KnnScoreDocQueryBuilder ksdqb0 = new KnnScoreDocQueryBuilder(
+            new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1) },
+            "vector",
+            new float[] { 0.0f }
+        );
+        KnnScoreDocQueryBuilder ksdqb1 = new KnnScoreDocQueryBuilder(
+            new ScoreDoc[] { new ScoreDoc(1, 2.0f, 1) },
+            "vector2",
+            new float[] { 0.0f }
+        );
         assertEquals(
             List.of(bm25, ksdqb0, ksdqb1),
             List.of(

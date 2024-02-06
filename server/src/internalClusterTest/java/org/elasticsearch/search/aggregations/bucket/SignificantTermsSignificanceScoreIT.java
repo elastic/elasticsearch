@@ -19,9 +19,9 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory;
@@ -136,7 +136,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             StringTerms classes = response.getAggregations().get("class");
             assertThat(classes.getBuckets().size(), equalTo(2));
             for (Terms.Bucket classBucket : classes.getBuckets()) {
-                Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
+                Map<String, InternalAggregation> aggs = classBucket.getAggregations().asMap();
                 assertTrue(aggs.containsKey("sig_terms"));
                 SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
                 assertThat(agg.getBuckets().size(), equalTo(1));
@@ -208,10 +208,10 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         String[] cat2v1 = { "constant", "two" };
         String[] cat2v2 = { "constant", "duo" };
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("1").setSource(TEXT_FIELD, cat1v1, CLASS_FIELD, "1"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("2").setSource(TEXT_FIELD, cat1v2, CLASS_FIELD, "1"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("3").setSource(TEXT_FIELD, cat2v1, CLASS_FIELD, "2"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("4").setSource(TEXT_FIELD, cat2v2, CLASS_FIELD, "2"));
+        indexRequestBuilderList.add(prepareIndex(INDEX_NAME).setId("1").setSource(TEXT_FIELD, cat1v1, CLASS_FIELD, "1"));
+        indexRequestBuilderList.add(prepareIndex(INDEX_NAME).setId("2").setSource(TEXT_FIELD, cat1v2, CLASS_FIELD, "1"));
+        indexRequestBuilderList.add(prepareIndex(INDEX_NAME).setId("3").setSource(TEXT_FIELD, cat2v1, CLASS_FIELD, "2"));
+        indexRequestBuilderList.add(prepareIndex(INDEX_NAME).setId("4").setSource(TEXT_FIELD, cat2v2, CLASS_FIELD, "2"));
         indexRandom(true, false, indexRequestBuilderList);
 
         // Now create some holes in the index with selective deletes caused by updates.
@@ -222,7 +222,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         indexRequestBuilderList.clear();
         for (int i = 0; i < 50; i++) {
             text = text == cat1v2 ? cat1v1 : cat1v2;
-            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("1").setSource(TEXT_FIELD, text, CLASS_FIELD, "1"));
+            indexRequestBuilderList.add(prepareIndex(INDEX_NAME).setId("1").setSource(TEXT_FIELD, text, CLASS_FIELD, "1"));
         }
         indexRandom(true, false, indexRequestBuilderList);
 
@@ -237,8 +237,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             );
         }
 
-        request.get();
-
+        request.get().decRef();
     }
 
     @Override
@@ -332,7 +331,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             double score10Background = sigTerms1.getBucketByKey("0").getSignificanceScore();
             double score11Background = sigTerms1.getBucketByKey("1").getSignificanceScore();
 
-            Aggregations aggs = response2.getAggregations();
+            InternalAggregations aggs = response2.getAggregations();
 
             sigTerms0 = (SignificantTerms) ((InternalFilter) aggs.get("0")).getAggregations().getAsMap().get("sig_terms");
             double score00SeparateSets = sigTerms0.getBucketByKey("0").getSignificanceScore();
@@ -387,7 +386,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             assertThat(classes.getBuckets().size(), equalTo(2));
             Iterator<? extends Terms.Bucket> classBuckets = classes.getBuckets().iterator();
 
-            Aggregations aggregations = classBuckets.next().getAggregations();
+            InternalAggregations aggregations = classBuckets.next().getAggregations();
             SignificantTerms sigTerms = aggregations.get("mySignificantTerms");
 
             List<? extends SignificantTerms.Bucket> classA = sigTerms.getBuckets();
@@ -457,7 +456,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split("\t");
-            indexRequestBuilders.add(client().prepareIndex("test").setId("" + i).setSource("class", parts[0], "text", parts[1]));
+            indexRequestBuilders.add(prepareIndex("test").setId("" + i).setSource("class", parts[0], "text", parts[1]));
         }
         indexRandom(true, false, indexRequestBuilders);
     }
@@ -533,7 +532,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 text[0] = gb[randNum];
             }
             indexRequestBuilderList.add(
-                client().prepareIndex(INDEX_NAME).setSource(TEXT_FIELD, text, CLASS_FIELD, randomBoolean() ? "one" : "zero")
+                prepareIndex(INDEX_NAME).setSource(TEXT_FIELD, text, CLASS_FIELD, randomBoolean() ? "one" : "zero")
             );
         }
         indexRandom(true, indexRequestBuilderList);
@@ -554,8 +553,8 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1, "t", "foo"),
-            client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2, "t", "bar")
+            prepareIndex("cache_test_idx").setId("1").setSource("s", 1, "t", "foo"),
+            prepareIndex("cache_test_idx").setId("2").setSource("s", 2, "t", "bar")
         );
 
         // Make sure we are starting with a clear cache

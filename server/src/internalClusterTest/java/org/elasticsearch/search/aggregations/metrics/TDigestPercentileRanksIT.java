@@ -126,7 +126,6 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
             IllegalArgumentException.class,
             () -> prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(percentileRanks("percentile_ranks", pcts).method(PercentilesMethod.TDIGEST).field("value"))
-                .get()
         );
         assertThat(e.getMessage(), equalTo("[values] must not be null: [percentile_ranks]"));
     }
@@ -137,7 +136,6 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
             IllegalArgumentException.class,
             () -> prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(percentileRanks("percentile_ranks", pcts).method(PercentilesMethod.TDIGEST).field("value"))
-                .get()
         );
         assertThat(e.getMessage(), equalTo("[values] must not be an empty array: [percentile_ranks]"));
     }
@@ -492,8 +490,8 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
-            client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
+            prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+            prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
         );
 
         // Make sure we are starting with a clear cache

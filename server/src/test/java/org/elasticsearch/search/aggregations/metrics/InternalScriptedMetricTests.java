@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -18,28 +17,21 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class InternalScriptedMetricTests extends InternalAggregationTestCase<InternalScriptedMetric> {
@@ -188,14 +180,6 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         );
     }
 
-    @Override
-    protected void assertFromXContent(InternalScriptedMetric aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedScriptedMetric);
-        ParsedScriptedMetric parsed = (ParsedScriptedMetric) parsedAggregation;
-
-        assertValues(aggregation.aggregation(), parsed.aggregation());
-    }
-
     private static void assertValues(Object expected, Object actual) {
         if (expected instanceof Long) {
             // longs that fit into the integer range are parsed back as integer
@@ -242,11 +226,6 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     }
 
     @Override
-    protected Predicate<String> excludePathsFromXContentInsertion() {
-        return path -> path.contains(CommonFields.VALUE.getPreferredName());
-    }
-
-    @Override
     protected InternalScriptedMetric mutateInstance(InternalScriptedMetric instance) {
         String name = instance.getName();
         List<Object> aggregationsList = instance.aggregationsList();
@@ -274,36 +253,4 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         return new InternalScriptedMetric(name, aggregationsList, reduceScript, metadata);
     }
 
-    public void testOldSerialization() throws IOException {
-        // A single element list looks like a fully reduced agg
-        InternalScriptedMetric original = new InternalScriptedMetric("test", List.of("foo"), new Script("test"), null);
-        InternalScriptedMetric roundTripped = (InternalScriptedMetric) copyNamedWriteable(
-            original,
-            getNamedWriteableRegistry(),
-            InternalAggregation.class,
-            TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_7_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_8_0)
-            )
-        );
-        assertThat(roundTripped, equalTo(original));
-
-        // A multi-element list looks like a non-reduced agg
-        InternalScriptedMetric unreduced = new InternalScriptedMetric("test", List.of("foo", "bar"), new Script("test"), null);
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> copyNamedWriteable(
-                unreduced,
-                getNamedWriteableRegistry(),
-                InternalAggregation.class,
-                TransportVersionUtils.randomVersionBetween(
-                    random(),
-                    TransportVersions.V_7_0_0,
-                    TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_8_0)
-                )
-            )
-        );
-        assertThat(e.getMessage(), equalTo("scripted_metric doesn't support cross cluster search until 7.8.0"));
-    }
 }

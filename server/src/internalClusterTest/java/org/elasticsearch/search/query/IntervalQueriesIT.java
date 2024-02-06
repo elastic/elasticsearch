@@ -51,9 +51,9 @@ public class IntervalQueriesIT extends ESIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("nested").setId("1").setSource("text", "the quick brown fox jumps"),
-            client().prepareIndex("nested").setId("2").setSource("text", "quick brown"),
-            client().prepareIndex("nested").setId("3").setSource("text", "quick")
+            prepareIndex("nested").setId("1").setSource("text", "the quick brown fox jumps"),
+            prepareIndex("nested").setId("2").setSource("text", "quick brown"),
+            prepareIndex("nested").setId("3").setSource("text", "quick")
         );
 
         assertNoFailures(

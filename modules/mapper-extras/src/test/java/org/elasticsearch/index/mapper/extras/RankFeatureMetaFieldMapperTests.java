@@ -32,7 +32,6 @@ import org.hamcrest.CoreMatchers;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 
 public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
 
@@ -91,7 +90,7 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
 
     public void testFieldEmptyIfNameIsPresentInFieldInfos() {
         MappedFieldType fieldType = new RankFeatureMetaFieldMapper.RankFeatureMetaFieldType();
-        FieldInfos fieldInfos = List.of(new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") });
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") });
         assertFalse(fieldType.fieldHasValue(fieldInfos));
     }
 

@@ -600,11 +600,15 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         entry.numValues = meta.readLong();
         if (entry.numValues > 0) {
             final int indexBlockShift = meta.readInt();
-            entry.indexMeta = DirectMonotonicReader.loadMeta(
-                meta,
-                1 + ((entry.numValues - 1) >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT),
-                indexBlockShift
-            );
+            // Special case, -1 means there are no blocks, so no need to load the metadata for it
+            // -1 is written when there the cardinality of a field is exactly one.
+            if (indexBlockShift != -1) {
+                entry.indexMeta = DirectMonotonicReader.loadMeta(
+                    meta,
+                    1 + ((entry.numValues - 1) >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT),
+                    indexBlockShift
+                );
+            }
             entry.indexOffset = meta.readLong();
             entry.indexLength = meta.readLong();
             entry.valuesOffset = meta.readLong();
@@ -686,6 +690,94 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         if (entry.docsWithFieldOffset == -2) {
             // empty
             return DocValues.emptyNumeric();
+        }
+
+        if (maxOrd == 1) {
+            // Special case for maxOrd 1, no need to read blocks and use ordinal 0 as only value
+            if (entry.docsWithFieldOffset == -1) {
+                // Special case when all docs have a value
+                return new NumericDocValues() {
+
+                    private final int maxDoc = ES87TSDBDocValuesProducer.this.maxDoc;
+                    private int doc = -1;
+
+                    @Override
+                    public long longValue() {
+                        // Only one ordinal!
+                        return 0L;
+                    }
+
+                    @Override
+                    public int docID() {
+                        return doc;
+                    }
+
+                    @Override
+                    public int nextDoc() throws IOException {
+                        return advance(doc + 1);
+                    }
+
+                    @Override
+                    public int advance(int target) throws IOException {
+                        if (target >= maxDoc) {
+                            return doc = NO_MORE_DOCS;
+                        }
+                        return doc = target;
+                    }
+
+                    @Override
+                    public boolean advanceExact(int target) {
+                        doc = target;
+                        return true;
+                    }
+
+                    @Override
+                    public long cost() {
+                        return maxDoc;
+                    }
+                };
+            } else {
+                final IndexedDISI disi = new IndexedDISI(
+                    data,
+                    entry.docsWithFieldOffset,
+                    entry.docsWithFieldLength,
+                    entry.jumpTableEntryCount,
+                    entry.denseRankPower,
+                    entry.numValues
+                );
+                return new NumericDocValues() {
+
+                    @Override
+                    public int advance(int target) throws IOException {
+                        return disi.advance(target);
+                    }
+
+                    @Override
+                    public boolean advanceExact(int target) throws IOException {
+                        return disi.advanceExact(target);
+                    }
+
+                    @Override
+                    public int nextDoc() throws IOException {
+                        return disi.nextDoc();
+                    }
+
+                    @Override
+                    public int docID() {
+                        return disi.docID();
+                    }
+
+                    @Override
+                    public long cost() {
+                        return disi.cost();
+                    }
+
+                    @Override
+                    public long longValue() {
+                        return 0L;
+                    }
+                };
+            }
         }
 
         // NOTE: we could make this a bit simpler by reusing #getValues but this

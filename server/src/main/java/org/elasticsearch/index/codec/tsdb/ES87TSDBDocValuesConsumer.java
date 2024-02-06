@@ -127,7 +127,8 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         meta.writeLong(numValues);
 
         if (numValues > 0) {
-            meta.writeInt(ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
+            // Special case for maxOrd of 1, signal -1 that no blocks will be written
+            meta.writeInt(maxOrd != 1 ? ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT : -1);
             final ByteBuffersDataOutput indexOut = new ByteBuffersDataOutput();
             final DirectMonotonicWriter indexWriter = DirectMonotonicWriter.getInstance(
                 meta,
@@ -136,41 +137,46 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
             );
 
-            final long[] buffer = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
-            int bufferSize = 0;
             final long valuesDataOffset = data.getFilePointer();
-            final ES87TSDBDocValuesEncoder encoder = new ES87TSDBDocValuesEncoder();
-
-            values = valuesProducer.getSortedNumeric(field);
-            final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                final int count = values.docValueCount();
-                for (int i = 0; i < count; ++i) {
-                    buffer[bufferSize++] = values.nextValue();
-                    if (bufferSize == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
-                        indexWriter.add(data.getFilePointer() - valuesDataOffset);
-                        if (maxOrd >= 0) {
-                            encoder.encodeOrdinals(buffer, data, bitsPerOrd);
-                        } else {
-                            encoder.encode(buffer, data);
+            // Special case for maxOrd of 1, skip writing the blocks
+            if (maxOrd != 1) {
+                final long[] buffer = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+                int bufferSize = 0;
+                final ES87TSDBDocValuesEncoder encoder = new ES87TSDBDocValuesEncoder();
+                values = valuesProducer.getSortedNumeric(field);
+                final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    final int count = values.docValueCount();
+                    for (int i = 0; i < count; ++i) {
+                        buffer[bufferSize++] = values.nextValue();
+                        if (bufferSize == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
+                            indexWriter.add(data.getFilePointer() - valuesDataOffset);
+                            if (maxOrd >= 0) {
+                                encoder.encodeOrdinals(buffer, data, bitsPerOrd);
+                            } else {
+                                encoder.encode(buffer, data);
+                            }
+                            bufferSize = 0;
                         }
-                        bufferSize = 0;
                     }
                 }
-            }
-            if (bufferSize > 0) {
-                indexWriter.add(data.getFilePointer() - valuesDataOffset);
-                // Fill unused slots in the block with zeroes rather than junk
-                Arrays.fill(buffer, bufferSize, ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE, 0L);
-                if (maxOrd >= 0) {
-                    encoder.encodeOrdinals(buffer, data, bitsPerOrd);
-                } else {
-                    encoder.encode(buffer, data);
+                if (bufferSize > 0) {
+                    indexWriter.add(data.getFilePointer() - valuesDataOffset);
+                    // Fill unused slots in the block with zeroes rather than junk
+                    Arrays.fill(buffer, bufferSize, ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE, 0L);
+                    if (maxOrd >= 0) {
+                        encoder.encodeOrdinals(buffer, data, bitsPerOrd);
+                    } else {
+                        encoder.encode(buffer, data);
+                    }
                 }
             }
 
             final long valuesDataLength = data.getFilePointer() - valuesDataOffset;
-            indexWriter.finish();
+            if (maxOrd != 1) {
+                // Special case for maxOrd of 1, indexWriter isn't really used, so no need to invoke finish() method.
+                indexWriter.finish();
+            }
             final long indexDataOffset = data.getFilePointer();
             data.copyBytes(indexOut.toDataInput(), indexOut.size());
             meta.writeLong(indexDataOffset);

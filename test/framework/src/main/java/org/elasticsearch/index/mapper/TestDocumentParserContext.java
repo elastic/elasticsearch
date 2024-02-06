@@ -34,8 +34,12 @@ public class TestDocumentParserContext extends DocumentParserContext {
         this(MappingLookup.EMPTY, null);
     }
 
+    public TestDocumentParserContext(Settings settings) {
+        this(MappingLookup.EMPTY, null, null, settings);
+    }
+
     public TestDocumentParserContext(XContentParser parser) {
-        this(MappingLookup.EMPTY, null, parser);
+        this(MappingLookup.EMPTY, null, parser, Settings.EMPTY);
     }
 
     /**
@@ -43,10 +47,10 @@ public class TestDocumentParserContext extends DocumentParserContext {
      * that depend on them are called while executing tests.
      */
     public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source) {
-        this(mappingLookup, source, null);
+        this(mappingLookup, source, null, Settings.EMPTY);
     }
 
-    private TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, XContentParser parser) {
+    private TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, XContentParser parser, Settings settings) {
         super(
             mappingLookup,
             new MappingParserContext(
@@ -58,7 +62,7 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 () -> null,
                 null,
                 (type, name) -> Lucene.STANDARD_ANALYZER,
-                MapperTestCase.createIndexSettings(IndexVersion.current(), Settings.EMPTY),
+                MapperTestCase.createIndexSettings(IndexVersion.current(), settings),
                 null
             ),
             source,

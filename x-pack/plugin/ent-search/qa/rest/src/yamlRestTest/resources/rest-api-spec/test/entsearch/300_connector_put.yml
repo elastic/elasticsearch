@@ -115,3 +115,23 @@ setup:
           is_native: false
           service_type: super-connector
 
+
+
+---
+'Create Connector - Index name used by another connector':
+  - do:
+      connector.put:
+        connector_id: test-connector-1
+        body:
+          index_name: search-test
+
+  - match: { result: 'created' }
+
+
+  - do:
+      catch: "bad_request"
+      connector.put:
+        connector_id: test-connector-2
+        body:
+          index_name: search-test
+

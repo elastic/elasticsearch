@@ -1649,7 +1649,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Set<String> indices = new HashSet<>();
         builders = new ArrayList<>(builders);
         for (IndexRequestBuilder builder : builders) {
-            indices.add(builder.request().index());
+            indices.add(builder.getIndex());
         }
         Set<List<String>> bogusIds = new HashSet<>(); // (index, type, id)
         if (random.nextBoolean() && builders.isEmpty() == false && dummyDocuments) {

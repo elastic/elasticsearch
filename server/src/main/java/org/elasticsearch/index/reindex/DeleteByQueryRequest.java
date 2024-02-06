@@ -60,7 +60,7 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         super(in);
     }
 
-    private DeleteByQueryRequest(SearchRequest search, boolean setDefaults) {
+    DeleteByQueryRequest(SearchRequest search, boolean setDefaults) {
         super(search, setDefaults);
         // Delete-By-Query does not require the source
         if (setDefaults) {

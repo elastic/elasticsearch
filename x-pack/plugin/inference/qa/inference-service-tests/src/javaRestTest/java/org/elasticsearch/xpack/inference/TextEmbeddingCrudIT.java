@@ -20,7 +20,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 
 // Tests disabled in CI due to the models being too large to download. Can be enabled (commented out) for local testing
-//@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105198")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105198")
 public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
 
     public void testPutE5Small_withNoModelVariant() throws IOException {

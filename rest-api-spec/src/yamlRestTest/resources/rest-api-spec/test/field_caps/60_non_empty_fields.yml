@@ -2,7 +2,7 @@
 setup:
   - do:
         indices.create:
-          index: test-1
+          index: test
           body:
             mappings:
               properties:
@@ -15,12 +15,12 @@ setup:
 
   - do:
       index:
-        index:  test-1
+        index:  test
         body:   { foo: "42" }
 
   - do:
       indices.refresh:
-        index: [test-1]
+        index: [test]
 
 ---
 "Field caps with with include_empty_fields false":
@@ -31,7 +31,7 @@ setup:
   - do:
       field_caps:
         include_empty_fields: false
-        index: test1
+        index: test
         fields: "*"
 
   - match: {indices:                                      ["test-1"]}

@@ -385,7 +385,9 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Endpoint heartbeat. Kibana reads from these to determine metering/billing for endpoints.
                 RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read").build(),
                 // For connectors telemetry. Will be removed once we switched to connectors API
-                RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build(),
+                // entity store privileges  
+                RoleDescriptor.IndicesPrivileges.builder().indices(".entities*").privileges("all").build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("kibana-*")),

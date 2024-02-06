@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.query;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;

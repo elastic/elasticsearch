@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.zip.DataFormatException;
@@ -152,23 +151,27 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     }
 
     @Override
-    public AbstractInternalHDRPercentiles reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        DoubleHistogram merged = null;
-        for (InternalAggregation aggregation : aggregations) {
-            final AbstractInternalHDRPercentiles percentiles = (AbstractInternalHDRPercentiles) aggregation;
-            if (percentiles.state == null) {
-                continue;
+    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            DoubleHistogram merged = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                final AbstractInternalHDRPercentiles percentiles = (AbstractInternalHDRPercentiles) aggregation;
+                if (percentiles.state != null) {
+                    if (merged == null) {
+                        merged = new DoubleHistogram(percentiles.state);
+                        merged.setAutoResize(true);
+                    }
+                    merged = merge(merged, percentiles.state);
+                }
             }
-            if (merged == null) {
-                merged = new DoubleHistogram(percentiles.state);
-                merged.setAutoResize(true);
+
+            @Override
+            public InternalAggregation get() {
+                return createReduced(getName(), keys, merged == null ? EMPTY_HISTOGRAM_ZERO_DIGITS : merged, keyed, getMetadata());
             }
-            merged = merge(merged, percentiles.state);
-        }
-        if (merged == null) {
-            merged = EMPTY_HISTOGRAM_ZERO_DIGITS;
-        }
-        return createReduced(getName(), keys, merged, keyed, getMetadata());
+        };
     }
 
     /**

@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
+import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -220,22 +221,32 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        List<InternalIpPrefix.Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
-        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final List<InternalIpPrefix> aggregations = new ArrayList<>(size);
 
-        return new InternalIpPrefix(getName(), format, keyed, minDocCount, reducedBuckets, metadata);
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                aggregations.add((InternalIpPrefix) aggregation);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                List<InternalIpPrefix.Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
+                reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+                return new InternalIpPrefix(getName(), format, keyed, minDocCount, reducedBuckets, metadata);
+            }
+        };
     }
 
-    private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    private List<Bucket> reduceBuckets(List<InternalIpPrefix> aggregations, AggregationReduceContext reduceContext) {
         final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
                 return a.current().key.compareTo(b.current().key) < 0;
             }
         };
-        for (InternalAggregation aggregation : aggregations) {
-            InternalIpPrefix ipPrefix = (InternalIpPrefix) aggregation;
+        for (InternalIpPrefix ipPrefix : aggregations) {
             if (ipPrefix.buckets.isEmpty() == false) {
                 pq.add(new IteratorAndCurrent<>(ipPrefix.buckets.iterator()));
             }

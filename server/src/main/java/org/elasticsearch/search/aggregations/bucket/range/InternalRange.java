@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -321,26 +322,33 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     @SuppressWarnings("unchecked")
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
         reduceContext.consumeBucketsAndMaybeBreak(ranges.size());
         @SuppressWarnings("rawtypes")
         List<B>[] rangeList = new List[ranges.size()];
         for (int i = 0; i < rangeList.length; ++i) {
             rangeList[i] = new ArrayList<>();
         }
-        for (InternalAggregation aggregation : aggregations) {
-            InternalRange<B, R> ranges = (InternalRange<B, R>) aggregation;
-            int i = 0;
-            for (B range : ranges.ranges) {
-                rangeList[i++].add(range);
+        return new AggregatorReducer() {
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                @SuppressWarnings("unchecked")
+                InternalRange<B, R> ranges = (InternalRange<B, R>) aggregation;
+                int i = 0;
+                for (B range : ranges.ranges) {
+                    rangeList[i++].add(range);
+                }
             }
-        }
 
-        final List<B> ranges = new ArrayList<>();
-        for (int i = 0; i < this.ranges.size(); ++i) {
-            ranges.add(reduceBucket(rangeList[i], reduceContext));
-        }
-        return getFactory().create(name, ranges, format, keyed, getMetadata());
+            @Override
+            public InternalAggregation get() {
+                final List<B> reducedRanges = new ArrayList<>();
+                for (int i = 0; i < ranges.size(); ++i) {
+                    reducedRanges.add(reduceBucket(rangeList[i], reduceContext));
+                }
+                return getFactory().create(name, reducedRanges, format, keyed, getMetadata());
+            }
+        };
     }
 
     @Override

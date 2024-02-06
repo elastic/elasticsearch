@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -243,40 +244,50 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
         reduceContext.consumeBucketsAndMaybeBreak(buckets.size());
         long[] docCounts = new long[buckets.size()];
         InternalAggregations[][] aggs = new InternalAggregations[buckets.size()][];
         for (int i = 0; i < aggs.length; ++i) {
-            aggs[i] = new InternalAggregations[aggregations.size()];
+            aggs[i] = new InternalAggregations[size];
         }
-        for (int i = 0; i < aggregations.size(); ++i) {
-            InternalBinaryRange range = (InternalBinaryRange) aggregations.get(i);
-            if (range.buckets.size() != buckets.size()) {
-                throw new IllegalStateException("Expected [" + buckets.size() + "] buckets, but got [" + range.buckets.size() + "]");
+        return new AggregatorReducer() {
+            int i = 0;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalBinaryRange range = (InternalBinaryRange) aggregation;
+                if (range.buckets.size() != buckets.size()) {
+                    throw new IllegalStateException("Expected [" + buckets.size() + "] buckets, but got [" + range.buckets.size() + "]");
+                }
+                for (int j = 0; j < buckets.size(); ++j) {
+                    Bucket bucket = range.buckets.get(j);
+                    docCounts[j] += bucket.docCount;
+                    aggs[j][i] = bucket.aggregations;
+                }
+                i++;
             }
-            for (int j = 0; j < buckets.size(); ++j) {
-                Bucket bucket = range.buckets.get(j);
-                docCounts[j] += bucket.docCount;
-                aggs[j][i] = bucket.aggregations;
+
+            @Override
+            public InternalAggregation get() {
+                List<Bucket> buckets = new ArrayList<>(getBuckets().size());
+                for (int i = 0; i < getBuckets().size(); ++i) {
+                    Bucket b = getBuckets().get(i);
+                    buckets.add(
+                        new Bucket(
+                            format,
+                            keyed,
+                            b.key,
+                            b.from,
+                            b.to,
+                            docCounts[i],
+                            InternalAggregations.reduce(Arrays.asList(aggs[i]), reduceContext)
+                        )
+                    );
+                }
+                return new InternalBinaryRange(name, format, keyed, buckets, metadata);
             }
-        }
-        List<Bucket> buckets = new ArrayList<>(this.buckets.size());
-        for (int i = 0; i < this.buckets.size(); ++i) {
-            Bucket b = this.buckets.get(i);
-            buckets.add(
-                new Bucket(
-                    format,
-                    keyed,
-                    b.key,
-                    b.from,
-                    b.to,
-                    docCounts[i],
-                    InternalAggregations.reduce(Arrays.asList(aggs[i]), reduceContext)
-                )
-            );
-        }
-        return new InternalBinaryRange(name, format, keyed, buckets, metadata);
+        };
     }
 
     @Override

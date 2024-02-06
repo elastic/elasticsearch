@@ -10,10 +10,12 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -45,6 +47,34 @@ public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, Unma
      */
     public UnmappedRareTerms(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+        InternalAggregation empty = this;
+        return new AggregatorReducer() {
+            AggregatorReducer aggregatorReducer = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                if (aggregatorReducer != null) {
+                    aggregatorReducer.accept(aggregation);
+                } else if ((aggregation instanceof UnmappedRareTerms) == false) {
+                    aggregatorReducer = aggregation.getReducer(reduceContext, size);
+                    aggregatorReducer.accept(aggregation);
+                }
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return aggregatorReducer != null ? aggregatorReducer.get() : empty;
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(aggregatorReducer);
+            }
+        };
     }
 
     @Override
@@ -80,11 +110,6 @@ public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, Unma
     @Override
     protected UnmappedRareTerms createWithFilter(String name, List<UnmappedRareTerms.Bucket> buckets, SetBackedScalingCuckooFilter filter) {
         throw new UnsupportedOperationException("not supported for UnmappedRareTerms");
-    }
-
-    @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        return new UnmappedRareTerms(name, metadata);
     }
 
     @Override

@@ -529,7 +529,7 @@ public final class SearchPhaseController {
      * @param bufferedAggs a list of pre-collected aggregations.
      * @param bufferedTopDocs a list of pre-collected top docs.
      * @param numReducePhases the number of non-final reduce phases applied to the query results.
-     * @see QuerySearchResult#consumeAggs()
+     * @see QuerySearchResult#getAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
     static ReducedQueryPhase reducedQueryPhase(

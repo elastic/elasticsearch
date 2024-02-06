@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 
 import java.util.List;
 import java.util.Map;
@@ -36,8 +38,31 @@ class UnmappedCategorizationAggregation extends InternalCategorizationAggregatio
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        return new UnmappedCategorizationAggregation(name, getRequiredSize(), getMinDocCount(), getSimilarityThreshold(), super.metadata);
+    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+        InternalAggregation empty = this;
+        return new AggregatorReducer() {
+            AggregatorReducer aggregatorReducer = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                if (aggregatorReducer != null) {
+                    aggregatorReducer.accept(aggregation);
+                } else if ((aggregation instanceof UnmappedCategorizationAggregation) == false) {
+                    aggregatorReducer = aggregation.getReducer(reduceContext, size);
+                    aggregatorReducer.accept(aggregation);
+                }
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return aggregatorReducer != null ? aggregatorReducer.get() : empty;
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(aggregatorReducer);
+            }
+        };
     }
 
     @Override

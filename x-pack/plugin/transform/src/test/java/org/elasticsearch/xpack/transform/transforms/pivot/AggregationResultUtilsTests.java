@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregat
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
+import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
@@ -89,7 +90,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
             throw new UnsupportedOperationException();
         }
 
@@ -139,7 +140,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
             throw new UnsupportedOperationException();
         }
 

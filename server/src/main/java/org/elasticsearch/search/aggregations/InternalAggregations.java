@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -24,7 +26,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -46,17 +48,6 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
     public static final String AGGREGATIONS_FIELD = "aggregations";
 
     public static final InternalAggregations EMPTY = new InternalAggregations(List.of());
-
-    private static final Comparator<InternalAggregation> INTERNAL_AGG_COMPARATOR = (agg1, agg2) -> {
-        if (agg1.canLeadReduction() == agg2.canLeadReduction()) {
-            return 0;
-        } else if (agg1.canLeadReduction() && agg2.canLeadReduction() == false) {
-            return -1;
-        } else {
-            return 1;
-        }
-    };
-
     private final List<InternalAggregation> aggregations;
     private Map<String, InternalAggregation> aggregationsAsMap;
 
@@ -218,12 +209,11 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
      * This method first reduces the aggregations, and if it is the final reduce, then reduce the pipeline
      * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
      */
-    public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, AggregationReduceContext context) {
+    public static InternalAggregations topLevelReduce(Collection<InternalAggregations> aggregationsList, AggregationReduceContext context) {
         InternalAggregations reduced = reduce(aggregationsList, context);
         if (reduced == null) {
             return null;
         }
-
         if (context.isFinalReduce()) {
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
             reducedInternalAggs = reducedInternalAggs.stream()
@@ -244,42 +234,44 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
      * Reduces the given list of aggregations as well as the top-level pipeline aggregators extracted from the first
      * {@link InternalAggregations} object found in the list.
      * Note that pipeline aggregations _are not_ reduced by this method.  Pipelines are handled
-     * separately by {@link InternalAggregations#topLevelReduce(List, AggregationReduceContext)}
+     * separately by {@link InternalAggregations#topLevelReduce(Collection, AggregationReduceContext)}
      */
-    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, AggregationReduceContext context) {
+    public static InternalAggregations reduce(Collection<InternalAggregations> aggregationsList, AggregationReduceContext context) {
         if (aggregationsList.isEmpty()) {
             return null;
         }
-
-        // first we collect all aggregations of the same type and list them together
-        Map<String, List<InternalAggregation>> aggByName = new HashMap<>();
-        for (InternalAggregations aggregations : aggregationsList) {
-            for (InternalAggregation aggregation : aggregations.aggregations) {
-                List<InternalAggregation> aggs = aggByName.computeIfAbsent(
-                    aggregation.getName(),
-                    k -> new ArrayList<>(aggregationsList.size())
-                );
-                aggs.add(aggregation);
+        // handle special case when there is just one aggregation
+        if (aggregationsList.size() == 1) {
+            final List<InternalAggregation> internalAggregations = aggregationsList.iterator().next().asList();
+            final List<InternalAggregation> reduced = new ArrayList<>(internalAggregations.size());
+            for (InternalAggregation aggregation : internalAggregations) {
+                if (aggregation.mustReduceOnSingleInternalAgg()) {
+                    try (AggregatorReducer aggregatorReducer = aggregation.getReducer(context, 1)) {
+                        aggregatorReducer.accept(aggregation);
+                        reduced.add(aggregatorReducer.get());
+                    }
+                } else {
+                    reduced.add(aggregation);
+                }
             }
+            return from(reduced);
         }
-
-        // now we can use the first aggregation of each list to handle the reduce of its list
-        List<InternalAggregation> reducedAggregations = new ArrayList<>();
-        for (Map.Entry<String, List<InternalAggregation>> entry : aggByName.entrySet()) {
-            List<InternalAggregation> aggregations = entry.getValue();
-            // Sort aggregations so that unmapped aggs come last in the list
-            // If all aggs are unmapped, the agg that leads the reduction will just return itself
-            aggregations.sort(INTERNAL_AGG_COMPARATOR);
-            InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
-            if (first.mustReduceOnSingleInternalAgg() || aggregations.size() > 1) {
-                reducedAggregations.add(first.reduce(aggregations, context.forAgg(entry.getKey())));
-            } else {
-                // no need for reduce phase
-                reducedAggregations.add(first);
+        // general case
+        final Map<String, AggregatorReducer> aggByName = new HashMap<>();
+        try {
+            for (InternalAggregations aggregations : aggregationsList) {
+                for (InternalAggregation aggregation : aggregations.aggregations) {
+                    AggregatorReducer reducer = aggByName.computeIfAbsent(
+                        aggregation.getName(),
+                        k -> aggregation.getReducer(context, aggregationsList.size())
+                    );
+                    reducer.accept(aggregation);
+                }
             }
+            return from(aggByName.values().stream().map(AggregatorReducer::get).toList());
+        } finally {
+            Releasables.close(aggByName.values());
         }
-
-        return from(reducedAggregations);
     }
 
     /**

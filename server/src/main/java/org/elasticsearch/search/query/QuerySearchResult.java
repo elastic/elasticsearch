@@ -224,26 +224,27 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     /**
-     * Returns and nulls out the aggregation for this search results. This allows to free up memory once the aggregation is consumed.
-     * @throws IllegalStateException if the aggregations have already been consumed.
+     * Returns the aggregation as a {@link DelayableWriteable} object. Callers are free to expand them whenever they wat
+     * but they should call {@link #releaseAggs()} in order to free memory,
+     * @throws IllegalStateException if {@link #releaseAggs()} has already being called.
      */
-    public InternalAggregations consumeAggs() {
+    public DelayableWriteable<InternalAggregations> getAggs() {
         if (aggregations == null) {
-            throw new IllegalStateException("aggs already consumed");
+            throw new IllegalStateException("aggs already released");
         }
-        try {
-            return aggregations.expand();
-        } finally {
-            aggregations.close();
-            aggregations = null;
-        }
+        return aggregations;
     }
 
+    /**
+     * Release the memory hold by the {@link DelayableWriteable} aggregations
+     * @throws IllegalStateException if {@link #releaseAggs()} has already being called.
+     */
     public void releaseAggs() {
-        if (aggregations != null) {
-            aggregations.close();
-            aggregations = null;
+        if (aggregations == null) {
+            throw new IllegalStateException("aggs already released");
         }
+        aggregations.close();
+        aggregations = null;
     }
 
     public void addReleasable(Releasable releasable) {

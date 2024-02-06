@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -45,7 +46,7 @@ public class InternalInferenceAggregation extends InternalAggregation {
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
         throw new UnsupportedOperationException("Reducing an inference aggregation is not supported");
     }
 

@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -70,12 +69,20 @@ public class Max extends InternalNumericMetricsAggregation.SingleValue {
     }
 
     @Override
-    public Max reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        double max = Double.NEGATIVE_INFINITY;
-        for (InternalAggregation aggregation : aggregations) {
-            max = Math.max(max, ((Max) aggregation).max);
-        }
-        return new Max(name, max, format, getMetadata());
+    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            double max = Double.NEGATIVE_INFINITY;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                max = Math.max(max, ((Max) aggregation).max);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return new Max(name, max, format, getMetadata());
+            }
+        };
     }
 
     @Override

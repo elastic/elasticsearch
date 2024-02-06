@@ -693,7 +693,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             PipelineTree.EMPTY
         );
 
-        InternalAggregation reduced = ((InternalDateHistogram) unrolled).reduce(Collections.singletonList(unrolled), context);
+        InternalAggregation reduced = InternalAggregationTestCase.reduce(Collections.singletonList(unrolled), context);
         assertThat(reduced.toString(), equalTo(XContentHelper.stripWhitespace("""
             {
               "histo": {

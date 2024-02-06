@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -167,22 +166,33 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public InternalStats reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        long count = 0;
-        double min = Double.POSITIVE_INFINITY;
-        double max = Double.NEGATIVE_INFINITY;
-        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+        return getReducer(name, format, getMetadata());
+    }
 
-        for (InternalAggregation aggregation : aggregations) {
-            InternalStats stats = (InternalStats) aggregation;
-            count += stats.getCount();
-            min = Math.min(min, stats.getMin());
-            max = Math.max(max, stats.getMax());
-            // Compute the sum of double values with Kahan summation algorithm which is more
-            // accurate than naive summation.
-            kahanSummation.add(stats.getSum());
-        }
-        return new InternalStats(name, count, kahanSummation.value(), min, max, format, getMetadata());
+    static AggregatorReducer getReducer(String name, DocValueFormat format, Map<String, Object> metadata) {
+        return new AggregatorReducer() {
+            long count = 0;
+            double min = Double.POSITIVE_INFINITY;
+            double max = Double.NEGATIVE_INFINITY;
+            final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalStats stats = (InternalStats) aggregation;
+                count += stats.getCount();
+                min = Math.min(min, stats.getMin());
+                max = Math.max(max, stats.getMax());
+                // Compute the sum of double values with Kahan summation algorithm which is more
+                // accurate than naive summation.
+                kahanSummation.add(stats.getSum());
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalStats(name, count, kahanSummation.value(), min, max, format, metadata);
+            }
+        };
     }
 
     @Override

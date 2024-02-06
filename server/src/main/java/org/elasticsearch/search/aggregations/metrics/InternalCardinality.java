@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -76,24 +75,27 @@ public class InternalCardinality extends InternalNumericMetricsAggregation.Singl
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        HyperLogLogPlusPlus reduced = null;
-        for (InternalAggregation aggregation : aggregations) {
-            final InternalCardinality cardinality = (InternalCardinality) aggregation;
-            if (cardinality.counts != null) {
-                if (reduced == null) {
-                    reduced = new HyperLogLogPlusPlus(cardinality.counts.precision(), BigArrays.NON_RECYCLING_INSTANCE, 1);
+    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+
+            HyperLogLogPlusPlus reduced = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                final InternalCardinality cardinality = (InternalCardinality) aggregation;
+                if (cardinality.counts != null) {
+                    if (reduced == null) {
+                        reduced = new HyperLogLogPlusPlus(cardinality.counts.precision(), BigArrays.NON_RECYCLING_INSTANCE, 1);
+                    }
+                    reduced.merge(0, cardinality.counts, 0);
                 }
-                reduced.merge(0, cardinality.counts, 0);
             }
-        }
 
-        if (reduced == null) { // all empty
-            return aggregations.get(0);
-        } else {
-            return new InternalCardinality(name, reduced, getMetadata());
-
-        }
+            @Override
+            public InternalAggregation get() {
+                return new InternalCardinality(name, reduced, getMetadata());
+            }
+        };
     }
 
     @Override

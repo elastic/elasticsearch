@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -113,14 +114,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
-     * Reduces the given aggregations to a single one and returns it. In <b>most</b> cases, the assumption will be the all given
-     * aggregations are of the same type (the same type as this aggregation). For best efficiency, when implementing,
-     * try reusing an existing instance (typically the first in the given list) to save on redundant object
-     * construction.
-     *
-     * @see #mustReduceOnSingleInternalAgg()
+     * Return an object that Reduces several aggregations to a single one. In <b>most</b> cases, the assumption will be the all given
+     * aggregations are of the same type (the same type as this aggregation).
      */
-    public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext);
+    public abstract AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size);
 
     /**
      * Called by the parent sampling context. Should only ever be called once as some aggregations scale their internal values
@@ -132,7 +129,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
-     * Signal the framework if the {@linkplain InternalAggregation#reduce(List, AggregationReduceContext)} phase needs to be called
+     * Signal the framework if the {@linkplain AggregatorReducer} phase needs to be called
      * when there is only one {@linkplain InternalAggregation}.
      */
     protected abstract boolean mustReduceOnSingleInternalAgg();

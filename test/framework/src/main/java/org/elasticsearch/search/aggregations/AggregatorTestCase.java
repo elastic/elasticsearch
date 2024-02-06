@@ -125,6 +125,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.MultiValueAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
@@ -1501,9 +1502,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-            aggregations.forEach(ia -> { assertThat(((InternalAggCardinalityUpperBound) ia).cardinality, equalTo(cardinality)); });
-            return new InternalAggCardinalityUpperBound(name, cardinality, metadata);
+        public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+            return new AggregatorReducer() {
+                @Override
+                public void accept(InternalAggregation aggregation) {
+                    assertThat(((InternalAggCardinalityUpperBound) aggregation).cardinality, equalTo(cardinality));
+                }
+
+                @Override
+                public InternalAggregation get() {
+                    return new InternalAggCardinalityUpperBound(name, cardinality, metadata);
+                }
+            };
         }
 
         @Override

@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -57,15 +56,20 @@ public class Sum extends InternalNumericMetricsAggregation.SingleValue {
     }
 
     @Override
-    public Sum reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        // Compute the sum of double values with Kahan summation algorithm which is more
-        // accurate than naive summation.
-        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        for (InternalAggregation aggregation : aggregations) {
-            double value = ((Sum) aggregation).sum;
-            kahanSummation.add(value);
-        }
-        return new Sum(name, kahanSummation.value(), format, getMetadata());
+    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                kahanSummation.add(((Sum) aggregation).sum);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return new Sum(name, kahanSummation.value(), format, getMetadata());
+            }
+        };
     }
 
     @Override

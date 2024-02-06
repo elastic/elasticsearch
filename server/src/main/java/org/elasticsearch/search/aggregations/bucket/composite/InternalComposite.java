@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -197,72 +198,80 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size()) {
+    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final PriorityQueue<BucketIterator> pq = new PriorityQueue<>(size) {
+                @Override
+                protected boolean lessThan(BucketIterator a, BucketIterator b) {
+                    return a.compareTo(b) < 0;
+                }
+            };
+            boolean earlyTerminated = false;
+
             @Override
-            protected boolean lessThan(BucketIterator a, BucketIterator b) {
-                return a.compareTo(b) < 0;
-            }
-        };
-        boolean earlyTerminated = false;
-        for (InternalAggregation agg : aggregations) {
-            InternalComposite sortedAgg = (InternalComposite) agg;
-            earlyTerminated |= sortedAgg.earlyTerminated;
-            BucketIterator it = new BucketIterator(sortedAgg.buckets);
-            if (it.next() != null) {
-                pq.add(it);
-            }
-        }
-        InternalBucket lastBucket = null;
-        List<InternalBucket> buckets = new ArrayList<>();
-        List<InternalBucket> result = new ArrayList<>();
-        while (pq.size() > 0) {
-            BucketIterator bucketIt = pq.top();
-            if (lastBucket != null && bucketIt.current.compareKey(lastBucket) != 0) {
-                InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
-                buckets.clear();
-                result.add(reduceBucket);
-                if (result.size() >= size) {
-                    break;
+            public void accept(InternalAggregation aggregation) {
+                InternalComposite sortedAgg = (InternalComposite) aggregation;
+                earlyTerminated |= sortedAgg.earlyTerminated;
+                BucketIterator it = new BucketIterator(sortedAgg.buckets);
+                if (it.next() != null) {
+                    pq.add(it);
                 }
             }
-            lastBucket = bucketIt.current;
-            buckets.add(bucketIt.current);
-            if (bucketIt.next() != null) {
-                pq.updateTop();
-            } else {
-                pq.pop();
-            }
-        }
-        if (buckets.size() > 0) {
-            InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
-            result.add(reduceBucket);
-        }
 
-        List<DocValueFormat> reducedFormats = formats;
-        CompositeKey lastKey = null;
-        if (result.size() > 0) {
-            lastBucket = result.get(result.size() - 1);
-            /* Attach the formats from the last bucket to the reduced composite
-             * so that we can properly format the after key. */
-            reducedFormats = lastBucket.formats;
-            lastKey = lastBucket.getRawKey();
-        }
-        reduceContext.consumeBucketsAndMaybeBreak(result.size());
-        InternalComposite reduced = new InternalComposite(
-            name,
-            size,
-            sourceNames,
-            reducedFormats,
-            result,
-            lastKey,
-            reverseMuls,
-            missingOrders,
-            earlyTerminated,
-            metadata
-        );
-        reduced.validateAfterKey();
-        return reduced;
+            @Override
+            public InternalAggregation get() {
+                InternalBucket lastBucket = null;
+                List<InternalBucket> buckets = new ArrayList<>();
+                List<InternalBucket> result = new ArrayList<>();
+                while (pq.size() > 0) {
+                    BucketIterator bucketIt = pq.top();
+                    if (lastBucket != null && bucketIt.current.compareKey(lastBucket) != 0) {
+                        InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
+                        buckets.clear();
+                        result.add(reduceBucket);
+                        if (result.size() >= getSize()) {
+                            break;
+                        }
+                    }
+                    lastBucket = bucketIt.current;
+                    buckets.add(bucketIt.current);
+                    if (bucketIt.next() != null) {
+                        pq.updateTop();
+                    } else {
+                        pq.pop();
+                    }
+                }
+                if (buckets.size() > 0) {
+                    InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
+                    result.add(reduceBucket);
+                }
+
+                List<DocValueFormat> reducedFormats = formats;
+                CompositeKey lastKey = null;
+                if (result.size() > 0) {
+                    lastBucket = result.get(result.size() - 1);
+                    /* Attach the formats from the last bucket to the reduced composite
+                     * so that we can properly format the after key. */
+                    reducedFormats = lastBucket.formats;
+                    lastKey = lastBucket.getRawKey();
+                }
+                reduceContext.consumeBucketsAndMaybeBreak(result.size());
+                InternalComposite reduced = new InternalComposite(
+                    name,
+                    getSize(),
+                    sourceNames,
+                    reducedFormats,
+                    result,
+                    lastKey,
+                    reverseMuls,
+                    missingOrders,
+                    earlyTerminated,
+                    metadata
+                );
+                reduced.validateAfterKey();
+                return reduced;
+            }
+        };
     }
 
     @Override

@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -78,17 +77,25 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalAvg reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        long count = 0;
+    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
-        for (InternalAggregation aggregation : aggregations) {
-            InternalAvg avg = (InternalAvg) aggregation;
-            count += avg.count;
-            kahanSummation.add(avg.sum);
-        }
-        return new InternalAvg(getName(), kahanSummation.value(), count, format, getMetadata());
+        return new AggregatorReducer() {
+            long count = 0;
+            final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalAvg avg = (InternalAvg) aggregation;
+                count += avg.count;
+                kahanSummation.add(avg.sum);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalAvg(getName(), kahanSummation.value(), count, format, getMetadata());
+            }
+        };
     }
 
     @Override

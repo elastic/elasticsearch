@@ -86,39 +86,51 @@ public class IgnoreFieldIT extends ESIntegTestCase {
     }
 
     public void testExistsQuery() {
-        SearchResponse searchResponse = prepareSearch().setQuery(new ExistsQueryBuilder(IgnoredFieldMapper.NAME))
-            .addFetchField(NUMERIC_FIELD_NAME)
-            .get();
-        assertHitCount(searchResponse, 1);
-        SearchHit hit = searchResponse.getHits().getAt(0);
-        assertEquals(WRONG_FIELD_TYPE_DOC_ID, hit.getId());
+        SearchResponse searchResponse = null;
+        try {
+            searchResponse = prepareSearch().setQuery(new ExistsQueryBuilder(IgnoredFieldMapper.NAME))
+                .addFetchField(NUMERIC_FIELD_NAME)
+                .get();
+            assertHitCount(searchResponse, 1);
+            SearchHit hit = searchResponse.getHits().getAt(0);
+            assertEquals(WRONG_FIELD_TYPE_DOC_ID, hit.getId());
+        } finally {
+            if (searchResponse != null) {
+                searchResponse.decRef();
+            }
+        }
     }
 
     public void testIgnoreFieldAggregation() {
-        indexTestDoc(NUMERIC_FIELD_NAME, "correct-44", "44");
-        SearchResponse avgSearch = prepareSearch(TEST_INDEX).setSize(0)
-            .addAggregation(avg("numeric-field-aggs").field(NUMERIC_FIELD_NAME))
-            .get();
-        assertTrue(avgSearch.hasAggregations());
-        InternalAvg avg = avgSearch.getAggregations().get("numeric-field-aggs");
-        assertNotNull(avg);
-        assertEquals(43.0, avg.getValue(), 0.0);
+        SearchResponse avgSearch = null;
+        try {
+            indexTestDoc(NUMERIC_FIELD_NAME, "correct-44", "44");
+            avgSearch = prepareSearch(TEST_INDEX).setSize(0).addAggregation(avg("numeric-field-aggs").field(NUMERIC_FIELD_NAME)).get();
+            assertTrue(avgSearch.hasAggregations());
+            InternalAvg avg = avgSearch.getAggregations().get("numeric-field-aggs");
+            assertNotNull(avg);
+            assertEquals(43.0, avg.getValue(), 0.0);
 
-        indexTestDoc(NUMERIC_FIELD_NAME, "wrong-44", "forty-four");
-        indexTestDoc(DATE_FIELD_NAME, "wrong-date", "today");
-        SearchResponse termsSearch = prepareSearch(TEST_INDEX).setSize(0)
-            .addAggregation(terms("ignored-field-aggs").field(IgnoredFieldMapper.NAME))
-            .get();
-        assertTrue(termsSearch.hasAggregations());
-        StringTerms terms = termsSearch.getAggregations().get("ignored-field-aggs");
-        assertNotNull(terms);
-        assertThat(terms.getBuckets(), hasSize(2));
-        StringTerms.Bucket numericFieldBucket = terms.getBucketByKey(NUMERIC_FIELD_NAME);
-        assertEquals(NUMERIC_FIELD_NAME, numericFieldBucket.getKeyAsString());
-        assertEquals(2, numericFieldBucket.getDocCount());
-        StringTerms.Bucket dateFieldBucket = terms.getBucketByKey(DATE_FIELD_NAME);
-        assertEquals(DATE_FIELD_NAME, dateFieldBucket.getKeyAsString());
-        assertEquals(1, dateFieldBucket.getDocCount());
+            indexTestDoc(NUMERIC_FIELD_NAME, "wrong-44", "forty-four");
+            indexTestDoc(DATE_FIELD_NAME, "wrong-date", "today");
+            SearchResponse termsSearch = prepareSearch(TEST_INDEX).setSize(0)
+                .addAggregation(terms("ignored-field-aggs").field(IgnoredFieldMapper.NAME))
+                .get();
+            assertTrue(termsSearch.hasAggregations());
+            StringTerms terms = termsSearch.getAggregations().get("ignored-field-aggs");
+            assertNotNull(terms);
+            assertThat(terms.getBuckets(), hasSize(2));
+            StringTerms.Bucket numericFieldBucket = terms.getBucketByKey(NUMERIC_FIELD_NAME);
+            assertEquals(NUMERIC_FIELD_NAME, numericFieldBucket.getKeyAsString());
+            assertEquals(2, numericFieldBucket.getDocCount());
+            StringTerms.Bucket dateFieldBucket = terms.getBucketByKey(DATE_FIELD_NAME);
+            assertEquals(DATE_FIELD_NAME, dateFieldBucket.getKeyAsString());
+            assertEquals(1, dateFieldBucket.getDocCount());
+        } finally {
+            if (avgSearch != null) {
+                avgSearch.decRef();
+            }
+        }
     }
 
     private static void indexTestDoc(String testField, String docId, String testValue) {

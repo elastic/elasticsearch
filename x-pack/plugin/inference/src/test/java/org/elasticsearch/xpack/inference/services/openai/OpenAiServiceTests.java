@@ -117,6 +117,15 @@ public class OpenAiServiceTests extends ESTestCase {
                 Set.of(),
                 modelVerificationListener
             );
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
@@ -273,6 +282,15 @@ public class OpenAiServiceTests extends ESTestCase {
                 Set.of(),
                 modelVerificationListener
             );
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
+            assertNull(embeddingsModel.getTaskSettings().user());
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
@@ -301,7 +319,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -362,7 +380,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().uri());
             assertNull(embeddingsModel.getServiceSettings().organizationId());
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
             assertNull(embeddingsModel.getTaskSettings().user());
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -394,7 +412,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -428,7 +446,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -460,7 +478,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -494,7 +512,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -528,7 +546,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -550,7 +568,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -593,7 +611,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().uri());
             assertNull(embeddingsModel.getServiceSettings().organizationId());
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
             assertNull(embeddingsModel.getTaskSettings().user());
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -616,7 +634,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -641,7 +659,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -666,7 +684,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().modelId(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertNull(embeddingsModel.getSecretSettings());
         }

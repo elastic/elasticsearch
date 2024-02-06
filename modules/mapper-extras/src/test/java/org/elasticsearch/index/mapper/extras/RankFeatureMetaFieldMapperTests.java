@@ -83,22 +83,22 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
         );
     }
 
-    public void testFieldHasValueIf_featureIsPresentInFieldInfosList() {
+    public void testFieldHasValueIf_featureIsPresentInFieldInfos() {
         MappedFieldType fieldType = new RankFeatureMetaFieldMapper.RankFeatureMetaFieldType();
-        List<FieldInfos> fieldInfosList = List.of(new FieldInfos(new FieldInfo[] { getFieldInfoWithName("_feature") }));
-        assertTrue(fieldType.fieldHasValue(fieldInfosList));
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("_feature") });
+        assertTrue(fieldType.fieldHasValue(fieldInfos));
     }
 
-    public void testFieldEmptyIfNameIsPresentInFieldInfosList() {
+    public void testFieldEmptyIfNameIsPresentInFieldInfos() {
         MappedFieldType fieldType = new RankFeatureMetaFieldMapper.RankFeatureMetaFieldType();
-        List<FieldInfos> fieldInfosList = List.of(new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") }));
-        assertFalse(fieldType.fieldHasValue(fieldInfosList));
+        FieldInfos fieldInfos = List.of(new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") });
+        assertFalse(fieldType.fieldHasValue(fieldInfos));
     }
 
-    public void testFieldEmptyIfEmptyFieldInfosList() {
+    public void testFieldEmptyIfEmptyFieldInfos() {
         MappedFieldType fieldType = new RankFeatureMetaFieldMapper.RankFeatureMetaFieldType();
-        List<FieldInfos> fieldInfosList = List.of(new FieldInfos(new FieldInfo[] {}));
-        assertFalse(fieldType.fieldHasValue(fieldInfosList));
+        FieldInfos fieldInfos = FieldInfos.EMPTY;
+        assertFalse(fieldType.fieldHasValue(fieldInfos));
     }
 
     private FieldInfo getFieldInfoWithName(String name) {

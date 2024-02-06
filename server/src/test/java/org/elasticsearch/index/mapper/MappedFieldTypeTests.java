@@ -20,26 +20,25 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 
 public class MappedFieldTypeTests extends ESTestCase {
 
     public void testFieldHasValue() {
         MappedFieldType fieldType = getMappedFieldType();
-        List<FieldInfos> fieldInfosList = List.of(new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") }));
-        assertTrue(fieldType.fieldHasValue(fieldInfosList));
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") });
+        assertTrue(fieldType.fieldHasValue(fieldInfos));
     }
 
     public void testFieldEmpty() {
         MappedFieldType fieldType = getMappedFieldType();
-        List<FieldInfos> fieldInfosList = List.of(new FieldInfos(new FieldInfo[] { getFieldInfoWithName("anotherField") }));
-        assertFalse(fieldType.fieldHasValue(fieldInfosList));
+        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("anotherField") });
+        assertFalse(fieldType.fieldHasValue(fieldInfos));
     }
 
-    public void testFieldEmptyBecauseEmptyFieldInfosList() {
+    public void testFieldEmptyBecauseEmptyFieldInfos() {
         MappedFieldType fieldType = getMappedFieldType();
-        List<FieldInfos> fieldInfosList = List.of();
-        assertFalse(fieldType.fieldHasValue(fieldInfosList));
+        FieldInfos fieldInfos = FieldInfos.EMPTY;
+        assertFalse(fieldType.fieldHasValue(fieldInfos));
     }
 
     private MappedFieldType getMappedFieldType() {

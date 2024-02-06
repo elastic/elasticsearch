@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -19,7 +20,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
@@ -54,7 +54,7 @@ public class IndexFieldTypeTests extends ESTestCase {
 
     public void testConstantFieldAlwaysHaveValue() {
         MappedFieldType fieldType = IndexFieldMapper.IndexFieldType.INSTANCE;
-        assertTrue(fieldType.fieldHasValue(List.of()));
+        assertTrue(fieldType.fieldHasValue(FieldInfos.EMPTY));
     }
 
     private SearchExecutionContext createContext() {

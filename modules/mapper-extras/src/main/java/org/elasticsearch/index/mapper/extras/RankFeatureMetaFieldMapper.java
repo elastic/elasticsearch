@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
-import java.util.List;
 
 /**
  * This meta field only exists because rank feature fields index everything into a
@@ -59,12 +58,10 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public boolean fieldHasValue(List<FieldInfos> fieldInfosList) {
-            for (FieldInfos fieldInfos : fieldInfosList) {
-                for (FieldInfo fieldInfo : fieldInfos) {
-                    if (fieldInfo.getName().equals(NAME)) {
-                        return true;
-                    }
+        public boolean fieldHasValue(FieldInfos fieldInfos) {
+            for (FieldInfo fieldInfo : fieldInfos) {
+                if (fieldInfo.getName().equals(NAME)) {
+                    return true;
                 }
             }
             return false;

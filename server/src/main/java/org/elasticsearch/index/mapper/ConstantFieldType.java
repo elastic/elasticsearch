@@ -21,7 +21,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -136,7 +135,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final boolean fieldHasValue(List<FieldInfos> fieldInfosList) {
+    public final boolean fieldHasValue(FieldInfos fieldInfos) {
         // We consider constant field types to always have value.
         return true;
     }

@@ -86,7 +86,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     public void addNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(ES87TSDBDocValuesFormat.NUMERIC);
-        writeNumericField(field, new EmptyDocValuesProducer() {
+        writeField(field, new EmptyDocValuesProducer() {
             @Override
             public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
                 return DocValues.singleton(valuesProducer.getNumeric(field));
@@ -94,7 +94,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         }, -1);
     }
 
-    private long[] writeNumericField(FieldInfo field, DocValuesProducer valuesProducer, long maxOrd) throws IOException {
+    private long[] writeField(FieldInfo field, DocValuesProducer valuesProducer, long maxOrd) throws IOException {
         int numDocsWithValue = 0;
         long numValues = 0;
 
@@ -204,7 +204,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     private void doAddSortedField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         SortedDocValues sorted = valuesProducer.getSorted(field);
         int maxOrd = sorted.getValueCount();
-        writeNumericField(field, new EmptyDocValuesProducer() {
+        writeField(field, new EmptyDocValuesProducer() {
             @Override
             public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
                 SortedDocValues sorted = valuesProducer.getSorted(field);
@@ -394,7 +394,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     }
 
     private void writeSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer, long maxOrd) throws IOException {
-        long[] stats = writeNumericField(field, valuesProducer, maxOrd);
+        long[] stats = writeField(field, valuesProducer, maxOrd);
         int numDocsWithField = Math.toIntExact(stats[0]);
         long numValues = stats[1];
         assert numValues >= numDocsWithField;

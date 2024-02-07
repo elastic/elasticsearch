@@ -6,10 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 
 /**
  *  Interface for reducing aggregations to a single one.

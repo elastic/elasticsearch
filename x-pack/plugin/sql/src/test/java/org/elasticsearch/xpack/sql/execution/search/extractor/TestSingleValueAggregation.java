@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;

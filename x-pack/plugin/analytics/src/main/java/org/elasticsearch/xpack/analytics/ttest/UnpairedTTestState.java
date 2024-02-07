@@ -11,8 +11,8 @@ import org.apache.commons.math3.distribution.TDistribution;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 
 import java.io.IOException;
 import java.util.Map;

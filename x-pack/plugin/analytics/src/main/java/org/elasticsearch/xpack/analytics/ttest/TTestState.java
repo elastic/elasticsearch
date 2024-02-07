@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.analytics.ttest;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 
 import java.util.Map;
 

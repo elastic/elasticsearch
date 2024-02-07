@@ -1,0 +1,5 @@
+pr: 105223
+summary: "x-pack/plugin/apm-data: Add a new field transaction.profiler_stack_trace_ids to traces-apm@mappings.yaml"
+area: Data streams
+type: enhancement
+issues: []

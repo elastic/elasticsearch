@@ -225,6 +225,13 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         ClusterStateObserver observer,
         ActionListener<GetResponse> listener
     ) {
+        DiscoveryNode node;
+        try {
+            node = getCurrentNodeOfPrimary(state, indexShard.shardId());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         final var retryingListener = listener.delegateResponse((l, e) -> {
             final var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("get_from_translog failed", cause);
@@ -250,12 +257,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 l.onFailure(e);
             }
         });
-        try {
-            final var node = getCurrentNodeOfPrimary(state, indexShard.shardId());
-            tryGetFromTranslog(request, indexShard, node, retryingListener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        tryGetFromTranslog(request, indexShard, node, retryingListener);
     }
 
     private void tryGetFromTranslog(GetRequest request, IndexShard indexShard, DiscoveryNode node, ActionListener<GetResponse> listener) {

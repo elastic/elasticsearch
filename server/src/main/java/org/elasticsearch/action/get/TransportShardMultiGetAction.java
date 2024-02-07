@@ -204,6 +204,13 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         ClusterStateObserver observer,
         ActionListener<MultiGetShardResponse> listener
     ) {
+        DiscoveryNode node;
+        try {
+            node = getCurrentNodeOfPrimary(state, indexShard.shardId());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         final var retryingListener = listener.delegateResponse((l, e) -> {
             final var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("mget_from_translog[shard] failed", cause);
@@ -229,12 +236,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 l.onFailure(e);
             }
         });
-        try {
-            final var node = getCurrentNodeOfPrimary(state, indexShard.shardId());
-            tryShardMultiGetFromTranslog(request, indexShard, node, retryingListener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        tryShardMultiGetFromTranslog(request, indexShard, node, retryingListener);
     }
 
     private void tryShardMultiGetFromTranslog(

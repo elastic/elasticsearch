@@ -49,7 +49,7 @@ its <<api-key-role-descriptors,assigned role descriptors>> and the owner user's 
 You can specify the following parameters in the request body:
 
 `query`::
-(Optional, string) A <<query-dsl,query>> to filter which API keys to return.
+(Optional, object) A <<query-dsl,query>> to filter which API keys to return.
 The query supports a subset of query types, including
 <<query-dsl-match-all-query,`match_all`>>, <<query-dsl-bool-query,`bool`>>,
 <<query-dsl-term-query,`term`>>, <<query-dsl-terms-query,`terms`>>,
@@ -84,7 +84,7 @@ Name of the API key.
 Creation time of the API key in milliseconds.
 
 `expiration`::
-Expiration time of the API key in milliseconds.
+Expiration time of the API key in milliseconds. This is `null` if the key does not expire.
 
 `invalidated`::
 Indicates whether the API key is invalidated. If `true`, the key is invalidated.
@@ -110,6 +110,15 @@ simply mentioning `metadata` (not followed by any dot and sub-field name).
 
 NOTE: You cannot query the role descriptors of an API key.
 ====
+
+`aggs`::
+(Optional, object) Any <<search-aggregations,aggregations>> to run over the corpus of returned API Keys.
+This supports only a subset of aggregation types, namely: <<search-aggregations-bucket-terms-aggregation,terms>>,
+<<search-aggregations-bucket-range-aggregation,range>>, <<search-aggregations-bucket-daterange-aggregation,date range>>,
+<<search-aggregations-bucket-missing-aggregation,missing>>, <<search-aggregations-metrics-cardinality-aggregation,cardinality>>,
+<<search-aggregations-metrics-valuecount-aggregation,value count>>, <<search-aggregations-bucket-composite-aggregation,composite>>,
+<<search-aggregations-bucket-filter-aggregation,filter>>, and <<search-aggregations-bucket-filters-aggregation,filters>>.
+In addition, the aggregations only run over the same subset of fields that `query`s work with.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +

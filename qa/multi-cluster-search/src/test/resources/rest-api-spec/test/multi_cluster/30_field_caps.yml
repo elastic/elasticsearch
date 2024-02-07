@@ -164,31 +164,30 @@
       reason: include_empty_fields has been added in 8.13.0
   - do:
         indices.create:
-          index: field_caps_index_5
+          index: field_caps_index_4
           body:
             mappings:
               properties:
-                foo:
-                  type: long
+                number:
+                  type: double
                 empty-baz:
                   type: text
 
   - do:
       index:
-        index:  field_caps_index_5
-        body:   { foo: "42", unmapped-bar: "bar" }
+        index:  field_caps_index_4
+        body:   { number: "42", unmapped-bar: "bar" }
 
   - do:
       indices.refresh:
-        index: [field_caps_index_5]
+        index: [field_caps_index_4]
   - do:
       field_caps:
         include_empty_fields: false
-        index: 'field_caps_index_5,my_remote_cluster:field_caps_index_5'
-        fields: "*"
+        index: 'field_caps_index_4,my_remote_cluster:field_*'
+        fields: '*'
 
-  - match: {indices: ["field_caps_index_5,my_remote_cluster:field_caps_index_5"]}
-  - is_true: fields.foo
+  - is_true: fields.number
   - is_false: fields.empty-baz
   - is_true: fields.unmapped-bar
   - is_true: fields._index

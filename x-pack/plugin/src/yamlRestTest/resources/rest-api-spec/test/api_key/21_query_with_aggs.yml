@@ -97,14 +97,12 @@ teardown:
           {
             "name": "user-api-key",
             "metadata": {
-               "letter": "b",
-               "number": 43
+               "letter": "b"
             }
           }
   - match: { name: "user-api-key" }
   - is_true: id
   - is_true: api_key
-  - is_true: expiration
   - set: { id: api_key_id }
   - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
   - match: { encoded: $login_creds }

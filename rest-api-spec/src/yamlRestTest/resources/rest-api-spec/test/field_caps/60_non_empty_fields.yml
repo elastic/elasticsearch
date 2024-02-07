@@ -34,7 +34,7 @@ setup:
         index: test
         fields: "*"
 
-  - match: {indices:                                      ["test-1"]}
+  - match: {indices: ["test"]}
   - is_true: fields.foo
   - is_false: fields.bar
   - is_false: fields.baz

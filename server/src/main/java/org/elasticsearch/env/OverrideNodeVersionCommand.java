@@ -80,6 +80,7 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
             // ok, means the version change is not supported
         }
 
+        // TODO[wrb]: need internal index version first?
         confirm(
             terminal,
             (nodeMetadata.nodeVersion().before(Version.CURRENT) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE).replace(

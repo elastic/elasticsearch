@@ -154,6 +154,24 @@ public final class NodeMetadata {
         return nodeVersion;
     }
 
+    public IndexVersion nodeVersionAsIndexVersion() {
+        return versionToIndexVersion(nodeVersion);
+    }
+
+    static IndexVersion versionToIndexVersion(Version version) {
+        // case -- ids match
+        if (version.before(Version.V_8_5_0)) {
+            return IndexVersion.fromId(version.id());
+        }
+
+        // case -- current version
+        if (version.equals(Version.CURRENT)) {
+            return IndexVersion.current();
+        }
+
+        throw new AssertionError("Unexpected case for Version[" + version + "]");
+    }
+
     /**
      * When a node starts we read the existing node metadata from disk (see NodeEnvironment@loadNodeMetadata), store a reference to the
      * node version that we read from there in {@code previousNodeVersion} and then proceed to upgrade the version to

@@ -29,8 +29,6 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
         super(testCandidate);
     }
 
-
-
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();

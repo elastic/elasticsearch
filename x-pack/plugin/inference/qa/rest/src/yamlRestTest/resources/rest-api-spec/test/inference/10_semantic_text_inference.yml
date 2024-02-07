@@ -22,10 +22,6 @@ setup:
       indices.create:
         index: test-index
         body:
-          settings:
-            index:
-              number_of_shards: 2
-              number_of_replicas: 0
           mappings:
             properties:
               inference_field:
@@ -60,11 +56,148 @@ setup:
     - match: { _source._semantic_text_inference.inference_field.0.text: "inference test" }
     - match: { _source._semantic_text_inference.another_inference_field.0.text: "another inference test" }
 
+    - exists: _source._semantic_text_inference.inference_field.0.sparse_embedding
+    - exists: _source._semantic_text_inference.another_inference_field.0.sparse_embedding
+
+---
+"Updating non semantic_text fields does not recalculate embeddings":
+    - do:
+        index:
+          index: test-index
+          id: doc_1
+          body:
+            inference_field: "inference test"
+            another_inference_field: "another inference test"
+            non_inference_field: "non inference test"
+
+    - do:
+        get:
+          index: test-index
+          id: doc_1
+
+    - set: { _source._semantic_text_inference.inference_field.0.sparse_embedding: inference_field_embedding }
+    - set: { _source._semantic_text_inference.another_inference_field.0.sparse_embedding: another_inference_field_embedding }
+
+    - do:
+        update:
+          index: test-index
+          id: doc_1
+          body:
+            doc:
+              non_inference_field: "another non inference test"
+
+    - do:
+        get:
+          index: test-index
+          id: doc_1
+
+    - match: { _source.inference_field: "inference test" }
+    - match: { _source.another_inference_field: "another inference test" }
+    - match: { _source.non_inference_field: "another non inference test" }
+
     - match: { _source._semantic_text_inference.inference_field.0.text: "inference test" }
     - match: { _source._semantic_text_inference.another_inference_field.0.text: "another inference test" }
 
-    - exists: _source._semantic_text_inference.inference_field.0.sparse_embedding
-    - exists: _source._semantic_text_inference.another_inference_field.0.sparse_embedding
+    - match: { _source._semantic_text_inference.inference_field.0.sparse_embedding: $inference_field_embedding }
+    - match: { _source._semantic_text_inference.another_inference_field.0.sparse_embedding: $another_inference_field_embedding }
+
+---
+"Updating semantic_text fields recalculates embeddings":
+    - do:
+        index:
+          index: test-index
+          id: doc_1
+          body:
+            inference_field: "inference test"
+            another_inference_field: "another inference test"
+            non_inference_field: "non inference test"
+
+    - do:
+        get:
+          index: test-index
+          id: doc_1
+
+    - do:
+        update:
+          index: test-index
+          id: doc_1
+          body:
+            doc:
+              inference_field: "updated inference test"
+              another_inference_field: "another updated inference test"
+
+    - do:
+        get:
+          index: test-index
+          id: doc_1
+
+    - match: { _source.inference_field: "updated inference test" }
+    - match: { _source.another_inference_field: "another updated inference test" }
+    - match: { _source.non_inference_field: "non inference test" }
+
+    - match: { _source._semantic_text_inference.inference_field.0.text: "updated inference test" }
+    - match: { _source._semantic_text_inference.another_inference_field.0.text: "another updated inference test" }
+
+
+---
+"Reindex works for semantic_text fields":
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          another_inference_field: "another inference test"
+          non_inference_field: "non inference test"
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+
+  - set: { _source._semantic_text_inference.inference_field.0.sparse_embedding: inference_field_embedding }
+  - set: { _source._semantic_text_inference.another_inference_field.0.sparse_embedding: another_inference_field_embedding }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      indices.create:
+        index: destination-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                model_id: test-inference-id
+              another_inference_field:
+                type: semantic_text
+                model_id: test-inference-id
+              non_inference_field:
+                type: text
+
+  - do:
+      reindex:
+        wait_for_completion: true
+        body:
+          source:
+            index: test-index
+          dest:
+            index: destination-index
+  - do:
+      get:
+        index: destination-index
+        id: doc_1
+
+  - match: { _source.inference_field: "inference test" }
+  - match: { _source.another_inference_field: "another inference test" }
+  - match: { _source.non_inference_field: "non inference test" }
+
+  - match: { _source._semantic_text_inference.inference_field.0.text: "inference test" }
+  - match: { _source._semantic_text_inference.another_inference_field.0.text: "another inference test" }
+
+  - match: { _source._semantic_text_inference.inference_field.0.sparse_embedding: $inference_field_embedding }
+  - match: { _source._semantic_text_inference.another_inference_field.0.sparse_embedding: $another_inference_field_embedding }
 
 ---
 "Fails for non-existent model":
@@ -79,14 +212,17 @@ setup:
                 model_id: non-existing-inference-id
               non_inference_field:
                 type: text
+
   - do:
-      catch: /No inference provider found .* non-existing-inference-id/
+      catch: bad_request
       index:
         index: incorrect-test-index
         id: doc_1
         body:
           inference_field: "inference test"
           non_inference_field: "non inference test"
+
+  - match: { error.reason: "No inference provider found for model ID non-existing-inference-id" }
 
   # Succeeds when semantic_text field is not used
   - do:

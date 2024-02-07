@@ -43,5 +43,5 @@ settings:
 
 [source,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=limit]
+include::{esql-specs}/limit.csv-spec[tag=basic]
 ----

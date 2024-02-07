@@ -91,12 +91,12 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
             builder.addAnnualCostsUSDInclusive(0, annualCostsUSD);
             builder.addAnnualCostsUSDExclusive(0, 0.0d);
 
-            int frameCount = stackTrace.frameIds.size();
+            int frameCount = stackTrace.frameIds.length;
             for (int i = 0; i < frameCount; i++) {
-                String frameId = stackTrace.frameIds.get(i);
-                String fileId = stackTrace.fileIds.get(i);
-                Integer frameType = stackTrace.typeIds.get(i);
-                Integer addressOrLine = stackTrace.addressOrLines.get(i);
+                String frameId = stackTrace.frameIds[i];
+                String fileId = stackTrace.fileIds[i];
+                int frameType = stackTrace.typeIds[i];
+                int addressOrLine = stackTrace.addressOrLines[i];
                 StackFrame stackFrame = response.getStackFrames().getOrDefault(frameId, EMPTY_STACKFRAME);
                 String executable = response.getExecutables().getOrDefault(fileId, "");
                 final boolean isLeafFrame = i == frameCount - 1;
@@ -199,7 +199,7 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
             int frameType,
             boolean inline,
             String fileName,
-            Integer addressOrLine,
+            int addressOrLine,
             String functionName,
             int functionOffset,
             String sourceFileName,

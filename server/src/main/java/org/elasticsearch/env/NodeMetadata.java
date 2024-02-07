@@ -48,16 +48,14 @@ public final class NodeMetadata {
 
     private NodeMetadata(
         final String nodeId,
-        final Version nodeVersion,
         final IndexVersion nodeVersionAsIndexVersion,
-        final Version previousNodeVersion,
         final IndexVersion previousNodeVersionAsIndexVersion,
         final IndexVersion oldestIndexVersion
     ) {
         this.nodeId = Objects.requireNonNull(nodeId);
-        this.nodeVersion = Objects.requireNonNull(nodeVersion);
+        this.nodeVersion = Objects.requireNonNull(indexVersionToVersion(nodeVersionAsIndexVersion));
         this.nodeVersionAsIndexVersion = Objects.requireNonNull(nodeVersionAsIndexVersion);
-        this.previousNodeVersion = Objects.requireNonNull(previousNodeVersion);
+        this.previousNodeVersion = Objects.requireNonNull(indexVersionToVersion(previousNodeVersionAsIndexVersion));
         this.previousNodeVersionAsIndexVersion = Objects.requireNonNull(previousNodeVersionAsIndexVersion);
         this.oldestIndexVersion = Objects.requireNonNull(oldestIndexVersion);
     }
@@ -68,7 +66,7 @@ public final class NodeMetadata {
         final IndexVersion nodeVersionAsIndexVersion,
         final IndexVersion oldestIndexVersion
     ) {
-        this(nodeId, nodeVersion, nodeVersionAsIndexVersion, nodeVersion, nodeVersionAsIndexVersion, oldestIndexVersion);
+        this(nodeId, nodeVersionAsIndexVersion, nodeVersionAsIndexVersion, oldestIndexVersion);
     }
 
     public static NodeMetadata createWithIndexVersion(
@@ -236,7 +234,7 @@ public final class NodeMetadata {
 
         return nodeVersion.equals(Version.CURRENT)
             ? this
-            : new NodeMetadata(nodeId, Version.CURRENT, IndexVersion.current(), nodeVersion, nodeVersionAsIndexVersion, oldestIndexVersion);
+            : new NodeMetadata(nodeId, IndexVersion.current(), nodeVersionAsIndexVersion, oldestIndexVersion);
     }
 
     private static class Builder {
@@ -275,14 +273,7 @@ public final class NodeMetadata {
                 oldestIndexVersion = this.oldestIndexVersion;
             }
 
-            return new NodeMetadata(
-                nodeId,
-                Version.fromId(nodeVersion.id()),
-                nodeVersion,
-                Version.fromId(previousNodeVersion.id()),
-                previousNodeVersion,
-                oldestIndexVersion
-            );
+            return new NodeMetadata(nodeId, nodeVersion, previousNodeVersion, oldestIndexVersion);
         }
     }
 

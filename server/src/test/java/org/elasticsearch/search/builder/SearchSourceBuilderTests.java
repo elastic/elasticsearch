@@ -590,8 +590,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     public void testStoredFieldsUsage() throws IOException {
         Set<String> storedFieldRestVariations = Set.of(
             "{\"stored_fields\" : [\"_none_\"]}",
-            "{\"stored_fields\" : \"field\"}",
-            "{\"stored_fields\" : \"_none_\"}"
+            "{\"stored_fields\" : \"_none_\"}",
+            "{\"stored_fields\" : [\"field\"]}",
+            "{\"stored_fields\" : \"field\"}"
         );
         for (String storedFieldRest : storedFieldRestVariations) {
             SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();

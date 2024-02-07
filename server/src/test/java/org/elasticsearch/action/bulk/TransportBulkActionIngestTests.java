@@ -144,7 +144,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 clusterService,
                 ingestService,
                 mockFeatureService,
-                mock(NodeClient.class),
+                new NodeClient(Settings.EMPTY, threadPool),
                 new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),

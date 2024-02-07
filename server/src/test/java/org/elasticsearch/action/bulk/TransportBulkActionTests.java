@@ -94,7 +94,7 @@ public class TransportBulkActionTests extends ESTestCase {
                 clusterService,
                 null,
                 mockFeatureService,
-                mock(NodeClient.class),
+                new NodeClient(Settings.EMPTY, TransportBulkActionTests.this.threadPool),
                 new ActionFilters(Collections.emptySet()),
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),

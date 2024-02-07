@@ -8,15 +8,13 @@ setup:
               properties:
                 foo:
                   type: long
-                bar:
-                  type: keyword
-                baz:
+                empty-baz:
                   type: text
 
   - do:
       index:
         index:  test
-        body:   { foo: "42" }
+        body:   { foo: "42", unmapped-bar: "bar" }
 
   - do:
       indices.refresh:
@@ -36,5 +34,6 @@ setup:
 
   - match: {indices: ["test"]}
   - is_true: fields.foo
-  - is_false: fields.bar
-  - is_false: fields.baz
+  - is_false: fields.empty-baz
+  - is_true: fields.unmapped-bar
+  - is_true: fields._index

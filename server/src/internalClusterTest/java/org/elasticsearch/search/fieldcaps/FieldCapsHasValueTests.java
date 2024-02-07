@@ -219,28 +219,6 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         );
     }
 
-    public void testUnmappedFieldsWithValue() {
-        prepareIndex(INDEX1).setSource("unmapped-field", "unmapped-text").get();
-        refresh(INDEX1);
-
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1)
-            .setFields("*")
-            .setIncludeUnmapped(true)
-            .setincludeEmptyFields(false)
-            .get();
-
-        assertIndices(response, INDEX1);
-        assertThat(response.get(), Matchers.hasKey("unmapped-field"));
-        // Check the capabilities for the 'unmapped' field.
-        Map<String, FieldCapabilities> unmappedField = response.getField("unmapped-field");
-        assertEquals(1, unmappedField.size());
-        assertThat(unmappedField, Matchers.hasKey("text"));
-        assertEquals(
-            new FieldCapabilities("unmapped-field", "text", false, true, false, null, null, null, Collections.emptyMap()),
-            unmappedField.get("text")
-        );
-    }
-
     public void testUnmappedFieldsWithValueAfterRestart() throws Exception {
         prepareIndex(INDEX1).setSource("unmapped", "unmapped-text").get();
         internalCluster().fullRestart();

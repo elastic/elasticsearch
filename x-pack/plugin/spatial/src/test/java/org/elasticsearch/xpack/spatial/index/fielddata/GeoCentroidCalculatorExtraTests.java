@@ -10,12 +10,7 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.MultiLine;
-import org.elasticsearch.geometry.MultiPoint;
-import org.elasticsearch.geometry.MultiPolygon;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.io.IOException;
@@ -23,48 +18,17 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoCentroidCalculatorTests extends CentroidCalculatorTests {
-    protected Point randomPoint() {
-        return GeometryTestUtils.randomPoint(false);
-    }
-
-    protected MultiPoint randomMultiPoint() {
-        return GeometryTestUtils.randomMultiPoint(false);
-    }
-
-    protected Line randomLine() {
-        return GeometryTestUtils.randomLine(false);
-    }
-
-    protected MultiLine randomMultiLine() {
-        return GeometryTestUtils.randomMultiLine(false);
-    }
-
-    protected Polygon randomPolygon() {
-        return GeometryTestUtils.randomPolygon(false);
-    }
-
-    protected MultiPolygon randomMultiPolygon() {
-        return GeometryTestUtils.randomMultiPolygon(false);
-    }
-
-    protected Rectangle randomRectangle() {
-        return GeometryTestUtils.randomRectangle();
-    }
-
+/**
+ * When the GeoCentroidCalculatorTests were moved to server, as part of the work to move the doc-values components needed by ESQL to server,
+ * this test class was split in two, most moving to server, but one test remaining in xpack.spatial because it depends on GeoShapeValues.
+ */
+public class GeoCentroidCalculatorExtraTests extends ESTestCase {
     protected double randomY() {
         return GeometryTestUtils.randomLat();
     }
 
     protected double randomX() {
         return GeometryTestUtils.randomLon();
-    }
-
-    @Override
-    protected boolean ignoreAreaErrors() {
-        // Tests that calculate polygon areas with very large double values can have very large errors for flat polygons
-        // This would not happen in the tightly bounded case of geo-data, but for cartesian test data it happens a lot.
-        return false;
     }
 
     public void testRoundingErrorAndNormalization() throws IOException {

@@ -18,8 +18,8 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
             Map.of(
                 "2buqP1GpF-TXYmL4USW8gA",
                 new StackTrace(
-                    List.of(12784352, 19334053, 19336161, 18795859, 18622708, 18619213, 12989721, 13658842, 16339645),
-                    List.of(
+                    new int[] { 12784352, 19334053, 19336161, 18795859, 18622708, 18619213, 12989721, 13658842, 16339645 },
+                    new String[] {
                         "fr28zxcZ2UDasxYuu6dV-w",
                         "fr28zxcZ2UDasxYuu6dV-w",
                         "fr28zxcZ2UDasxYuu6dV-w",
@@ -28,9 +28,8 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
                         "fr28zxcZ2UDasxYuu6dV-w",
                         "fr28zxcZ2UDasxYuu6dV-w",
                         "fr28zxcZ2UDasxYuu6dV-w",
-                        "fr28zxcZ2UDasxYuu6dV-w"
-                    ),
-                    List.of(
+                        "fr28zxcZ2UDasxYuu6dV-w" },
+                    new String[] {
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAAwxLg",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAABJwOl",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAABJwvh",
@@ -39,9 +38,8 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
                         "fr28zxcZ2UDasxYuu6dV-wAAAAABHBtN",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAAxjUZ",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAA0Gra",
-                        "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9"
-                    ),
-                    List.of(3, 3, 3, 3, 3, 3, 3, 3, 3),
+                        "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9" },
+                    new int[] { 3, 3, 3, 3, 3, 3, 3, 3, 3 },
                     0.3d,
                     2.7d,
                     1

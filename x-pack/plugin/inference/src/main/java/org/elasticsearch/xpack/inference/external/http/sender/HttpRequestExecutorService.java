@@ -133,6 +133,7 @@ class HttpRequestExecutorService implements ExecutorService {
             if (task.shouldShutdown() || running.get() == false) {
                 running.set(false);
                 logger.debug(() -> format("Http executor service [%s] exiting", serviceName));
+                rejectTask(task);
             } else {
                 executeTask(task);
             }

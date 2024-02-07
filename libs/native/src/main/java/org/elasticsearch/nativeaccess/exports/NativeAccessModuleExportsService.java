@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.lib;
+package org.elasticsearch.nativeaccess.exports;
 
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 

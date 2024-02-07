@@ -7,7 +7,7 @@
  */
 
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
-import org.elasticsearch.nativeaccess.lib.NativeAccessModuleExportsService;
+import org.elasticsearch.nativeaccess.exports.NativeAccessModuleExportsService;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
 module org.elasticsearch.nativeaccess {
@@ -15,8 +15,12 @@ module org.elasticsearch.nativeaccess {
     requires org.elasticsearch.logging;
 
     exports org.elasticsearch.nativeaccess to org.elasticsearch.server;
-    exports org.elasticsearch.nativeaccess.lib to org.elasticsearch.nativeaccess.jna, org.elasticsearch.server;
-
+    // allows jna to implement a library provider
+    exports org.elasticsearch.nativeaccess.lib to org.elasticsearch.nativeaccess.jna;
     uses NativeLibraryProvider;
+    // allows qualified exports from this module to modules not in the boot layer, ie jna
+    exports org.elasticsearch.nativeaccess.exports to org.elasticsearch.base;
     provides ModuleQualifiedExportsService with NativeAccessModuleExportsService;
+
+
 }

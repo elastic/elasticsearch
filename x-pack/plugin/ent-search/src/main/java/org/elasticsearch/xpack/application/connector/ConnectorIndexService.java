@@ -25,6 +25,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -105,6 +107,7 @@ public class ConnectorIndexService {
         try {
             isDataIndexNameAlreadyInUse(indexName, connectorId, listener.delegateFailure((l, isIndexNameInUse) -> {
                 if (isIndexNameInUse) {
+
                     l.onFailure(
                         new ElasticsearchStatusException(
                             "Index name [" + indexName + "] is used by another connector.",
@@ -230,7 +233,7 @@ public class ConnectorIndexService {
 
             clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, getResponse) -> {
                 if (getResponse.isExists() == false) {
-                    l.onFailure(new ResourceNotFoundException(connectorId));
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                     return;
                 }
                 try {
@@ -265,7 +268,7 @@ public class ConnectorIndexService {
                 deleteRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, deleteResponse) -> {
                     if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(deleteResponse);
@@ -278,25 +281,29 @@ public class ConnectorIndexService {
     }
 
     /**
-     * List the {@link Connector} in ascending order of their index names.
+     * Lists {@link Connector}s in ascending order of index names, filtered by specified criteria.
      *
-     * @param from From index to start the search from.
-     * @param size The maximum number of {@link Connector}s to return.
-     * @param indexNames A list of index names to filter the connectors.
-     * @param connectorNames A list of connector names to further filter the search results.
-     * @param listener The action listener to invoke on response/failure.
+     * @param from Starting index for the search.
+     * @param size Maximum number of {@link Connector}s to retrieve.
+     * @param indexNames Filter connectors by these index names, if provided.
+     * @param connectorNames Filter connectors by connector names, if provided.
+     * @param serviceTypes Filter connectors by service types, if provided.
+     * @param searchQuery Apply a wildcard search on index name, connector name, and description, if provided.
+     * @param listener Invoked with search results or upon failure.
      */
     public void listConnectors(
         int from,
         int size,
         List<String> indexNames,
         List<String> connectorNames,
+        List<String> serviceTypes,
+        String searchQuery,
         ActionListener<ConnectorIndexService.ConnectorResult> listener
     ) {
         try {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
-                .query(buildListQuery(indexNames, connectorNames))
+                .query(buildListQuery(indexNames, connectorNames, serviceTypes, searchQuery))
                 .fetchSource(true)
                 .sort(Connector.INDEX_NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(CONNECTOR_INDEX_NAME).source(source);
@@ -325,18 +332,26 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Constructs a query for filtering instances of {@link Connector} based on index and/or connector names.
-     * Returns a {@link MatchAllQueryBuilder} if both parameters are empty or null,
-     * otherwise constructs a boolean query to filter by the provided lists.
+     * Builds a query to filter {@link Connector} instances by index names, connector names, service type, and/or search query.
+     * Returns a {@link MatchAllQueryBuilder} if no filters are applied, otherwise constructs a boolean query with the specified filters.
      *
-     * @param indexNames List of index names to filter by, or null/empty for no index name filtering.
-     * @param connectorNames List of connector names to filter by, or null/empty for no name filtering.
-     * @return A {@link QueryBuilder} tailored to the specified filters.
+     * @param indexNames List of index names for filtering, or null/empty to skip.
+     * @param connectorNames List of connector names for filtering, or null/empty to skip.
+     * @param serviceTypes List of connector service types for filtering, or null/empty to skip.
+     * @param searchQuery Search query for wildcard filtering on index name, connector name, and description, or null/empty to skip.
+     * @return A {@link QueryBuilder} customized based on provided filters.
      */
-    private QueryBuilder buildListQuery(List<String> indexNames, List<String> connectorNames) {
+    private QueryBuilder buildListQuery(
+        List<String> indexNames,
+        List<String> connectorNames,
+        List<String> serviceTypes,
+        String searchQuery
+    ) {
         boolean filterByIndexNames = indexNames != null && indexNames.isEmpty() == false;
         boolean filterByConnectorNames = indexNames != null && connectorNames.isEmpty() == false;
-        boolean usesFilter = filterByIndexNames || filterByConnectorNames;
+        boolean filterByServiceTypes = serviceTypes != null && serviceTypes.isEmpty() == false;
+        boolean filterBySearchQuery = Strings.isNullOrEmpty(searchQuery) == false;
+        boolean usesFilter = filterByIndexNames || filterByConnectorNames || filterByServiceTypes || filterBySearchQuery;
 
         BoolQueryBuilder boolFilterQueryBuilder = new BoolQueryBuilder();
 
@@ -346,6 +361,20 @@ public class ConnectorIndexService {
             }
             if (filterByConnectorNames) {
                 boolFilterQueryBuilder.must().add(new TermsQueryBuilder(Connector.NAME_FIELD.getPreferredName(), connectorNames));
+            }
+            if (filterByServiceTypes) {
+                boolFilterQueryBuilder.must().add(new TermsQueryBuilder(Connector.SERVICE_TYPE_FIELD.getPreferredName(), serviceTypes));
+            }
+            if (filterBySearchQuery) {
+                String wildcardQueryValue = '*' + searchQuery + '*';
+                boolFilterQueryBuilder.must()
+                    .add(
+                        new BoolQueryBuilder().should(
+                            new WildcardQueryBuilder(Connector.INDEX_NAME_FIELD.getPreferredName(), wildcardQueryValue)
+                        )
+                            .should(new WildcardQueryBuilder(Connector.NAME_FIELD.getPreferredName(), wildcardQueryValue))
+                            .should(new WildcardQueryBuilder(Connector.DESCRIPTION_FIELD.getPreferredName(), wildcardQueryValue))
+                    );
             }
         }
         return usesFilter ? boolFilterQueryBuilder : new MatchAllQueryBuilder();
@@ -392,7 +421,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -422,7 +451,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -453,7 +482,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -483,7 +512,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -512,7 +541,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -542,7 +571,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -582,7 +611,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -614,7 +643,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -659,7 +688,7 @@ public class ConnectorIndexService {
                     updateRequest,
                     new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
                         if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                            ll.onFailure(new ResourceNotFoundException(connectorId));
+                            ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                             return;
                         }
                         ll.onResponse(updateResponse);
@@ -691,7 +720,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -736,7 +765,7 @@ public class ConnectorIndexService {
                     updateRequest,
                     new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (updateListener, updateResponse) -> {
                         if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                            updateListener.onFailure(new ResourceNotFoundException(connectorId));
+                            updateListener.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                             return;
                         }
                         updateListener.onResponse(updateResponse);
@@ -779,7 +808,7 @@ public class ConnectorIndexService {
                     updateRequest,
                     new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (updateListener, updateResponse) -> {
                         if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                            updateListener.onFailure(new ResourceNotFoundException(connectorId));
+                            updateListener.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                             return;
                         }
                         updateListener.onResponse(updateResponse);
@@ -807,7 +836,7 @@ public class ConnectorIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -880,6 +909,10 @@ public class ConnectorIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private String connectorNotFoundErrorMsg(String connectorId) {
+        return "connector [" + connectorId + "] not found";
     }
 
     public record ConnectorResult(List<ConnectorSearchResult> connectors, long totalResults) {}

@@ -68,7 +68,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.mockito.Mockito.mock;
@@ -78,7 +77,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
     public void testAuditOnFinishFrequency() {
         ClientTransformIndexer indexer = createTestIndexer();
-        List<Boolean> shouldAudit = IntStream.range(0, 100_000).boxed().map(indexer::shouldAuditOnFinish).collect(Collectors.toList());
+        List<Boolean> shouldAudit = IntStream.range(0, 100_000).boxed().map(indexer::shouldAuditOnFinish).toList();
 
         // Audit every checkpoint for the first 10
         assertTrue(shouldAudit.get(0));
@@ -293,72 +292,14 @@ public class ClientTransformIndexerTests extends ESTestCase {
     }
 
     public void testDisablePit() throws InterruptedException {
-        // TransformConfigTests.randomTransformConfig never produces remote indices in the source, hence we are safe here. */
-        TransformConfig config = TransformConfigTests.randomTransformConfig();
-        boolean pitEnabled = config.getSettings().getUsePit() == null || config.getSettings().getUsePit();
-
-        try (var threadPool = createThreadPool()) {
-            final var client = new PitMockClient(threadPool, true);
-            MockClientTransformIndexer indexer = new MockClientTransformIndexer(
-                mock(ThreadPool.class),
-                new TransformServices(
-                    mock(IndexBasedTransformConfigManager.class),
-                    mock(TransformCheckpointService.class),
-                    mock(TransformAuditor.class),
-                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO)
-                ),
-                mock(CheckpointProvider.class),
-                new AtomicReference<>(IndexerState.STOPPED),
-                null,
-                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
-                mock(TransformIndexerStats.class),
-                config,
-                null,
-                new TransformCheckpoint(
-                    "transform",
-                    Instant.now().toEpochMilli(),
-                    0L,
-                    Collections.emptyMap(),
-                    Instant.now().toEpochMilli()
-                ),
-                new TransformCheckpoint(
-                    "transform",
-                    Instant.now().toEpochMilli(),
-                    2L,
-                    Collections.emptyMap(),
-                    Instant.now().toEpochMilli()
-                ),
-                new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
-                mock(TransformContext.class),
-                false
-            );
-
-            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                if (pitEnabled) {
-                    assertEquals("the_pit_id+", response.pointInTimeId());
-                } else {
-                    assertNull(response.pointInTimeId());
-                }
-            });
-
-            // reverse the setting
-            indexer.applyNewSettings(new SettingsConfig.Builder().setUsePit(pitEnabled == false).build());
-
-            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
-                if (pitEnabled) {
-                    assertNull(response.pointInTimeId());
-                } else {
-                    assertEquals("the_pit_id+", response.pointInTimeId());
-                }
-            });
+        TransformConfig.Builder configBuilder = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig());
+        if (randomBoolean()) {
+            // TransformConfigTests.randomTransformConfig never produces remote indices in the source.
+            // We need to explicitly set the remote index here for coverage.
+            configBuilder.setSource(new SourceConfig("remote-cluster:remote-index"));
         }
-    }
+        TransformConfig config = configBuilder.build();
 
-    public void testDisablePitWhenThereIsRemoteIndexInSource() throws InterruptedException {
-        TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig())
-            // Remote index is configured within source
-            .setSource(new SourceConfig("remote-cluster:remote-index"))
-            .build();
         boolean pitEnabled = config.getSettings().getUsePit() == null || config.getSettings().getUsePit();
 
         try (var threadPool = createThreadPool()) {
@@ -397,20 +338,24 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 false
             );
 
-            // Because remote index is configured within source, we expect PIT *not* being used regardless the transform settings
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> assertNull(response.pointInTimeId())
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                if (pitEnabled) {
+                    assertEquals("the_pit_id+", response.pointInTimeId());
+                } else {
+                    assertNull(response.pointInTimeId());
+                }
+            });
 
             // reverse the setting
             indexer.applyNewSettings(new SettingsConfig.Builder().setUsePit(pitEnabled == false).build());
 
-            // Because remote index is configured within source, we expect PIT *not* being used regardless the transform settings
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> assertNull(response.pointInTimeId())
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                if (pitEnabled) {
+                    assertNull(response.pointInTimeId());
+                } else {
+                    assertEquals("the_pit_id+", response.pointInTimeId());
+                }
+            });
         }
     }
 

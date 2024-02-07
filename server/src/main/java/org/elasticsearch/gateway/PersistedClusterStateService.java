@@ -377,11 +377,28 @@ public class PersistedClusterStateService {
         if (nodeId == null) {
             return null;
         }
+
         // TODO[wrb]: Here we are *reading* a version integer and we have three cases to handle
         // case 1: "legacy" ID, matches an IndexVersion
+        if (version.before(Version.V_8_11_0)) {
+            return NodeMetadata.createWithIndexVersion(nodeId, IndexVersion.fromId(version.id), oldestIndexVersion);
+        }
         // case 2: version ID that's diverged from indexVersion ID
+        // I think this is just the 8.11 and 8.12 lines
+        if (version.between(Version.V_8_11_0, Version.V_8_12_0)) {
+            return NodeMetadata.createWithIndexVersion(nodeId, IndexVersions.UPGRADE_LUCENE_9_8, oldestIndexVersion);
+        }
+        if (version.equals(Version.V_8_12_0)) {
+            return NodeMetadata.createWithIndexVersion(nodeId, IndexVersions.ES_VERSION_8_12, oldestIndexVersion);
+        }
+        if (version.between(Version.V_8_12_1, Version.V_8_13_0)) {
+            return NodeMetadata.createWithIndexVersion(nodeId, IndexVersions.ES_VERSION_8_12_1, oldestIndexVersion);
+        }
+        if (version.equals(Version.CURRENT)) {
+            return NodeMetadata.createWithIndexVersion(nodeId, IndexVersion.current(), oldestIndexVersion);
+        }
         // case 3: indexVersion ID from new code
-        return NodeMetadata.createWithVersion(nodeId, version, oldestIndexVersion);
+        return NodeMetadata.createWithIndexVersion(nodeId, IndexVersion.fromId(version.id()), oldestIndexVersion);
     }
 
     /**

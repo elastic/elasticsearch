@@ -175,7 +175,7 @@ public final class NodeMetadata {
 
     static IndexVersion versionToIndexVersion(Version version) {
         // case -- ids match
-        if (version.before(Version.V_8_5_0)) {
+        if (version.before(Version.V_8_11_0)) {
             return IndexVersion.fromId(version.id());
         }
 

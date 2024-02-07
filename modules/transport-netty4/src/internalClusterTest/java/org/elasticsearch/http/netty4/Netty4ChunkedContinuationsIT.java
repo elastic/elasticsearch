@@ -20,14 +20,18 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
@@ -50,7 +54,6 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpRouteStatsTracker;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -79,6 +82,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -89,13 +93,14 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestResponse.TEXT_CONTENT_TYPE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.concatLists(
-            List.of(YieldsContinuationsPlugin.class, CountDown3Plugin.class, ExposesRequestRefs.class),
+            List.of(YieldsContinuationsPlugin.class, InfiniteContinuationsPlugin.class, CountDown3Plugin.class),
             super.nodePlugins()
         );
     }
@@ -239,7 +244,28 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         }
     }
 
-    // TODO add a test showing that we call RestResponse#close even while waiting for a continuation if the HTTP channel closes
+    public void testClientCancellation() {
+        try (var ignored = withRequestTracker()) {
+            final var cancellable = getRestClient().performRequestAsync(
+                new Request("GET", InfiniteContinuationsPlugin.ROUTE),
+                new ResponseListener() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        fail("should not succeed");
+                    }
+
+                    @Override
+                    public void onFailure(Exception exception) {
+                        assertThat(exception, instanceOf(CancellationException.class));
+                    }
+                }
+            );
+            if (randomBoolean()) {
+                safeSleep(10); // make it more likely the request started executing
+            }
+            cancellable.cancel();
+        } // closing the request tracker ensures that everything is released, including all response chunks and the overall response
+    }
 
     private static Releasable withRequestTracker() {
         final var latch = new CountDownLatch(1);
@@ -263,49 +289,16 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         void setRequestRefs(RefCounted requestRefs);
     }
 
-    interface TestRefCounted extends RefCounted {}
-
-    public static class ExposesRequestRefs extends Plugin implements HasRequestRefs, TestRefCounted {
-        RefCounted requestRefs = RefCounted.ALWAYS_REFERENCED;
-
-        @Override
-        public void setRequestRefs(RefCounted requestRefs) {
-            this.requestRefs = requestRefs;
-        }
-
-        @Override
-        public void incRef() {
-            requestRefs.incRef();
-        }
-
-        @Override
-        public boolean tryIncRef() {
-            return requestRefs.tryIncRef();
-        }
-
-        @Override
-        public boolean decRef() {
-            return requestRefs.decRef();
-        }
-
-        @Override
-        public boolean hasReferences() {
-            return requestRefs.hasReferences();
-        }
-
-        @Override
-        public Collection<?> createComponents(PluginServices services) {
-            return List.of(new PluginComponentBinding<TestRefCounted, TestRefCounted>(TestRefCounted.class, this));
-        }
-    }
-
+    /**
+     * Adds a REST route which yields a sequence of continuations which are computed asynchronously, effectively pausing after each one..
+     */
     public static class YieldsContinuationsPlugin extends Plugin implements ActionPlugin, HasRequestRefs {
         static final String ROUTE = "/_test/yields_continuations";
         static final String FAIL_INDEX_PARAM = "fail_index";
 
         private static final ActionType<YieldsContinuationsPlugin.Response> TYPE = new ActionType<>("test:yields_continuations");
 
-        RefCounted requestRefs = RefCounted.ALWAYS_REFERENCED;
+        private RefCounted requestRefs = RefCounted.ALWAYS_REFERENCED;
 
         @Override
         public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -318,9 +311,11 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         }
 
         public static class Request extends ActionRequest {
+            final RefCounted requestRefs;
             final int failIndex;
 
-            public Request(int failIndex) {
+            public Request(RefCounted requestRefs, int failIndex) {
+                this.requestRefs = requestRefs;
                 this.failIndex = failIndex;
             }
 
@@ -333,9 +328,9 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         public static class Response extends ActionResponse {
             private final int failIndex;
             private final Executor executor;
-            private final TestRefCounted requestRefs;
+            private final RefCounted requestRefs;
 
-            public Response(int failIndex, Executor executor, TestRefCounted requestRefs) {
+            public Response(int failIndex, Executor executor, RefCounted requestRefs) {
                 this.failIndex = failIndex;
                 this.executor = executor;
                 this.requestRefs = requestRefs;
@@ -405,22 +400,16 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
         public static class TransportYieldsContinuationsAction extends TransportAction<Request, Response> {
             private final ExecutorService executor;
-            private final TestRefCounted requestRefs;
 
             @Inject
-            public TransportYieldsContinuationsAction(
-                ActionFilters actionFilters,
-                TransportService transportService,
-                TestRefCounted requestRefs
-            ) {
+            public TransportYieldsContinuationsAction(ActionFilters actionFilters, TransportService transportService) {
                 super(TYPE.name(), actionFilters, transportService.getTaskManager());
                 executor = transportService.getThreadPool().executor(ThreadPool.Names.GENERIC);
-                this.requestRefs = requestRefs;
             }
 
             @Override
             protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-                executor.execute(ActionRunnable.supply(listener, () -> new Response(request.failIndex, executor, requestRefs)));
+                executor.execute(ActionRunnable.supply(listener, () -> new Response(request.failIndex, executor, request.requestRefs)));
             }
         }
 
@@ -462,7 +451,159 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                         @Override
                         public void accept(RestChannel channel) {
                             localRequestRefs.mustIncRef();
-                            client.execute(TYPE, new Request(failIndex), new RestActionListener<>(channel) {
+                            client.execute(TYPE, new Request(localRequestRefs, failIndex), new RestActionListener<>(channel) {
+                                @Override
+                                protected void processResponse(Response response) {
+                                    channel.sendResponse(
+                                        RestResponse.chunked(RestStatus.OK, response.getChunkedBody(), localRequestRefs::decRef)
+                                    );
+                                }
+                            });
+                        }
+                    };
+                }
+            });
+        }
+    }
+
+    /**
+     * Adds a REST route which yields an infinite sequence of continuations which can only be stopped by the client closing the connection.
+     */
+    public static class InfiniteContinuationsPlugin extends Plugin implements ActionPlugin, HasRequestRefs {
+        static final String ROUTE = "/_test/infinite_continuations";
+
+        private static final ActionType<Response> TYPE = new ActionType<>("test:infinite_continuations");
+
+        private RefCounted requestRefs = RefCounted.ALWAYS_REFERENCED;
+
+        @Override
+        public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+            return List.of(new ActionHandler<>(TYPE, TransportInfiniteContinuationsAction.class));
+        }
+
+        @Override
+        public void setRequestRefs(RefCounted requestRefs) {
+            this.requestRefs = requestRefs;
+        }
+
+        public static class Request extends ActionRequest {
+            final RefCounted requestRefs;
+
+            public Request(RefCounted requestRefs) {
+                this.requestRefs = requestRefs;
+            }
+
+            @Override
+            public ActionRequestValidationException validate() {
+                return null;
+            }
+        }
+
+        public static class Response extends ActionResponse {
+            private final Executor executor;
+            private final RefCounted requestRefs;
+
+            public Response(Executor executor, RefCounted requestRefs) {
+                this.executor = executor;
+                this.requestRefs = requestRefs;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {
+                TransportAction.localOnly();
+            }
+
+            public ChunkedRestResponseBody getChunkedBody() {
+                return new ChunkedRestResponseBody() {
+                    private final Iterator<String> lines = Iterators.single("infinite response\n");
+
+                    @Override
+                    public boolean isDone() {
+                        return lines.hasNext() == false;
+                    }
+
+                    @Override
+                    public boolean isEndOfResponse() {
+                        return false;
+                    }
+
+                    @Override
+                    public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
+                        executor.execute(ActionRunnable.supply(listener, () -> getChunkedBody()));
+                    }
+
+                    @Override
+                    public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
+                        assertTrue(lines.hasNext());
+                        requestRefs.mustIncRef();
+                        return new ReleasableBytesReference(new BytesArray(lines.next()), requestRefs::decRef);
+                    }
+
+                    @Override
+                    public String getResponseContentTypeString() {
+                        return TEXT_CONTENT_TYPE;
+                    }
+                };
+            }
+        }
+
+        public static class TransportInfiniteContinuationsAction extends TransportAction<Request, Response> {
+            private final ExecutorService executor;
+
+            @Inject
+            public TransportInfiniteContinuationsAction(ActionFilters actionFilters, TransportService transportService) {
+                super(TYPE.name(), actionFilters, transportService.getTaskManager());
+                this.executor = transportService.getThreadPool().executor(ThreadPool.Names.GENERIC);
+            }
+
+            @Override
+            protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+                executor.execute(
+                    ActionRunnable.supply(
+                        ActionTestUtils.assertNoFailureListener(listener::onResponse),
+                        () -> new Response(executor, request.requestRefs)
+                    )
+                );
+            }
+        }
+
+        @Override
+        public Collection<RestHandler> getRestHandlers(
+            Settings settings,
+            NamedWriteableRegistry namedWriteableRegistry,
+            RestController restController,
+            ClusterSettings clusterSettings,
+            IndexScopedSettings indexScopedSettings,
+            SettingsFilter settingsFilter,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<DiscoveryNodes> nodesInCluster,
+            Predicate<NodeFeature> clusterSupportsFeature
+        ) {
+            return List.of(new BaseRestHandler() {
+                @Override
+                public String getName() {
+                    return ROUTE;
+                }
+
+                @Override
+                public List<Route> routes() {
+                    return List.of(new Route(GET, ROUTE));
+                }
+
+                @Override
+                protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                    final var localRequestRefs = requestRefs;
+                    localRequestRefs.mustIncRef();
+                    return new RestChannelConsumer() {
+                        @Override
+                        public void close() {
+                            localRequestRefs.decRef();
+                        }
+
+                        @Override
+                        public void accept(RestChannel channel) {
+                            localRequestRefs.mustIncRef();
+                            client.execute(TYPE, new Request(localRequestRefs), new RestActionListener<>(channel) {
                                 @Override
                                 protected void processResponse(Response response) {
                                     channel.sendResponse(
@@ -484,7 +625,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
         static final String ROUTE = "/_test/countdown_3";
 
-        RefCounted requestRefs = RefCounted.ALWAYS_REFERENCED;
+        private RefCounted requestRefs = RefCounted.ALWAYS_REFERENCED;
 
         @Override
         public void setRequestRefs(RefCounted requestRefs) {

@@ -204,33 +204,33 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         ClusterStateObserver observer,
         ActionListener<MultiGetShardResponse> listener
     ) {
+        final var retryingListener = listener.delegateResponse((l, e) -> {
+            final var cause = ExceptionsHelper.unwrapCause(e);
+            logger.debug("mget_from_translog[shard] failed", cause);
+            if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
+                logger.debug("retrying mget_from_translog[shard]");
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        shardMultiGetFromTranslog(request, indexShard, state, observer, l);
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        l.onFailure(new NodeClosedException(clusterService.localNode()));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", cause));
+                    }
+                });
+            } else {
+                l.onFailure(e);
+            }
+        });
         try {
             final var node = getCurrentNodeOfPrimary(state, indexShard.shardId());
-            final var retryingListener = listener.delegateResponse((l, e) -> {
-                final var cause = ExceptionsHelper.unwrapCause(e);
-                logger.debug("mget_from_translog[shard] failed", cause);
-                if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
-                    logger.debug("retrying mget_from_translog[shard]");
-                    observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                        @Override
-                        public void onNewClusterState(ClusterState state) {
-                            shardMultiGetFromTranslog(request, indexShard, state, observer, l);
-                        }
-
-                        @Override
-                        public void onClusterServiceClose() {
-                            l.onFailure(new NodeClosedException(clusterService.localNode()));
-                        }
-
-                        @Override
-                        public void onTimeout(TimeValue timeout) {
-                            l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", cause));
-                        }
-                    });
-                } else {
-                    l.onFailure(e);
-                }
-            });
             tryShardMultiGetFromTranslog(request, indexShard, node, retryingListener);
         } catch (Exception e) {
             listener.onFailure(e);

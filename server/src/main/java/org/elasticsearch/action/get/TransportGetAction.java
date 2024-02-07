@@ -225,33 +225,33 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         ClusterStateObserver observer,
         ActionListener<GetResponse> listener
     ) {
+        final var retryingListener = listener.delegateResponse((l, e) -> {
+            final var cause = ExceptionsHelper.unwrapCause(e);
+            logger.debug("get_from_translog failed", cause);
+            if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
+                logger.debug("retrying get_from_translog");
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        getFromTranslog(request, indexShard, state, observer, l);
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        l.onFailure(new NodeClosedException(clusterService.localNode()));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
+                    }
+                });
+            } else {
+                l.onFailure(e);
+            }
+        });
         try {
             final var node = getCurrentNodeOfPrimary(state, indexShard.shardId());
-            final var retryingListener = listener.delegateResponse((l, e) -> {
-                final var cause = ExceptionsHelper.unwrapCause(e);
-                logger.debug("get_from_translog failed", cause);
-                if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
-                    logger.debug("retrying get_from_translog");
-                    observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                        @Override
-                        public void onNewClusterState(ClusterState state) {
-                            getFromTranslog(request, indexShard, state, observer, l);
-                        }
-
-                        @Override
-                        public void onClusterServiceClose() {
-                            l.onFailure(new NodeClosedException(clusterService.localNode()));
-                        }
-
-                        @Override
-                        public void onTimeout(TimeValue timeout) {
-                            l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
-                        }
-                    });
-                } else {
-                    l.onFailure(e);
-                }
-            });
             tryGetFromTranslog(request, indexShard, node, retryingListener);
         } catch (Exception e) {
             listener.onFailure(e);

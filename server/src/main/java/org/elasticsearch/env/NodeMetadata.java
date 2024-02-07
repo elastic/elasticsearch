@@ -39,29 +39,41 @@ public final class NodeMetadata {
     private final String nodeId;
 
     private final Version nodeVersion;
+    private final IndexVersion nodeVersionAsIndexVersion;
 
     private final Version previousNodeVersion;
+    private final IndexVersion previousNodeVersionAsIndexVersion;
 
     private final IndexVersion oldestIndexVersion;
 
     private NodeMetadata(
         final String nodeId,
         final Version nodeVersion,
+        final IndexVersion nodeVersionAsIndexVersion,
         final Version previousNodeVersion,
+        final IndexVersion previousNodeVersionAsIndexVersion,
         final IndexVersion oldestIndexVersion
     ) {
         this.nodeId = Objects.requireNonNull(nodeId);
         this.nodeVersion = Objects.requireNonNull(nodeVersion);
+        this.nodeVersionAsIndexVersion = nodeVersionAsIndexVersion;
         this.previousNodeVersion = Objects.requireNonNull(previousNodeVersion);
+        this.previousNodeVersionAsIndexVersion = nodeVersionAsIndexVersion;
         this.oldestIndexVersion = Objects.requireNonNull(oldestIndexVersion);
     }
 
-    private NodeMetadata(final String nodeId, final Version nodeVersion, final IndexVersion oldestIndexVersion) {
-        this(nodeId, nodeVersion, nodeVersion, oldestIndexVersion);
+    private NodeMetadata(
+        final String nodeId,
+        final Version nodeVersion,
+        final IndexVersion nodeVersionAsIndexVersion,
+        final IndexVersion oldestIndexVersion
+    ) {
+        this(nodeId, nodeVersion, nodeVersionAsIndexVersion, nodeVersion, nodeVersionAsIndexVersion, oldestIndexVersion);
     }
 
     public static NodeMetadata createWithVersion(final String nodeId, final Version nodeVersion, final IndexVersion oldestIndexVersion) {
-        return new NodeMetadata(nodeId, nodeVersion, oldestIndexVersion);
+        // TODO[wrb]: index version is null
+        return new NodeMetadata(nodeId, nodeVersion, null, oldestIndexVersion);
     }
 
     public static NodeMetadata createWithIndexVersion(
@@ -69,7 +81,7 @@ public final class NodeMetadata {
         final IndexVersion nodeVersion,
         final IndexVersion oldestIndexVersion
     ) {
-        return new NodeMetadata(nodeId, indexVersionToVersion(nodeVersion), oldestIndexVersion);
+        return new NodeMetadata(nodeId, indexVersionToVersion(nodeVersion), nodeVersion, oldestIndexVersion);
     }
 
     static Version indexVersionToVersion(IndexVersion indexVersion) {
@@ -155,6 +167,9 @@ public final class NodeMetadata {
     }
 
     public IndexVersion nodeVersionAsIndexVersion() {
+        if (this.nodeVersionAsIndexVersion != null) {
+            return this.nodeVersionAsIndexVersion;
+        }
         return versionToIndexVersion(nodeVersion);
     }
 
@@ -180,6 +195,13 @@ public final class NodeMetadata {
      */
     public Version previousNodeVersion() {
         return previousNodeVersion;
+    }
+
+    public IndexVersion previousNodeVersionAsIndexVersion() {
+        if (this.previousNodeVersionAsIndexVersion != null) {
+            return this.previousNodeVersionAsIndexVersion;
+        }
+        return versionToIndexVersion(previousNodeVersion);
     }
 
     public IndexVersion oldestIndexVersion() {
@@ -213,7 +235,9 @@ public final class NodeMetadata {
     public NodeMetadata upgradeToCurrentVersion() {
         verifyUpgradeToCurrentVersion();
 
-        return nodeVersion.equals(Version.CURRENT) ? this : new NodeMetadata(nodeId, Version.CURRENT, nodeVersion, oldestIndexVersion);
+        return nodeVersion.equals(Version.CURRENT)
+            ? this
+            : new NodeMetadata(nodeId, Version.CURRENT, IndexVersion.current(), nodeVersion, null, oldestIndexVersion);
     }
 
     private static class Builder {
@@ -252,7 +276,8 @@ public final class NodeMetadata {
                 oldestIndexVersion = this.oldestIndexVersion;
             }
 
-            return new NodeMetadata(nodeId, nodeVersion, previousNodeVersion, oldestIndexVersion);
+            // TODO[wrb]: fix nulls
+            return new NodeMetadata(nodeId, nodeVersion, null, previousNodeVersion, null, oldestIndexVersion);
         }
     }
 

@@ -58,7 +58,7 @@ public final class NodeMetadata {
         this.nodeVersion = Objects.requireNonNull(nodeVersion);
         this.nodeVersionAsIndexVersion = Objects.requireNonNull(nodeVersionAsIndexVersion);
         this.previousNodeVersion = Objects.requireNonNull(previousNodeVersion);
-        this.previousNodeVersionAsIndexVersion = Objects.requireNonNull(nodeVersionAsIndexVersion);
+        this.previousNodeVersionAsIndexVersion = Objects.requireNonNull(previousNodeVersionAsIndexVersion);
         this.oldestIndexVersion = Objects.requireNonNull(oldestIndexVersion);
     }
 
@@ -158,14 +158,11 @@ public final class NodeMetadata {
     }
 
     public Version nodeVersion() {
-        return nodeVersion;
+        return indexVersionToVersion(nodeVersionAsIndexVersion);
     }
 
     public IndexVersion nodeVersionAsIndexVersion() {
-        if (this.nodeVersionAsIndexVersion != null) {
-            return this.nodeVersionAsIndexVersion;
-        }
-        return versionToIndexVersion(nodeVersion);
+        return this.nodeVersionAsIndexVersion;
     }
 
     static IndexVersion versionToIndexVersion(Version version) {
@@ -174,12 +171,22 @@ public final class NodeMetadata {
             return IndexVersion.fromId(version.id());
         }
 
-        // case -- current version
+        // case 2: version ID that's diverged from indexVersion ID
+        // I think this is just the 8.11 and 8.12 lines
+        if (version.between(Version.V_8_11_0, Version.V_8_12_0)) {
+            return IndexVersions.UPGRADE_LUCENE_9_8;
+        }
+        if (version.equals(Version.V_8_12_0)) {
+            return IndexVersions.ES_VERSION_8_12;
+        }
+        if (version.between(Version.V_8_12_1, Version.V_8_13_0)) {
+            return IndexVersions.ES_VERSION_8_12_1;
+        }
         if (version.equals(Version.CURRENT)) {
             return IndexVersion.current();
         }
-
-        throw new AssertionError("Unexpected case for Version[" + version + "]");
+        // case 3: indexVersion ID from new code
+        return IndexVersion.fromId(version.id());
     }
 
     /**
@@ -189,14 +196,11 @@ public final class NodeMetadata {
      * In doing so, {@code previousNodeVersion} refers to the previously last known version that this node was started on.
      */
     public Version previousNodeVersion() {
-        return previousNodeVersion;
+        return indexVersionToVersion(previousNodeVersionAsIndexVersion);
     }
 
     public IndexVersion previousNodeVersionAsIndexVersion() {
-        if (this.previousNodeVersionAsIndexVersion != null) {
-            return this.previousNodeVersionAsIndexVersion;
-        }
-        return versionToIndexVersion(previousNodeVersion);
+        return this.previousNodeVersionAsIndexVersion;
     }
 
     public IndexVersion oldestIndexVersion() {

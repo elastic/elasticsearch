@@ -14,13 +14,13 @@ import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.lucene.spatial.CentroidCalculator;
+import org.elasticsearch.lucene.spatial.Component2DVisitor;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.script.GeometryFieldScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
-import org.elasticsearch.xpack.spatial.index.fielddata.Component2DVisitor;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueWriter;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

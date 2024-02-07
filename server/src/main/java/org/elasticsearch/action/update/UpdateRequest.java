@@ -705,6 +705,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
+     * Sets the doc source of the update request to be used when the document does not exists.
+     */
+    public UpdateRequest upsert(BytesReference source, XContentType contentType) {
+        safeUpsertRequest().source(source, contentType);
+        return this;
+    }
+
+    /**
      * Sets the index request to be used if the document does not exists. Otherwise, a
      * {@link org.elasticsearch.index.engine.DocumentMissingException} is thrown.
      */

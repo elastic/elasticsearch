@@ -205,18 +205,17 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
 
     @Override
     protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
+        assert buckets.isEmpty() == false;
         InternalBucket reduced = null;
-        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
         for (InternalBucket bucket : buckets) {
             if (reduced == null) {
                 reduced = new InternalBucket(bucket.key, bucket.docCount, bucket.aggregations);
             } else {
                 reduced.docCount += bucket.docCount;
             }
-            aggregationsList.add(bucket.aggregations);
         }
-        reduced.aggregations = InternalAggregations.reduce(aggregationsList, context);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        reduced.aggregations = InternalAggregations.reduce(aggregations, context);
         return reduced;
     }
 

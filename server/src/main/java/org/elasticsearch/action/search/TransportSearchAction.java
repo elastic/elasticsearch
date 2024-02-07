@@ -360,7 +360,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         localIndices,
                         remoteClusterIndices,
                         true,
-                        alias -> remoteClusterService.isSkipUnavailable(alias)
+                        remoteClusterService::isSkipUnavailable
                     );
                     if (localIndices == null) {
                         // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local shards)
@@ -395,7 +395,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         localIndices,
                         remoteClusterIndices,
                         false,
-                        alias -> remoteClusterService.isSkipUnavailable(alias)
+                        remoteClusterService::isSkipUnavailable
                     );
                     // TODO: pass parentTaskId
                     collectSearchShards(

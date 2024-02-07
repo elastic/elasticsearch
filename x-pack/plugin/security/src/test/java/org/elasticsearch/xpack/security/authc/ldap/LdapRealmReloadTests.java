@@ -50,6 +50,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
 import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -101,17 +102,9 @@ public class LdapRealmReloadTests extends LdapTestCase {
     }
 
     public void testReloadWithoutConnectionPool() throws Exception {
-        final boolean useLegacyBindSetting = randomBoolean();
-        final Settings bindPasswordSettings;
-        if (useLegacyBindSetting) {
-            bindPasswordSettings = Settings.builder()
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), INITIAL_BIND_PASSWORD)
-                .build();
-        } else {
-            bindPasswordSettings = Settings.builder()
-                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, INITIAL_BIND_PASSWORD))
-                .build();
-        }
+        final Settings bindPasswordSettings = Settings.builder()
+            .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, INITIAL_BIND_PASSWORD))
+            .build();
         final Settings settings = Settings.builder()
             .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), false)
             .putList(getFullSettingKey(REALM_IDENTIFIER, URLS_SETTING), ldapUrls())
@@ -131,45 +124,23 @@ public class LdapRealmReloadTests extends LdapTestCase {
 
             // Generate new password and reload only on ES side
             final String newBindPassword = randomAlphaOfLengthBetween(5, 10);
-            final Settings updatedBindPasswordSettings;
-            if (useLegacyBindSetting) {
-                updatedBindPasswordSettings = Settings.builder()
-                    .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), newBindPassword)
-                    .build();
-            } else {
-                updatedBindPasswordSettings = Settings.builder()
-                    .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, newBindPassword))
-                    .build();
-            }
+            final Settings updatedBindPasswordSettings = Settings.builder()
+                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, newBindPassword))
+                .build();
+
             ldap.reload(updatedBindPasswordSettings);
             authenticateUserAndAssertStatus(ldap, AuthenticationResult.Status.CONTINUE);
 
             // Change password on LDAP server side and check that authentication works
             changeUserPasswordOnLdapServers(BIND_DN, newBindPassword);
             authenticateUserAndAssertStatus(ldap, AuthenticationResult.Status.SUCCESS);
-
-            if (useLegacyBindSetting) {
-                assertSettingDeprecationsAndWarnings(
-                    new Setting<?>[] {
-                        PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD.apply(REALM_IDENTIFIER.getType())
-                            .getConcreteSettingForNamespace(REALM_IDENTIFIER.getName()) }
-                );
-            }
         }
     }
 
     public void testReloadWithConnectionPool() throws Exception {
-        final boolean useLegacyBindSetting = randomBoolean();
-        final Settings bindPasswordSettings;
-        if (useLegacyBindSetting) {
-            bindPasswordSettings = Settings.builder()
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), INITIAL_BIND_PASSWORD)
-                .build();
-        } else {
-            bindPasswordSettings = Settings.builder()
-                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, INITIAL_BIND_PASSWORD))
-                .build();
-        }
+        final Settings bindPasswordSettings = Settings.builder()
+            .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, INITIAL_BIND_PASSWORD))
+            .build();
         final Settings settings = Settings.builder()
             .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), true)
             .putList(getFullSettingKey(REALM_IDENTIFIER, URLS_SETTING), ldapUrls())
@@ -194,16 +165,10 @@ public class LdapRealmReloadTests extends LdapTestCase {
 
             // Generate a new password and reload only on ES side
             final String newBindPassword = randomAlphaOfLengthBetween(5, 10);
-            final Settings updatedBindPasswordSettings;
-            if (useLegacyBindSetting) {
-                updatedBindPasswordSettings = Settings.builder()
-                    .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), newBindPassword)
-                    .build();
-            } else {
-                updatedBindPasswordSettings = Settings.builder()
-                    .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, newBindPassword))
-                    .build();
-            }
+            final Settings updatedBindPasswordSettings = Settings.builder()
+                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, newBindPassword))
+                .build();
+
             ldap.reload(updatedBindPasswordSettings);
             // Using new bind password should fail since we did not update it on LDAP server side.
             authenticateUserAndAssertStatus(ldap, AuthenticationResult.Status.CONTINUE);
@@ -211,6 +176,68 @@ public class LdapRealmReloadTests extends LdapTestCase {
             // Change password on LDAP server side and check that authentication works now.
             changeUserPasswordOnLdapServers(BIND_DN, newBindPassword);
             authenticateUserAndAssertStatus(ldap, AuthenticationResult.Status.SUCCESS);
+        }
+    }
+
+    public void testReloadValidation() throws Exception {
+        final boolean useLegacyBindSetting = randomBoolean();
+        final Settings bindPasswordSettings;
+        if (useLegacyBindSetting) {
+            bindPasswordSettings = Settings.builder()
+                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), INITIAL_BIND_PASSWORD)
+                .build();
+        } else {
+            bindPasswordSettings = Settings.builder()
+                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, INITIAL_BIND_PASSWORD))
+                .build();
+        }
+        final Settings settings = Settings.builder()
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean())
+            .putList(getFullSettingKey(REALM_IDENTIFIER, URLS_SETTING), ldapUrls())
+            .put(defaultRealmSettings)
+            .put(defaultGlobalSettings)
+            .put(bindPasswordSettings)
+            .build();
+        final RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
+        try (SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(config.env()), threadPool)) {
+            assertThat(sessionFactory, is(instanceOf(LdapUserSearchSessionFactory.class)));
+            LdapRealm ldap = new LdapRealm(config, sessionFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
+            ldap.initialize(Collections.singleton(ldap), licenseState);
+
+            var e = expectThrows(Exception.class, () -> ldap.reload(Settings.EMPTY));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "["
+                        + getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN)
+                        + "] is set but no bind password is specified. Without a corresponding bind password, "
+                        + "all "
+                        + ldap.type()
+                        + " realm authentication will fail. Specify a bind password via ["
+                        + getFullSettingKey(config, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD)
+                        + "]."
+                )
+            );
+
+            e = expectThrows(
+                Exception.class,
+                () -> ldap.reload(
+                    Settings.builder()
+                        .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, INITIAL_BIND_PASSWORD))
+                        .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), INITIAL_BIND_PASSWORD)
+                        .build()
+                )
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "You cannot specify both ["
+                        + getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD)
+                        + "] and ["
+                        + getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD)
+                        + "]"
+                )
+            );
 
             if (useLegacyBindSetting) {
                 assertSettingDeprecationsAndWarnings(
@@ -219,6 +246,10 @@ public class LdapRealmReloadTests extends LdapTestCase {
                             .getConcreteSettingForNamespace(REALM_IDENTIFIER.getName()) }
                 );
             }
+
+            // The already configured password should stay unchanged
+            // and the authentication should still work.
+            authenticateUserAndAssertStatus(ldap, AuthenticationResult.Status.SUCCESS);
         }
     }
 

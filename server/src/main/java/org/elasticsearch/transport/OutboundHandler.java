@@ -137,13 +137,17 @@ final class OutboundHandler {
             compressionScheme
         );
         response.mustIncRef();
-        sendMessage(channel, message, responseStatsConsumer, () -> {
-            try {
-                messageListener.onResponseSent(requestId, action, response);
-            } finally {
-                response.decRef();
-            }
-        });
+        try {
+            sendMessage(channel, message, responseStatsConsumer, () -> {
+                try {
+                    messageListener.onResponseSent(requestId, action, response);
+                } finally {
+                    response.decRef();
+                }
+            });
+        } catch (Exception ex) {
+            sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
+        }
     }
 
     /**

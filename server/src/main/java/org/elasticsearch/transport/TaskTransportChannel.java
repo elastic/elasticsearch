@@ -33,9 +33,11 @@ public class TaskTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
-        channel.sendResponse(response);
-        // if exceptions occur while sending the response, we will release the task later when sending the failure.
-        onTaskFinished.close();
+        try {
+            channel.sendResponse(response);
+        } finally {
+            onTaskFinished.close();
+        }
     }
 
     @Override

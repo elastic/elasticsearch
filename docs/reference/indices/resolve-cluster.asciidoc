@@ -127,8 +127,8 @@ streams that match `logs*`. In that case, that cluster will return no results fr
 you include it in a {ccs}.
 
 3. The index expression (combined with any query parameters you specify) will likely cause an exception
-to be thrown when do a search. In these cases, the "error" field in the `_resolve/cluster` response
-will be present. (This is also )
+to be thrown when you do the search. In these cases, the "error" field in the `_resolve/cluster` response
+will be present. (This is also where security/permission errors will be shown.)
 
 4. A remote cluster is an older version that does not support the feature you want to
 use in your search.
@@ -154,7 +154,7 @@ The API returns the following response:
     "skip_unavailable": false,
     "matching_indices": true,
     "version": {
-      "number": "8.14.0",
+      "number": "8.13.0",
       "build_flavor": "default",
       "minimum_wire_compatibility_version": "7.17.0",
       "minimum_index_compatibility_version": "7.0.0"
@@ -165,7 +165,7 @@ The API returns the following response:
     "skip_unavailable": true,  <3>
     "matching_indices": true,  <4>
     "version": {
-      "number": "8.14.0",      <5>
+      "number": "8.13.0",      <5>
       "build_flavor": "default",
       "minimum_wire_compatibility_version": "7.17.0",
       "minimum_index_compatibility_version": "7.0.0"
@@ -176,7 +176,7 @@ The API returns the following response:
     "skip_unavailable": false,
     "matching_indices": true,
     "version": {
-      "number": "8.14.0",
+      "number": "8.13.0",
       "build_flavor": "default",
       "minimum_wire_compatibility_version": "7.17.0",
       "minimum_index_compatibility_version": "7.0.0"
@@ -184,7 +184,7 @@ The API returns the following response:
   }
 }
 ----
-// TESTRESPONSE[s/"number": "8.14.0"/"number": "$body.$_path"/]
+// TESTRESPONSE[s/"number": "8.13.0"/"number": "$body.$_path"/]
 // TESTRESPONSE[s/"minimum_wire_compatibility_version": "7.17.0"/"minimum_wire_compatibility_version": "$body.$_path"/]
 // TESTRESPONSE[s/"minimum_index_compatibility_version": "7.0.0"/"minimum_index_compatibility_version": "$body.$_path"/]
 
@@ -222,7 +222,7 @@ GET /_resolve/cluster/not-present,clust*:my-index*,oldcluster:*?ignore_unavailab
     "skip_unavailable": true,
     "matching_indices": false,    <2>
     "version": {
-      "number": "8.14.0",
+      "number": "8.13.0",
       "build_flavor": "default",
       "minimum_wire_compatibility_version": "7.17.0",
       "minimum_index_compatibility_version": "7.0.0"
@@ -233,7 +233,7 @@ GET /_resolve/cluster/not-present,clust*:my-index*,oldcluster:*?ignore_unavailab
     "skip_unavailable": false,
     "matching_indices": true,
     "version": {
-      "number": "8.14.0",
+      "number": "8.13.0",
       "build_flavor": "default",
       "minimum_wire_compatibility_version": "7.17.0",
       "minimum_index_compatibility_version": "7.0.0"
@@ -260,6 +260,6 @@ cluster is marked as `skip_unavailable=false`, you should probably exclude this 
 search by adding `-cluster_two:*` to the search index expression.
 <4> The `oldcluster` remote cluster shows that it has matching_indices, but no version information
 is included. That means that it is running a version older than when the `_resolve/cluster` API
-was added (8.14.0), so you may want to exclude it from your {ccs}. (Note: it was able to tell there
-were matching indices because it did a fallback to use the <<indices-resolve-index-api,resolve index>>
+was added (8.13.0), so you may want to exclude it from your {ccs}. (Note: the endpoint was able to tell
+there were matching indices because it fell back to using the <<indices-resolve-index-api,resolve index>>
 API.)

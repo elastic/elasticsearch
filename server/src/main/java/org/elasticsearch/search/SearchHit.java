@@ -804,12 +804,7 @@ public final class SearchHit implements Writeable, ChunkedToXContentObject, RefC
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            // Iterators.flatMap(toInnerXContentChunked(params), c -> c.toXContent(params)),
-            toInnerXContentChunked(params),
-            ChunkedToXContentHelper.endObject()
-        );
+        return Iterators.concat(ChunkedToXContentHelper.startObject(), toInnerXContentChunked(params), ChunkedToXContentHelper.endObject());
     }
 
     private static <T> Iterator<ToXContent> chunkedSection(
@@ -823,13 +818,17 @@ public final class SearchHit implements Writeable, ChunkedToXContentObject, RefC
 
     // public because we render hit as part of completion suggestion option
     public Iterator<? extends ToXContent> toInnerXContentChunked(ToXContent.Params outerParams) {
-        var chunks = new ArrayList<Iterator<? extends ToXContent>>();
+        final int chunksUpperLimit = 20; // Currently, we have at most this number of chunks
+        var chunks = new ArrayList<Iterator<? extends ToXContent>>(chunksUpperLimit);
 
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
         if (getExplanation() != null && shard != null) {
-            chunks.add(Iterators.single((builder, params) -> builder.field(Fields._SHARD, shard.getShardId())));
-            chunks.add(Iterators.single((builder, params) -> builder.field(Fields._NODE, shard.getNodeIdText())));
+            chunks.add(
+                ChunkedToXContentHelper.singleChunk(
+                    (builder, params) -> builder.field(Fields._SHARD, shard.getShardId()).field(Fields._NODE, shard.getNodeIdText())
+                )
+            );
         }
         if (index != null) {
             chunks.add(ChunkedToXContentHelper.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index)));
@@ -852,8 +851,11 @@ public final class SearchHit implements Writeable, ChunkedToXContentObject, RefC
         }
 
         if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            chunks.add(ChunkedToXContentHelper.field(Fields._SEQ_NO, seqNo));
-            chunks.add(ChunkedToXContentHelper.field(Fields._PRIMARY_TERM, primaryTerm));
+            chunks.add(
+                ChunkedToXContentHelper.singleChunk(
+                    (builder, params) -> builder.field(Fields._SEQ_NO, seqNo).field(Fields._PRIMARY_TERM, primaryTerm)
+                )
+            );
         }
 
         if (Float.isNaN(score)) {

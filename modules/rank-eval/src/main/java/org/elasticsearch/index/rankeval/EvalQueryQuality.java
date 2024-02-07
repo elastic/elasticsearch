@@ -94,27 +94,26 @@ public class EvalQueryQuality implements ChunkedToXContent, Writeable {
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.concat(
             ChunkedToXContentHelper.singleChunk(
-                (builder, params) -> builder.startObject(queryId),
-                (builder, params) -> builder.field(METRIC_SCORE_FIELD.getPreferredName(), this.metricScore),
-                (builder, params) -> builder.startArray(UNRATED_DOCS_FIELD.getPreferredName())
+                (builder, params) -> builder.startObject(queryId)
+                    .field(METRIC_SCORE_FIELD.getPreferredName(), this.metricScore)
+                    .startArray(UNRATED_DOCS_FIELD.getPreferredName())
             ),
             Iterators.flatMap(
                 EvaluationMetric.filterUnratedDocuments(ratedHits).iterator(),
                 key -> ChunkedToXContentHelper.singleChunk(
-                    (builder, params) -> builder.startObject(),
-                    (builder, params) -> builder.field(RatedDocument.INDEX_FIELD.getPreferredName(), key.index()),
-                    (builder, params) -> builder.field(RatedDocument.DOC_ID_FIELD.getPreferredName(), key.docId()),
-                    (builder, params) -> builder.endObject()
+                    (builder, params) -> builder.startObject()
+                        .field(RatedDocument.INDEX_FIELD.getPreferredName(), key.index())
+                        .field(RatedDocument.DOC_ID_FIELD.getPreferredName(), key.docId())
+                        .endObject()
                 )
             ),
-            ChunkedToXContentHelper.endArray(),
-            ChunkedToXContentHelper.startArray(HITS_FIELD.getPreferredName()),
+            ChunkedToXContentHelper.singleChunk((builder, params) -> builder.endArray().startArray(HITS_FIELD.getPreferredName())),
             Iterators.flatMap(ratedHits.iterator(), hit -> hit.toXContentChunked(outerParams)),
             ChunkedToXContentHelper.endArray(),
             (optionalMetricDetails != null
                 ? Iterators.single((builder, params) -> builder.field(METRIC_DETAILS_FIELD.getPreferredName(), optionalMetricDetails))
                 : Collections.emptyIterator()),
-            Iterators.single((builder, params) -> builder.endObject())
+            ChunkedToXContentHelper.singleChunk((builder, params) -> builder.endObject())
         );
     }
 

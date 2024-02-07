@@ -63,11 +63,10 @@ public class RatedSearchHit implements Writeable, ChunkedToXContentObject {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.concat(
-            ChunkedToXContentHelper.singleChunk((builder, params) -> builder.startObject(), (builder, params) -> builder.field("hit")),
+            ChunkedToXContentHelper.singleChunk((builder, params) -> builder.startObject().field("hit")),
             searchHit.toXContentChunked(outerParams),
             ChunkedToXContentHelper.singleChunk(
-                (builder, params) -> builder.field("rating", rating.isPresent() ? rating.getAsInt() : null),
-                (builder, params) -> builder.endObject()
+                (builder, params) -> builder.field("rating", rating.isPresent() ? rating.getAsInt() : null).endObject()
             )
         );
     }

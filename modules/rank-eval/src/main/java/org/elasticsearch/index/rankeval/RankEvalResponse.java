@@ -91,24 +91,17 @@ public class RankEvalResponse extends ActionResponse implements ChunkedToXConten
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.concat(
             ChunkedToXContentHelper.singleChunk(
-                (builder, params) -> builder.startObject(),
-                (builder, params) -> builder.field("metric_score", metricScore),
-                (builder, params) -> builder.startObject("details")
+                (builder, params) -> builder.startObject().field("metric_score", metricScore).startObject("details")
             ),
             Iterators.flatMap(details.keySet().iterator(), key -> details.get(key).toXContentChunked(outerParams)),
-            ChunkedToXContentHelper.singleChunk(
-                (builder, params) -> builder.endObject(),
-                (builder, params) -> builder.startObject("failures")
-            ),
-            Iterators.flatMap(
-                failures.keySet().iterator(),
-                key -> ChunkedToXContentHelper.singleChunk(
-                    (builder, params) -> builder.startObject(key),
-                    (builder, params) -> ElasticsearchException.generateFailureXContent(builder, params, failures.get(key), true),
-                    (builder, params) -> builder.endObject()
-                )
-            ),
-            ChunkedToXContentHelper.singleChunk((builder, params) -> builder.endObject(), (builder, params) -> builder.endObject())
+            ChunkedToXContentHelper.singleChunk((builder, params) -> builder.endObject().startObject("failures")),
+            Iterators.flatMap(failures.keySet().iterator(), key -> ChunkedToXContentHelper.singleChunk((builder, params) -> {
+                builder.startObject(key);
+                ElasticsearchException.generateFailureXContent(builder, params, failures.get(key), true);
+                builder.endObject();
+                return builder;
+            })),
+            ChunkedToXContentHelper.singleChunk((builder, params) -> builder.endObject().endObject())
         );
     }
 }

@@ -535,9 +535,9 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
         {
             Request request = new Request("GET", "/_security/_query/api_key");
             request.setOptions(
-                    request.getOptions()
-                            .toBuilder()
-                            .addHeader(HttpHeaders.AUTHORIZATION, randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER))
+                request.getOptions()
+                    .toBuilder()
+                    .addHeader(HttpHeaders.AUTHORIZATION, randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER))
             );
             request.setJsonEntity("""
                 {
@@ -561,9 +561,9 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
         {
             Request request = new Request("GET", "/_security/_query/api_key");
             request.setOptions(
-                    request.getOptions()
-                            .toBuilder()
-                            .addHeader(HttpHeaders.AUTHORIZATION, randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER))
+                request.getOptions()
+                    .toBuilder()
+                    .addHeader(HttpHeaders.AUTHORIZATION, randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER))
             );
             request.setJsonEntity("""
                 {

@@ -101,11 +101,6 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
         Map<String, ResolveClusterInfo> clusterInfoMap = new ConcurrentHashMap<>();
-        final Runnable releaseResourcesOnCancel = () -> {
-            logger.trace("clear index responses on cancellation");
-            clusterInfoMap.clear();
-        };
-
         // add local cluster info if in scope of the index-expression from user
         if (localIndices != null) {
             try {
@@ -127,14 +122,14 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         final var finishedOrCancelled = new AtomicBoolean();
         resolveClusterTask.addListener(() -> {
             if (finishedOrCancelled.compareAndSet(false, true)) {
-                releaseResourcesOnCancel.run();
+                releaseResourcesOnCancel(clusterInfoMap);
             }
         });
 
         try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
             finishedOrCancelled.set(true);
             if (resolveClusterTask.notifyIfCancelled(listener)) {
-                releaseResourcesOnCancel.run();
+                releaseResourcesOnCancel(clusterInfoMap);
             } else {
                 listener.onResponse(new ResolveClusterActionResponse(clusterInfoMap));
             }
@@ -158,7 +153,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                     @Override
                     public void onResponse(ResolveClusterActionResponse response) {
                         if (resolveClusterTask.isCancelled()) {
-                            releaseResourcesOnCancel.run();
+                            releaseResourcesOnCancel(clusterInfoMap);
                             return;
                         }
                         ResolveClusterInfo info = response.getResolveClusterInfo().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
@@ -166,14 +161,14 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                             clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(info, skipUnavailable));
                         }
                         if (resolveClusterTask.isCancelled()) {
-                            releaseResourcesOnCancel.run();
+                            releaseResourcesOnCancel(clusterInfoMap);
                         }
                     }
 
                     @Override
                     public void onFailure(Exception failure) {
                         if (resolveClusterTask.isCancelled()) {
-                            releaseResourcesOnCancel.run();
+                            releaseResourcesOnCancel(clusterInfoMap);
                             return;
                         }
                         if (notConnectedError(failure)) {
@@ -237,7 +232,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                             }
                         }
                         if (resolveClusterTask.isCancelled()) {
-                            releaseResourcesOnCancel.run();
+                            releaseResourcesOnCancel(clusterInfoMap);
                         }
                     }
                 };
@@ -320,5 +315,10 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
             }
         }
         return indexMatches;
+    }
+
+    private static void releaseResourcesOnCancel(Map<String, ResolveClusterInfo> clusterInfoMap) {
+        logger.trace("clear resolve-cluster responses on cancellation");
+        clusterInfoMap.clear();
     }
 }

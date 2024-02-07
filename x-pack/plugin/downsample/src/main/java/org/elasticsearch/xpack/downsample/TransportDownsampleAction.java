@@ -235,6 +235,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
+        downsamplingInterval = request.getDownsampleConfig().getInterval().toString();
         // Shortcircuit if target index has been downsampled:
         final String downsampleIndexName = request.getTargetIndex();
         IndexMetadata downsampleIndex = state.getMetadata().index(downsampleIndexName);
@@ -299,7 +300,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
             // Validate downsampling interval
             validateDownsamplingInterval(mapperService, request.getDownsampleConfig());
-            downsamplingInterval = request.getDownsampleConfig().getInterval().toString();
 
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();

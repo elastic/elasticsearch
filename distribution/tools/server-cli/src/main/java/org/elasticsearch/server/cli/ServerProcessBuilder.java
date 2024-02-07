@@ -150,19 +150,19 @@ public class ServerProcessBuilder {
         checkRequiredArgument(terminal, "terminal");
 
         Process jvmProcess = null;
-        ErrorPumpThread errorPump;
+        ErrorPumpThread stderrPump;
         PumpThread stdoutPump;
 
         boolean success = false;
         try {
             jvmProcess = createProcess(getCommand(), getJvmArgs(), jvmOptions, getEnvironment(), processStarter);
-            errorPump = PumpThread.stderrPump(terminal, jvmProcess);
+            stderrPump = PumpThread.stderrPump(terminal, jvmProcess);
             stdoutPump = PumpThread.stdoutPump(terminal, jvmProcess);
-            errorPump.start();
+            stderrPump.start();
             stdoutPump.start();
             sendArgs(serverArgs, jvmProcess.getOutputStream());
 
-            boolean serverOk = errorPump.waitUntilReady();
+            boolean serverOk = stderrPump.waitUntilReady();
             if (serverOk == false) {
                 // something bad happened, wait for the process to exit then rethrow
                 int exitCode = jvmProcess.waitFor();
@@ -179,7 +179,7 @@ public class ServerProcessBuilder {
             }
         }
 
-        return new ServerProcess(jvmProcess, errorPump, stdoutPump);
+        return new ServerProcess(jvmProcess, stderrPump, stdoutPump);
     }
 
     private static Process createProcess(

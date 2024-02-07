@@ -278,11 +278,7 @@ public abstract class Terminal {
         @SuppressForbidden(reason = "Writer for System.err")
         ConsoleTerminal() {
             // Writer to standard error is not supplied by the {@link Console} API, so we create it here.
-            this(new PrintWriter(System.err, true));
-        }
-
-        private ConsoleTerminal(PrintWriter errWriter) {
-            super(CONSOLE.reader(), CONSOLE.writer(), errWriter);
+            super(CONSOLE.reader(), CONSOLE.writer(), new PrintWriter(System.err, true));
         }
 
         static boolean isSupported() {
@@ -320,7 +316,7 @@ public abstract class Terminal {
     /**
      * System terminal used if console is not available.
      *
-     * If System property {@code cli.terminal.format} is {@code json} this emits JSON.
+     * This terminal can optionally emit JSON.
      * Visible for testing.
      */
     @SuppressForbidden(reason = "Access streams for construction")

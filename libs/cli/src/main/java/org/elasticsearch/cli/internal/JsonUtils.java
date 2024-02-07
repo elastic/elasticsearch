@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cli.internal;
 
+import java.nio.CharBuffer;
+
 /**
  * Simple escape util for JSON.
  *
@@ -28,7 +30,7 @@ class JsonUtils {
     }
 
     static void quoteAsString(char[] chars, int start, int count, StringBuilder sb) {
-        quoteAsString(new CharArrayWrapper(chars), start, count, sb);
+        quoteAsString(CharBuffer.wrap(chars), start, count, sb);
     }
 
     static void quoteAsString(CharSequence chars, int start, int count, StringBuilder sb) {
@@ -60,34 +62,6 @@ class JsonUtils {
             sb.append('\\').append(ec); // append escaped
         } else {
             sb.append(c);
-        }
-    }
-
-    private static class CharArrayWrapper implements CharSequence {
-        private final char[] data;
-
-        CharArrayWrapper(char[] data) {
-            this.data = data;
-        }
-
-        @Override
-        public int length() {
-            return data.length;
-        }
-
-        @Override
-        public char charAt(int index) {
-            return data[index];
-        }
-
-        @Override
-        public CharSequence subSequence(int start, int end) {
-            return new String(data, start, end - start);
-        }
-
-        @Override
-        public String toString() {
-            return new String(data);
         }
     }
 }

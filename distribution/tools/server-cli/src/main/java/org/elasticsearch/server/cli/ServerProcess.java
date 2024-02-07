@@ -37,7 +37,7 @@ public class ServerProcess {
     private final Process jvmProcess;
 
     // the thread pumping stderr watching for state change messages
-    private final PumpThread errorPump;
+    private final PumpThread stderrPump;
 
     // the thread pumping stdout
     private final PumpThread stdoutPump;
@@ -45,9 +45,9 @@ public class ServerProcess {
     // a flag marking whether the streams of the java subprocess have been closed
     private volatile boolean detached = false;
 
-    ServerProcess(Process jvmProcess, PumpThread errorPump, PumpThread stdoutPump) {
+    ServerProcess(Process jvmProcess, PumpThread stderrPump, PumpThread stdoutPump) {
         this.jvmProcess = jvmProcess;
-        this.errorPump = errorPump;
+        this.stderrPump = stderrPump;
         this.stdoutPump = stdoutPump;
     }
 
@@ -64,7 +64,7 @@ public class ServerProcess {
      * @throws IOException If an I/O error occurred while reading stdout / stderr or closing any of the standard streams
      */
     public synchronized void detach() throws IOException {
-        errorPump.drain();
+        stderrPump.drain();
         stdoutPump.drain();
         try {
             IOUtils.close(
@@ -72,7 +72,7 @@ public class ServerProcess {
                 jvmProcess.getInputStream(),
                 jvmProcess.getErrorStream(),
                 // check for any IO failures while draining pumps
-                errorPump::checkForIoFailure,
+                stderrPump::checkForIoFailure,
                 stdoutPump::checkForIoFailure
             );
         } finally {
@@ -84,7 +84,7 @@ public class ServerProcess {
      * Waits for the subprocess to exit.
      */
     public int waitFor() {
-        errorPump.drain();
+        stderrPump.drain();
         stdoutPump.drain();
         return nonInterruptible(jvmProcess::waitFor);
     }

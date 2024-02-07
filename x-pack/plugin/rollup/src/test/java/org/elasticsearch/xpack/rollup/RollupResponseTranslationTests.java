@@ -320,7 +320,9 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             // this is not a mock, so needs to be decRef'd
             SearchResponse finalResponse = RollupResponseTranslator.translateResponse(
                 multiSearchResponse,
-                InternalAggregationTestCase.emptyReduceContextBuilder()
+                InternalAggregationTestCase.emptyReduceContextBuilder(
+                    new AggregatorFactories.Builder().addAggregator(new SumAggregationBuilder("foo"))
+                )
             );
             try {
                 assertNotNull(finalResponse);

@@ -10,17 +10,24 @@ package org.elasticsearch.cli.internal;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLengthBetween;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class JsonPrintWriterTests extends ESTestCase {
     private static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2024-01-08T11:06:54.0Z"), ZoneOffset.UTC);
@@ -215,15 +222,51 @@ public class JsonPrintWriterTests extends ESTestCase {
         });
     }
 
+    public void testPrintStacktrace() throws IOException {
+        Exception exception = new RuntimeException("Something went wrong!");
+        try (JsonPrintWriter writer = jsonPrintWriter()) {
+            writer.println(exception); // should not require flush
+
+            String jsonString = outputStream.toString(StandardCharsets.UTF_8);
+            assertThat(jsonString, endsWith(System.lineSeparator()));
+
+            Map<String, Object> fields = createParser(JsonXContent.jsonXContent, jsonString).map(); // un-quoted fields
+            assertThat(fields, hasKey("message"));
+
+            String[] lines = fields.get("message").toString().split(System.lineSeparator());
+            assertThat(lines[0], is("java.lang.RuntimeException: Something went wrong!"));
+            assertThat(lines[1], matchesRegex("\tat [a-zA-Z.]+\\.testPrintStacktrace\\(JsonPrintWriterTests.java:\\d+\\)"));
+            assertThat(lines[lines.length - 1], matchesRegex("\tat java.base/java.lang.Thread.run\\(Thread.java:\\d+\\)"));
+        }
+    }
+
+    public void testStripSuffix() {
+        StringBuilder builder = new StringBuilder("Hello World");
+        assertTrue(JsonPrintWriter.stripSuffix(builder, "World"));
+        assertEquals("Hello ", builder.toString());
+
+        builder = new StringBuilder("Hello World");
+        assertTrue(JsonPrintWriter.stripSuffix(builder, "Hello World"));
+        assertEquals("", builder.toString());
+
+        builder = new StringBuilder("Hello");
+        assertFalse(JsonPrintWriter.stripSuffix(builder, "Hello World"));
+        assertEquals("Hello", builder.toString());
+    }
+
     /** repeat testCase multiple times to verify reset of internal buffer. */
     private void runRepeatedly(Consumer<PrintWriter> testCase) {
-        try (PrintWriter writer = new JsonPrintWriter(outputStream, true, FIXED_CLOCK)) {
+        try (PrintWriter writer = jsonPrintWriter()) {
             for (int runs = 2; runs > 0; runs--) {
                 testCase.accept(writer);
             }
             writer.flush();
             assertWritten("");
         }
+    }
+
+    private JsonPrintWriter jsonPrintWriter() {
+        return new JsonPrintWriter(outputStream, true, FIXED_CLOCK);
     }
 
     private void assertWritten(String expected) {

@@ -41,6 +41,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
@@ -321,11 +322,10 @@ public class ServerCliTests extends CommandTestCase {
                 throw new InterruptedException("interrupted while get jvm options");
             }
         };
-        var e = expectThrows(
-            InterruptedException.class,
-            () -> command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir))
-        );
-        assertThat(e.getMessage(), equalTo("interrupted while get jvm options"));
+        int exitCode = command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+        assertThat(exitCode, is(ExitCodes.CODE_ERROR));
+
+        assertThat(terminal.getErrorOutput(), startsWith("java.lang.InterruptedException: interrupted while get jvm options"));
         command.close();
     }
 

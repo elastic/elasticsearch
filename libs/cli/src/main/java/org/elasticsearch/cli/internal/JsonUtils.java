@@ -29,6 +29,12 @@ class JsonUtils {
         ESC_CODES['\\'] = '\\';
     }
 
+    static String quoteAsString(String string) {
+        StringBuilder builder = new StringBuilder();
+        quoteAsString(string, 0, string.length(), builder);
+        return builder.toString();
+    }
+
     static void quoteAsString(char[] chars, int start, int count, StringBuilder sb) {
         quoteAsString(CharBuffer.wrap(chars), start, count, sb);
     }

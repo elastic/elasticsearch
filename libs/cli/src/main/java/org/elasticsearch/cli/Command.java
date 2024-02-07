@@ -45,7 +45,7 @@ public abstract class Command implements Closeable {
     }
 
     /** Parses options for this command from args and executes it. */
-    public final int main(String[] args, Terminal terminal, ProcessInfo processInfo) throws Exception {
+    public final int main(String[] args, Terminal terminal, ProcessInfo processInfo) throws IOException {
         try {
             mainWithoutErrorHandling(args, terminal, processInfo);
         } catch (OptionException e) {
@@ -59,6 +59,12 @@ public abstract class Command implements Closeable {
             }
             printUserException(terminal, e);
             return e.exitCode;
+        } catch (IOException ioe) {
+            terminal.errorPrintln(ioe);
+            return ExitCodes.IO_ERROR;
+        } catch (Exception re) {
+            terminal.errorPrintln(re);
+            return ExitCodes.CODE_ERROR;
         }
         return ExitCodes.OK;
     }

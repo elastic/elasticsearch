@@ -24,6 +24,7 @@ import java.util.Locale;
  */
 public class JsonPrintWriter extends PrintWriter {
     private static final DateTimeFormatter ISO_INSTANT_FORMATTER = new DateTimeFormatterBuilder().appendInstant(3).toFormatter(Locale.ROOT);
+    private static final String QUOTED_LINE_SEPARATOR = JsonUtils.quoteAsString(System.getProperty("line.separator"));
     static final int BUFFER_INITIAL_SIZE = 512;
     static final int BUFFER_TRIM_THRESHOLD = 2 * BUFFER_INITIAL_SIZE;
 
@@ -31,6 +32,7 @@ public class JsonPrintWriter extends PrintWriter {
     // NEVER acquire monitor lock on `lock` if holding `buffer`, always acquire `lock` first!
     private final StringBuilder buffer = new StringBuilder(BUFFER_INITIAL_SIZE);
     private final Clock clock;
+    private boolean singleLineMode = false;
 
     public JsonPrintWriter(OutputStream out, boolean autoFlush) {
         this(out, autoFlush, Clock.systemUTC());
@@ -78,7 +80,7 @@ public class JsonPrintWriter extends PrintWriter {
     @Override
     public void println(String msg) {
         synchronized (lock) {
-            if (isJsonObject(msg)) {
+            if (singleLineMode == false && isJsonObject(msg)) {
                 super.write(msg, 0, msg.length());
                 super.println();
             } else {
@@ -93,7 +95,7 @@ public class JsonPrintWriter extends PrintWriter {
     @Override
     public void println(char[] chars) {
         synchronized (lock) {
-            if (isJsonObject(chars)) {
+            if (singleLineMode == false && isJsonObject(chars)) {
                 // Forward as is, ignore current buffer.
                 super.write(chars, 0, chars.length);
                 super.println();
@@ -106,6 +108,21 @@ public class JsonPrintWriter extends PrintWriter {
         }
     }
 
+    /** Print an exception (with stacktrace) into a single JSON object. */
+    public void println(Exception exception) {
+        synchronized (lock) {
+            synchronized (buffer) {
+                singleLineMode = true;
+                try {
+                    exception.printStackTrace(this);
+                    flush();
+                } finally {
+                    singleLineMode = false;
+                }
+            }
+        }
+    }
+
     @Override
     public void println(Object x) {
         println(String.valueOf(x));
@@ -113,9 +130,13 @@ public class JsonPrintWriter extends PrintWriter {
 
     @Override
     public void println() {
-        synchronized (lock) {
-            writeBufferedJson();
-            super.println();
+        if (singleLineMode) {
+            write(System.lineSeparator()); // will be quoted!
+        } else {
+            synchronized (lock) {
+                writeBufferedJson();
+                super.println();
+            }
         }
     }
 
@@ -133,8 +154,11 @@ public class JsonPrintWriter extends PrintWriter {
 
     private void writeBufferedJson() {
         String json = null;
+        boolean newline = false;
         synchronized (buffer) {
             if (buffer.length() > 0) {
+                // properly handle trailing newlines if not emitted using println()
+                newline = stripSuffix(buffer, QUOTED_LINE_SEPARATOR);
                 json = buffer.append("\"}").toString();
                 if (buffer.capacity() > BUFFER_TRIM_THRESHOLD) {
                     buffer.setLength(buffer.capacity() >> 1); // reduce capacity again by half
@@ -143,7 +167,22 @@ public class JsonPrintWriter extends PrintWriter {
                 buffer.setLength(0); // clear buffer
             }
         }
-        if (json != null) super.write(json, 0, json.length());
+        if (json != null) {
+            super.write(json, 0, json.length());
+            if (newline) {
+                super.println();
+            }
+        }
+    }
+
+    // Visible for testing
+    static boolean stripSuffix(StringBuilder builder, String suffix) {
+        int strippedLength = builder.length() - suffix.length();
+        if (strippedLength >= 0 && builder.lastIndexOf(suffix, strippedLength) == strippedLength) {
+            builder.setLength(strippedLength);
+            return true;
+        }
+        return false;
     }
 
     /**

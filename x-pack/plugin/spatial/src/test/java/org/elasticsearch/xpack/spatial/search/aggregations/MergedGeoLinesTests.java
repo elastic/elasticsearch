@@ -157,9 +157,9 @@ public class MergedGeoLinesTests extends ESTestCase {
         for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
             InternalGeoLine empty = makeEmptyGeoLine(sortOrder, finalLength);
             List<InternalGeoLine> sorted = makeGeoLines(docsPerLine, numLines, simplify, sortOrder);
-            sorted.add(empty);
             // Shuffle to ensure the tests cover geo_lines coming from data nodes in random order
             List<InternalGeoLine> shuffled = shuffleGeoLines(sorted);
+            shuffled.add(0, empty);
             ArrayList<InternalAggregation> aggregations = new ArrayList<>(shuffled);
             InternalGeoLine reduced = (InternalGeoLine) InternalAggregationTestCase.reduce(aggregations, null);
             assertLinesSimplified(sorted, sortOrder, finalLength, reduced.sortVals(), reduced.line());

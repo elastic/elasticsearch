@@ -9,15 +9,15 @@ package org.elasticsearch.xpack.inference.external.request.cohere;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.cohere.CohereAccount;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
 
 import java.net.URI;
@@ -37,24 +37,22 @@ public class CohereEmbeddingsRequest implements Request {
     private final CohereEmbeddingsTaskSettings taskSettings;
     private final String model;
     private final CohereEmbeddingType embeddingType;
+    private final String inferenceEntityId;
 
-    public CohereEmbeddingsRequest(
-        CohereAccount account,
-        List<String> input,
-        CohereEmbeddingsTaskSettings taskSettings,
-        @Nullable String model,
-        @Nullable CohereEmbeddingType embeddingType
-    ) {
+    public CohereEmbeddingsRequest(CohereAccount account, List<String> input, CohereEmbeddingsModel embeddingsModel) {
+        Objects.requireNonNull(embeddingsModel);
+
         this.account = Objects.requireNonNull(account);
         this.input = Objects.requireNonNull(input);
-        this.uri = buildUri(this.account.url(), "Cohere", CohereEmbeddingsRequest::buildDefaultUri);
-        this.taskSettings = Objects.requireNonNull(taskSettings);
-        this.model = model;
-        this.embeddingType = embeddingType;
+        uri = buildUri(this.account.url(), "Cohere", CohereEmbeddingsRequest::buildDefaultUri);
+        taskSettings = embeddingsModel.getTaskSettings();
+        model = embeddingsModel.getServiceSettings().getCommonSettings().getModelId();
+        embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
+        inferenceEntityId = embeddingsModel.getInferenceEntityId();
     }
 
     @Override
-    public HttpRequestBase createRequest() {
+    public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -64,8 +62,14 @@ public class CohereEmbeddingsRequest implements Request {
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
+        httpPost.setHeader(CohereUtils.createRequestSourceHeader());
 
-        return httpPost;
+        return new HttpRequest(httpPost, getInferenceEntityId());
+    }
+
+    @Override
+    public String getInferenceEntityId() {
+        return inferenceEntityId;
     }
 
     @Override

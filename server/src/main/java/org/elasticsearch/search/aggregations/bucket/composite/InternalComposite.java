@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -284,19 +283,18 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
     @Override
     protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
-        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
+        assert buckets.isEmpty() == false;
         long docCount = 0;
         for (InternalBucket bucket : buckets) {
             docCount += bucket.docCount;
-            aggregations.add(bucket.aggregations);
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         /* Use the formats from the bucket because they'll be right to format
          * the key. The formats on the InternalComposite doing the reducing are
          * just whatever formats make sense for *its* index. This can be real
          * trouble when the index doing the reducing is unmapped. */
-        var reducedFormats = buckets.get(0).formats;
+        final var reducedFormats = buckets.get(0).formats;
         return new InternalBucket(sourceNames, reducedFormats, buckets.get(0).key, reverseMuls, missingOrders, docCount, aggs);
     }
 
@@ -441,7 +439,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -509,14 +507,37 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
         Object formatted = obj;
         Object parsed;
-        if (obj.getClass() == BytesRef.class) {
+        if (obj.getClass() == BytesRef.class && format == DocValueFormat.TIME_SERIES_ID) {
+            BytesRef value = (BytesRef) obj;
+            // NOTE: formatting a tsid returns a Base64 encoding of the tsid BytesRef which we cannot use to get back the original tsid
+            formatted = format.format(value);
+            parsed = format.parseBytesRef(value);
+            // NOTE: we cannot parse the Base64 encoding representation of the tsid and get back the original BytesRef
+            if (parsed.equals(obj) == false) {
+                throw new IllegalArgumentException(
+                    "Format ["
+                        + format
+                        + "] created output it couldn't parse for value ["
+                        + obj
+                        + "] "
+                        + "of type ["
+                        + obj.getClass()
+                        + "]. formatted value: ["
+                        + formatted
+                        + "("
+                        + parsed.getClass()
+                        + ")]"
+                );
+            }
+        }
+        if (obj.getClass() == BytesRef.class && format != DocValueFormat.TIME_SERIES_ID) {
             BytesRef value = (BytesRef) obj;
             if (format == DocValueFormat.RAW) {
                 formatted = value.utf8ToString();
             } else {
                 formatted = format.format(value);
             }
-            parsed = format.parseBytesRef(formatted);
+            parsed = format.parseBytesRef(formatted.toString());
             if (parsed.equals(obj) == false) {
                 throw new IllegalArgumentException(
                     "Format ["

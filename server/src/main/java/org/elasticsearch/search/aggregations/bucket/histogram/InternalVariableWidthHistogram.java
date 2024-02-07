@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -152,7 +151,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -308,7 +307,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
     @Override
     protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
         long docCount = 0;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
@@ -318,11 +316,11 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             min = Math.min(min, bucket.bounds.min);
             max = Math.max(max, bucket.bounds.max);
             sum += bucket.docCount * bucket.centroid;
-            aggregations.add((InternalAggregations) bucket.getAggregations());
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        double centroid = sum / docCount;
-        Bucket.BucketBounds bounds = new Bucket.BucketBounds(min, max);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
+        final double centroid = sum / docCount;
+        final Bucket.BucketBounds bounds = new Bucket.BucketBounds(min, max);
         return new Bucket(centroid, bounds, docCount, format, aggs);
     }
 

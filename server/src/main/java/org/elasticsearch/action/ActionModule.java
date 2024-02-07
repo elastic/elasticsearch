@@ -1005,7 +1005,7 @@ public class ActionModule extends AbstractModule {
 
         // Desired nodes
         registerHandler.accept(new RestGetDesiredNodesAction());
-        registerHandler.accept(new RestUpdateDesiredNodesAction());
+        registerHandler.accept(new RestUpdateDesiredNodesAction(clusterSupportsFeature));
         registerHandler.accept(new RestDeleteDesiredNodesAction());
 
         for (ActionPlugin plugin : actionPlugins) {
@@ -1017,7 +1017,8 @@ public class ActionModule extends AbstractModule {
                 indexScopedSettings,
                 settingsFilter,
                 indexNameExpressionResolver,
-                nodesInCluster
+                nodesInCluster,
+                clusterSupportsFeature
             )) {
                 registerHandler.accept(handler);
             }

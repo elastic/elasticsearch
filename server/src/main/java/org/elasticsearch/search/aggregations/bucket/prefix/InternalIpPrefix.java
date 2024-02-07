@@ -333,14 +333,13 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
 
     @Override
     protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
-        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
+        assert buckets.isEmpty() == false;
         long docCount = 0;
         for (InternalIpPrefix.Bucket bucket : buckets) {
             docCount += bucket.docCount;
-            aggregations.add(bucket.getAggregations());
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         return createBucket(buckets.get(0), aggs, docCount);
     }
 

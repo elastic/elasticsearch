@@ -15,9 +15,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.VerificationException;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -59,10 +59,11 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     EnrichPolicyResolver mockEnrichResolver() {
         EnrichPolicyResolver enrichResolver = mock(EnrichPolicyResolver.class);
         doAnswer(invocation -> {
-            ActionListener<EnrichResolution> listener = (ActionListener<EnrichResolution>) invocation.getArguments()[1];
+            Object[] arguments = invocation.getArguments();
+            ActionListener<EnrichResolution> listener = (ActionListener<EnrichResolution>) arguments[arguments.length - 1];
             listener.onResponse(new EnrichResolution());
             return null;
-        }).when(enrichResolver).resolvePolicy(any(), any());
+        }).when(enrichResolver).resolvePolicies(any(), any(), any());
         return enrichResolver;
     }
 

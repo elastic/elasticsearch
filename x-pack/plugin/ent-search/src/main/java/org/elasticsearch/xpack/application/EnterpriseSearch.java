@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
@@ -53,9 +54,11 @@ import org.elasticsearch.xpack.application.connector.action.RestGetConnectorActi
 import org.elasticsearch.xpack.application.connector.action.RestListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorIndexNameAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorLastSeenAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorNameAction;
@@ -63,14 +66,17 @@ import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorN
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorServiceTypeAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorStatusAction;
 import org.elasticsearch.xpack.application.connector.action.TransportDeleteConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportGetConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorIndexNameAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorLastSeenAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorNameAction;
@@ -78,9 +84,12 @@ import org.elasticsearch.xpack.application.connector.action.TransportUpdateConne
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorServiceTypeAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorStatusAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorIndexNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSeenAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNameAction;
@@ -88,14 +97,21 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNativ
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatusAction;
 import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsFeature;
 import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsIndexService;
+import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.PutConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.RestDeleteConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.RestGetConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.RestPostConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.RestPutConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.TransportDeleteConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportGetConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportPostConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.TransportPutConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
@@ -164,6 +180,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -241,9 +258,11 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(ListConnectorAction.INSTANCE, TransportListConnectorAction.class),
                     new ActionHandler<>(PostConnectorAction.INSTANCE, TransportPostConnectorAction.class),
                     new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class),
+                    new ActionHandler<>(UpdateConnectorApiKeyIdAction.INSTANCE, TransportUpdateConnectorApiKeyIdAction.class),
                     new ActionHandler<>(UpdateConnectorConfigurationAction.INSTANCE, TransportUpdateConnectorConfigurationAction.class),
                     new ActionHandler<>(UpdateConnectorErrorAction.INSTANCE, TransportUpdateConnectorErrorAction.class),
                     new ActionHandler<>(UpdateConnectorFilteringAction.INSTANCE, TransportUpdateConnectorFilteringAction.class),
+                    new ActionHandler<>(UpdateConnectorIndexNameAction.INSTANCE, TransportUpdateConnectorIndexNameAction.class),
                     new ActionHandler<>(UpdateConnectorLastSeenAction.INSTANCE, TransportUpdateConnectorLastSeenAction.class),
                     new ActionHandler<>(UpdateConnectorLastSyncStatsAction.INSTANCE, TransportUpdateConnectorLastSyncStatsAction.class),
                     new ActionHandler<>(UpdateConnectorNameAction.INSTANCE, TransportUpdateConnectorNameAction.class),
@@ -251,6 +270,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(UpdateConnectorPipelineAction.INSTANCE, TransportUpdateConnectorPipelineAction.class),
                     new ActionHandler<>(UpdateConnectorSchedulingAction.INSTANCE, TransportUpdateConnectorSchedulingAction.class),
                     new ActionHandler<>(UpdateConnectorServiceTypeAction.INSTANCE, TransportUpdateConnectorServiceTypeAction.class),
+                    new ActionHandler<>(UpdateConnectorStatusAction.INSTANCE, TransportUpdateConnectorStatusAction.class),
 
                     // SyncJob API
                     new ActionHandler<>(GetConnectorSyncJobAction.INSTANCE, TransportGetConnectorSyncJobAction.class),
@@ -271,8 +291,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (ConnectorSecretsFeature.isEnabled()) {
             actionHandlers.addAll(
                 List.of(
+                    new ActionHandler<>(DeleteConnectorSecretAction.INSTANCE, TransportDeleteConnectorSecretAction.class),
                     new ActionHandler<>(GetConnectorSecretAction.INSTANCE, TransportGetConnectorSecretAction.class),
-                    new ActionHandler<>(PostConnectorSecretAction.INSTANCE, TransportPostConnectorSecretAction.class)
+                    new ActionHandler<>(PostConnectorSecretAction.INSTANCE, TransportPostConnectorSecretAction.class),
+                    new ActionHandler<>(PutConnectorSecretAction.INSTANCE, TransportPutConnectorSecretAction.class)
                 )
             );
         }
@@ -289,7 +311,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
 
         if (enabled == false) {
@@ -330,9 +353,11 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestListConnectorAction(),
                     new RestPostConnectorAction(),
                     new RestPutConnectorAction(),
+                    new RestUpdateConnectorApiKeyIdAction(),
                     new RestUpdateConnectorConfigurationAction(),
                     new RestUpdateConnectorErrorAction(),
                     new RestUpdateConnectorFilteringAction(),
+                    new RestUpdateConnectorIndexNameAction(),
                     new RestUpdateConnectorLastSeenAction(),
                     new RestUpdateConnectorLastSyncStatsAction(),
                     new RestUpdateConnectorNameAction(),
@@ -340,6 +365,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestUpdateConnectorPipelineAction(),
                     new RestUpdateConnectorSchedulingAction(),
                     new RestUpdateConnectorServiceTypeAction(),
+                    new RestUpdateConnectorStatusAction(),
 
                     // SyncJob API
                     new RestGetConnectorSyncJobAction(),
@@ -355,7 +381,14 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         }
 
         if (ConnectorSecretsFeature.isEnabled()) {
-            restHandlers.addAll(List.of(new RestGetConnectorSecretAction(), new RestPostConnectorSecretAction()));
+            restHandlers.addAll(
+                List.of(
+                    new RestDeleteConnectorSecretAction(),
+                    new RestGetConnectorSecretAction(),
+                    new RestPostConnectorSecretAction(),
+                    new RestPutConnectorSecretAction()
+                )
+            );
         }
 
         return Collections.unmodifiableList(restHandlers);

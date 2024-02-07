@@ -50,8 +50,7 @@ public final class EsqlExpressionTranslators {
 
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
         new EqualsIgnoreCaseTranslator(),
-        new TrivialBinaryComparisons(),
-        new ExpressionTranslators.BinaryComparisons(),
+        new BinaryComparisons(),
         new ExpressionTranslators.Ranges(),
         new ExpressionTranslators.BinaryLogic(),
         new ExpressionTranslators.IsNulls(),
@@ -109,15 +108,21 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class TrivialBinaryComparisons extends ExpressionTranslator<BinaryComparison> {
+    public static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
         @Override
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
-            ExpressionTranslators.BinaryComparisons.checkBinaryComparison(bc);
-            Query translated = translate(bc);
-            return translated == null ? null : handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
+            return doTranslate(bc, handler);
         }
 
-        private static Query translate(BinaryComparison bc) {
+        public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler) {
+            ExpressionTranslators.BinaryComparisons.checkBinaryComparison(bc);
+            Query translated = translateOutOfRangeComparisons(bc);
+            return translated == null
+                ? ExpressionTranslators.BinaryComparisons.doTranslate(bc, handler)
+                : handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
+        }
+
+        private static Query translateOutOfRangeComparisons(BinaryComparison bc) {
             if ((bc.left() instanceof FieldAttribute) == false
                 || bc.left().dataType().isNumeric() == false
                 || bc.right().foldable() == false) {

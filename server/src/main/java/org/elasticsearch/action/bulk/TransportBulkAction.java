@@ -20,7 +20,7 @@ import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -31,15 +31,18 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -48,12 +51,12 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -64,6 +67,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
@@ -80,19 +84,20 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
+    public static final String LAZY_ROLLOVER_ORIGIN = "lazy_rollover";
 
     private final ActionType<BulkResponse> bulkAction;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IngestService ingestService;
+    private final FeatureService featureService;
     private final LongSupplier relativeTimeProvider;
     private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
-    private final InferenceServiceRegistry inferenceServiceRegistry;
-    private final ModelRegistry modelRegistry;
+    private final OriginSettingClient rolloverClient;
 
     @Inject
     public TransportBulkAction(
@@ -100,27 +105,25 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
+        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices,
-        InferenceServiceRegistry inferenceServiceRegistry,
-        ModelRegistry modelRegistry
+        SystemIndices systemIndices
     ) {
         this(
             threadPool,
             transportService,
             clusterService,
             ingestService,
+            featureService,
             client,
             actionFilters,
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            System::nanoTime,
-            inferenceServiceRegistry,
-            modelRegistry
+            System::nanoTime
         );
     }
 
@@ -129,14 +132,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
+        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        LongSupplier relativeTimeProvider,
-        InferenceServiceRegistry inferenceServiceRegistry,
-        ModelRegistry modelRegistry
+        LongSupplier relativeTimeProvider
     ) {
         this(
             BulkAction.INSTANCE,
@@ -145,14 +147,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             transportService,
             clusterService,
             ingestService,
+            featureService,
             client,
             actionFilters,
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            relativeTimeProvider,
-            inferenceServiceRegistry,
-            modelRegistry
+            relativeTimeProvider
         );
     }
 
@@ -163,14 +164,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
+        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        LongSupplier relativeTimeProvider,
-        InferenceServiceRegistry inferenceServiceRegistry,
-        ModelRegistry modelRegistry
+        LongSupplier relativeTimeProvider
     ) {
         super(bulkAction.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         Objects.requireNonNull(relativeTimeProvider);
@@ -178,15 +178,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.ingestService = ingestService;
+        this.featureService = featureService;
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
-        this.inferenceServiceRegistry = inferenceServiceRegistry;
-        this.modelRegistry = modelRegistry;
         clusterService.addStateApplier(this.ingestForwarder);
+        this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
     }
 
     /**
@@ -332,7 +332,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executorName, l);
+                    processBulkIndexIngestRequest(task, bulkRequest, executorName, metadata, l);
                 } else {
                     ingestForwarder.forwardIngestRequest(bulkAction, bulkRequest, l);
                 }
@@ -369,10 +369,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().isRequireDataStream));
 
         // Step 3: Collect all the data streams that need to be rolled over before writing
-        Set<String> dataStreamsToBeRolledOver = indices.keySet().stream().filter(target -> {
-            DataStream dataStream = state.metadata().dataStreams().get(target);
-            return dataStream != null && dataStream.rolloverOnWrite();
-        }).collect(Collectors.toSet());
+        Set<String> dataStreamsToBeRolledOver = featureService.clusterHasFeature(state, LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER)
+            ? indices.keySet().stream().filter(target -> {
+                DataStream dataStream = state.metadata().dataStreams().get(target);
+                return dataStream != null && dataStream.rolloverOnWrite();
+            }).collect(Collectors.toSet())
+            : Set.of();
 
         // Step 4: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
         createMissingIndicesAndIndexData(
@@ -404,13 +406,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         // Optimizing when there are no prerequisite actions
         if (indicesToAutoCreate.isEmpty() && dataStreamsToBeRolledOver.isEmpty()) {
-            executeBulk(task, bulkRequest, startTime, executorName, responses, indicesThatCannotBeCreated, listener);
+            executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
             return;
         }
         Runnable executeBulkRunnable = () -> threadPool.executor(executorName).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
-                executeBulk(task, bulkRequest, startTime, executorName, responses, indicesThatCannotBeCreated, listener);
+                executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
             }
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
@@ -435,7 +437,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }, refs.acquire()));
             }
             for (String dataStream : dataStreamsToBeRolledOver) {
-                rolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
+                lazyRolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
 
                     @Override
                     public void onResponse(RolloverResponse result) {
@@ -444,8 +446,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // - A request had conditions that were not met
                         // Since none of the above apply, getting a response with rolled_over false is considered a bug
                         // that should be caught here and inform the developer.
-                        assert result.isRolledOver()
-                            : "An successful unconditional rollover should always result in a rolled over data stream";
+                        assert result.isRolledOver() : "An successful lazy rollover should always result in a rolled over data stream";
                     }
 
                     @Override
@@ -573,10 +574,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
     }
 
-    void rolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {
+    void lazyRolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
         rolloverRequest.masterNodeTimeout(timeout);
-        client.execute(RolloverAction.INSTANCE, rolloverRequest, listener);
+        // We are executing a lazy rollover because it is an action specialised for this situation, when we want an
+        // unconditional and performant rollover.
+        rolloverClient.execute(LazyRolloverAction.INSTANCE, rolloverRequest, listener);
     }
 
     private static boolean setResponseFailureIfIndexMatches(
@@ -611,10 +614,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Task task,
         BulkRequest bulkRequest,
         long startTimeNanos,
+        ActionListener<BulkResponse> listener,
         String executorName,
         AtomicArray<BulkItemResponse> responses,
-        Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
-        ActionListener<BulkResponse> listener
+        Map<String, IndexNotFoundException> indicesThatCannotBeCreated
     ) {
         new BulkOperation(
             task,
@@ -628,8 +631,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             relativeTimeProvider,
             startTimeNanos,
-            modelRegistry,
-            inferenceServiceRegistry,
             listener
         ).run();
     }
@@ -642,6 +643,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Task task,
         BulkRequest original,
         String executorName,
+        Metadata metadata,
         ActionListener<BulkResponse> listener
     ) {
         final long ingestStartTimeInNanos = System.nanoTime();
@@ -650,6 +652,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             original.numberOfActions(),
             () -> bulkRequestModifier,
             bulkRequestModifier::markItemAsDropped,
+            (indexName) -> shouldStoreFailure(indexName, metadata, threadPool.absoluteTimeInMillis()),
+            bulkRequestModifier::markItemForFailureStore,
             bulkRequestModifier::markItemAsFailed,
             (originalThread, exception) -> {
                 if (exception != null) {
@@ -697,4 +701,79 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         );
     }
 
+    /**
+     * Determines if an index name is associated with either an existing data stream or a template
+     * for one that has the failure store enabled.
+     * @param indexName The index name to check.
+     * @param metadata Cluster state metadata.
+     * @param epochMillis A timestamp to use when resolving date math in the index name.
+     * @return true if the given index name corresponds to a data stream with a failure store,
+     * or if it matches a template that has a data stream failure store enabled.
+     */
+    static boolean shouldStoreFailure(String indexName, Metadata metadata, long epochMillis) {
+        return DataStream.isFailureStoreEnabled()
+            && resolveFailureStoreFromMetadata(indexName, metadata, epochMillis).or(
+                () -> resolveFailureStoreFromTemplate(indexName, metadata)
+            ).orElse(false);
+    }
+
+    /**
+     * Determines if an index name is associated with an existing data stream that has a failure store enabled.
+     * @param indexName The index name to check.
+     * @param metadata Cluster state metadata.
+     * @param epochMillis A timestamp to use when resolving date math in the index name.
+     * @return true if the given index name corresponds to an existing data stream with a failure store enabled.
+     */
+    private static Optional<Boolean> resolveFailureStoreFromMetadata(String indexName, Metadata metadata, long epochMillis) {
+        if (indexName == null) {
+            return Optional.empty();
+        }
+
+        // Get index abstraction, resolving date math if it exists
+        IndexAbstraction indexAbstraction = metadata.getIndicesLookup()
+            .get(IndexNameExpressionResolver.resolveDateMathExpression(indexName, epochMillis));
+
+        // We only store failures if the failure is being written to a data stream,
+        // not when directly writing to backing indices/failure stores
+        if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
+            return Optional.empty();
+        }
+
+        // Locate the write index for the abstraction, and check if it has a data stream associated with it.
+        // This handles alias resolution as well as data stream resolution.
+        Index writeIndex = indexAbstraction.getWriteIndex();
+        assert writeIndex != null : "Could not resolve write index for resource [" + indexName + "]";
+        IndexAbstraction writeAbstraction = metadata.getIndicesLookup().get(writeIndex.getName());
+        DataStream targetDataStream = writeAbstraction.getParentDataStream();
+
+        // We will store the failure if the write target belongs to a data stream with a failure store.
+        return Optional.of(targetDataStream != null && targetDataStream.isFailureStore());
+    }
+
+    /**
+     * Determines if an index name is associated with an index template that has a data stream failure store enabled.
+     * @param indexName The index name to check.
+     * @param metadata Cluster state metadata.
+     * @return true if the given index name corresponds to an index template with a data stream failure store enabled.
+     */
+    private static Optional<Boolean> resolveFailureStoreFromTemplate(String indexName, Metadata metadata) {
+        if (indexName == null) {
+            return Optional.empty();
+        }
+
+        // Check to see if the index name matches any templates such that an index would have been attributed
+        // We don't check v1 templates at all because failure stores can only exist on data streams via a v2 template
+        String template = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
+        if (template != null) {
+            // Check if this is a data stream template or if it is just a normal index.
+            ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(template);
+            if (composableIndexTemplate.getDataStreamTemplate() != null) {
+                // Check if the data stream has the failure store enabled
+                return Optional.of(composableIndexTemplate.getDataStreamTemplate().hasFailureStore());
+            }
+        }
+
+        // Could not locate a failure store via template
+        return Optional.empty();
+    }
 }

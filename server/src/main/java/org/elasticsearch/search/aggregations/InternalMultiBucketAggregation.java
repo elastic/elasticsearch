@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.io.IOException;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +77,25 @@ public abstract class InternalMultiBucketAggregation<
      * requires all buckets to have the same key.
      */
     protected abstract B reduceBucket(List<B> buckets, AggregationReduceContext context);
+
+    /** Helps to lazily construct the aggregation list for reduction */
+    protected static class BucketAggregationList<B extends Bucket> extends AbstractList<InternalAggregations> {
+        private final List<B> buckets;
+
+        public BucketAggregationList(List<B> buckets) {
+            this.buckets = buckets;
+        }
+
+        @Override
+        public InternalAggregations get(int index) {
+            return buckets.get(index).getAggregations();
+        }
+
+        @Override
+        public int size() {
+            return buckets.size();
+        }
+    }
 
     @Override
     public abstract List<B> getBuckets();

@@ -31,6 +31,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
+import static org.elasticsearch.core.Strings.format;
+
 final class OutboundHandler {
 
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
@@ -146,7 +148,12 @@ final class OutboundHandler {
                 }
             });
         } catch (Exception ex) {
-            sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
+            try {
+                sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
+            } catch (Exception inner) {
+                inner.addSuppressed(ex);
+                logger.warn(() -> format("Failed to send error response on channel [%s]", channel), inner);
+            }
         }
     }
 

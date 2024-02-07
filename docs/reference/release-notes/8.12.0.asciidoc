@@ -3,13 +3,24 @@
 
 Also see <<breaking-changes-8.12,Breaking changes in 8.12>>.
 
+[[known-issues-8.12.0]]
+[float]
+=== Known issues
+
+* `int8_hnsw` vector index format may fail to merge segments and prevent from indexing documents (issue: {es-issue}104617[#104617])
++
+When using `int8_hnsw` and the default `confidence_interval` (or any `confidence_interval` less than `1.0`) and when
+there are deleted documents in the segments, quantiles may fail to build and prevent merging.
+
+This issue is fixed in 8.12.1.
+
 [[breaking-8.12.0]]
 [float]
 === Breaking changes
 There are no breaking changes in 8.12
 
 [[notable-8.12.0]]
-[float]  
+[float]
 === Notable changes
 There are notable changes in 8.12 that you need to be aware of but that we do not consider breaking, items that we may consider as notable changes are
 

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
@@ -75,6 +76,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
@@ -303,6 +305,13 @@ public final class PlanNamedTypes {
             of(BinaryComparison.class, GreaterThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, LessThan.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, LessThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
+            // InsensitiveEquals
+            of(
+                InsensitiveEquals.class,
+                InsensitiveEquals.class,
+                PlanNamedTypes::writeInsensitiveEquals,
+                PlanNamedTypes::readInsensitiveEquals
+            ),
             // InComparison
             of(ScalarFunction.class, In.class, PlanNamedTypes::writeInComparison, PlanNamedTypes::readInComparison),
             // RegexMatch
@@ -364,6 +373,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, E.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
             of(ScalarFunction.class, Greatest.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
             of(ScalarFunction.class, Least.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
+            of(ScalarFunction.class, Log.class, PlanNamedTypes::writeLog, PlanNamedTypes::readLog),
             of(ScalarFunction.class, Now.class, PlanNamedTypes::writeNow, PlanNamedTypes::readNow),
             of(ScalarFunction.class, Pi.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
             of(ScalarFunction.class, Round.class, PlanNamedTypes::writeRound, PlanNamedTypes::readRound),
@@ -1151,6 +1161,20 @@ public final class PlanNamedTypes {
         out.writeOptionalZoneId(binaryComparison.zoneId());
     }
 
+    // -- InsensitiveEquals
+    static InsensitiveEquals readInsensitiveEquals(PlanStreamInput in, String name) throws IOException {
+        var source = in.readSource();
+        var left = in.readExpression();
+        var right = in.readExpression();
+        return new InsensitiveEquals(source, left, right);
+    }
+
+    static void writeInsensitiveEquals(PlanStreamOutput out, InsensitiveEquals eq) throws IOException {
+        out.writeSource(eq.source());
+        out.writeExpression(eq.left());
+        out.writeExpression(eq.right());
+    }
+
     // -- InComparison
 
     static In readInComparison(PlanStreamInput in) throws IOException {
@@ -1788,5 +1812,17 @@ public final class PlanNamedTypes {
     static void writeDissectParser(PlanStreamOutput out, Parser dissectParser) throws IOException {
         out.writeString(dissectParser.pattern());
         out.writeString(dissectParser.appendSeparator());
+    }
+
+    static Log readLog(PlanStreamInput in) throws IOException {
+        return new Log(in.readSource(), in.readExpression(), in.readOptionalNamed(Expression.class));
+    }
+
+    static void writeLog(PlanStreamOutput out, Log log) throws IOException {
+        out.writeSource(log.source());
+        List<Expression> fields = log.children();
+        assert fields.size() == 1 || fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeOptionalWriteable(fields.size() == 2 ? o -> out.writeExpression(fields.get(1)) : null);
     }
 }

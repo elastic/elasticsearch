@@ -296,18 +296,10 @@ include::repository-shared-settings.asciidoc[]
 
 `storage_class`::
 
-    Sets the S3 storage class for objects stored in the snapshot repository.
-    Values may be `standard`, `reduced_redundancy`, `standard_ia`, `onezone_ia`
-    and `intelligent_tiering`. Defaults to `standard`. Changing this setting on
-    an existing repository only affects the storage class for newly created
-    objects, resulting in a mixed usage of storage classes. You may use an S3
-    Lifecycle Policy to adjust the storage class of existing objects in your
-    repository, but you must not transition objects to Glacier classes and you
-    must not expire objects. If you use Glacier storage classes or object
-    expiry then you may permanently lose access to your repository contents.
-    For more information about S3 storage classes, see
-    https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS
-    Storage Classes Guide]
+    Sets the S3 storage class for objects written to the repository. Values may
+    be `standard`, `reduced_redundancy`, `standard_ia`, `onezone_ia` and
+    `intelligent_tiering`. Defaults to `standard`. See
+    <<repository-s3-storage-classes>> for more information.
 
 NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future
@@ -338,6 +330,37 @@ PUT _snapshot/my_s3_repository
 This sets up a repository that uses all client settings from the client
 `my_client_name` except for the `endpoint` that is overridden to
 `my.s3.endpoint` by the repository settings.
+`
+[[repository-s3-storage-classes]]
+==== S3 storage classes
+
+Amazon S3 supports a variety of  _storage classes_, each of which offers
+different operational characteristics. For instance, some classes cost less per
+byte stored per month, but cost more per request, and other classes may vary in
+terms of their availability guarantees.
+
+You may specify the storage class that {es} uses to store data objects with the
+`storage_class` repository setting.
+
+Changing the `storage_class` setting on an existing repository only affects the
+storage class for newly created objects, resulting in a mixed usage of storage
+classes.
+
+You may use an S3 Lifecycle Policy to adjust the storage class of existing
+objects in your repository, but you must not transition objects to an
+unsupported class such as the Glacier classes, and you must not expire objects.
+If you use a Glacier storage class, or another unsupported storage class, or
+object expiry, then you may permanently lose access to your repository
+contents.
+
+You may use the `intellligent_tiering` storage class to automatically manage
+the class of objects, but you must not enable the optional Archive Access or
+Deep Archive Access tiers. If you use these tiers then you may permanently lose
+access to your repository contents.
+
+For more information about S3 storage classes, see
+https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS
+Storage Classes Guide].
 
 [[repository-s3-permissions]]
 ==== Recommended S3 permissions

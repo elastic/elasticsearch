@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -21,8 +22,10 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -42,11 +45,9 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -54,11 +55,14 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -66,6 +70,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -85,9 +90,8 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     private Analyzer analyzer;
     private LogicalPlanOptimizer logicalOptimizer;
     private PhysicalPlanOptimizer physicalPlanOptimizer;
+    private EsqlFunctionRegistry functionRegistry;
     private Mapper mapper;
-    private Map<String, EsField> mapping;
-    private int allFieldRowSize;
 
     private final EsqlConfiguration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
@@ -116,40 +120,34 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     @Before
     public void init() {
         parser = new EsqlParser();
-
-        mapping = loadMapping("mapping-basic.json");
-        allFieldRowSize = mapping.values()
-            .stream()
-            .mapToInt(
-                f -> (EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(f.getDataType())) + f.getProperties()
-                    .values()
-                    .stream()
-                    // check one more level since the mapping contains TEXT fields with KEYWORD multi-fields
-                    .mapToInt(x -> EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(x.getDataType())))
-                    .sum())
-            )
-            .sum();
-        EsIndex test = new EsIndex("test", mapping);
-        IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
-        FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper(functionRegistry);
         EnrichResolution enrichResolution = new EnrichResolution();
         enrichResolution.addResolvedPolicy(
             "foo",
-            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("idx"), "fld", List.of("a", "b")),
-            Map.of("", "idx"),
-            Map.ofEntries(
-                Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
-                Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+            Enrich.Mode.ANY,
+            new ResolvedEnrichPolicy(
+                "fld",
+                EnrichPolicy.MATCH_TYPE,
+                List.of("a", "b"),
+                Map.of("", "idx"),
+                Map.ofEntries(
+                    Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
+                    Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+                )
             )
         );
-        enrichResolution.addExistingPolicies(Set.of("foo"));
-        analyzer = new Analyzer(
-            new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution),
-            new Verifier(new Metrics())
-        );
+        analyzer = makeAnalyzer("mapping-basic.json", enrichResolution);
+    }
+
+    private Analyzer makeAnalyzer(String mappingFileName, EnrichResolution enrichResolution) {
+        var mapping = loadMapping(mappingFileName);
+        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
+        IndexResolution getIndexResult = IndexResolution.valid(test);
+
+        return new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), new Verifier(new Metrics()));
     }
 
     /**
@@ -426,6 +424,153 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      * Expects
      * LimitExec[500[INTEGER]]
      * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, double{f}#8, float{f}#9,
+     *     half_float{f}#10, integer{f}#12, ip{f}#13, keyword{f}#14, long{f}#15, scaled_float{f}#11, short{f}#17, text{f}#18,
+     *     unsigned_long{f}#16, version{f}#19, wildcard{f}#20]]
+     *     \_FieldExtractExec[!alias_integer, boolean{f}#4, byte{f}#5, constant_k..][]
+     *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"ip","next":{"terms":{"ip":["127.0.0.0/24"],"boost":1.0}},"source":
+     *         "cidr_match(ip, \"127.0.0.0/24\")@1:19"}}][_doc{f}#21], limit[500], sort[] estimatedRowSize[389]
+     */
+    public void testCidrMatchPushdownFilter() {
+        var allTypeMappingAnalyzer = makeAnalyzer("mapping-ip.json", new EnrichResolution());
+        final String fieldName = "ip_addr";
+
+        int cidrBlockCount = randomIntBetween(1, 10);
+        ArrayList<String> cidrBlocks = new ArrayList<>();
+        for (int i = 0; i < cidrBlockCount; i++) {
+            cidrBlocks.add(randomCidrBlock());
+        }
+        String cidrBlocksString = cidrBlocks.stream().map((s) -> "\"" + s + "\"").collect(Collectors.joining(","));
+        String cidrMatch = format(null, "cidr_match({}, {})", fieldName, cidrBlocksString);
+
+        var query = "from test | where " + cidrMatch;
+        var plan = plan(query, EsqlTestUtils.TEST_SEARCH_STATS, allTypeMappingAnalyzer);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(field.child(), EsQueryExec.class);
+        assertThat(queryExec.limit().fold(), is(500));
+
+        var expectedInnerQuery = QueryBuilders.termsQuery(fieldName, cidrBlocks);
+        var expectedQuery = wrapWithSingleQuery(expectedInnerQuery, fieldName, new Source(1, 18, cidrMatch));
+        assertThat(queryExec.query().toString(), is(expectedQuery.toString()));
+    }
+
+    private record OutOfRangeTestCase(String fieldName, String tooLow, String tooHigh) {};
+
+    public void testOutOfRangeFilterPushdown() {
+        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+
+        String largerThanInteger = String.valueOf(randomLongBetween(Integer.MAX_VALUE + 1L, Long.MAX_VALUE));
+        String smallerThanInteger = String.valueOf(randomLongBetween(Long.MIN_VALUE, Integer.MIN_VALUE - 1L));
+
+        // These values are already out of bounds for longs due to rounding errors.
+        double longLowerBoundExclusive = (double) Long.MIN_VALUE;
+        double longUpperBoundExclusive = (double) Long.MAX_VALUE;
+        String largerThanLong = String.valueOf(randomDoubleBetween(longUpperBoundExclusive, Double.MAX_VALUE, true));
+        String smallerThanLong = String.valueOf(randomDoubleBetween(-Double.MAX_VALUE, longLowerBoundExclusive, true));
+
+        List<OutOfRangeTestCase> cases = List.of(
+            new OutOfRangeTestCase("byte", smallerThanInteger, largerThanInteger),
+            new OutOfRangeTestCase("short", smallerThanInteger, largerThanInteger),
+            new OutOfRangeTestCase("integer", smallerThanInteger, largerThanInteger),
+            new OutOfRangeTestCase("long", smallerThanLong, largerThanLong),
+            // TODO: add unsigned_long https://github.com/elastic/elasticsearch/issues/102935
+            // TODO: add half_float, float https://github.com/elastic/elasticsearch/issues/100130
+            new OutOfRangeTestCase("double", "-1.0/0.0", "1.0/0.0"),
+            new OutOfRangeTestCase("scaled_float", "-1.0/0.0", "1.0/0.0")
+        );
+
+        final String LT = "<";
+        final String LTE = "<=";
+        final String GT = ">";
+        final String GTE = ">=";
+        final String EQ = "==";
+        final String NEQ = "!=";
+
+        for (OutOfRangeTestCase testCase : cases) {
+            List<String> trueForSingleValuesPredicates = List.of(
+                LT + testCase.tooHigh,
+                LTE + testCase.tooHigh,
+                GT + testCase.tooLow,
+                GTE + testCase.tooLow,
+                NEQ + testCase.tooHigh,
+                NEQ + testCase.tooLow,
+                NEQ + "0.0/0.0"
+            );
+            List<String> alwaysFalsePredicates = List.of(
+                LT + testCase.tooLow,
+                LTE + testCase.tooLow,
+                GT + testCase.tooHigh,
+                GTE + testCase.tooHigh,
+                EQ + testCase.tooHigh,
+                EQ + testCase.tooLow,
+                LT + "0.0/0.0",
+                LTE + "0.0/0.0",
+                GT + "0.0/0.0",
+                GTE + "0.0/0.0",
+                EQ + "0.0/0.0"
+            );
+
+            for (String truePredicate : trueForSingleValuesPredicates) {
+                String comparison = testCase.fieldName + truePredicate;
+                var query = "from test | where " + comparison;
+                Source expectedSource = new Source(1, 18, comparison);
+
+                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
+
+                assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
+                var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
+                assertThat(actualLuceneQuery.field(), equalTo(testCase.fieldName));
+                assertThat(actualLuceneQuery.source(), equalTo(expectedSource));
+
+                assertThat(actualLuceneQuery.next(), equalTo(QueryBuilders.matchAllQuery()));
+            }
+
+            for (String falsePredicate : alwaysFalsePredicates) {
+                String comparison = testCase.fieldName + falsePredicate;
+                var query = "from test | where " + comparison;
+                Source expectedSource = new Source(1, 18, comparison);
+
+                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
+
+                assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
+                var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
+                assertThat(actualLuceneQuery.field(), equalTo(testCase.fieldName));
+                assertThat(actualLuceneQuery.source(), equalTo(expectedSource));
+
+                var expectedInnerQuery = QueryBuilders.boolQuery().mustNot(QueryBuilders.matchAllQuery());
+                assertThat(actualLuceneQuery.next(), equalTo(expectedInnerQuery));
+            }
+        }
+    }
+
+    /**
+     * Expects e.g.
+     * LimitExec[500[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[!alias_integer, boolean{f}#190, byte{f}#191, constant_keyword-foo{f}#192, date{f}#193, double{f}#194, ...]]
+     *     \_FieldExtractExec[!alias_integer, boolean{f}#190, byte{f}#191, consta..][]
+     *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"byte","next":{"match_all":{"boost":1.0}},...}}]
+     */
+    private EsQueryExec doTestOutOfRangeFilterPushdown(String query, Analyzer analyzer) {
+        var plan = plan(query, EsqlTestUtils.TEST_SEARCH_STATS, analyzer);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var luceneQuery = as(fieldExtract.child(), EsQueryExec.class);
+
+        return luceneQuery;
+    }
+
+    /**
+     * Expects
+     * LimitExec[500[INTEGER]]
+     * \_ExchangeExec[[],false]
      *   \_ProjectExec[[_meta_field{f}#8, emp_no{r}#2, first_name{r}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, first_n
      * ame{r}#3 AS last_name, long_noidx{f}#11, emp_no{r}#2 AS salary]]
      *     \_FieldExtractExec[_meta_field{f}#8, gender{f}#4, job{f}#9, job.raw{f}..]
@@ -481,7 +626,11 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan plan(String query, SearchStats stats) {
-        var physical = optimizedPlan(physicalPlan(query), stats);
+        return plan(query, stats, analyzer);
+    }
+
+    private PhysicalPlan plan(String query, SearchStats stats, Analyzer analyzer) {
+        var physical = optimizedPlan(physicalPlan(query, analyzer), stats);
         return physical;
     }
 
@@ -504,7 +653,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         return l;
     }
 
-    private PhysicalPlan physicalPlan(String query) {
+    private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
         var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
@@ -514,5 +663,14 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
+    }
+
+    private String randomCidrBlock() {
+        boolean ipv4 = randomBoolean();
+
+        String address = NetworkAddress.format(randomIp(ipv4));
+        int cidrPrefixLength = ipv4 ? randomIntBetween(0, 32) : randomIntBetween(0, 128);
+
+        return format(null, "{}/{}", address, cidrPrefixLength);
     }
 }

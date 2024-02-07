@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -37,7 +36,7 @@ import java.util.function.DoubleConsumer;
 /**
  * Implementation of {@link Histogram}.
  */
-public final class InternalHistogram extends InternalMultiBucketAggregation<InternalHistogram, InternalHistogram.Bucket>
+public class InternalHistogram extends InternalMultiBucketAggregation<InternalHistogram, InternalHistogram.Bucket>
     implements
         Histogram,
         HistogramFactory {
@@ -107,7 +106,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -349,14 +348,13 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
     @Override
     protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
-        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
+        assert buckets.isEmpty() == false;
         long docCount = 0;
         for (Bucket bucket : buckets) {
             docCount += bucket.docCount;
-            aggregations.add((InternalAggregations) bucket.getAggregations());
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         return createBucket(buckets.get(0).key, docCount, aggs);
     }
 

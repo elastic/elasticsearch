@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -84,24 +83,22 @@ public class RetryingHttpSender implements Retrier {
 
         @Override
         public void tryAction(ActionListener<InferenceServiceResults> listener) {
-            var httpRequest = request.createRequest();
-
             ActionListener<HttpResult> responseListener = ActionListener.wrap(result -> {
                 try {
-                    responseHandler.validateResponse(throttlerManager, logger, httpRequest, result);
+                    responseHandler.validateResponse(throttlerManager, logger, request, result);
                     InferenceServiceResults inferenceResults = responseHandler.parseResult(request, result);
 
                     listener.onResponse(inferenceResults);
                 } catch (Exception e) {
-                    logException(httpRequest, result, responseHandler.getRequestType(), e);
+                    logException(request, result, responseHandler.getRequestType(), e);
                     listener.onFailure(e);
                 }
             }, e -> {
-                logException(httpRequest, responseHandler.getRequestType(), e);
+                logException(request, responseHandler.getRequestType(), e);
                 listener.onFailure(transformIfRetryable(e));
             });
 
-            sender.send(httpRequest, responseListener);
+            sender.send(request.createHttpRequest(), responseListener);
         }
 
         @Override
@@ -146,24 +143,24 @@ public class RetryingHttpSender implements Retrier {
         retrier.run();
     }
 
-    private void logException(HttpRequestBase request, String requestType, Exception exception) {
+    private void logException(Request request, String requestType, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         throttlerManager.warn(
             logger,
-            format("Failed while sending request [%s] of type [%s]", request.getRequestLine(), requestType),
+            format("Failed while sending request from inference entity id [%s] of type [%s]", request.getInferenceEntityId(), requestType),
             causeException
         );
     }
 
-    private void logException(HttpRequestBase request, HttpResult result, String requestType, Exception exception) {
+    private void logException(Request request, HttpResult result, String requestType, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         throttlerManager.warn(
             logger,
             format(
-                "Failed to process the response for request [%s] of type [%s] with status [%s] [%s]",
-                request.getRequestLine(),
+                "Failed to process the response for request from inference entity id [%s] of type [%s] with status [%s] [%s]",
+                request.getInferenceEntityId(),
                 requestType,
                 result.response().getStatusLine().getStatusCode(),
                 result.response().getStatusLine().getReasonPhrase()

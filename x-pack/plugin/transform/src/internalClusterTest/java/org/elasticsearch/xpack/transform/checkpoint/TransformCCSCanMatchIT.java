@@ -351,7 +351,7 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             assertTrue(response.isAcknowledged());
         }
         assertBusy(() -> {
-            GetTransformStatsAction.Request request = new GetTransformStatsAction.Request(transformId, TIMEOUT);
+            GetTransformStatsAction.Request request = new GetTransformStatsAction.Request(transformId, TIMEOUT, true);
             GetTransformStatsAction.Response response = client().execute(GetTransformStatsAction.INSTANCE, request).actionGet();
             assertThat("Stats were: " + response.getTransformsStats(), response.getTransformsStats(), hasSize(1));
             assertThat(response.getTransformsStats().get(0).getState(), is(equalTo(TransformStats.State.STOPPED)));

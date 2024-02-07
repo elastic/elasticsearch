@@ -11,8 +11,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveBinaryComparison;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -238,6 +240,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         public static boolean canPushToSource(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
             if (exp instanceof BinaryComparison bc) {
                 return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
+            } else if (exp instanceof InsensitiveBinaryComparison bc) {
+                return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
             } else if (exp instanceof BinaryLogic bl) {
                 return canPushToSource(bl.left(), hasIdenticalDelegate) && canPushToSource(bl.right(), hasIdenticalDelegate);
             } else if (exp instanceof In in) {
@@ -248,6 +252,9 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
                     return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
                 }
+            } else if (exp instanceof CIDRMatch cidrMatch) {
+                return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate)
+                    && Expressions.foldable(cidrMatch.matches());
             }
             return false;
         }

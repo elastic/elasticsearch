@@ -168,7 +168,6 @@ orderExpression
 
 keepCommand
     :  KEEP qualifiedNamePattern (COMMA qualifiedNamePattern)*
-    |  PROJECT qualifiedNamePattern (COMMA qualifiedNamePattern)*
     ;
 
 dropCommand
@@ -225,7 +224,7 @@ string
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : EQ | CIEQ | NEQ | LT | LTE | GT | GTE
     ;
 
 explainCommand

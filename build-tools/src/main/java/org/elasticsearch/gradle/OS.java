@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.gradle;
 
+import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -34,7 +34,7 @@ public enum OS {
 
     public static class Conditional<T> {
 
-        private final Map<OS, Supplier<T>> conditions = new HashMap<>();
+        private final Map<OS, Supplier<T>> conditions = new EnumMap<>(OS.class);
 
         public Conditional<T> onWindows(Supplier<T> supplier) {
             conditions.put(WINDOWS, supplier);

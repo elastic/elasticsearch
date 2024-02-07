@@ -8,8 +8,8 @@
 
 package org.elasticsearch.test.cluster.util;
 
+import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -36,7 +36,7 @@ public enum OS {
 
     public static class Conditional<T> {
 
-        private final Map<OS, Supplier<? extends T>> conditions = new HashMap<>();
+        private final Map<OS, Supplier<? extends T>> conditions = new EnumMap<>(OS.class);
 
         public Conditional<T> onWindows(Supplier<? extends T> supplier) {
             conditions.put(WINDOWS, supplier);

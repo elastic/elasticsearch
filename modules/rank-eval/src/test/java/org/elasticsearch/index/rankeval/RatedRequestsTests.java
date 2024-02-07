@@ -109,8 +109,6 @@ public class RatedRequestsTests extends ESTestCase {
     }
 
     public void testXContentRoundtrip() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/104570", Constants.WINDOWS);
-
         RatedRequest testItem = createTestItem(randomBoolean());
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
@@ -301,8 +299,6 @@ public class RatedRequestsTests extends ESTestCase {
      * matter for parsing xContent
      */
     public void testParseFromXContent() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/104570", Constants.WINDOWS);
-
         String querySpecString = """
             {
               "id": "my_qa_query",

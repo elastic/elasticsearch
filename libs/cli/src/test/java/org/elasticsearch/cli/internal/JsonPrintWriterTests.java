@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cli.internal;
 
+import joptsimple.OptionParser;
+
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -19,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -237,6 +240,24 @@ public class JsonPrintWriterTests extends ESTestCase {
             assertThat(lines[0], is("java.lang.RuntimeException: Something went wrong!"));
             assertThat(lines[1], matchesRegex("\tat [a-zA-Z.]+\\.testPrintStacktrace\\(JsonPrintWriterTests.java:\\d+\\)"));
             assertThat(lines[lines.length - 1], matchesRegex("\tat java.base/java.lang.Thread.run\\(Thread.java:\\d+\\)"));
+        }
+    }
+
+    public void testPrintOptionParserHelp() throws IOException {
+        OptionParser parser = new OptionParser();
+        parser.acceptsAll(Arrays.asList("h", "help"), "Show help").forHelp();
+
+        try (JsonPrintWriter writer = jsonPrintWriter()) {
+            parser.printHelpOn(writer); // should not require flush
+
+            String jsonString = outputStream.toString(StandardCharsets.UTF_8);
+            Map<String, Object> fields = createParser(JsonXContent.jsonXContent, jsonString).map(); // un-quoted fields
+
+            assertThat(fields, hasKey("message"));
+            String message = fields.get("message").toString();
+
+            assertThat(jsonString, endsWith(System.lineSeparator())); // trailing newline
+            assertThat(message, matchesRegex("Option +Description *\n-+ +-+ *\n-h, --help +Show help *")); // no trailing newline
         }
     }
 

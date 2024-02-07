@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -109,7 +108,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -411,14 +410,13 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
 
     @Override
     protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
-        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
+        assert buckets.isEmpty() == false;
         long docCount = 0;
         for (Bucket bucket : buckets) {
             docCount += bucket.docCount;
-            aggregations.add((InternalAggregations) bucket.getAggregations());
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         return new InternalAutoDateHistogram.Bucket(buckets.get(0).key, docCount, format, aggs);
     }
 

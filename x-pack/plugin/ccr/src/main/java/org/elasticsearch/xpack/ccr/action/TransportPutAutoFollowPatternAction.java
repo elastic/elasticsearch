@@ -100,7 +100,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             listener.onFailure(new IllegalArgumentException(message));
             return;
         }
-        final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster(), remoteClientResponseExecutor);
+        final var remoteClient = client.getRemoteClusterClient(request.getRemoteCluster(), remoteClientResponseExecutor);
         final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
             threadPool.getThreadContext(),
             clusterService.state()
@@ -108,7 +108,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
-            ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
+            ccrLicenseChecker.hasPrivilegesToFollowIndices(client.threadPool().getThreadContext(), remoteClient, indices, e -> {
                 if (e == null) {
                     submitUnbatchedTask(
                         "put-auto-follow-pattern-" + request.getRemoteCluster(),

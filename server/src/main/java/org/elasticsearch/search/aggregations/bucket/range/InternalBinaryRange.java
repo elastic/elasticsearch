@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -117,7 +116,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -293,9 +292,9 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
     @Override
     protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
-        List<InternalAggregations> aggregationsList = buckets.stream().map(bucket -> bucket.aggregations).toList();
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        assert buckets.isEmpty() == false;
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         return createBucket(aggs, buckets.get(0));
     }
 

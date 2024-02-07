@@ -51,6 +51,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -428,6 +429,11 @@ public abstract class FieldMapper extends Mapper {
 
     protected abstract String contentType();
 
+    @Override
+    public int getTotalFieldsCount() {
+        return 1 + Stream.of(multiFields.mappers).mapToInt(FieldMapper::getTotalFieldsCount).sum();
+    }
+
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of();
     }
@@ -449,19 +455,19 @@ public abstract class FieldMapper extends Mapper {
                 return this;
             }
 
-            public Builder add(FieldMapper mapper) {
+            private void add(FieldMapper mapper) {
                 mapperBuilders.put(mapper.simpleName(), context -> mapper);
-                return this;
             }
 
-            public Builder update(FieldMapper toMerge, MapperMergeContext context) {
+            private void update(FieldMapper toMerge, MapperMergeContext context) {
                 if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
-                    add(toMerge);
+                    if (context.decrementFieldBudgetIfPossible(toMerge.getTotalFieldsCount())) {
+                        add(toMerge);
+                    }
                 } else {
                     FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(context.getMapperBuilderContext());
                     add(existing.merge(toMerge, context));
                 }
-                return this;
             }
 
             public boolean hasMultiFields() {

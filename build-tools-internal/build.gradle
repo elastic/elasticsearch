@@ -139,6 +139,14 @@ gradlePlugin {
       id = 'elasticsearch.java-module'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaModulePathPlugin'
     }
+    mrjar {
+      id = 'elasticsearch.mrjar'
+      implementationClass = 'org.elasticsearch.gradle.internal.MrjarPlugin'
+    }
+    embeddedProvider {
+      id = 'elasticsearch.embedded-providers'
+      implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
+    }
     releaseTools {
       id = 'elasticsearch.release-tools'
       implementationClass = 'org.elasticsearch.gradle.internal.release.ReleaseToolsPlugin'

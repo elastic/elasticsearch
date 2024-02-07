@@ -81,7 +81,7 @@ Defaults to `open`.
 If `true`,
 the request forces a flush
 even if there are no changes to commit to the index.
-Defaults to `true`.
+Defaults to `false`.
 
 You can use this parameter
 to increment the generation number of the transaction log.

@@ -162,7 +162,7 @@ public class ObjectMapper extends Mapper {
                     // This can also happen due to multiple index templates being merged into a single mappings definition using
                     // XContentHelper#mergeDefaults, again in case some index templates contained mappings for the same field using a
                     // mix of object notation and dot notation.
-                    mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext));
+                    mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE));
                 }
                 mappers.put(mapper.simpleName(), mapper);
             }
@@ -180,6 +180,11 @@ public class ObjectMapper extends Mapper {
                 buildMappers(context.createChildContext(name))
             );
         }
+    }
+
+    @Override
+    public int getTotalFieldsCount() {
+        return 1 + mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum();
     }
 
     public static class TypeParser implements Mapper.TypeParser {
@@ -295,18 +300,12 @@ public class ObjectMapper extends Mapper {
                         }
                     }
 
-                    if (objBuilder.subobjects.value() == false && type.equals(ObjectMapper.CONTENT_TYPE)) {
+                    if (objBuilder.subobjects.value() == false
+                        && (type.equals(ObjectMapper.CONTENT_TYPE)
+                            || type.equals(NestedObjectMapper.CONTENT_TYPE)
+                            || type.equals(PassThroughObjectMapper.CONTENT_TYPE))) {
                         throw new MapperParsingException(
                             "Tried to add subobject ["
-                                + fieldName
-                                + "] to object ["
-                                + objBuilder.name()
-                                + "] which does not support subobjects"
-                        );
-                    }
-                    if (objBuilder.subobjects.value() == false && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
-                        throw new MapperParsingException(
-                            "Tried to add nested object ["
                                 + fieldName
                                 + "] to object ["
                                 + objBuilder.name()
@@ -318,7 +317,7 @@ public class ObjectMapper extends Mapper {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
                     Mapper.Builder fieldBuilder;
-                    if (objBuilder.subobjects.value() == false) {
+                    if (objBuilder.subobjects.value() == false || type.equals(FieldAliasMapper.CONTENT_TYPE)) {
                         fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
                     } else {
                         String[] fieldNameParts = fieldName.split("\\.");
@@ -403,6 +402,14 @@ public class ObjectMapper extends Mapper {
         return builder;
     }
 
+    /**
+     * Returns a copy of this object mapper that doesn't have any fields and runtime fields.
+     * This is typically used in the context of a mapper merge when there's not enough budget to add the entire object.
+     */
+    ObjectMapper withoutMappers() {
+        return new ObjectMapper(simpleName(), fullPath, enabled, subobjects, dynamic, Map.of());
+    }
+
     @Override
     public String name() {
         return this.fullPath;
@@ -459,6 +466,17 @@ public class ObjectMapper extends Mapper {
     }
 
     public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
+        if (mergeWith instanceof ObjectMapper == false) {
+            MapperErrors.throwObjectMappingConflictError(mergeWith.name());
+        }
+        if (this instanceof NestedObjectMapper == false && mergeWith instanceof NestedObjectMapper) {
+            // TODO stop NestedObjectMapper extending ObjectMapper?
+            MapperErrors.throwNestedMappingConflictError(mergeWith.name());
+        }
+        return merge((ObjectMapper) mergeWith, reason, parentMergeContext);
+    }
+
+    ObjectMapper merge(ObjectMapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
         var mergeResult = MergeResult.build(this, mergeWith, reason, parentMergeContext);
         return new ObjectMapper(
             simpleName(),
@@ -476,21 +494,12 @@ public class ObjectMapper extends Mapper {
         ObjectMapper.Dynamic dynamic,
         Map<String, Mapper> mappers
     ) {
-
-        public static MergeResult build(
+        static MergeResult build(
             ObjectMapper existing,
-            Mapper mergeWith,
+            ObjectMapper mergeWithObject,
             MergeReason reason,
             MapperMergeContext parentMergeContext
         ) {
-            if ((mergeWith instanceof ObjectMapper) == false) {
-                MapperErrors.throwObjectMappingConflictError(mergeWith.name());
-            }
-            if (existing instanceof NestedObjectMapper == false && mergeWith instanceof NestedObjectMapper) {
-                // TODO stop NestedObjectMapper extending ObjectMapper?
-                MapperErrors.throwNestedMappingConflictError(mergeWith.name());
-            }
-            ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
             final Explicit<Boolean> enabled;
             if (mergeWithObject.enabled.explicit()) {
                 if (reason == MergeReason.INDEX_TEMPLATE) {
@@ -518,7 +527,7 @@ public class ObjectMapper extends Mapper {
                 subObjects = existing.subobjects;
             }
             MapperMergeContext objectMergeContext = existing.createChildContext(parentMergeContext, existing.simpleName());
-            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWith, reason, objectMergeContext);
+            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWithObject, reason, objectMergeContext);
             return new MergeResult(
                 enabled,
                 subObjects,
@@ -529,17 +538,25 @@ public class ObjectMapper extends Mapper {
 
         private static Map<String, Mapper> buildMergedMappers(
             ObjectMapper existing,
-            Mapper mergeWith,
+            ObjectMapper mergeWithObject,
             MergeReason reason,
             MapperMergeContext objectMergeContext
         ) {
-            Map<String, Mapper> mergedMappers = null;
-            for (Mapper mergeWithMapper : mergeWith) {
-                Mapper mergeIntoMapper = (mergedMappers == null ? existing.mappers : mergedMappers).get(mergeWithMapper.simpleName());
-
-                Mapper merged;
+            Iterator<Mapper> iterator = mergeWithObject.iterator();
+            if (iterator.hasNext() == false) {
+                return Map.copyOf(existing.mappers);
+            }
+            Map<String, Mapper> mergedMappers = new HashMap<>(existing.mappers);
+            while (iterator.hasNext()) {
+                Mapper mergeWithMapper = iterator.next();
+                Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
+                Mapper merged = null;
                 if (mergeIntoMapper == null) {
-                    merged = mergeWithMapper;
+                    if (objectMergeContext.decrementFieldBudgetIfPossible(mergeWithMapper.getTotalFieldsCount())) {
+                        merged = mergeWithMapper;
+                    } else if (mergeWithMapper instanceof ObjectMapper om) {
+                        merged = truncateObjectMapper(reason, objectMergeContext, om);
+                    }
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
                     merged = objectMapper.merge(mergeWithMapper, reason, objectMergeContext);
                 } else {
@@ -558,17 +575,22 @@ public class ObjectMapper extends Mapper {
                         merged = mergeIntoMapper.merge(mergeWithMapper, objectMergeContext);
                     }
                 }
-                if (mergedMappers == null) {
-                    mergedMappers = new HashMap<>(existing.mappers);
+                if (merged != null) {
+                    mergedMappers.put(merged.simpleName(), merged);
                 }
-                mergedMappers.put(merged.simpleName(), merged);
             }
-            if (mergedMappers != null) {
-                mergedMappers = Map.copyOf(mergedMappers);
-            } else {
-                mergedMappers = Map.copyOf(existing.mappers);
+            return Map.copyOf(mergedMappers);
+        }
+
+        private static ObjectMapper truncateObjectMapper(MergeReason reason, MapperMergeContext context, ObjectMapper objectMapper) {
+            // there's not enough capacity for the whole object mapper,
+            // so we're just trying to add the shallow object, without it's sub-fields
+            ObjectMapper shallowObjectMapper = objectMapper.withoutMappers();
+            if (context.decrementFieldBudgetIfPossible(shallowObjectMapper.getTotalFieldsCount())) {
+                // now trying to add the sub-fields one by one via a merge, until we hit the limit
+                return shallowObjectMapper.merge(objectMapper, reason, context);
             }
-            return mergedMappers;
+            return null;
         }
     }
 

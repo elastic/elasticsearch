@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -61,24 +60,6 @@ public final class QueryApiKeyRequest extends ActionRequest {
         this.withLimitedBy = withLimitedBy;
     }
 
-    public QueryApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        this.queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        this.from = in.readOptionalVInt();
-        this.size = in.readOptionalVInt();
-        if (in.readBoolean()) {
-            this.fieldSortBuilders = in.readCollectionAsList(FieldSortBuilder::new);
-        } else {
-            this.fieldSortBuilders = null;
-        }
-        this.searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            this.withLimitedBy = in.readBoolean();
-        } else {
-            this.withLimitedBy = false;
-        }
-    }
-
     public QueryBuilder getQueryBuilder() {
         return queryBuilder;
     }
@@ -125,19 +106,6 @@ public final class QueryApiKeyRequest extends ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalNamedWriteable(queryBuilder);
-        out.writeOptionalVInt(from);
-        out.writeOptionalVInt(size);
-        if (fieldSortBuilders == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeCollection(fieldSortBuilders);
-        }
-        out.writeOptionalWriteable(searchAfterBuilder);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            out.writeBoolean(withLimitedBy);
-        }
+        TransportAction.localOnly();
     }
 }

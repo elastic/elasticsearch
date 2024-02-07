@@ -35,7 +35,6 @@ public class ParsedDocument {
 
     private BytesReference source;
     private XContentType xContentType;
-
     private Mapping dynamicMappingsUpdate;
 
     /**
@@ -160,7 +159,7 @@ public class ParsedDocument {
         if (dynamicMappingsUpdate == null) {
             dynamicMappingsUpdate = update;
         } else {
-            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_UPDATE);
+            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_AUTO_UPDATE, Long.MAX_VALUE);
         }
     }
 

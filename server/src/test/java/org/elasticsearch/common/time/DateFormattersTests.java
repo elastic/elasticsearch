@@ -1371,4 +1371,12 @@ public class DateFormattersTests extends ESTestCase {
         long millisJoda = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss").parseMillis("2018-02-18 17:47:17");
         assertThat(millisJava, is(millisJoda));
     }
+
+    // see https://bugs.openjdk.org/browse/JDK-8193877
+    public void testNoClassCastException() {
+        String input = "DpNKOGqhjZ";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern(input));
+        assertThat(e.getCause(), instanceOf(ClassCastException.class));
+        assertThat(e.getMessage(), containsString(input));
+    }
 }

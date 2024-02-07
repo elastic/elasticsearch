@@ -13,6 +13,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -26,7 +27,6 @@ import org.elasticsearch.license.PostStartTrialAction;
 import org.elasticsearch.license.PostStartTrialRequest;
 import org.elasticsearch.license.PostStartTrialResponse;
 import org.elasticsearch.license.TransportDeleteLicenseAction;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -78,7 +78,7 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
-        assertAcked(client().execute(TransportDeleteLicenseAction.TYPE, new DeleteLicenseRequest()).get());
+        assertAcked(client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain()).get());
         assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
 
         ensureClusterSizeConsistency();

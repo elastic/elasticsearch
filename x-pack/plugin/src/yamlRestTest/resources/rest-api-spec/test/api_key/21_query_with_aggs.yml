@@ -96,7 +96,6 @@ teardown:
         body: >
           {
             "name": "user-api-key",
-            "expiration": "10d",
             "metadata": {
                "letter": "b",
                "number": 43

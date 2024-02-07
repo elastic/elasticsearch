@@ -360,11 +360,16 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                   "missing": {
                     "field": "type"
                   }
+                },
+                "type_terms": {
+                  "terms": {
+                    "field": "type"
+                  }
                 }
               }
             }
             """, aggs -> {
-            assertThat(aggs.size(), is(3));
+            assertThat(aggs.size(), is(4));
             // 3 types
             assertThat(((Map<String, Object>) aggs.get("type_cardinality")).get("value"), is(3));
             if (isAdmin) {
@@ -375,6 +380,10 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 assertThat(((Map<String, Object>) aggs.get("type_value_count")).get("value"), is(4));
             }
             assertThat(((Map<String, Object>) aggs.get("missing_type_count")).get("doc_count"), is(0));
+            List<Map<String, Object>> typeTermsBuckets = (List<Map<String, Object>>) ((Map<String, Object>) aggs.get("type_terms")).get(
+                "buckets"
+            );
+            assertThat(typeTermsBuckets.size(), is(3));
         });
         // runtime type field is disallowed
         {
@@ -518,6 +527,63 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
             assertThat(exception.getMessage(), containsString("Field [creator] is not allowed for API Key query or aggregation"));
+        }
+    }
+
+    public void testDisallowedAggTypes() {
+        // global aggregation type MUST never be allowed in order to not expose non-owned non-API key docs
+        {
+            Request request = new Request("GET", "/_security/_query/api_key");
+            request.setOptions(
+                    request.getOptions()
+                            .toBuilder()
+                            .addHeader(HttpHeaders.AUTHORIZATION, randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER))
+            );
+            request.setJsonEntity("""
+                {
+                  "aggs": {
+                    "all_.security_docs": {
+                      "global": {},
+                      "aggs": {
+                        "key_names": {
+                          "terms": { "field": "name" }
+                        }
+                      }
+                    }
+                  }
+                }
+                """);
+            ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
+            assertThat(exception.getMessage(), containsString("Unsupported API Keys agg [all_.security_docs] of type [global]"));
+        }
+        // pipeline aggs are not allowed but could be if there's an identified use-case
+        {
+            Request request = new Request("GET", "/_security/_query/api_key");
+            request.setOptions(
+                    request.getOptions()
+                            .toBuilder()
+                            .addHeader(HttpHeaders.AUTHORIZATION, randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER))
+            );
+            request.setJsonEntity("""
+                {
+                  "aggs": {
+                    "type_cardinality": {
+                      "cardinality": {
+                        "field": "type"
+                      }
+                    },
+                    "total_type_cardinality": {
+                      "cumulative_cardinality": {
+                        "buckets_path": "type_cardinality"
+                      }
+                    }
+                  }
+                }
+                """);
+            ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
+            assertThat(exception.getMessage(), containsString("Unsupported pipeline aggregation of type [cumulative_cardinality]"));
         }
     }
 

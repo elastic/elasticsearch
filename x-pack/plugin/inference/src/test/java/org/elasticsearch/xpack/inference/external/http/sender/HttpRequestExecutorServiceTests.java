@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -223,6 +224,35 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
         );
         assertTrue(thrownException.isExecutorShutdown());
         assertTrue(service.isTerminated());
+    }
+
+    public void testQueueTake_RejectsTask_WhenServiceShutsDown() throws Exception {
+        var mockTask = mock(HttpTask.class);
+        @SuppressWarnings("unchecked")
+        BlockingQueue<HttpTask> queue = mock(LinkedBlockingQueue.class);
+
+        var service = new HttpRequestExecutorService("test_service", mock(HttpClient.class), threadPool, queue, null);
+
+        doAnswer(invocation -> {
+            service.shutdown();
+            return mockTask;
+        }).doReturn(mock(HttpTask.class)).when(queue).take();
+
+        service.start();
+
+        assertTrue(service.isTerminated());
+        verify(queue, times(1)).take();
+
+        ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
+        verify(mockTask, times(1)).onRejection(argument.capture());
+        assertThat(argument.getValue(), instanceOf(EsRejectedExecutionException.class));
+        assertThat(
+            argument.getValue().getMessage(),
+            is("Failed to send request, queue service [test_service] has shutdown prior to executing request")
+        );
+
+        var rejectionException = (EsRejectedExecutionException) argument.getValue();
+        assertTrue(rejectionException.isExecutorShutdown());
     }
 
     public void testQueueTake_Throwing_DoesNotCauseServiceToTerminate() throws InterruptedException {

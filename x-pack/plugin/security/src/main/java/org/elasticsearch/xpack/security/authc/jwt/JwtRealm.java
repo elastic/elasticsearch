@@ -19,6 +19,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.RotatableSecret;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -399,8 +400,22 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }, listener::onFailure));
     }
 
-    public void rotateClientSecret(SecureString clientSecret) {
-        this.clientAuthenticationSharedSecret.rotate(clientSecret, config.getSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD));
+    public void reload(Settings settings) {
+        final SecureString newClientSharedSecret = JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(
+            this.realmRef().getName()
+        ).get(settings);
+
+        JwtUtil.validateClientAuthenticationSettings(
+            RealmSettings.getFullSettingKey(this.config, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
+            this.clientAuthenticationType,
+            RealmSettings.getFullSettingKey(this.config, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
+            new RotatableSecret(newClientSharedSecret)
+        );
+
+        this.clientAuthenticationSharedSecret.rotate(
+            newClientSharedSecret,
+            config.getSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD)
+        );
     }
 
     /**

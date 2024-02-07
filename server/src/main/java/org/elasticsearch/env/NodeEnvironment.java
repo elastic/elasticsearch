@@ -1513,7 +1513,7 @@ public final class NodeEnvironment implements Closeable {
     static String getBestDowngradeVersion(String previousNodeVersion) {
         // this method should only be called in the context of an upgrade to 8.x
         assert Build.current().version().startsWith("9.") == false;
-        Pattern pattern = Pattern.compile("^7\\.(\\d+)\\.\\d+.*$");
+        Pattern pattern = Pattern.compile("^7\\.(\\d+)\\.\\d+(-\\d+\\.\\d+\\.\\d+)?$");
         Matcher matcher = pattern.matcher(previousNodeVersion);
         if (matcher.matches()) {
             try {

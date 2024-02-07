@@ -77,6 +77,38 @@ POST /_security/api_key/grant
 }
 ----
 // TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE /_security/user/king
+DELETE /_security/user/june
+DELETE /_security/api_key
+{
+  "name" : "king-key-no-expire"
+}
+DELETE /_security/api_key
+{
+  "name" : "king-key-10"
+}
+DELETE /_security/api_key
+{
+  "name" : "king-key-100"
+}
+DELETE /_security/api_key
+{
+  "name" : "june-key-no-expire"
+}
+DELETE /_security/api_key
+{
+  "name" : "june-key-10"
+}
+DELETE /_security/api_key
+{
+  "name" : "june-key-100"
+}
+--------------------------------------------------
+// TEARDOWN
+
 ////
 
 Retrieves information for API keys with <<query-dsl,Query DSL>>

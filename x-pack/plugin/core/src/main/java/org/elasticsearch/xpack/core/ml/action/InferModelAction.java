@@ -192,7 +192,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 highPriority = in.readBoolean();
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
             } else {
                 prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
@@ -268,7 +268,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeBoolean(highPriority);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeEnum(prefixType);
             }
         }

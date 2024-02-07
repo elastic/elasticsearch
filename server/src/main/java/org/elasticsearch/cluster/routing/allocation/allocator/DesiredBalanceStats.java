@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.TransportVersions.V_8_12_X;
+import static org.elasticsearch.TransportVersions.V_8_12_0;
 
 public record DesiredBalanceStats(
     long lastConvergedIndex,
@@ -56,9 +56,9 @@ public record DesiredBalanceStats(
             in.getTransportVersion().onOrAfter(COMPUTED_SHARD_MOVEMENTS_VERSION) ? in.readVLong() : -1,
             in.readVLong(),
             in.readVLong(),
-            in.getTransportVersion().onOrAfter(V_8_12_X) ? in.readVLong() : -1,
-            in.getTransportVersion().onOrAfter(V_8_12_X) ? in.readVLong() : -1,
-            in.getTransportVersion().onOrAfter(V_8_12_X) ? in.readVLong() : -1
+            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readVLong() : -1,
+            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readVLong() : -1,
+            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readVLong() : -1
         );
     }
 
@@ -75,7 +75,7 @@ public record DesiredBalanceStats(
         }
         out.writeVLong(cumulativeComputationTime);
         out.writeVLong(cumulativeReconciliationTime);
-        if (out.getTransportVersion().onOrAfter(V_8_12_X)) {
+        if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
             out.writeVLong(unassignedShards);
             out.writeVLong(totalAllocations);
             out.writeVLong(undesiredAllocations);

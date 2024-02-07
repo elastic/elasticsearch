@@ -226,7 +226,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             );
             r.setHighPriority(false);
             return r;
-        } else if (version.before(TransportVersions.V_8_12_X)) {
+        } else if (version.before(TransportVersions.V_8_12_0)) {
             var r = new Request(
                 instance.getId(),
                 adjustedUpdate,

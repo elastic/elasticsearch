@@ -33,7 +33,7 @@ public record HealthInfo(Map<String, DiskHealthInfo> diskInfoByNode, @Nullable D
     public HealthInfo(StreamInput input) throws IOException {
         this(
             input.readMap(DiskHealthInfo::new),
-            input.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)
+            input.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)
                 ? input.readOptionalWriteable(DataStreamLifecycleHealthInfo::new)
                 : null
         );
@@ -42,7 +42,7 @@ public record HealthInfo(Map<String, DiskHealthInfo> diskInfoByNode, @Nullable D
     @Override
     public void writeTo(StreamOutput output) throws IOException {
         output.writeMap(diskInfoByNode, StreamOutput::writeWriteable);
-        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             output.writeOptionalWriteable(dslHealthInfo);
         }
     }

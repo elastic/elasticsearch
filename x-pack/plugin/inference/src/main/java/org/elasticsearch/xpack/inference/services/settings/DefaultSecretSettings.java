@@ -71,7 +71,7 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_X;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override

@@ -90,7 +90,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super(in);
             this.taskType = TaskType.fromStream(in);
             this.inferenceEntityId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 this.input = in.readStringCollectionAsList();
             } else {
                 this.input = List.of(in.readString());
@@ -143,7 +143,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super.writeTo(out);
             taskType.writeTo(out);
             out.writeString(inferenceEntityId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeStringCollection(input);
             } else {
                 out.writeString(input.get(0));
@@ -233,7 +233,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 results = in.readNamedWriteable(InferenceServiceResults.class);
             } else {
                 // It should only be InferenceResults aka TextEmbeddingResults from ml plugin for
@@ -295,7 +295,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeNamedWriteable(results);
             } else {
                 out.writeNamedWriteable(results.transformToLegacyFormat().get(0));

@@ -128,7 +128,7 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
         if (version.before(TransportVersions.V_8_11_X)) {
             builder.setPlatformArchitecture(null);
         }
-        if (version.before(TransportVersions.V_8_12_X)) {
+        if (version.before(TransportVersions.V_8_12_0)) {
             builder.setPrefixStrings(null);
         }
         return builder.build();

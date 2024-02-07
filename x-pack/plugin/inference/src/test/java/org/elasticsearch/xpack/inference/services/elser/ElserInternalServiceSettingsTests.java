@@ -90,7 +90,7 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
     public void testBwcWrite() throws IOException {
         {
             var settings = new ElserInternalServiceSettings(1, 1, ".elser_model_1");
-            var copy = copyInstance(settings, TransportVersions.V_8_12_X);
+            var copy = copyInstance(settings, TransportVersions.V_8_12_0);
             assertEquals(settings, copy);
         }
         {

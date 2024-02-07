@@ -120,7 +120,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.numCands = in.readVInt();
         }
-        if (in.getTransportVersion().before(TransportVersions.V_8_7_0) || in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_7_0) || in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.queryVector = in.readFloatArray();
         } else {
             in.readBoolean();
@@ -190,7 +190,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
         }
         if (out.getTransportVersion().before(TransportVersions.V_8_7_0)
-            || out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+            || out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeFloatArray(queryVector);
         } else {
             out.writeBoolean(true);

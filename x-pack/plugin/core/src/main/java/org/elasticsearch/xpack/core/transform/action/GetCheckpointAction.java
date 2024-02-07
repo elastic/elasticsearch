@@ -59,7 +59,7 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             super(in);
             indices = in.readStringArray();
             indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 query = in.readOptionalNamedWriteable(QueryBuilder.class);
                 cluster = in.readOptionalString();
                 timeout = in.readOptionalTimeValue();
@@ -132,7 +132,7 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             super.writeTo(out);
             out.writeStringArray(indices);
             indicesOptions.writeIndicesOptions(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeOptionalNamedWriteable(query);
                 out.writeOptionalString(cluster);
                 out.writeOptionalTimeValue(timeout);

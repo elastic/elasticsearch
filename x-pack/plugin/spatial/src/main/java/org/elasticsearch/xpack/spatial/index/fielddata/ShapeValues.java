@@ -202,7 +202,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_12_X;
+            return TransportVersions.V_8_12_0;
         }
 
         @Override

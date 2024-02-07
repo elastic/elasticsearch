@@ -142,7 +142,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
     @Override
     protected InferenceAction.Request mutateInstanceForVersion(InferenceAction.Request instance, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_12_X)) {
+        if (version.before(TransportVersions.V_8_12_0)) {
             return new InferenceAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId(),

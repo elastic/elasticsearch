@@ -92,7 +92,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         } else {
             this.metadata = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.deprecated = in.readOptionalBoolean();
         } else {
             deprecated = null;
@@ -131,7 +131,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             out.writeBoolean(true);
             out.writeGenericMap(this.metadata);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalBoolean(this.deprecated);
         }
     }

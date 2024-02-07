@@ -220,7 +220,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         TransportVersion differentQueryVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_8_2_0,
-            TransportVersions.V_8_12_X
+            TransportVersions.V_8_12_0
         );
         Float similarity = differentQueryVersion.before(TransportVersions.V_8_8_0) ? null : query.getVectorSimilarity();
         KnnVectorQueryBuilder queryOlderVersion = new KnnVectorQueryBuilder(

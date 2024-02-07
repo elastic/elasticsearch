@@ -49,6 +49,6 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_X;
+        return TransportVersions.V_8_12_0;
     }
 }

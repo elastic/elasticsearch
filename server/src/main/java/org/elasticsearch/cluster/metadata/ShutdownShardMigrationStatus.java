@@ -109,7 +109,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
 
     public ShutdownShardMigrationStatus(StreamInput in) throws IOException {
         this.status = in.readEnum(SingleNodeShutdownMetadata.Status.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.startedShards = in.readZLong();
             this.relocatingShards = in.readZLong();
             this.initializingShards = in.readZLong();
@@ -169,7 +169,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(status);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_X)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeZLong(startedShards);
             out.writeZLong(relocatingShards);
             out.writeZLong(initializingShards);

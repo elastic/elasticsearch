@@ -387,8 +387,8 @@ public class Verifier {
      * TODO:
      * For Limit and TopN, we can insert the same node after the remote enrich (also needs to move projections around)
      * to eliminate this limitation. Otherwise, we force users to write queries that might not perform well.
-     * For example, `FROM test | ORDER @timestamp | LIMIT 10 | ENRICH[ccq.mode:remote]` doesn't work.
-     * In that case, users have to write it as `FROM test | ENRICH[ccq.mode:remote] | ORDER @timestamp | LIMIT 10`,
+     * For example, `FROM test | ORDER @timestamp | LIMIT 10 | ENRICH _remote:` doesn't work.
+     * In that case, users have to write it as `FROM test | ENRICH _remote: | ORDER @timestamp | LIMIT 10`,
      * which is equivalent to bringing all data to the coordinating cluster.
      * We might consider implementing the actual remote enrich on the coordinating cluster, however, this requires
      * retaining the originating cluster and restructing pages for routing, which might be complicated.
@@ -409,15 +409,13 @@ public class Verifier {
             }
             if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
                 if (limit[0]) {
-                    failures.add(fail(enrich, "enrich with [ccq.mode:remote] can't be executed after LIMIT"));
+                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after LIMIT"));
                 }
                 if (agg[0]) {
-                    failures.add(fail(enrich, "enrich with [ccq.mode:remote] can't be executed after STATS"));
+                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
                 }
                 if (enrichCoord[0]) {
-                    failures.add(
-                        fail(enrich, "enrich with [ccq.mode:remote] can't be executed after another enrich with [ccq.mode:coordinator]")
-                    );
+                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
                 }
             }
         });

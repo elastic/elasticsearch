@@ -352,6 +352,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         bulkRequest.requests.set(idx, null);
     }
 
+    /**
+     * Resolves and caches index and routing abstractions to more efficiently group write requests into shards.
+     */
     private static class ConcreteIndices {
         private final ClusterState state;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -363,6 +366,13 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             this.indexNameExpressionResolver = indexNameExpressionResolver;
         }
 
+        /**
+         * Resolves the index abstraction that the write request is targeting, potentially obtaining it from a cache. This instance isn't
+         * fully resolved, meaning that {@link IndexAbstraction#getWriteIndex()} should be invoked in order to get concrete write index.
+         *
+         * @param request a write request
+         * @return the index abstraction that the write request is targeting
+         */
         IndexAbstraction resolveIfAbsent(DocWriteRequest<?> request) {
             try {
                 IndexAbstraction indexAbstraction = indexAbstractions.get(request.index());
@@ -380,6 +390,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             }
         }
 
+        /**
+         * Determines which routing strategy to use for a document being written to the provided index, potentially obtaining the result
+         * from a cache.
+         * @param index the index to determine routing strategy for
+         * @return an {@link IndexRouting} object to use for assigning a write request to a shard
+         */
         IndexRouting routing(Index index) {
             IndexRouting routing = routings.get(index);
             if (routing == null) {

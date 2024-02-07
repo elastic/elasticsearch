@@ -63,11 +63,7 @@ public final class TransportActionProxy {
 
                 @Override
                 public void handleResponse(TransportResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+                    channel.sendResponse(response);
                 }
 
                 @Override

@@ -19,7 +19,7 @@ public interface TransportChannel {
 
     String getProfileName();
 
-    void sendResponse(TransportResponse response) throws IOException;
+    void sendResponse(TransportResponse response);
 
     void sendResponse(Exception exception) throws IOException;
 

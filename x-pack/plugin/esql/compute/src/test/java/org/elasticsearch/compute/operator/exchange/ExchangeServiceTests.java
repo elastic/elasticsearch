@@ -51,6 +51,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -396,7 +397,7 @@ public class ExchangeServiceTests extends ESTestCase {
             ) throws Exception {
                 FilterTransportChannel filterChannel = new FilterTransportChannel(channel) {
                     @Override
-                    public void sendResponse(TransportResponse transportResponse) throws IOException {
+                    public void sendResponse(TransportResponse transportResponse) {
                         ExchangeResponse origResp = (ExchangeResponse) transportResponse;
                         Page page = origResp.takePage();
                         if (page != null) {
@@ -404,7 +405,12 @@ public class ExchangeServiceTests extends ESTestCase {
                             for (int i = 0; i < block.getPositionCount(); i++) {
                                 if (block.getInt(i) == disconnectOnSeqNo) {
                                     page.releaseBlocks();
-                                    throw new IOException("page is too large");
+                                    try {
+                                        sendResponse(new IOException("page is too large"));
+                                    } catch (IOException e) {
+                                        throw new UncheckedIOException(e);
+                                    }
+                                    return;
                                 }
                             }
                         }
@@ -469,7 +475,7 @@ public class ExchangeServiceTests extends ESTestCase {
         }
 
         @Override
-        public void sendResponse(TransportResponse response) throws IOException {
+        public void sendResponse(TransportResponse response) {
             in.sendResponse(response);
         }
 

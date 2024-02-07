@@ -439,7 +439,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                     }
 
                     @Override
-                    public void sendResponse(TransportResponse response) throws IOException {
+                    public void sendResponse(TransportResponse response) {
                         assertThat(response, instanceOf(TransportService.HandshakeResponse.class));
                         if (modifyBuildHash) {
                             final TransportService.HandshakeResponse handshakeResponse = (TransportService.HandshakeResponse) response;

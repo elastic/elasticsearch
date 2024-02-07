@@ -18,17 +18,20 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -51,6 +54,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class OutboundHandlerTests extends ESTestCase {
@@ -315,6 +319,87 @@ public class OutboundHandlerTests extends ESTestCase {
         );
 
         assertEquals("header_value", header.getHeaders().v1().get("header"));
+    }
+
+    public void testFailToSendResponse() {
+        ThreadContext threadContext = threadPool.getThreadContext();
+        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
+        String action = randomAlphaOfLength(10);
+        long requestId = randomLongBetween(0, 300);
+        String value = "message";
+        threadContext.putHeader("header", "header_value");
+        AtomicLong reservedBytes = new AtomicLong();
+        TestResponse response = new TestResponse(value) {
+            final AbstractRefCounted refs = AbstractRefCounted.of(() -> reservedBytes.set(0));
+
+            @Override
+            public void writeTo(StreamOutput out) {
+                reservedBytes.set(randomIntBetween(1, 1000));
+                throw new CircuitBreakingException("simulated", CircuitBreaker.Durability.TRANSIENT);
+            }
+
+            @Override
+            public void incRef() {
+                refs.incRef();
+            }
+
+            @Override
+            public boolean tryIncRef() {
+                return refs.tryIncRef();
+            }
+
+            @Override
+            public boolean decRef() {
+                return refs.decRef();
+            }
+
+            @Override
+            public boolean hasReferences() {
+                return refs.hasReferences();
+            }
+        };
+
+        AtomicLong requestIdRef = new AtomicLong();
+        AtomicReference<String> actionRef = new AtomicReference<>();
+        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, TransportResponse response) {
+                assertThat(requestIdRef.get(), equalTo(0L));
+                requestIdRef.set(requestId);
+                assertNull(actionRef.get());
+                actionRef.set(action);
+                assertNull(responseRef.get());
+                responseRef.set(response);
+            }
+
+            @Override
+            public void onResponseSent(long requestId, String action, Exception error) {
+                assertThat(requestIdRef.get(), equalTo(requestId));
+                assertThat(actionRef.get(), equalTo(action));
+                exceptionRef.set(error);
+            }
+        });
+        Compression.Scheme compress = randomFrom(compressionScheme, null);
+        try {
+            handler.sendResponse(version, channel, requestId, action, response, compress, false, ResponseStatsConsumer.NONE);
+        } catch (Exception e) {
+            fail("must not happen");
+        } finally {
+            response.decRef();
+        }
+        ActionListener<Void> sendListener = channel.getListenerCaptor().get();
+        if (randomBoolean()) {
+            sendListener.onResponse(null);
+        } else {
+            sendListener.onFailure(new IOException("failed"));
+        }
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
+        assertEquals(response, responseRef.get());
+        assertThat(exceptionRef.get().getMessage(), equalTo("simulated"));
+        assertThat(reservedBytes.get(), equalTo(0L));
     }
 
     /**

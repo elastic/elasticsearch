@@ -128,7 +128,7 @@ final class OutboundHandler {
         final Compression.Scheme compressionScheme,
         final boolean isHandshake,
         final ResponseStatsConsumer responseStatsConsumer
-    ) throws IOException {
+    ) {
         TransportVersion version = TransportVersion.min(this.version, transportVersion);
         OutboundMessage.Response message = new OutboundMessage.Response(
             threadPool.getThreadContext(),
@@ -148,11 +148,20 @@ final class OutboundHandler {
                 }
             });
         } catch (Exception ex) {
+            if (isHandshake) {
+                logger.warn(
+                    () -> format("Failed to send handshake response version [%s] received on [%s], closing channel", version, channel),
+                    ex
+                );
+                channel.close();
+                return;
+            }
             try {
                 sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
             } catch (Exception inner) {
                 inner.addSuppressed(ex);
-                logger.warn(() -> format("Failed to send error response on channel [%s]", channel), inner);
+                logger.warn(() -> format("Failed to send error response on channel [%s], closing channel", channel), inner);
+                channel.close();
             }
         }
     }

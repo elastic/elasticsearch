@@ -32,7 +32,7 @@ public class TaskTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(TransportResponse response) throws IOException {
+    public void sendResponse(TransportResponse response) {
         try {
             channel.sendResponse(response);
         } finally {

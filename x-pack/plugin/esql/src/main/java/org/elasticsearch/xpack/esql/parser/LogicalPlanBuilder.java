@@ -185,7 +185,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             var deprecatedContext = ctx.metadata().deprecated_metadata();
             MetadataOptionContext metadataOptionContext = null;
             if (deprecatedContext != null) {
-                addWarning("Remove [ ] in FROM METADATA declaration");
+                var s = source(deprecatedContext).source();
+                addWarning(
+                    "Line {}:{}: Square brackets '[]' need to be removed in FROM METADATA declaration",
+                    s.getLineNumber(),
+                    s.getColumnNumber()
+                );
                 metadataOptionContext = deprecatedContext.metadataOption();
             } else {
                 metadataOptionContext = ctx.metadata().metadataOption();

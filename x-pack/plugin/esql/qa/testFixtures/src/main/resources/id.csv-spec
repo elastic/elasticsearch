@@ -4,6 +4,7 @@
 
 selectAll
 FROM apps [metadata _id];
+warning:Line 1:11: Square brackets '[]' need to be removed in FROM METADATA declaration
 ignoreOrder:true
 
 id:integer |name:keyword   |version:version     | _id:keyword
@@ -25,6 +26,7 @@ id:integer |name:keyword   |version:version     | _id:keyword
 
 filterById
 FROM apps [metadata _id]| WHERE _id == "4";
+warning:Line 1:11: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 id:i |name:k |version:v | _id:k
 4    |ddddd  |2.12.0    | 4
@@ -32,6 +34,8 @@ id:i |name:k |version:v | _id:k
 
 keepId
 FROM apps [metadata _id] | WHERE id == 3 | KEEP _id;
+warning:Line 1:11: Square brackets '[]' need to be removed in FROM METADATA declaration
+
 
 _id:k
 3
@@ -39,6 +43,7 @@ _id:k
 
 idRangeAndSort
 FROM apps [metadata _id] | WHERE _id >= "2" AND _id <= "7" | SORT _id | keep id, name, _id;
+warning:Line 1:11: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 id:i    |name:k       | _id:k
 2       |bbbbb        | 2
@@ -51,6 +56,7 @@ id:i    |name:k       | _id:k
 
 orderById
 FROM apps [metadata _id] | KEEP _id, name | SORT _id;
+warning:Line 1:11: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 _id:k  | name:s
 1      | aaaaa
@@ -71,6 +77,7 @@ _id:k  | name:s
 
 orderByIdDesc
 FROM apps [metadata _id] | KEEP _id, name | SORT _id DESC;
+warning:Line 1:11: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 _id:k  | name:s
 
@@ -92,6 +99,7 @@ _id:k  | name:s
 
 concatId
 FROM apps [metadata _id] | eval c = concat(_id, name) | SORT _id | KEEP c;
+warning:Line 1:11: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 c:k
 1aaaaa
@@ -112,6 +120,7 @@ c:k
 
 statsOnId
 FROM apps [metadata _id] | stats c = count(_id), d = count_distinct(_id);
+warning:Line 1:11: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 c:l | d:l
 14  | 14
@@ -120,6 +129,7 @@ c:l | d:l
 
 statsOnIdByGroup
 FROM apps [metadata _id] | stats c = count(_id) by name | sort c desc, name | limit 5;
+warning:Line 1:11: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 c:l | name:k
 2   | aaaaa

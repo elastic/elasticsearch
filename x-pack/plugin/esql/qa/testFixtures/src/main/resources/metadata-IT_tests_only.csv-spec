@@ -1,7 +1,7 @@
 
 simpleKeep
 from employees [metadata _index, _version] | sort emp_no | limit 2 | keep emp_no, _index, _version;
-warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration.
+warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 emp_no:integer |_index:keyword |_version:long
 10001          |employees      |1
@@ -10,7 +10,7 @@ emp_no:integer |_index:keyword |_version:long
 
 aliasWithSameName
 from employees [metadata _index, _version] | sort emp_no | limit 2 | eval _index = _index, _version = _version | keep emp_no, _index, _version;
-warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration.
+warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 emp_no:integer |_index:keyword |_version:long
 10001          |employees      |1
@@ -19,7 +19,7 @@ emp_no:integer |_index:keyword |_version:long
 
 inComparison
 from employees [metadata _index, _version] | sort emp_no | where _index == "employees" | where _version == 1 | keep emp_no | limit 2;
-warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration.
+warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 
 emp_no:integer
@@ -42,7 +42,7 @@ max:integer |_index:keyword
 
 metaIndexAliasedInAggs
 from employees [metadata _index] | eval _i = _index | stats max = max(emp_no) by _i;
-warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration.
+warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 
 max:integer |_i:keyword
@@ -51,7 +51,7 @@ max:integer |_i:keyword
 
 metaVersionInAggs
 from employees [metadata _version] | stats min = min(emp_no) by _version;
-warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration.
+warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 
 min:integer |_version:long
@@ -60,7 +60,7 @@ min:integer |_version:long
 
 metaVersionAliasedInAggs
 from employees [metadata _version] | eval _v = _version | stats min = min(emp_no) by _v;
-warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration.
+warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 
 min:integer |_v:long
@@ -69,7 +69,7 @@ min:integer |_v:long
 
 inAggsAndAsGroups
 from employees [metadata _index, _version] | stats max = max(_version) by _index;
-warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration.
+warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 
 max:long |_index:keyword
@@ -78,7 +78,7 @@ max:long |_index:keyword
 
 inAggsAndAsGroupsAliased
 from employees [metadata _index, _version] | eval _i = _index, _v = _version | stats max = max(_v) by _i;
-warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration.
+warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 
 max:long |_i:keyword
@@ -87,7 +87,7 @@ max:long |_i:keyword
 
 inFunction
 from employees [metadata _index, _version] | sort emp_no | where length(_index) == length("employees") | where abs(_version) == 1 | keep emp_no | limit 2;
-warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration.
+warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 
 emp_no:integer
@@ -97,7 +97,7 @@ emp_no:integer
 
 inArithmetics
 from employees [metadata _index, _version] | eval i = _version + 2 | stats min = min(emp_no) by i;
-warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration.
+warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 
 min:integer |i:long
@@ -106,7 +106,7 @@ min:integer |i:long
 
 inSort
 from employees [metadata _index, _version] | sort _version, _index, emp_no | keep emp_no, _version, _index | limit 2;
-warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration.
+warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 
 emp_no:integer |_version:long |_index:keyword
@@ -116,7 +116,7 @@ emp_no:integer |_version:long |_index:keyword
 
 withMvFunction
 from employees [metadata _version] | eval i = mv_avg(_version) + 2 | stats min = min(emp_no) by i;
-warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration.
+warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 
 min:integer |i:double
@@ -125,7 +125,7 @@ min:integer |i:double
 
 overwritten
 from employees [metadata _index, _version] | sort emp_no | eval _index = 3, _version = "version" | keep emp_no, _index, _version | limit 3;
-warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration.
+warning:Line 1:16: Square brackets '[]' need to be removed in FROM METADATA declaration
 
 
 emp_no:integer |_index:integer |_version:keyword

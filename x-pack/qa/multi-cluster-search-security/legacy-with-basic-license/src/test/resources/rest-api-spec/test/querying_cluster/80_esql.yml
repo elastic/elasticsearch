@@ -91,6 +91,8 @@ teardown:
       features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "Line 1:21: Square brackets '[]' need to be removed in FROM METADATA declaration"
       headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       esql.query:
         body:
@@ -114,7 +116,7 @@ teardown:
 
   - do:
       allowed_warnings:
-        - "Line 1:19: Square brackets '[]' need to be removed in FROM METADATA declaration"
+        - "Line 1:21: Square brackets '[]' need to be removed in FROM METADATA declaration"
       headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       esql.query:
         body:

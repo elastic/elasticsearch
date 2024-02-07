@@ -16,7 +16,7 @@ import java.lang.foreign.FunctionDescriptor;
 import java.lang.invoke.MethodHandle;
 
 import static java.lang.foreign.ValueLayout.JAVA_INT;
-import static org.elasticsearch.nativeaccess.jdk.RuntimeHelper.downcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 class JdkPosixCLibrary implements PosixCLibrary {
 

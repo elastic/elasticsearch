@@ -16,12 +16,18 @@ import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 
-class RuntimeHelper {
+/**
+ * Utility methods for calling into the native linker.
+ */
+class LinkerHelper {
     private static final Linker LINKER = Linker.nativeLinker();
     private static final SymbolLookup SYMBOL_LOOKUP;
     private static final MethodHandles.Lookup MH_LOOKUP = MethodHandles.publicLookup();
 
     static {
+        // We first check the loader lookup, which contains libs loaded by System.load and System.loadLibrary.
+        // If the symbol isn't found there, we fall back to the default lookup, which is "common libraries" for
+        // the platform, typically eg libc
         SymbolLookup loaderLookup = SymbolLookup.loaderLookup();
         SYMBOL_LOOKUP = (name) -> loaderLookup.find(name).or(() -> LINKER.defaultLookup().find(name));
     }

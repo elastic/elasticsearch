@@ -77,7 +77,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -1374,7 +1373,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         baseConfig.put("action.destructive_requires_name", "false");
 
-        Set<String> overridden = new TreeSet<>(baseConfig.keySet());
+        Set<String> overridden = new HashSet<>(baseConfig.keySet());
         overridden.retainAll(settings.keySet());
         overridden.removeAll(OVERRIDABLE_SETTINGS);
         if (overridden.isEmpty() == false) {

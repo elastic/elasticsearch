@@ -11,14 +11,12 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.Option;
-import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
 import org.elasticsearch.xpack.ql.type.DateEsField;
@@ -30,7 +28,6 @@ import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -46,15 +43,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
 public class EsqlIndexResolver {
-    public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_THROTTLED),
-        EnumSet.of(WildcardStates.OPEN)
-    );
-    public static final IndicesOptions FIELD_CAPS_FROZEN_INDICES_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
-        EnumSet.of(WildcardStates.OPEN)
-    );
-
     private final Client client;
     private final DataTypeRegistry typeRegistry;
 
@@ -66,15 +54,9 @@ public class EsqlIndexResolver {
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void resolveAsMergedMapping(
-        String indexWildcard,
-        Set<String> fieldNames,
-        boolean includeFrozen,
-        Map<String, Object> runtimeMappings,
-        ActionListener<IndexResolution> listener
-    ) {
+    public void resolveAsMergedMapping(String indexWildcard, Set<String> fieldNames, ActionListener<IndexResolution> listener) {
         client.fieldCaps(
-            createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings),
+            createFieldCapsRequest(indexWildcard, fieldNames),
             listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
         );
     }
@@ -263,20 +245,12 @@ public class EsqlIndexResolver {
         return new InvalidMappedField(name, "mapped as different metric types in indices: " + indices);
     }
 
-    private static FieldCapabilitiesRequest createFieldCapsRequest(
-        String index,
-        Set<String> fieldNames,
-        boolean includeFrozen,
-        Map<String, Object> runtimeMappings
-    ) {
-        IndicesOptions indicesOptions = includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS;
+    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, Set<String> fieldNames) {
         FieldCapabilitiesRequest req = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index));
         req.fields(fieldNames.toArray(String[]::new));
-        req.includeUnmapped(true);
-        req.runtimeFields(runtimeMappings);
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
-        req.indicesOptions(indicesOptions);
+        req.indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS);
         req.setMergeResults(false);
         return req;
     }

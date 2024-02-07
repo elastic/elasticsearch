@@ -333,7 +333,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     if (value.equals("")) {
                         return nullValueFormatted;
                     }
-                    return parseUnsignedLong(value);
+                    return unsignedToSortableSignedLong(parseUnsignedLong(value));
                 }
             };
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()

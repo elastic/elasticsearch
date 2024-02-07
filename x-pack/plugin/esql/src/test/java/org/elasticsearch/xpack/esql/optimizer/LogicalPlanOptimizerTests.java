@@ -12,6 +12,7 @@ import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
@@ -2919,6 +2920,30 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.output()), contains("count(salary + 1)", "max(salary   +  23)", "languages   + 1", "emp_no %  3"));
+    }
+
+    public void testLogicalPlanOptimizerVerifier() {
+        var plan = plan("""
+            from test
+            | eval bucket_start = 1, bucket_end = 100000
+            | eval auto_bucket(salary, 10, bucket_start, bucket_end)
+            """);
+        var ab = as(plan, Eval.class);
+        assertTrue(ab.optimized());
+    }
+
+    public void testLogicalPlanOptimizerVerificationException() {
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+            from test
+            | eval bucket_end = 100000
+            | eval auto_bucket(salary, 10, emp_no, bucket_end)
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        final String header = "Found 1 problem\nline ";
+        assertEquals(
+            "3:8: third argument of [auto_bucket(salary, 10, emp_no, bucket_end)] must be a constant, received [emp_no]",
+            e.getMessage().substring(header.length())
+        );
     }
 
     /**

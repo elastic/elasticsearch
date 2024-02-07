@@ -88,10 +88,10 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             singleChunk(
-                (builder, p) -> builder.startObject(),
-                (builder, p) -> builder.field("stats", stats),
-                (builder, p) -> builder.field("cluster_balance_stats", clusterBalanceStats),
-                (builder, p) -> builder.startObject("routing_table")
+                (builder, p) -> builder.startObject()
+                    .field("stats", stats)
+                    .field("cluster_balance_stats", clusterBalanceStats)
+                    .startObject("routing_table")
             ),
             Iterators.flatMap(
                 routingTable.entrySet().iterator(),
@@ -172,14 +172,9 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             return Iterators.concat(
-                singleChunk((builder, p) -> builder.startObject(), (builder, p) -> builder.startArray("current")),
+                singleChunk((builder, p) -> builder.startObject().startArray("current")),
                 current().iterator(),
-                singleChunk(
-                    (builder, p) -> builder.endArray(),
-                    (builder, p) -> builder.field("desired"),
-                    desired,
-                    (builder, p) -> builder.endObject()
-                )
+                singleChunk((builder, p) -> builder.endArray().field("desired").value(desired, p).endObject())
             );
         }
     }

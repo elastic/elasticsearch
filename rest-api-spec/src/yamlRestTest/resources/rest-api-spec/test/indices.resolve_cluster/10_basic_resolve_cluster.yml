@@ -133,3 +133,69 @@ setup:
   - is_false: (local).matching_indices  # should not be present
   - is_false: (local).version  # should not be present
   - match: {(local).error: "no such index [doesnotexist]"}
+
+---
+"Test resolve cluster optional params are accepted":
+  - skip:
+      version: " - 8.12.99"
+      reason: "resolve cluster introduced in 8.13"
+
+  - do:
+      indices.resolve_cluster:
+        name: '*'
+        expand_wildcards: [all]
+        ignore_unavailable: [true]
+        ignore_throttled: [true]
+        allow_no_indices: [true]
+      allowed_warnings:
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - is_false: (local).error # should not be present
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: '*'
+        expand_wildcards: [open]
+        ignore_unavailable: [false]
+        ignore_throttled: [false]
+        allow_no_indices: [false]
+      allowed_warnings:
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - is_false: (local).error # should not be present
+  - exists: (local).version.number
+
+---
+"Test resolve cluster allow_no_indices=false returns error message if no indices are found":
+  - skip:
+      version: " - 8.12.99"
+      reason: "resolve cluster introduced in 8.13"
+
+  - do:
+      indices.resolve_cluster:
+        name: 'no_such_index*'
+        allow_no_indices: [true]
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: false}
+  - is_false: (local).error # should not be present
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: 'no_such_index*'
+        allow_no_indices: [false]
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - is_false: (local).matching_indices  # should not be present
+  - match: {(local).error: "no such index [no_such_index*]"}
+  - is_false: (local).version.number # should not be present

@@ -62,7 +62,6 @@ public final class NodeMetadata {
 
     private NodeMetadata(
         final String nodeId,
-        final Version nodeVersion,
         final IndexVersion nodeVersionAsIndexVersion,
         final IndexVersion oldestIndexVersion
     ) {
@@ -74,7 +73,7 @@ public final class NodeMetadata {
         final IndexVersion nodeVersion,
         final IndexVersion oldestIndexVersion
     ) {
-        return new NodeMetadata(nodeId, indexVersionToVersion(nodeVersion), nodeVersion, oldestIndexVersion);
+        return new NodeMetadata(nodeId, nodeVersion, oldestIndexVersion);
     }
 
     static Version indexVersionToVersion(IndexVersion indexVersion) {
@@ -121,6 +120,7 @@ public final class NodeMetadata {
     }
 
     @Override
+    // TODO[wrb] regenerate
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -132,11 +132,13 @@ public final class NodeMetadata {
     }
 
     @Override
+    // TODO[wrb] regenerate
     public int hashCode() {
         return Objects.hash(nodeId, nodeVersion, previousNodeVersion, oldestIndexVersion);
     }
 
     @Override
+    // TODO[wrb] regenerate
     public String toString() {
         return "NodeMetadata{"
             + "nodeId='"

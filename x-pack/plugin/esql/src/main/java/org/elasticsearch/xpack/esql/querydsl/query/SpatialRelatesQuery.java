@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 
 public class SpatialRelatesQuery extends Query {
     private final String field;
@@ -196,7 +196,7 @@ public class SpatialRelatesQuery extends Query {
 
         @Override
         org.apache.lucene.search.Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType) {
-            org.apache.lucene.search.Query innerQuery = dataType == GEO_POINT
+            org.apache.lucene.search.Query innerQuery = dataType == CARTESIAN_POINT
                 ? pointShapeQuery(shape, fieldType.name(), queryRelation, context)
                 : shapeShapeQuery(shape, fieldType.name(), queryRelation, context);
             return new ConstantScoreQuery(innerQuery);

@@ -72,9 +72,7 @@ public class SearchTransportTelemetryTests extends ESSingleNodeTestCase {
 
     public void testSearchTransportMetricsDfsQueryThenFetch() throws InterruptedException {
         assertSearchHitsWithoutFailures(
-            client().prepareSearch(indexName)
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(simpleQueryStringQuery("doc1")),
+            client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
         assertEquals(num_primaries, getNumberOfMeasurements(DFS_ACTION_METRIC));
@@ -85,9 +83,7 @@ public class SearchTransportTelemetryTests extends ESSingleNodeTestCase {
 
     public void testSearchTransportMetricsQueryThenFetch() throws InterruptedException {
         assertSearchHitsWithoutFailures(
-            client().prepareSearch(indexName)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setQuery(simpleQueryStringQuery("doc1")),
+            client().prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
         assertEquals(num_primaries, getNumberOfMeasurements(QUERY_ACTION_METRIC));
@@ -99,7 +95,9 @@ public class SearchTransportTelemetryTests extends ESSingleNodeTestCase {
         assertScrollResponsesAndHitCount(
             client(),
             TimeValue.timeValueSeconds(60),
-            client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setSize(1)
+            client().prepareSearch(indexName)
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setSize(1)
                 .setQuery(simpleQueryStringQuery("doc1 doc2")),
             2,
             (respNum, response) -> {

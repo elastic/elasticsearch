@@ -851,7 +851,7 @@ public class GetActionIT extends ESIntegTestCase {
             prepareCreate("test").setMapping("f", "type=keyword")
                 .setSettings(
                     Settings.builder()
-                        .put("index.refresh_interval", "1h")
+                        .put("index.refresh_interval", "-1")
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put("index.routing.rebalance.enable", "none")

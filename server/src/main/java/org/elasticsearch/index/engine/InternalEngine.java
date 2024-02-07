@@ -2177,10 +2177,9 @@ public class InternalEngine extends Engine {
     protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
         ensureOpen(); // best-effort, a concurrent failEngine() can still happen but that's ok
         if (force && waitIfOngoing == false) {
-            assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
-            throw new IllegalArgumentException(
-                "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing
-            );
+            final String message = "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
+            assert false : message;
+            throw new IllegalArgumentException(message);
         }
         final long generation;
         if (flushLock.tryLock() == false) {
@@ -2203,7 +2202,7 @@ public class InternalEngine extends Engine {
             // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
             boolean hasUncommittedChanges = hasUncommittedChanges();
             if (hasUncommittedChanges
-                || shouldForceFlush(force)
+                || force
                 || shouldPeriodicallyFlush()
                 || getProcessedLocalCheckpoint() > Long.parseLong(
                     lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
@@ -2239,6 +2238,7 @@ public class InternalEngine extends Engine {
                 flushListener.afterFlush(generation, commitLocation);
             } else {
                 generation = lastCommittedSegmentInfos.getGeneration();
+                onReusedFlush(generation);
             }
         } catch (FlushFailedEngineException ex) {
             maybeFailEngine("flush", ex);
@@ -2265,10 +2265,6 @@ public class InternalEngine extends Engine {
         return indexWriter.hasUncommittedChanges();
     }
 
-    protected boolean shouldForceFlush(boolean force) {
-        return force;
-    }
-
     private void refreshLastCommittedSegmentInfos() {
         /*
          * we have to inc-ref the store here since if the engine is closed by a tragic event
@@ -2291,6 +2287,8 @@ public class InternalEngine extends Engine {
             store.decRef();
         }
     }
+
+    protected void onReusedFlush(long generation) {}
 
     @Override
     public void rollTranslogGeneration() throws EngineException {

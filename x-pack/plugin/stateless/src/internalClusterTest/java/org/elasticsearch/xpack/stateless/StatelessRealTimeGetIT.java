@@ -661,14 +661,15 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         assertEquals(failCount + 1, getFromTranslogSeen.get());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1393")
     public void testShardMultiGetFromTranslogDuringRelocation() throws Exception {
         startMasterOnlyNode();
         var indexNodeA = startIndexNode();
         var indexNodeB = startIndexNode();
         startSearchNode();
         final String indexName = randomIdentifier();
-        final var noOfShards = randomIntBetween(1, 3);
+        // If we use more than 2 shards and the mget request fans out to all the shards, we end up blocking more than two
+        // threads from the GET threadpool and leaving no further threads available and cause a timeout. Therefore, use max 2 shards.
+        final var noOfShards = randomIntBetween(1, 2);
         createIndex(
             indexName,
             indexSettings(noOfShards, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
@@ -704,9 +705,9 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         AtomicLong getFromTranslogCountOnNodeB = new AtomicLong();
         MockTransportService.getInstance(indexNodeA)
             .addRequestHandlingBehavior(TransportShardMultiGetFomTranslogAction.NAME, (handler, request, channel, task) -> {
-                receivedGetFromTranslog.countDown();
                 getFromTranslogCountOnNodeA.incrementAndGet();
-                continueGetFromTranslog.await(30, TimeUnit.SECONDS);
+                receivedGetFromTranslog.countDown();
+                assertTrue("timed out waiting for relocation", continueGetFromTranslog.await(30, TimeUnit.SECONDS));
                 handler.messageReceived(request, channel, task);
             });
         MockTransportService.getInstance(indexNodeB)
@@ -714,9 +715,9 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                 getFromTranslogCountOnNodeB.incrementAndGet();
                 handler.messageReceived(request, channel, task);
             });
-        // Trigger a ShartMultiGetFromTranslog and force shard relocations before indexNodeA gets to process the request.
+        // Trigger a ShardMultiGetFromTranslog and force shard relocations before indexNodeA gets to process the request.
         var getFuture = client().prepareMultiGet().addIds(indexName, ids).setRealtime(true).execute();
-        receivedGetFromTranslog.await(30, TimeUnit.SECONDS);
+        assertTrue("timed out waiting for mget_from_translog requests", receivedGetFromTranslog.await(30, TimeUnit.SECONDS));
         logger.info("--> starting promotable shard relocation");
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         ensureGreen(indexName);
@@ -731,7 +732,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         assertEquals(shardsTargeted, getFromTranslogCountOnNodeB.get());
     }
 
-    public void testSharMultiGetFromTranslogRetries() throws Exception {
+    public void testShardMultiGetFromTranslogRetries() throws Exception {
         startMasterOnlyNode();
         var indexNodeA = startIndexNode();
         startSearchNode();

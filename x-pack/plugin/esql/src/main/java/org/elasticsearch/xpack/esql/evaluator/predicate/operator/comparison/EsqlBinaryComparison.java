@@ -26,6 +26,7 @@ import java.time.ZoneId;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
 public abstract class EsqlBinaryComparison extends BinaryComparison implements EvaluatorMapper {
@@ -111,7 +112,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         // Unsigned long is only interoperable with other unsigned longs
         if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataTypes.NULL)))
             || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataTypes.NULL)))) {
-            return new TypeResolution(EsqlArithmeticOperation.formatIncompatibleTypesMessage(symbol(), leftType, rightType));
+            return new TypeResolution(formatIncompatibleTypesMessage());
         }
 
         if ((leftType.isNumeric() && rightType.isNumeric())
@@ -120,7 +121,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
             || DataTypes.isNull(rightType)) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return new TypeResolution(EsqlArithmeticOperation.formatIncompatibleTypesMessage(symbol(), leftType, rightType));
+        return new TypeResolution(formatIncompatibleTypesMessage());
     }
 
     // NOCOMMIT: This is the same as EsqlArithmeticOperation#ArithmeticEvaluator, and they should be refactored to the same place
@@ -132,4 +133,34 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
             EvalOperator.ExpressionEvaluator.Factory rhs
         );
     }
+
+    public String formatIncompatibleTypesMessage() {
+        if (left().dataType().equals(UNSIGNED_LONG)) {
+            return format(
+                null,
+                "first argument of [{}] is [unsigned_long] and second is [{}]. "
+                    + "[unsigned_long] can only be operated on together with another [unsigned_long]",
+                sourceText(),
+                right().dataType().esType()
+            );
+        }
+        if (right().dataType().equals(UNSIGNED_LONG)) {
+            return format(
+                null,
+                "first argument of [{}] is [{}] and second is [unsigned_long]. "
+                    + "[unsigned_long] can only be operated on together with another [unsigned_long]",
+                sourceText(),
+                left().dataType().esType()
+            );
+        }
+        return format(
+            null,
+            "first argument of [{}] is [{}] so second argument must also be [{}] but was [{}]",
+            sourceText(),
+            left().dataType().isNumeric() ? "numeric" : left().dataType().typeName(),
+            left().dataType().isNumeric() ? "numeric" : left().dataType().typeName(),
+            right().dataType().typeName()
+        );
+    }
+
 }

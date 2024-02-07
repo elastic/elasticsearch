@@ -998,33 +998,22 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
-    public void testCompareDateToString() {
-        for (String comparison : COMPARISONS) {
-            assertProjectionWithMapping("""
-                from test
-                | where date COMPARISON "1985-01-01T00:00:00Z"
-                | keep date
-                """.replace("COMPARISON", comparison), "mapping-multi-field-variation.json", "date");
-        }
-    }
-
-    public void testCompareStringToDate() {
-        for (String comparison : COMPARISONS) {
-            assertProjectionWithMapping("""
-                from test
-                | where "1985-01-01T00:00:00Z" COMPARISON date
-                | keep date
-                """.replace("COMPARISON", comparison), "mapping-multi-field-variation.json", "date");
-        }
-    }
-
     public void testCompareDateToStringFails() {
         for (String comparison : COMPARISONS) {
+            String errorMessage;
+            if (comparison.equals("==") || comparison.equals("!=")) {
+                errorMessage = "first argument of [date COMPARISON \"not-a-date\"] is [datetime] ".replace("COMPARISON", comparison)
+                    + "so second argument must also be [datetime] but was [keyword]";
+            } else {
+                // "Temporary work around" until all comparisons inherit from EsqlBinaryComparison
+                errorMessage = "Invalid date [not-a-date]";
+            }
+
             verifyUnsupported("""
                 from test
                 | where date COMPARISON "not-a-date"
                 | keep date
-                """.replace("COMPARISON", comparison), "Invalid date [not-a-date]", "mapping-multi-field-variation.json");
+                """.replace("COMPARISON", comparison), errorMessage, "mapping-multi-field-variation.json");
         }
     }
 

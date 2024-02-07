@@ -43,7 +43,7 @@ public class NodeMetadataTests extends ESTestCase {
     public void testEqualsHashcodeSerialization() {
         final Path tempDir = createTempDir();
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new NodeMetadata(randomAlphaOfLength(10), randomVersion(), randomIndexVersion()),
+            NodeMetadata.createWithIndexVersion(randomAlphaOfLength(10), randomIndexVersion(), randomIndexVersion()),
             nodeMetadata -> {
                 final long generation = NodeMetadata.FORMAT.writeAndCleanup(nodeMetadata, tempDir);
                 final Tuple<NodeMetadata, Long> nodeMetadataLongTuple = NodeMetadata.FORMAT.loadLatestStateWithGeneration(
@@ -55,6 +55,7 @@ public class NodeMetadataTests extends ESTestCase {
                 return nodeMetadataLongTuple.v1();
             },
             nodeMetadata -> switch (randomInt(3)) {
+                // TODO[wrb]: change these after we have nodeVersion as indexVersion getter
                 case 0 -> new NodeMetadata(
                     randomAlphaOfLength(21 - nodeMetadata.nodeId().length()),
                     nodeMetadata.nodeVersion(),
@@ -92,12 +93,9 @@ public class NodeMetadataTests extends ESTestCase {
 
     public void testUpgradesLegitimateVersions() {
         final String nodeId = randomAlphaOfLength(10);
-        final NodeMetadata nodeMetadata = new NodeMetadata(
+        final NodeMetadata nodeMetadata = NodeMetadata.createWithIndexVersion(
             nodeId,
-            randomValueOtherThanMany(
-                v -> v.after(Version.CURRENT) || v.before(Version.CURRENT.minimumCompatibilityVersion()),
-                this::randomVersion
-            ),
+            randomValueOtherThanMany(v -> v.after(IndexVersion.current()) || v.before(IndexVersions.V_7_17_0), this::randomIndexVersion),
             IndexVersion.current()
         ).upgradeToCurrentVersion();
         assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
@@ -109,7 +107,7 @@ public class NodeMetadataTests extends ESTestCase {
 
         final IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> new NodeMetadata(nodeId, Version.V_EMPTY, IndexVersion.current()).upgradeToCurrentVersion()
+            () -> NodeMetadata.createWithIndexVersion(nodeId, IndexVersions.ZERO, IndexVersion.current()).upgradeToCurrentVersion()
         );
         assertThat(
             illegalStateException.getMessage(),
@@ -120,9 +118,14 @@ public class NodeMetadataTests extends ESTestCase {
     }
 
     public void testDoesNotUpgradeFutureVersion() {
+        NodeMetadata nodeMetadata = NodeMetadata.createWithIndexVersion(
+            randomAlphaOfLength(10),
+            tooNewIndexVersion(),
+            IndexVersion.current()
+        );
         final IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> new NodeMetadata(randomAlphaOfLength(10), tooNewVersion(), IndexVersion.current()).upgradeToCurrentVersion()
+            nodeMetadata::upgradeToCurrentVersion
         );
         assertThat(
             illegalStateException.getMessage(),
@@ -133,7 +136,12 @@ public class NodeMetadataTests extends ESTestCase {
     public void testDoesNotUpgradeAncientVersion() {
         final IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> new NodeMetadata(randomAlphaOfLength(10), tooOldVersion(), IndexVersion.current()).upgradeToCurrentVersion()
+            () -> NodeMetadata.createWithIndexVersion(
+                randomAlphaOfLength(10),
+                // TODO[wrb]: clumsy, fix it
+                IndexVersion.fromId(tooOldVersion().id()),
+                IndexVersion.current()
+            ).upgradeToCurrentVersion()
         );
         assertThat(
             illegalStateException.getMessage(),
@@ -152,11 +160,12 @@ public class NodeMetadataTests extends ESTestCase {
 
     public void testUpgradeMarksPreviousVersion() {
         final String nodeId = randomAlphaOfLength(10);
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0);
+        final IndexVersion nodeVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_17_0, IndexVersions.V_8_0_0);
 
-        final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, version, IndexVersion.current()).upgradeToCurrentVersion();
+        final NodeMetadata nodeMetadata = NodeMetadata.createWithIndexVersion(nodeId, nodeVersion, IndexVersion.current())
+            .upgradeToCurrentVersion();
         assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
-        assertThat(nodeMetadata.previousNodeVersion(), equalTo(version));
+        assertThat(nodeMetadata.previousNodeVersion().toString(), equalTo(nodeVersion.toReleaseVersion()));
     }
 
     public static Version tooNewVersion() {

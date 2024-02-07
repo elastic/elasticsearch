@@ -23,6 +23,8 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Metadata associated with this node: its persistent node ID and its version.
@@ -56,6 +58,57 @@ public final class NodeMetadata {
 
     public NodeMetadata(final String nodeId, final Version nodeVersion, final IndexVersion oldestIndexVersion) {
         this(nodeId, nodeVersion, nodeVersion, oldestIndexVersion);
+    }
+
+    public static NodeMetadata createWithIndexVersion(
+        final String nodeId,
+        final IndexVersion nodeVersion,
+        final IndexVersion oldestIndexVersion
+    ) {
+        return new NodeMetadata(nodeId, indexVersionToVersion(nodeVersion), oldestIndexVersion);
+    }
+
+    static Version indexVersionToVersion(IndexVersion indexVersion) {
+        // index version id and Version id match
+        if (indexVersion.before(IndexVersions.FIRST_DETACHED_INDEX_VERSION)) {
+            return Version.fromId(indexVersion.id());
+        }
+
+        String releaseVersion = indexVersion.toReleaseVersion();
+        // snapshot version
+        if (releaseVersion.contains("snapshot")) {
+            Pattern snapshotPattern = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)-snapshot\\[(\\d+)]$");
+            Matcher matcher = snapshotPattern.matcher(releaseVersion);
+            if (matcher.matches() == false) {
+                throw new AssertionError("Unexpected regex failure for [" + releaseVersion + "]");
+            }
+            // snapshot at or before current version
+            if (Integer.parseInt(matcher.group(2)) <= IndexVersion.current().id()) {
+                return Version.fromString(matcher.group(1));
+            }
+            // snapshot after current version
+            return Version.fromId(indexVersion.id());
+        } else if (indexVersion.between(IndexVersions.FIRST_DETACHED_INDEX_VERSION, IndexVersion.current())) {
+            // two cases: single version (easy) or range of versions
+            if (releaseVersion.contains("-") == false) {
+                return Version.fromString(releaseVersion);
+            }
+
+            Pattern rangePattern = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)-(\\d+\\.\\d+\\.\\d+)$");
+            Matcher matcher = rangePattern.matcher(releaseVersion);
+            if (matcher.matches() == false) {
+                throw new AssertionError("Unexpected regex failure for [" + releaseVersion + "]");
+            }
+            return Version.fromString(matcher.group(2));
+        } else {
+            throw new AssertionError(
+                "Unexpected case of index version id ["
+                    + indexVersion.id()
+                    + "] with release version ["
+                    + indexVersion.toReleaseVersion()
+                    + "]"
+            );
+        }
     }
 
     @Override

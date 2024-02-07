@@ -377,6 +377,10 @@ public class PersistedClusterStateService {
         if (nodeId == null) {
             return null;
         }
+        // TODO[wrb]: Here we are *reading* a version integer and we have three cases to handle
+        // case 1: "legacy" ID, matches an IndexVersion
+        // case 2: version ID that's diverged from indexVersion ID
+        // case 3: indexVersion ID from new code
         return new NodeMetadata(nodeId, version, oldestIndexVersion);
     }
 

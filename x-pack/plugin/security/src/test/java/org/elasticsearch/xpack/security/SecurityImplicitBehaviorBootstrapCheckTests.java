@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ReferenceDocs;
@@ -15,13 +14,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.internal.TrialLicenseVersion;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -32,11 +32,11 @@ import static org.mockito.Mockito.when;
 public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
     public void testFailureUpgradeFrom7xWithImplicitSecuritySettings() throws Exception {
-        final Version previousVersion = randomValueOtherThan(
-            Version.V_8_0_0,
-            () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
+        final IndexVersion previousVersion = randomValueOtherThan(
+            IndexVersions.V_8_0_0,
+            () -> IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_17_0, IndexVersions.V_8_0_0)
         );
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
+        NodeMetadata nodeMetadata = NodeMetadata.createWithIndexVersion(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         Metadata metadata = createLicensesMetadata(
@@ -67,11 +67,11 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
     }
 
     public void testUpgradeFrom7xWithImplicitSecuritySettingsOnGoldPlus() throws Exception {
-        final Version previousVersion = randomValueOtherThan(
-            Version.V_8_0_0,
-            () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
+        final IndexVersion previousVersion = randomValueOtherThan(
+            IndexVersions.V_8_0_0,
+            () -> IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_17_0, IndexVersions.V_8_0_0)
         );
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
+        NodeMetadata nodeMetadata = NodeMetadata.createWithIndexVersion(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         Metadata metadata = createLicensesMetadata(
@@ -88,11 +88,11 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
     }
 
     public void testUpgradeFrom7xWithExplicitSecuritySettings() throws Exception {
-        final Version previousVersion = randomValueOtherThan(
-            Version.V_8_0_0,
-            () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
+        final IndexVersion previousVersion = randomValueOtherThan(
+            IndexVersions.V_8_0_0,
+            () -> IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_17_0, IndexVersions.V_8_0_0)
         );
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
+        NodeMetadata nodeMetadata = NodeMetadata.createWithIndexVersion(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
@@ -105,8 +105,8 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
     }
 
     public void testUpgradeFrom8xWithImplicitSecuritySettings() throws Exception {
-        final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null);
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
+        final IndexVersion previousVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, null);
+        NodeMetadata nodeMetadata = NodeMetadata.createWithIndexVersion(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
@@ -119,8 +119,8 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
     }
 
     public void testUpgradeFrom8xWithExplicitSecuritySettings() throws Exception {
-        final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null);
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
+        final IndexVersion previousVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, null);
+        NodeMetadata nodeMetadata = NodeMetadata.createWithIndexVersion(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(

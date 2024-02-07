@@ -53,7 +53,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     public void testActualProcessor() throws Exception {
         TestProcessor actualProcessor = new TestProcessor(ingestDocument -> {});
-        TrackingResultProcessor trackingProcessor = new TrackingResultProcessor(false, actualProcessor, null, resultList);
+        TrackingResultProcessor trackingProcessor = new TrackingResultProcessor(false, actualProcessor, null, resultList, true);
         trackingProcessor.execute(ingestDocument, (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(

@@ -22,7 +22,7 @@ setup:
               "cluster": ["all"],
               "indices": [
                 {
-                  "names": ["field_caps_index_2", "my_remote_cluster:field_caps_index_1", "my_remote_cluster:field_caps_index_3"],
+                  "names": ["field_caps_index_2", "my_remote_cluster:field_caps_index_1", "my_remote_cluster:field_caps_index_3", "my_remote_cluster:field_caps_index_5"],
                   "privileges": ["read"]
                 }
               ]

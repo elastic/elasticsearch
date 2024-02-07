@@ -180,7 +180,7 @@
 
   - do:
       indices.refresh:
-        index: [field_caps_index_5, my_remote_cluster:field_caps_index_5]
+        index: [field_caps_index_5]
   - do:
       field_caps:
         include_empty_fields: false

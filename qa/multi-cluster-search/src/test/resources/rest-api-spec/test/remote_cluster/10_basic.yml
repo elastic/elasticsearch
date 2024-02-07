@@ -83,6 +83,20 @@
                         type: keyword
                         doc_values: false
   - do:
+        indices.create:
+          index: field_caps_index_5
+          body:
+            mappings:
+              properties:
+                foo:
+                  type: long
+                empty-baz:
+                  type: text
+  - do:
+        index:
+          index:  field_caps_index_5
+          body:   { foo: "42", unmapped-bar: "bar" }
+  - do:
       indices.create:
         index: test_index
         body:

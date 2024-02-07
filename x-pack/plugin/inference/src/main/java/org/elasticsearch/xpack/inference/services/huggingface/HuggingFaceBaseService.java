@@ -38,26 +38,31 @@ public abstract class HuggingFaceBaseService extends SenderService {
     }
 
     @Override
-    public HuggingFaceModel parseRequestConfig(
+    public void parseRequestConfig(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures
+        Set<String> platformArchitectures,
+        ActionListener<Model> parsedModelListener
     ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        try {
+            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
-        var model = createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            serviceSettingsMap,
-            TaskType.unsupportedTaskTypeErrorMsg(taskType, name())
-        );
+            var model = createModel(
+                inferenceEntityId,
+                taskType,
+                serviceSettingsMap,
+                serviceSettingsMap,
+                TaskType.unsupportedTaskTypeErrorMsg(taskType, name())
+            );
 
-        throwIfNotEmptyMap(config, name());
-        throwIfNotEmptyMap(serviceSettingsMap, name());
+            throwIfNotEmptyMap(config, name());
+            throwIfNotEmptyMap(serviceSettingsMap, name());
 
-        return model;
+            parsedModelListener.onResponse(model);
+        } catch (Exception e) {
+            parsedModelListener.onFailure(e);
+        }
     }
 
     @Override

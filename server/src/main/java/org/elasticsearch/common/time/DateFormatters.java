@@ -2125,7 +2125,8 @@ public class DateFormatters {
                     input,
                     new DateTimeFormatterBuilder().appendPattern(input).toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT)
                 );
-            } catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException | ClassCastException e) {
+                // ClassCastException catches this bug https://bugs.openjdk.org/browse/JDK-8193877
                 throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
             }
         }

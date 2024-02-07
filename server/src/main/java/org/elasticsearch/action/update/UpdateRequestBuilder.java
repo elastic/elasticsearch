@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
@@ -15,12 +16,17 @@ import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.Map;
 
 public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
@@ -45,31 +51,18 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     private ActiveShardCount waitForActiveShards;
 
     private IndexRequest doc;
-    private XContentBuilder docSourceXContentBuilder;
-    private Map<String, Object> docSourceMap;
+    private BytesReference docSourceBytesReference;
     private XContentType docSourceXContentType;
-    private String docSourceString;
-    private byte[] docSourceBytes;
-    private Integer docSourceOffset;
-    private Integer docSourceLength;
-    private Object[] docSourceArray;
 
     private IndexRequest upsert;
-    private XContentBuilder upsertSourceXContentBuilder;
-    private Map<String, Object> upsertSourceMap;
+    private BytesReference upsertSourceBytesReference;
     private XContentType upsertSourceXContentType;
-    private String upsertSourceString;
-    private byte[] upsertSourceBytes;
-    private Integer upsertSourceOffset;
-    private Integer upsertSourceLength;
-    private Object[] upsertSourceArray;
 
     private Boolean docAsUpsert;
     private Boolean detectNoop;
     private Boolean scriptedUpsert;
     private Boolean requireAlias;
     private WriteRequest.RefreshPolicy refreshPolicy;
-    private String refreshPolicyString;
 
     public UpdateRequestBuilder(ElasticsearchClient client) {
         this(client, null, null);
@@ -235,7 +228,8 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(XContentBuilder source) {
-        this.docSourceXContentBuilder = source;
+        this.docSourceBytesReference = BytesReference.bytes(source);
+        this.docSourceXContentType = source.contentType();
         return this;
     }
 
@@ -243,24 +237,27 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(Map<String, Object> source) {
-        this.docSourceMap = source;
-        return this;
+        return setDoc(source, Requests.INDEX_CONTENT_TYPE);
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(Map<String, Object> source, XContentType contentType) {
-        this.docSourceMap = source;
-        this.docSourceXContentType = contentType;
-        return this;
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            builder.map(source);
+            return setDoc(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+        }
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(String source, XContentType xContentType) {
-        this.docSourceString = source;
+        this.docSourceBytesReference = new BytesArray(source);
         this.docSourceXContentType = xContentType;
         return this;
     }
@@ -269,18 +266,14 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(byte[] source, XContentType xContentType) {
-        this.docSourceBytes = source;
-        this.docSourceXContentType = xContentType;
-        return this;
+        return setDoc(source, 0, source.length, xContentType);
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(byte[] source, int offset, int length, XContentType xContentType) {
-        this.docSourceBytes = source;
-        this.docSourceOffset = offset;
-        this.docSourceLength = length;
+        this.docSourceBytesReference = new BytesArray(source, offset, length);
         this.docSourceXContentType = xContentType;
         return this;
     }
@@ -290,8 +283,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * is a field and value pairs.
      */
     public UpdateRequestBuilder setDoc(Object... source) {
-        this.docSourceArray = source;
-        return this;
+        return setDoc(Requests.INDEX_CONTENT_TYPE, source);
     }
 
     /**
@@ -299,9 +291,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * is a field and value pairs.
      */
     public UpdateRequestBuilder setDoc(XContentType xContentType, Object... source) {
-        this.docSourceArray = source;
-        this.docSourceXContentType = xContentType;
-        return this;
+        return setDoc(IndexRequest.getXContentBuilder(xContentType, source));
     }
 
     /**
@@ -317,7 +307,8 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public UpdateRequestBuilder setUpsert(XContentBuilder source) {
-        this.upsertSourceXContentBuilder = source;
+        this.upsertSourceBytesReference = BytesReference.bytes(source);
+        this.upsertSourceXContentType = source.contentType();
         return this;
     }
 
@@ -325,24 +316,27 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public UpdateRequestBuilder setUpsert(Map<String, Object> source) {
-        this.upsertSourceMap = source;
-        return this;
+        return setUpsert(source, Requests.INDEX_CONTENT_TYPE);
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public UpdateRequestBuilder setUpsert(Map<String, Object> source, XContentType contentType) {
-        this.upsertSourceMap = source;
-        this.upsertSourceXContentType = contentType;
-        return this;
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            builder.map(source);
+            return setUpsert(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+        }
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public UpdateRequestBuilder setUpsert(String source, XContentType xContentType) {
-        this.upsertSourceString = source;
+        this.upsertSourceBytesReference = new BytesArray(source);
         this.upsertSourceXContentType = xContentType;
         return this;
     }
@@ -351,18 +345,14 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public UpdateRequestBuilder setUpsert(byte[] source, XContentType xContentType) {
-        this.upsertSourceBytes = source;
-        this.upsertSourceXContentType = xContentType;
-        return this;
+        return setUpsert(source, 0, source.length, xContentType);
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public UpdateRequestBuilder setUpsert(byte[] source, int offset, int length, XContentType xContentType) {
-        this.upsertSourceBytes = source;
-        this.upsertSourceOffset = offset;
-        this.upsertSourceLength = length;
+        this.upsertSourceBytesReference = new BytesArray(source, offset, length);
         this.upsertSourceXContentType = xContentType;
         return this;
     }
@@ -372,8 +362,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * includes field and value pairs.
      */
     public UpdateRequestBuilder setUpsert(Object... source) {
-        this.upsertSourceArray = source;
-        return this;
+        return setUpsert(Requests.INDEX_CONTENT_TYPE, source);
     }
 
     /**
@@ -381,9 +370,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * includes field and value pairs.
      */
     public UpdateRequestBuilder setUpsert(XContentType xContentType, Object... source) {
-        this.upsertSourceArray = source;
-        this.upsertSourceXContentType = xContentType;
-        return this;
+        return setUpsert(IndexRequest.getXContentBuilder(xContentType, source));
     }
 
     /**
@@ -427,7 +414,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     @Override
     public UpdateRequestBuilder setRefreshPolicy(String refreshPolicy) {
-        this.refreshPolicyString = refreshPolicy;
+        this.refreshPolicy = WriteRequest.RefreshPolicy.parse(refreshPolicy);
         return this;
     }
 
@@ -475,58 +462,14 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         if (doc != null) {
             request.doc(doc);
         }
-        if (docSourceXContentBuilder != null) {
-            request.doc(docSourceXContentBuilder);
-        }
-        if (docSourceMap != null) {
-            if (docSourceXContentType == null) {
-                request.doc(docSourceMap);
-            } else {
-                request.doc(docSourceMap, docSourceXContentType);
-            }
-        }
-        if (docSourceString != null && docSourceXContentType != null) {
-            request.doc(docSourceString, docSourceXContentType);
-        }
-        if (docSourceBytes != null && docSourceXContentType != null) {
-            if (docSourceOffset != null && docSourceLength != null) {
-                request.doc(docSourceBytes, docSourceOffset, docSourceLength, docSourceXContentType);
-            }
-        }
-        if (docSourceArray != null) {
-            if (docSourceXContentType == null) {
-                request.doc(docSourceArray);
-            } else {
-                request.doc(docSourceXContentType, docSourceArray);
-            }
+        if (docSourceBytesReference != null && docSourceXContentType != null) {
+            request.doc(docSourceBytesReference, docSourceXContentType);
         }
         if (upsert != null) {
             request.upsert(upsert);
         }
-        if (upsertSourceXContentBuilder != null) {
-            request.upsert(upsertSourceXContentBuilder);
-        }
-        if (upsertSourceMap != null) {
-            if (upsertSourceXContentType == null) {
-                request.upsert(upsertSourceMap);
-            } else {
-                request.upsert(upsertSourceMap, upsertSourceXContentType);
-            }
-        }
-        if (upsertSourceString != null && upsertSourceXContentType != null) {
-            request.upsert(upsertSourceString, upsertSourceXContentType);
-        }
-        if (upsertSourceBytes != null && upsertSourceXContentType != null) {
-            if (upsertSourceOffset != null && upsertSourceLength != null) {
-                request.upsert(upsertSourceBytes, upsertSourceOffset, upsertSourceLength, upsertSourceXContentType);
-            }
-        }
-        if (upsertSourceArray != null) {
-            if (upsertSourceXContentType == null) {
-                request.upsert(upsertSourceArray);
-            } else {
-                request.upsert(upsertSourceXContentType, upsertSourceArray);
-            }
+        if (upsertSourceBytesReference != null && upsertSourceXContentType != null) {
+            request.upsert(upsertSourceBytesReference, upsertSourceXContentType);
         }
         if (docAsUpsert != null) {
             request.docAsUpsert(docAsUpsert);
@@ -543,15 +486,10 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         if (refreshPolicy != null) {
             request.setRefreshPolicy(refreshPolicy);
         }
-        if (refreshPolicyString != null) {
-            request.setRefreshPolicy(refreshPolicyString);
-        }
         return request;
     }
 
-    @Override
     protected void validate() throws IllegalStateException {
-        super.validate();
         boolean fetchIncludeExcludeNotNull = fetchSourceInclude != null || fetchSourceExclude != null;
         boolean fetchIncludeExcludeArrayNotNull = fetchSourceIncludeArray != null || fetchSourceExcludeArray != null;
         boolean fetchSourceNotNull = fetchSource != null;
@@ -571,18 +509,11 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     private int countDocSourceFieldsSet() {
-        return countNonNullObjects(doc, docSourceXContentBuilder, docSourceMap, docSourceString, docSourceBytes, docSourceArray);
+        return countNonNullObjects(doc, docSourceBytesReference);
     }
 
     private int countUpsertSourceFieldsSet() {
-        return countNonNullObjects(
-            upsert,
-            upsertSourceXContentBuilder,
-            upsertSourceMap,
-            upsertSourceString,
-            upsertSourceBytes,
-            upsertSourceArray
-        );
+        return countNonNullObjects(upsert, upsertSourceBytesReference);
     }
 
     private int countNonNullObjects(Object... objects) {

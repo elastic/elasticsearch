@@ -170,6 +170,8 @@ public class TransportVersions {
     public static final TransportVersion KNN_QUERY_NUMCANDS_AS_OPTIONAL_PARAM = def(8_583_00_0);
     public static final TransportVersion TRANSFORM_GET_BASIC_STATS = def(8_584_00_0);
     public static final TransportVersion NLP_DOCUMENT_CHUNKING_ADDED = def(8_585_00_0);
+    public static final TransportVersion SEARCH_TIMEOUT_EXCEPTION_ADDED = def(8_586_00_0);
+    public static final TransportVersion ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED = def(8_587_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

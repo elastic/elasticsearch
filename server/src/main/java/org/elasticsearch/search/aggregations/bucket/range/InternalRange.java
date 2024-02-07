@@ -369,14 +369,13 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     @Override
     protected B reduceBucket(List<B> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
+        assert buckets.isEmpty() == false;
         long docCount = 0;
-        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
         for (Bucket bucket : buckets) {
             docCount += bucket.docCount;
-            aggregationsList.add(bucket.aggregations);
         }
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         Bucket prototype = buckets.get(0);
         return getFactory().createBucket(prototype.key, prototype.from, prototype.to, docCount, aggs, keyed, format);
     }

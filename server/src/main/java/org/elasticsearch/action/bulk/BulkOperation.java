@@ -108,7 +108,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return;
         }
         Map<ShardId, List<BulkItemRequest>> requestsByShard = groupRequestsByShards(clusterState);
-        executeBulkRequestsByShard(requestsByShard, clusterState);
+        executeBulkRequestsByShard(requestsByShard, clusterState, this::completeBulkOperation);
     }
 
     private long buildTookInMillis(long startTimeNanos) {
@@ -181,24 +181,18 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         return requestsByShard;
     }
 
-    private void executeBulkRequestsByShard(Map<ShardId, List<BulkItemRequest>> requestsByShard, ClusterState clusterState) {
+    private void executeBulkRequestsByShard(
+        Map<ShardId, List<BulkItemRequest>> requestsByShard,
+        ClusterState clusterState,
+        Runnable onRequestsCompleted
+    ) {
         if (requestsByShard.isEmpty()) {
-            listener.onResponse(
-                new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
-            );
+            onRequestsCompleted.run();
             return;
         }
 
         String nodeId = clusterService.localNode().getId();
-        Runnable onBulkItemsComplete = () -> {
-            listener.onResponse(
-                new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
-            );
-            // Allow memory for bulk shard request items to be reclaimed before all items have been completed
-            bulkRequest = null;
-        };
-
-        try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onBulkItemsComplete)) {
+        try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onRequestsCompleted)) {
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
@@ -217,6 +211,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 executeBulkShardRequest(bulkShardRequest, bulkItemRequestCompleteRefCount.acquire());
             }
         }
+    }
+
+    private void completeBulkOperation() {
+        listener.onResponse(
+            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
+        );
+        // Allow memory for bulk shard request items to be reclaimed before all items have been completed
+        bulkRequest = null;
     }
 
     private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {

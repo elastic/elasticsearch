@@ -19,16 +19,9 @@ import java.util.Objects;
 /** JNA bindings for ZSTD. */
 public final class Zstd {
 
-    private static class Holder {
-        private static final ZstdLibrary LIBRARY;
-
-        static {
-            LIBRARY = AccessController.doPrivileged((PrivilegedAction<ZstdLibrary>) () -> Native.load("zstd", ZstdLibrary.class));
-        }
-
-    }
-
     private interface ZstdLibrary extends Library {
+
+        ZstdLibrary INSTANCE = AccessController.doPrivileged((PrivilegedAction<ZstdLibrary>) () -> Native.load("zstd", ZstdLibrary.class));
 
         long ZSTD_compressBound(int scrLen);
 
@@ -43,7 +36,7 @@ public final class Zstd {
     }
 
     private static ZstdLibrary library() {
-        return Holder.LIBRARY;
+        return ZstdLibrary.INSTANCE;
     }
 
     private Zstd() {} // no instantiation

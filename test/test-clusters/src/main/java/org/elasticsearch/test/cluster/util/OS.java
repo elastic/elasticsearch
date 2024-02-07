@@ -8,10 +8,10 @@
 
 package org.elasticsearch.test.cluster.util;
 
-import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -60,8 +60,7 @@ public enum OS {
         }
 
         T supply() {
-            HashSet<OS> missingOS = new HashSet<>(Arrays.asList(OS.values()));
-            missingOS.removeAll(conditions.keySet());
+            Set<OS> missingOS = EnumSet.complementOf(EnumSet.copyOf(conditions.keySet()));
             if (missingOS.isEmpty() == false) {
                 throw new IllegalArgumentException("No condition specified for " + missingOS);
             }

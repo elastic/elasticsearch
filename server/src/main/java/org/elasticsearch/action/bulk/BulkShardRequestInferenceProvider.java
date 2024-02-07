@@ -248,6 +248,8 @@ public class BulkShardRequestInferenceProvider {
                             @SuppressWarnings("unchecked")
                             List<Map<String, Object>> inferenceFieldResultList = (List<Map<String, Object>>) rootInferenceFieldMap
                                 .computeIfAbsent(fieldName, k -> new ArrayList<>());
+                            // Remove previous inference results if any
+                            inferenceFieldResultList.clear();
 
                             // TODO Check inference result type to change subfield name
                             var inferenceFieldMap = Map.of(

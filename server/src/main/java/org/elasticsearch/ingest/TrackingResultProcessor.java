@@ -27,6 +27,7 @@ public final class TrackingResultProcessor implements Processor {
     private final ConditionalProcessor conditionalProcessor;
     private final List<SimulateProcessorResult> processorResultList;
     private final boolean ignoreFailure;
+    // This field indicates that this processor needs to run the initial check for cycles in pipeline processors:
     private final boolean performCycleCheck;
 
     TrackingResultProcessor(
@@ -126,6 +127,7 @@ public final class TrackingResultProcessor implements Processor {
                     }
                 });
             } else {
+                // The cycle check has been done before, so we can just decorate the pipeline with our instrumentation and execute it:
                 decorateAndExecutePipeline(pipeline, ingestDocument, conditionalWithResult, handler);
             }
 
@@ -184,6 +186,10 @@ public final class TrackingResultProcessor implements Processor {
         });
     }
 
+    /*
+     * This method decorates the pipeline's compound processor with a new TrackingResultProcessor that does not do cycle checking, and
+     * executes the pipeline using that TrackingResultProcessor.
+     */
     private void decorateAndExecutePipeline(
         Pipeline pipeline,
         IngestDocument ingestDocument,
@@ -244,6 +250,10 @@ public final class TrackingResultProcessor implements Processor {
         return true;
     }
 
+    /*
+     * This decorates the existing processor with a new TrackingResultProcessor that does _not_ do checks for cycles in pipeline
+     * processors, with the assumption that that check has already been done.
+     */
     private static CompoundProcessor decorateNoCycleCheck(
         CompoundProcessor compoundProcessor,
         ConditionalProcessor parentCondition,

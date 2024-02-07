@@ -8,12 +8,8 @@
 
 package org.elasticsearch.index.mapper.extras;
 
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.VectorEncoding;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -31,7 +27,6 @@ import org.hamcrest.CoreMatchers;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 
 public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
 
@@ -82,42 +77,18 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
         );
     }
 
-    public void testFieldHasValueIf_featureIsPresentInFieldInfos() {
-        MappedFieldType fieldType = new RankFeatureMetaFieldMapper.RankFeatureMetaFieldType();
-        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("_feature") });
-        assertTrue(fieldType.fieldHasValue(fieldInfos));
+    @Override
+    public void testFieldHasValue() {
+        assertTrue(getMappedFieldType().fieldHasValue(new FieldInfos(new FieldInfo[] { getFieldInfoWithName("_feature") })));
     }
 
-    public void testFieldEmptyIfNameIsPresentInFieldInfos() {
-        MappedFieldType fieldType = new RankFeatureMetaFieldMapper.RankFeatureMetaFieldType();
-        FieldInfos fieldInfos = new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") });
-        assertFalse(fieldType.fieldHasValue(fieldInfos));
+    @Override
+    public void testFieldHasValueWithEmptyFieldInfos() {
+        assertFalse(getMappedFieldType().fieldHasValue(FieldInfos.EMPTY));
     }
 
-    public void testFieldEmptyIfEmptyFieldInfos() {
-        MappedFieldType fieldType = new RankFeatureMetaFieldMapper.RankFeatureMetaFieldType();
-        FieldInfos fieldInfos = FieldInfos.EMPTY;
-        assertFalse(fieldType.fieldHasValue(fieldInfos));
-    }
-
-    private FieldInfo getFieldInfoWithName(String name) {
-        return new FieldInfo(
-            name,
-            1,
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            IndexOptions.NONE,
-            DocValuesType.NONE,
-            -1,
-            new HashMap<>(),
-            1,
-            1,
-            1,
-            1,
-            VectorEncoding.BYTE,
-            VectorSimilarityFunction.COSINE,
-            randomBoolean()
-        );
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return new RankFeatureMetaFieldMapper.RankFeatureMetaFieldType();
     }
 }

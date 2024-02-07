@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -199,12 +200,19 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         }
     }
 
-    public void testSimpleScriptFieldAlwaysHaveValue() {
-        assertTrue(simpleMappedFieldType().fieldHasValue(FieldInfos.EMPTY));
+    @Override
+    public void testFieldHasValue() {
+        assertTrue(getMappedFieldType().fieldHasValue(new FieldInfos(new FieldInfo[] { getFieldInfoWithName(randomAlphaOfLength(5)) })));
     }
 
-    public void testLoopScriptFieldAlwaysHaveValue() {
-        assertTrue(loopFieldType().fieldHasValue(FieldInfos.EMPTY));
+    @Override
+    public void testFieldHasValueWithEmptyFieldInfos() {
+        assertTrue(getMappedFieldType().fieldHasValue(FieldInfos.EMPTY));
+    }
+
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return simpleMappedFieldType();
     }
 
     protected abstract AbstractScriptFieldType<?> build(String error, Map<String, Object> emptyMap, OnScriptError onScriptError);

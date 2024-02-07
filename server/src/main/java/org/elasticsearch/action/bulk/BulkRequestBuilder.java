@@ -27,8 +27,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Collection;
+import java.util.Deque;
 import java.util.List;
 
 /**
@@ -45,8 +47,8 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      */
     private final List<DocWriteRequest<?>> requests = new ArrayList<>();
     private final List<FramedData> framedData = new ArrayList<>();
-    private final List<ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse>> requestBuilders =
-        new ArrayList<>();
+    private final Deque<ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse>> requestBuilders =
+        new ArrayDeque<>();
     private ActiveShardCount waitForActiveShards;
     private TimeValue timeout;
     private String globalPipeline;
@@ -208,11 +210,13 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
         requestPreviouslyCalled = true;
         validate();
         BulkRequest request = new BulkRequest(globalIndex);
-        for (Iterator<ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse>> requestsIter = requestBuilders
-            .iterator(); requestsIter.hasNext();) {
-            DocWriteRequest<?> childRequest = requestsIter.next().request();
-            request.add(childRequest);
-            requestsIter.remove(); // The inner request builder can now be garbage collected
+        /*
+         * In the following loop we intentionally remove the builders from requestBuilders so that they can be garbage collected. This is
+         * so that we don't require double the memory of all of the inner requests, which could be really bad for a lage bulk request.
+         */
+        for (ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse> builder = requestBuilders
+            .pollFirst(); builder != null; builder = requestBuilders.pollFirst()) {
+            request.add(builder.request());
         }
         for (DocWriteRequest<?> childRequest : requests) {
             request.add(childRequest);
@@ -243,17 +247,17 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     }
 
     private void validate() {
-        if (countNonEmptyLists(requestBuilders, requests, framedData) > 1) {
+        if (countNonEmptyCollections(requestBuilders, requests, framedData) > 1) {
             throw new IllegalStateException(
                 "Must use only request builders, requests, or byte arrays within a single bulk request. Cannot mix and match"
             );
         }
     }
 
-    private int countNonEmptyLists(List<?>... lists) {
+    private int countNonEmptyCollections(Collection<?>... collections) {
         int sum = 0;
-        for (List<?> list : lists) {
-            if (list.isEmpty() == false) {
+        for (Collection<?> collection : collections) {
+            if (collection.isEmpty() == false) {
                 sum++;
             }
         }

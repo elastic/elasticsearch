@@ -28,7 +28,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 
-import java.util.AbstractList;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -137,20 +136,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 // Add an estimate of the final reduce size
                 breakerSize = pendingMerges.addEstimateAndMaybeBreak(PendingMerges.estimateRamBytesUsedForReduce(breakerSize));
             }
-            final List<InternalAggregations> aggregations = new AbstractList<>() {
-                @Override
-                public InternalAggregations get(int index) {
-                    return aggsList.get(index).expand();
-                }
-
-                @Override
-                public int size() {
-                    return aggsList.size();
-                }
-            };
             reducePhase = SearchPhaseController.reducedQueryPhase(
                 results.asList(),
-                aggregations,
+                aggsList,
                 topDocsList,
                 topDocsStats,
                 pendingMerges.numReducePhases,
@@ -229,7 +217,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 for (QuerySearchResult result : toConsume) {
                     aggsList.add(result.getAggs());
                 }
-                newAggs = InternalAggregations.topLevelReduce(aggsList, aggReduceContextBuilder.forPartialReduction());
+                newAggs = InternalAggregations.topLevelReduceDelayable(aggsList, aggReduceContextBuilder.forPartialReduction());
             } finally {
                 for (QuerySearchResult result : toConsume) {
                     result.releaseAggs();

@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.AbstractList;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -202,7 +201,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         return aggregation.sortValue(Optional.ofNullable(head.key()).orElse(head.metric()));
     }
 
-    public static InternalAggregations topLevelReduce(
+    public static InternalAggregations topLevelReduceDelayable(
         List<DelayableWriteable<InternalAggregations>> delayableAggregations,
         AggregationReduceContext context
     ) {
@@ -228,7 +227,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
      * This method first reduces the aggregations, and if it is the final reduce, then reduce the pipeline
      * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
      */
-    public static InternalAggregations topLevelReduce(Collection<InternalAggregations> aggregationsList, AggregationReduceContext context) {
+    public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, AggregationReduceContext context) {
         InternalAggregations reduced = reduce(aggregationsList, context);
         if (reduced == null) {
             return null;
@@ -253,9 +252,9 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
      * Reduces the given list of aggregations as well as the top-level pipeline aggregators extracted from the first
      * {@link InternalAggregations} object found in the list.
      * Note that pipeline aggregations _are not_ reduced by this method.  Pipelines are handled
-     * separately by {@link InternalAggregations#topLevelReduce(Collection, AggregationReduceContext)}
+     * separately by {@link InternalAggregations#topLevelReduce(List, AggregationReduceContext)}
      */
-    public static InternalAggregations reduce(Collection<InternalAggregations> aggregationsList, AggregationReduceContext context) {
+    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, AggregationReduceContext context) {
         if (aggregationsList.isEmpty()) {
             return null;
         }

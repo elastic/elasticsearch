@@ -23,6 +23,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -534,7 +535,7 @@ public final class SearchPhaseController {
      */
     static ReducedQueryPhase reducedQueryPhase(
         Collection<? extends SearchPhaseResult> queryResults,
-        List<InternalAggregations> bufferedAggs,
+        List<DelayableWriteable<InternalAggregations>> bufferedAggs,
         List<TopDocs> bufferedTopDocs,
         TopDocsStats topDocsStats,
         int numReducePhases,
@@ -661,11 +662,11 @@ public final class SearchPhaseController {
     private static InternalAggregations reduceAggs(
         AggregationReduceContext.Builder aggReduceContextBuilder,
         boolean performFinalReduce,
-        List<InternalAggregations> toReduce
+        List<DelayableWriteable<InternalAggregations>> toReduce
     ) {
         return toReduce.isEmpty()
             ? null
-            : InternalAggregations.topLevelReduce(
+            : InternalAggregations.topLevelReduceDelayable(
                 toReduce,
                 performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
             );

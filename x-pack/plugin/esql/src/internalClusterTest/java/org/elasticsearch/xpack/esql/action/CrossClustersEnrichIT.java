@@ -425,7 +425,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             | %s
             """, enrichHosts(Enrich.Mode.REMOTE));
         var error = expectThrows(VerificationException.class, () -> runQuery(query).close());
-        assertThat(error.getMessage(), containsString("ENRICH with remote can't be executed after LIMIT"));
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after LIMIT"));
     }
 
     public void testAggThenEnrichRemote() {

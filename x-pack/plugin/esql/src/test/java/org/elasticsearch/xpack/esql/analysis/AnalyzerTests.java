@@ -1000,20 +1000,17 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testCompareDateToStringFails() {
         for (String comparison : COMPARISONS) {
-            String errorMessage;
-            if (comparison.equals("==") || comparison.equals("!=")) {
-                errorMessage = "first argument of [date COMPARISON \"not-a-date\"] is [datetime] ".replace("COMPARISON", comparison)
-                    + "so second argument must also be [datetime] but was [keyword]";
-            } else {
-                // "Temporary work around" until all comparisons inherit from EsqlBinaryComparison
-                errorMessage = "Invalid date [not-a-date]";
-            }
 
-            verifyUnsupported("""
-                from test
-                | where date COMPARISON "not-a-date"
-                | keep date
-                """.replace("COMPARISON", comparison), errorMessage, "mapping-multi-field-variation.json");
+            verifyUnsupported(
+                """
+                    from test
+                    | where date COMPARISON "not-a-date"
+                    | keep date
+                    """.replace("COMPARISON", comparison),
+                "first argument of [date COMPARISON \"not-a-date\"] is [datetime] ".replace("COMPARISON", comparison)
+                    + "so second argument must also be [datetime] but was [keyword]",
+                "mapping-multi-field-variation.json"
+            );
         }
     }
 

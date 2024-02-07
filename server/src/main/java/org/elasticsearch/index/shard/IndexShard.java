@@ -1215,13 +1215,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return innerGet(get, false, this::wrapSearcher);
     }
 
-    public MultiEngineGet mget() {
-        return new MultiEngineGet(this::wrapSearcher) {
+    /**
+     * Invokes the consumer with a {@link MultiEngineGet} that can perform multiple engine gets without wrapping searchers multiple times.
+     * Callers must not pass the provided {@link MultiEngineGet} to other threads.
+     */
+    public void mget(Consumer<MultiEngineGet> mgetter) {
+        final MultiEngineGet mget = new MultiEngineGet(this::wrapSearcher) {
             @Override
             public GetResult get(Engine.Get get) {
                 return innerGet(get, false, this::wrapSearchSearchWithCache);
             }
         };
+        try {
+            mgetter.accept(mget);
+        } finally {
+            mget.releaseCachedSearcher();
+        }
     }
 
     public Engine.GetResult getFromTranslog(Engine.Get get) {

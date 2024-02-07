@@ -147,11 +147,11 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     @Override
     protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) {
         MultiGetShardResponse response = new MultiGetShardResponse();
-        try (MultiEngineGet mget = getIndexShard(shardId).mget()) {
+        getIndexShard(shardId).mget(mget -> {
             for (int i = 0; i < request.locations.size(); i++) {
                 getAndAddToResponse(shardId, mget, i, request, response);
             }
-        }
+        });
         return response;
     }
 
@@ -297,13 +297,13 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
     private MultiGetShardResponse handleLocalGets(MultiGetShardRequest request, MultiGetShardResponse response, ShardId shardId) {
         logger.trace("handling local gets for missing locations");
-        try (MultiEngineGet mget = getIndexShard(shardId).mget()) {
+        getIndexShard(shardId).mget(mget -> {
             for (int i = 0; i < response.locations.size(); i++) {
                 if (response.responses.get(i) == null && response.failures.get(i) == null) {
                     getAndAddToResponse(shardId, mget, i, request, response);
                 }
             }
-        }
+        });
         return response;
     }
 

@@ -9,7 +9,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.engine.Engine;
 
@@ -20,7 +19,7 @@ import java.util.function.Function;
  * A session that can perform multiple gets without wrapping searchers multiple times.
  * This must be created and used by a single thread.
  */
-public abstract class MultiEngineGet implements Releasable {
+public abstract class MultiEngineGet {
     private IndexReader.CacheKey lastKey;
     private Engine.Searcher lastWrapped;
 
@@ -32,7 +31,7 @@ public abstract class MultiEngineGet implements Releasable {
         this.wrapper = wrapper;
     }
 
-    private boolean assertAccessingThread() {
+    final boolean assertAccessingThread() {
         assert creationThread == Thread.currentThread()
             : "created by [" + creationThread + "] != current thread [" + Thread.currentThread() + "]";
         return true;
@@ -63,8 +62,7 @@ public abstract class MultiEngineGet implements Releasable {
         );
     }
 
-    @Override
-    public final void close() {
+    final void releaseCachedSearcher() {
         assert assertAccessingThread();
         Releasables.close(lastWrapped);
     }

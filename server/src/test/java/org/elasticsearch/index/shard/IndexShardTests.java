@@ -136,6 +136,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -4586,8 +4587,12 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "_doc", "2");
         wrappedWithKeys.set(0);
         wrappedWithoutKeys.set(0);
-        try (MultiEngineGet mget = shard.mget()) {
-            indexDoc(shard, "_doc", "4");
+        shard.mget(mget -> {
+            try {
+                indexDoc(shard, "_doc", "4");
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
             try (var result = mget.get(new Engine.Get(randomBoolean(), randomBoolean(), "1"))) {
                 assertTrue(result.exists());
                 assertThat(wrappedWithKeys.get(), equalTo(1));
@@ -4630,7 +4635,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertThat(wrappedWithoutKeys.get(), equalTo(2));
                 }
             }
-        }
+        });
         closeShards(shard);
     }
 

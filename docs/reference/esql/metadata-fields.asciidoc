@@ -28,7 +28,7 @@ requires a dedicated directive:
 
 [source,esql]
 ----
-[FROM index METADATA _index, _id, _source]
+FROM index [METADATA _index, _id, _source]
 ----
 
 Metadata fields are only available if the source of the data is an index.

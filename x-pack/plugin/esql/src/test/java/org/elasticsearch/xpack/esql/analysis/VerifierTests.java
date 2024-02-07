@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -62,12 +63,16 @@ public class VerifierTests extends ESTestCase {
 
     public void testAggsExpressionsInStatsAggs() {
         assertEquals(
-            "1:44: expected an aggregate function or group but got [salary] of type [FieldAttribute]",
+            "1:44: column [salary] must appear in the STATS BY clause or be used in an aggregate function",
             error("from test | eval z = 2 | stats x = avg(z), salary by emp_no")
         );
         assertEquals(
-            "1:19: expected an aggregate function or group but got [length(first_name)] of type [Length]",
+            "1:26: scalar functions over groupings [first_name] not allowed yet",
             error("from test | stats length(first_name), count(1) by first_name")
+        );
+        assertEquals(
+            "1:36: scalar functions over groupings [languages] not allowed yet",
+            error("from test | stats max(languages) + languages by l = languages")
         );
         assertEquals(
             "1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]",
@@ -78,10 +83,6 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats count(avg(first_name)) by first_name")
         );
         assertEquals(
-            "1:23: expected an aggregate function or group but got [emp_no + avg(emp_no)] of type [Add]",
-            error("from test | stats x = emp_no + avg(emp_no) by emp_no")
-        );
-        assertEquals(
             "1:23: second argument of [percentile(languages, languages)] must be a constant, received [languages]",
             error("from test | stats x = percentile(languages, languages) by emp_no")
         );
@@ -89,6 +90,7 @@ public class VerifierTests extends ESTestCase {
             "1:23: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
             error("from test | stats x = count_distinct(languages, languages) by emp_no")
         );
+
     }
 
     public void testAggsInsideGrouping() {
@@ -98,8 +100,53 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testAggsWithInvalidGrouping() {
+        assertEquals(
+            "1:35: column [languages] must appear in the STATS BY clause or be used in an aggregate function",
+            error("from test| stats max(languages) + languages by l = languages % 3")
+        );
+    }
+
+    public void testAggsIgnoreCanonicalGrouping() {
+        // the grouping column should appear verbatim - ignore canonical representation as they complicate things significantly
+        // for no real benefit (1+languages != languages + 1)
+        assertEquals(
+            "1:39: column [languages] must appear in the STATS BY clause or be used in an aggregate function",
+            error("from test| stats max(languages) + 1 + languages by l = languages + 1")
+        );
+    }
+
+    public void testAggsWithoutAgg() {
+        // should work
+        assertEquals(
+            "1:35: column [salary] must appear in the STATS BY clause or be used in an aggregate function",
+            error("from test| stats max(languages) + salary by l = languages + 1")
+        );
+    }
+
     public void testAggsInsideEval() throws Exception {
         assertEquals("1:29: aggregate function [max(b)] not allowed outside STATS command", error("row a = 1, b = 2 | eval x = max(b)"));
+    }
+
+    public void testAggsWithExpressionOverAggs() {
+        assertEquals(
+            "1:44: scalar functions over groupings [languages] not allowed yet",
+            error("from test | stats max(languages + 1) , m = languages + min(salary + 1) by l = languages, s = salary")
+        );
+    }
+
+    public void testAggScalarOverGroupingColumn() {
+        assertEquals(
+            "1:26: scalar functions over groupings [first_name] not allowed yet",
+            error("from test | stats length(first_name), count(1) by first_name")
+        );
+    }
+
+    public void testGroupingInAggs() {
+        assertEquals("2:12: column [salary] must appear in the STATS BY clause or be used in an aggregate function", error("""
+             from test
+            |stats e = salary + max(salary) by languages
+            """));
     }
 
     public void testDoubleRenamingField() {

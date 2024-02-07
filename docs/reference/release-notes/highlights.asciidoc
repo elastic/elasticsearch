@@ -27,13 +27,15 @@ Other versions:
 
 endif::[]
 
-// The notable-highlights tag marks entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
+
+[discrete]
+[[ga_release_of_synonyms_api]]
+=== GA Release of Synonyms API
+Removes the beta label for the Synonyms API to make it GA.
+
+{es-pull}103223[#103223]
+
 // end::notable-highlights[]
 
 

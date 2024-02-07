@@ -163,6 +163,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
         }
 
+        // default for easier testing
         static InputType getInputTypeToWrite(InputType inputType, TransportVersion version) {
             if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED)
                 && validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {

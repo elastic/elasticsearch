@@ -184,6 +184,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         ActionListener<AcknowledgedResponse> listener
     ) {
         String sourceIndexName = request.getSourceIndex();
+        downsamplingInterval = request.getDownsampleConfig().getInterval().toString();
 
         final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl != null) {
@@ -234,6 +235,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             return;
         }
 
+        final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
         // Shortcircuit if target index has been downsampled:
         final String downsampleIndexName = request.getTargetIndex();
         IndexMetadata downsampleIndex = state.getMetadata().index(downsampleIndexName);
@@ -245,6 +247,20 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 return;
             } else if (downsampleStatus == DownsampleTaskStatus.SUCCESS) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+            // In case the write block has been set on the target index means that the shard level downsampling itself was successful,
+            // but the previous invocation failed later performing settings update, refresh or force merge.
+            // The write block is used a signal to resume from the refresh part of the downsample api invocation.
+            if (downsampleIndex.getSettings().get(IndexMetadata.SETTING_BLOCKS_WRITE) != null) {
+                var refreshRequest = new RefreshRequest(downsampleIndexName);
+                refreshRequest.setParentTask(parentTask);
+                client.admin()
+                    .indices()
+                    .refresh(
+                        refreshRequest,
+                        new RefreshDownsampleIndexActionListener(listener, parentTask, downsampleIndexName, request.getWaitTimeout())
+                    );
                 return;
             }
         }
@@ -266,7 +282,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         // At any point if there is an issue, delete the downsample index
 
         // 1. Extract source index mappings
-        final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(sourceIndexName);
         getMappingsRequest.setParentTask(parentTask);
         client.admin().indices().getMappings(getMappingsRequest, listener.delegateFailureAndWrap((delegate, getMappingsResponse) -> {
@@ -285,7 +300,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
             // Validate downsampling interval
             validateDownsamplingInterval(mapperService, request.getDownsampleConfig());
-            downsamplingInterval = request.getDownsampleConfig().getInterval().toString();
 
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();

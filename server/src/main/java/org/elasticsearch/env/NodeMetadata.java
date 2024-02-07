@@ -71,11 +71,6 @@ public final class NodeMetadata {
         this(nodeId, nodeVersion, nodeVersionAsIndexVersion, nodeVersion, nodeVersionAsIndexVersion, oldestIndexVersion);
     }
 
-    public static NodeMetadata createWithVersion(final String nodeId, final Version nodeVersion, final IndexVersion oldestIndexVersion) {
-        // TODO[wrb]: index version is null
-        return new NodeMetadata(nodeId, nodeVersion, null, oldestIndexVersion);
-    }
-
     public static NodeMetadata createWithIndexVersion(
         final String nodeId,
         final IndexVersion nodeVersion,

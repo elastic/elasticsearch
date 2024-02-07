@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      version: " - 8.12.99"
+      reason: semantic_text introduced in 8.13.0 # TODO change when 8.13.0 is released
+
   - do:
       inference.put_model:
         task_type: sparse_embedding
@@ -34,7 +38,7 @@ setup:
                 type: text
 
 ---
-"Create index with semantic_text field type":
+"Calculates embeddings for new documents":
     - do:
         index:
           index: test-index
@@ -52,3 +56,42 @@ setup:
     - match: { _source.inference_field: "inference test" }
     - match: { _source.another_inference_field: "another inference test" }
     - match: { _source.non_inference_field: "non inference test" }
+
+    - match: { _source._semantic_text_inference.inference_field.0.text: "inference test" }
+    - match: { _source._semantic_text_inference.another_inference_field.0.text: "another inference test" }
+
+    - match: { _source._semantic_text_inference.inference_field.0.text: "inference test" }
+    - match: { _source._semantic_text_inference.another_inference_field.0.text: "another inference test" }
+
+    - exists: _source._semantic_text_inference.inference_field.0.sparse_embedding
+    - exists: _source._semantic_text_inference.another_inference_field.0.sparse_embedding
+
+---
+"Fails for non-existent model":
+  - do:
+      indices.create:
+        index: incorrect-test-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                model_id: non-existing-inference-id
+              non_inference_field:
+                type: text
+  - do:
+      catch: /No inference provider found .* non-existing-inference-id/
+      index:
+        index: incorrect-test-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          non_inference_field: "non inference test"
+
+  # Succeeds when semantic_text field is not used
+  - do:
+      index:
+        index: incorrect-test-index
+        id: doc_1
+        body:
+          non_inference_field: "non inference test"

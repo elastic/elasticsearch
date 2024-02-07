@@ -627,10 +627,13 @@ public class NodeEnvironmentTests extends ESTestCase {
                 () -> checkForIndexCompatibility(logger, env.dataPaths())
             );
 
+            // TODO[wrb] replace range with "pre-7.x" or something
             assertThat(
                 ex.getMessage(),
                 allOf(
-                    startsWith("cannot upgrade a node from version [" + oldVersion + "] directly"),
+                    startsWith(
+                        "cannot upgrade a node from version [" + IndexVersion.fromId(oldVersion.id()).toReleaseVersion() + "] directly"
+                    ),
                     containsString("upgrade to version [" + Build.current().minWireCompatVersion())
                 )
             );

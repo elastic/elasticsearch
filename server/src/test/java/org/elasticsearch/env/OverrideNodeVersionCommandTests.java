@@ -108,7 +108,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             allOf(
                 containsString("compatible with current version"),
                 containsString(Version.CURRENT.toString()),
-                containsString(nodeVersion.toString())
+                containsString(Integer.toString(nodeVersion.id()))
             )
         );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));

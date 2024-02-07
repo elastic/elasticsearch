@@ -126,7 +126,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         DiskHealthInfo diskHealthInfo = request.getDiskHealthInfo();
         var dslHealthInfo = request.getDslHealthInfo();
         var repoHealthInfo = request.getRepositoriesHealthInfo();
-        switch (randomInt(4)) {
+        switch (randomInt(3)) {
             case 0 -> nodeId = randomAlphaOfLength(10);
             case 1 -> diskHealthInfo = randomValueOtherThan(diskHealthInfo, HealthInfoTests::randomDiskHealthInfo);
             case 2 -> dslHealthInfo = randomValueOtherThan(dslHealthInfo, HealthInfoTests::randomDslHealthInfo);

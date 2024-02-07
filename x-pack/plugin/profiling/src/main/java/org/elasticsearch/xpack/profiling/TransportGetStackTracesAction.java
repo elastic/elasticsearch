@@ -567,8 +567,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                         StackTrace stacktrace = StackTrace.fromSource(trace.getResponse().getSource());
                         // Guard against concurrent access and ensure we only handle each item once
                         if (stackTracePerId.putIfAbsent(id, stacktrace) == null) {
-                            totalFrames.addAndGet(stacktrace.frameIds.size());
-                            stackFrameIds.addAll(stacktrace.frameIds);
+                            totalFrames.addAndGet(stacktrace.frameIds.length);
+                            stackFrameIds.addAll(List.of(stacktrace.frameIds));
                             stacktrace.forNativeAndKernelFrames(e -> executableIds.add(e));
                         }
                     }

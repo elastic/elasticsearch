@@ -6,15 +6,14 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.jdk.ModuleQualifiedExportsService;
+import org.elasticsearch.nativeaccess.jna.JnaNativeLibraryProvider;
+import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
-module org.elasticsearch.base {
-    requires static jsr305;
+module org.elasticsearch.nativeaccess.jna {
+    requires org.elasticsearch.base;
+    requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.logging;
+    requires com.sun.jna;
 
-    exports org.elasticsearch.core;
-    exports org.elasticsearch.jdk;
-    exports org.elasticsearch.core.internal.provider to org.elasticsearch.xcontent, org.elasticsearch.nativeaccess;
-
-    uses ModuleQualifiedExportsService;
+    provides NativeLibraryProvider with JnaNativeLibraryProvider;
 }

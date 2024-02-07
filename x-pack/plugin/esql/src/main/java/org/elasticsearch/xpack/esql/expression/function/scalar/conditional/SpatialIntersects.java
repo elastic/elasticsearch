@@ -71,6 +71,11 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     }
 
     @Override
+    public ShapeField.QueryRelation queryRelation() {
+        return ShapeField.QueryRelation.INTERSECTS;
+    }
+
+    @Override
     public SpatialIntersects withDocValues() {
         return new SpatialIntersects(source(), left(), right(), true);
     }

@@ -52,7 +52,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 
-abstract class SpatialRelatesFunction extends BinaryScalarFunction implements EvaluatorMapper {
+public abstract class SpatialRelatesFunction extends BinaryScalarFunction implements EvaluatorMapper {
     protected DataType spatialDataType;
     protected final boolean useDocValues;
 
@@ -60,6 +60,8 @@ abstract class SpatialRelatesFunction extends BinaryScalarFunction implements Ev
         super(source, left, right);
         this.useDocValues = useDocValues;
     }
+
+    public abstract ShapeField.QueryRelation queryRelation();
 
     @Override
     public DataType dataType() {
@@ -71,6 +73,7 @@ abstract class SpatialRelatesFunction extends BinaryScalarFunction implements Ev
         // We determine the spatial data type first, then check if the other expression is of the same type or a string.
         TypeResolution leftResolution = isSpatial(left(), sourceText(), FIRST);
         TypeResolution rightResolution = isSpatial(right(), sourceText(), SECOND);
+        // Both are not spatial, then both could be string literals
         if (leftResolution.unresolved() && rightResolution.unresolved()) {
             TypeResolution resolution = bothAreStringTypes(left(), right(), sourceText());
             if (resolution.unresolved() == false) {
@@ -78,9 +81,27 @@ abstract class SpatialRelatesFunction extends BinaryScalarFunction implements Ev
             }
             return resolution;
         }
-        Expression spatialExpression = leftResolution.unresolved() ? right() : left();
-        Expression otherExpression = leftResolution.unresolved() ? left() : right();
-        TypeResolutions.ParamOrdinal otherParamOrdinal = leftResolution.unresolved() ? FIRST : SECOND;
+        // Both are spatial, but one could be a literal spatial function
+        if (leftResolution.resolved() && rightResolution.resolved()) {
+            if (left().foldable()) {
+                return resolveType(right(), left(), FIRST);
+            } else {
+                return resolveType(left(), right(), SECOND);
+            }
+        }
+        // Only one is spatial, the other must be a literal string
+        if (leftResolution.unresolved()) {
+            return resolveType(right(), left(), FIRST);
+        } else {
+            return resolveType(left(), right(), SECOND);
+        }
+    }
+
+    protected TypeResolution resolveType(
+        Expression spatialExpression,
+        Expression otherExpression,
+        TypeResolutions.ParamOrdinal otherParamOrdinal
+    ) {
         spatialDataType = spatialExpression.dataType();
         TypeResolution resolution = isSameSpatialTypeOrString(spatialDataType, otherExpression, sourceText(), otherParamOrdinal);
         if (resolution.unresolved()) {
@@ -97,13 +118,18 @@ abstract class SpatialRelatesFunction extends BinaryScalarFunction implements Ev
     ) {
         return isType(
             expression,
-            dt -> isString(dt) || EsqlDataTypes.isSpatial(dt) && spatialDataType.equals(dt),
+            dt -> isString(dt) || EsqlDataTypes.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
             operationName,
             paramOrd,
             spatialDataType.esType(),
             "keyword",
             "text"
         );
+    }
+
+    private static boolean spatialCRSCompatible(DataType spatialDataType, DataType otherDataType) {
+        return EsqlDataTypes.isSpatialGeo(spatialDataType) && EsqlDataTypes.isSpatialGeo(otherDataType)
+            || EsqlDataTypes.isSpatialGeo(spatialDataType) == false && EsqlDataTypes.isSpatialGeo(otherDataType) == false;
     }
 
     public static TypeResolution bothAreStringTypes(Expression left, Expression right, String operationName) {

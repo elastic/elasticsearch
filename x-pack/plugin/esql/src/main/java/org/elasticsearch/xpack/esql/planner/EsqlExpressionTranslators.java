@@ -7,9 +7,15 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
@@ -18,8 +24,10 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Inse
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -42,15 +50,19 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.versionfield.Version;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.text.ParseException;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.ql.planner.ExpressionTranslators.valueOf;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
@@ -61,6 +73,7 @@ public final class EsqlExpressionTranslators {
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
         new EqualsIgnoreCaseTranslator(),
         new BinaryComparisons(),
+        new SpatialRelatesTranslator(),
         new ExpressionTranslators.Ranges(),
         new ExpressionTranslators.BinaryLogic(),
         new ExpressionTranslators.IsNulls(),
@@ -346,6 +359,80 @@ public final class EsqlExpressionTranslators {
             }
 
             return ExpressionTranslators.Scalars.doTranslate(f, handler);
+        }
+    }
+
+    public static class SpatialRelatesTranslator extends ExpressionTranslator<SpatialRelatesFunction> {
+
+        @Override
+        protected Query asQuery(SpatialRelatesFunction bc, TranslatorHandler handler) {
+            return doTranslate(bc, handler);
+        }
+
+        public static void checkSpatialRelatesFunction(Expression constantExpression, ShapeField.QueryRelation queryRelation) {
+            Check.isTrue(
+                constantExpression.foldable(),
+                "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [ST_{}]",
+                constantExpression.sourceLocation().getLineNumber(),
+                constantExpression.sourceLocation().getColumnNumber(),
+                Expressions.name(constantExpression),
+                queryRelation
+            );
+        }
+
+        public static Query doTranslate(SpatialRelatesFunction bc, TranslatorHandler handler) {
+            if (bc.left().foldable()) {
+                checkSpatialRelatesFunction(bc.left(), bc.queryRelation());
+                return handler.wrapFunctionQuery(bc, bc.right(), () -> translate(bc, handler));
+            } else {
+                checkSpatialRelatesFunction(bc.right(), bc.queryRelation());
+                return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
+            }
+        }
+
+        static Query translate(SpatialRelatesFunction bc, TranslatorHandler handler) {
+            TypedAttribute attribute = bc.left().foldable() ? checkIsPushableAttribute(bc.right()) : checkIsPushableAttribute(bc.left());
+            String name = handler.nameOf(attribute);
+            Object value = valueOf(bc.left().foldable() ? bc.left() : bc.right());
+
+            if (value instanceof BytesRef bytesRef) {
+                try {
+                    Geometry shape = WellKnownBinary.fromWKB(
+                        GeometryValidator.NOOP,
+                        false,
+                        bytesRef.bytes,
+                        bytesRef.offset,
+                        bytesRef.length
+                    );
+                    return new SpatialRelatesQuery(bc.source(), name, shapeRelation(bc), shape, attribute.dataType());
+                } catch (IllegalArgumentException notWKB) {
+                    // TODO don't use exceptions to detect WKB vs WKT
+                    try {
+                        Geometry shape = WellKnownText.fromWKT(GeometryValidator.NOOP, false, bytesRef.utf8ToString());
+                        return new SpatialRelatesQuery(bc.source(), name, shapeRelation(bc), shape, attribute.dataType());
+                    } catch (IOException | ParseException e) {
+                        throw new QlIllegalArgumentException(
+                            "Failed to parse WellKnownText format [{}] in [{}]",
+                            bc.right().nodeString(),
+                            bc
+                        );
+                    }
+                }
+            }
+
+            throw new QlIllegalArgumentException("Don't know how to translate spatial relation [{}] in [{}]", bc.right().nodeString(), bc);
+        }
+
+        // TODO: This mapping gets reversed later, so perhaps we can find a way to pass the QueryRelation directly.
+        // This could be related to the fact that we use ES QueryBuilder to later produce a Lucene Query, and we could short-cut that too
+        static ShapeRelation shapeRelation(SpatialRelatesFunction bc) {
+            return switch (bc.queryRelation().toString().toLowerCase(Locale.ROOT)) {
+                case "intersects" -> ShapeRelation.INTERSECTS;
+                case "disjoint" -> ShapeRelation.DISJOINT;
+                case "within" -> ShapeRelation.WITHIN;
+                case "contains" -> ShapeRelation.CONTAINS;
+                default -> throw new QlIllegalArgumentException("Unknown shape relation [{}]", bc.queryRelation());
+            };
         }
     }
 }

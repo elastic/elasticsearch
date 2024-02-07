@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equa
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveBinaryComparison;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.OptimizerRule;
@@ -77,6 +78,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType.COUNT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
@@ -269,16 +271,36 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             } else if (exp instanceof CIDRMatch cidrMatch) {
                 return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate)
                     && Expressions.foldable(cidrMatch.matches());
+            } else if (exp instanceof SpatialRelatesFunction bc) {
+                return isAttributePushable(bc.left(), bc, hasIdenticalDelegate, validSpatial) && bc.right().foldable()
+                    || isAttributePushable(bc.right(), bc, hasIdenticalDelegate, validSpatial) && bc.left().foldable();
             }
             return false;
         }
+
+        /**
+         * xpack-spatial limitations:
+         *  - CARTESIAN_* cannot push-down due to ShapeQueryBuilder
+         *  - GEO_SHAPE and CARTESIAN_SHAPE cannot push-down due to LeafShapeFieldData
+         *  // TODO: Move those classes to server, and remove this predicate
+         */
+        private static final Predicate<FieldAttribute> validSpatial = fa -> fa.dataType() == GEO_POINT;
 
         private static boolean isAttributePushable(
             Expression expression,
             Expression operation,
             Predicate<FieldAttribute> hasIdenticalDelegate
         ) {
-            if (isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
+            return isAttributePushable(expression, operation, hasIdenticalDelegate, a -> true);
+        }
+
+        private static boolean isAttributePushable(
+            Expression expression,
+            Expression operation,
+            Predicate<FieldAttribute> hasIdenticalDelegate,
+            Predicate<FieldAttribute> extraAttributeCheck
+        ) {
+            if (isPushableFieldAttribute(expression, hasIdenticalDelegate, extraAttributeCheck)) {
                 return true;
             }
             if (expression instanceof MetadataAttribute ma && ma.searchable()) {
@@ -340,7 +362,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         private boolean canPushDownOrders(List<Order> orders, Predicate<FieldAttribute> hasIdenticalDelegate) {
             // allow only exact FieldAttributes (no expressions) for sorting
-            return orders.stream().allMatch(o -> isPushableFieldAttribute(o.child(), hasIdenticalDelegate));
+            return orders.stream().allMatch(o -> isPushableFieldAttribute(o.child(), hasIdenticalDelegate, a -> true));
         }
 
         private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {
@@ -443,8 +465,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         return stats.hasIdenticalDelegate(attr.name());
     }
 
-    public static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
-        if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
+    public static boolean isPushableFieldAttribute(
+        Expression exp,
+        Predicate<FieldAttribute> hasIdenticalDelegate,
+        Predicate<FieldAttribute> extraAttributeCheck
+    ) {
+        if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa) && extraAttributeCheck.test(fa)) {
             return fa.dataType() != DataTypes.TEXT || hasIdenticalDelegate.test(fa);
         }
         return false;

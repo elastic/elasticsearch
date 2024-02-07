@@ -6,15 +6,17 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.jdk.ModuleQualifiedExportsService;
+import org.elasticsearch.nativeaccess.lib.NativeAccessModuleExportsService;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
 module org.elasticsearch.nativeaccess {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
 
-    exports org.elasticsearch.nativeaccess;
-    // TODO: fix embedded loader to allow qualified exports to modules on modulepath
-    exports org.elasticsearch.nativeaccess.lib; // to org.elasticsearch.nativeaccess.jna, org.elasticsearch.base;
+    exports org.elasticsearch.nativeaccess to org.elasticsearch.server;
+    exports org.elasticsearch.nativeaccess.lib to org.elasticsearch.nativeaccess.jna, org.elasticsearch.server;
 
     uses NativeLibraryProvider;
+    provides ModuleQualifiedExportsService with NativeAccessModuleExportsService;
 }

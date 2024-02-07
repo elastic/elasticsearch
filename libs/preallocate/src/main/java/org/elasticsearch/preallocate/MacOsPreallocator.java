@@ -20,7 +20,7 @@ import java.util.List;
 final class MacOsPreallocator extends AbstractPosixPreallocator {
 
     MacOsPreallocator() {
-        super(144, 96, 512);
+        super(new PosixConstants(144, 96, 512));
     }
 
     @Override

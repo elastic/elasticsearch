@@ -16,7 +16,7 @@ import java.security.PrivilegedAction;
 final class LinuxPreallocator extends AbstractPosixPreallocator {
 
     LinuxPreallocator() {
-        super(144, 48, 64);
+        super(new PosixConstants(144, 48, 64));
     }
 
     @Override

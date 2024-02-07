@@ -23,17 +23,17 @@ import java.util.Map;
 
 abstract class AbstractPosixPreallocator implements Preallocator {
 
+    /**
+     * Constants relating to posix libc.
+     *
+     * @param SIZEOF_STAT The size of the stat64 structure, ie sizeof(stat64_t), found by importing sys/stat.h
+     * @param STAT_ST_SIZE_OFFSET The offsite into stat64 at which st_size exists, ie offsetof(stat64_t, st_size),
+     *                           found by importing sys/stat.h
+     * @param O_CREAT The file mode for creating a file upon opening, found by importing fcntl.h
+     */
+    protected record PosixConstants(int SIZEOF_STAT, int STAT_ST_SIZE_OFFSET, int O_CREAT) {}
+
     private static final int O_WRONLY = 1;
-
-    protected final int SIZEOF_STAT;
-    protected final int STAT_ST_SIZE_OFFSET;
-    protected final int O_CREAT;
-
-    AbstractPosixPreallocator(int SIZEOF_STAT, int STAT_ST_SIZE_OFFSET, int O_CREAT) {
-        this.SIZEOF_STAT = SIZEOF_STAT;
-        this.STAT_ST_SIZE_OFFSET = STAT_ST_SIZE_OFFSET;
-        this.O_CREAT = O_CREAT;
-    }
 
     static final class Stat64 extends Structure implements Structure.ByReference {
         public byte[] _ignore1;
@@ -101,7 +101,7 @@ abstract class AbstractPosixPreallocator implements Preallocator {
 
         @Override
         public long getSize() throws IOException {
-            var stat = new Stat64(SIZEOF_STAT, STAT_ST_SIZE_OFFSET);
+            var stat = new Stat64(constants.SIZEOF_STAT, constants.STAT_ST_SIZE_OFFSET);
             if (fstat64.fstat64(fd, stat) == -1) {
                 throw newIOException("Could not get size of file");
             }
@@ -116,6 +116,12 @@ abstract class AbstractPosixPreallocator implements Preallocator {
         }
     }
 
+    protected final PosixConstants constants;
+
+    AbstractPosixPreallocator(PosixConstants constants) {
+        this.constants = constants;
+    }
+
     @Override
     public boolean useNative() {
         return false;
@@ -123,7 +129,7 @@ abstract class AbstractPosixPreallocator implements Preallocator {
 
     @Override
     public NativeFileHandle open(String path) throws IOException {
-        int fd = functions.open(path, O_WRONLY, O_CREAT);
+        int fd = functions.open(path, O_WRONLY, constants.O_CREAT);
         if (fd < 0) {
             throw newIOException(String.format(Locale.ROOT, "Could not open file [%s] for preallocation", path));
         }

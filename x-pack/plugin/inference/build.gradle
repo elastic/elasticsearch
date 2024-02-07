@@ -25,3 +25,5 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:reindex')
 }
+
+addQaCheckDependencies(project)

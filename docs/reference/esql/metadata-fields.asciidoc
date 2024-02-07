@@ -17,16 +17,18 @@ supported:
   * `_version`: the source document's version. The field is of the type
   <<number,long>>.
 
-  * <<mapping-source-field,`_source`>>: the original JSON document body 
-  that was passed at index time. The field is loaded as a special `_source` 
-  type. This field is not supported by functions.
+   * <<mapping-source-field,`_source`>>: the original JSON document body 
+  that was passed at index time (or a reconstructed version if 
+  <<synthetic-source, synthetic `_source_`>> is enabled). The field is 
+  loaded as a special `_source` type. This field is not supported by 
+  functions.
 
 To enable access to these fields, the <<esql-from,`FROM`>> source command 
 requires a dedicated directive:
 
 [source,esql]
 ----
-FROM index [METADATA _index, _id, _source]
+[FROM index METADATA _index, _id, _source]
 ----
 
 Metadata fields are only available if the source of the data is an index.

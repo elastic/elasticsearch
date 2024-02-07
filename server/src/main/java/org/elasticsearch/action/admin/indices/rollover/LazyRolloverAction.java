@@ -28,7 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Map;
 
 /**
- * Api that automatically rolls over a data stream that has the flag {@link DataStream#rolloverOnWrite()} enabled. These requests always
+ * API that lazily rolls over a data stream that has the flag {@link DataStream#rolloverOnWrite()} enabled. These requests always
  * originate from requests that write into the data stream.
  */
 public final class LazyRolloverAction extends ActionType<RolloverResponse> {

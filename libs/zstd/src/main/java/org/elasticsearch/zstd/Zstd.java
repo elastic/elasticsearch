@@ -41,6 +41,11 @@ public final class Zstd {
 
     private Zstd() {} // no instantiation
 
+    // NOTE: When calling compress/decompress functions, the ZSTD documentation advises to reuse ZSTD_CCtx/ZSTD_DCtx objects across calls
+    // for efficiency. Functions that allow reusing an existing context struct are not exposed here, only their counterparts that allocate
+    // these context structs as part of the compress/decompress function call. We may consider exposing these functions if we were to
+    // compress/decompress multiple inputs in sequence.
+
     /**
      * Compress the content of {@code src} into {@code dst} at compression level {@code level}, and return the number of compressed bytes.
      * {@link ByteBuffer#position()} and {@link ByteBuffer#limit()} of both {@link ByteBuffer}s are left unmodified.

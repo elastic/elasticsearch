@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -198,6 +200,24 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         }
         // We can sort by either the `[value]` or `.value`
         return aggregation.sortValue(Optional.ofNullable(head.key()).orElse(head.metric()));
+    }
+
+    public static InternalAggregations topLevelReduce(
+        List<DelayableWriteable<InternalAggregations>> delayableAggregations,
+        AggregationReduceContext context
+    ) {
+        final List<InternalAggregations> aggregations = new AbstractList<>() {
+            @Override
+            public InternalAggregations get(int index) {
+                return delayableAggregations.get(index).expand();
+            }
+
+            @Override
+            public int size() {
+                return delayableAggregations.size();
+            }
+        };
+        return topLevelReduce(aggregations, context);
     }
 
     /**

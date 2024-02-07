@@ -16,7 +16,8 @@ import org.elasticsearch.core.Releasable;
 public interface AggregatorReducer extends Releasable {
 
     /**
-     * Adds an aggregation for reduction.
+     * Adds an aggregation for reduction. In <b>most</b> cases, the assumption will be the all given
+     * aggregations are of the same type (the same type as this aggregation).
      */
     void accept(InternalAggregation aggregation);
 

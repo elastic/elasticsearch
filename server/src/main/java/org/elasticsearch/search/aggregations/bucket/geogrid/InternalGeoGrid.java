@@ -117,6 +117,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
                 return create(getName(), requiredSize, Arrays.asList(list), getMetadata());
             }
 
+            @Override
             public void close() {
                 Releasables.close(buckets);
             }

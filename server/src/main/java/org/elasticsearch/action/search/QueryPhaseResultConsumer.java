@@ -132,7 +132,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         SearchPhaseController.ReducedQueryPhase reducePhase;
         long breakerSize = pendingMerges.circuitBreakerBytes;
         try {
-            final List<DelayableWriteable<InternalAggregations>> aggsList = pendingMerges.consumeAggs();
+            final List<DelayableWriteable<InternalAggregations>> aggsList = pendingMerges.getAggs();
             if (hasAggs) {
                 // Add an estimate of the final reduce size
                 breakerSize = pendingMerges.addEstimateAndMaybeBreak(PendingMerges.estimateRamBytesUsedForReduce(breakerSize));
@@ -229,18 +229,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 for (QuerySearchResult result : toConsume) {
                     aggsList.add(result.getAggs());
                 }
-                final List<InternalAggregations> aggregations = new AbstractList<>() {
-                    @Override
-                    public InternalAggregations get(int index) {
-                        return aggsList.get(index).expand();
-                    }
-
-                    @Override
-                    public int size() {
-                        return aggsList.size();
-                    }
-                };
-                newAggs = InternalAggregations.topLevelReduce(aggregations, aggReduceContextBuilder.forPartialReduction());
+                newAggs = InternalAggregations.topLevelReduce(aggsList, aggReduceContextBuilder.forPartialReduction());
             } finally {
                 for (QuerySearchResult result : toConsume) {
                     result.releaseAggs();
@@ -528,7 +517,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             return topDocsList;
         }
 
-        public synchronized List<DelayableWriteable<InternalAggregations>> consumeAggs() {
+        public synchronized List<DelayableWriteable<InternalAggregations>> getAggs() {
             if (hasAggs == false) {
                 return Collections.emptyList();
             }

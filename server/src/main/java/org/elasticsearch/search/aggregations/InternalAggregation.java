@@ -113,8 +113,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
-     * Return an object that Reduces several aggregations to a single one. In <b>most</b> cases, the assumption will be the all given
-     * aggregations are of the same type (the same type as this aggregation).
+     * Return an object that reduces several aggregations to a single one. This method handles the cases when the aggregation
+     * returns false in {@link #canLeadReduction()}. Otherwise, it calls {@link #getLeaderReducer(AggregationReduceContext, int)}
      */
     public final AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
         if (canLeadReduction()) {
@@ -142,6 +142,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         };
     }
 
+    /**
+     * Return an object that Reduces several aggregations to a single one. This method is called when {@link #canLeadReduction()}
+     * returns true and expects an reducer that produces the right result.
+     */
     protected abstract AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size);
 
     /**

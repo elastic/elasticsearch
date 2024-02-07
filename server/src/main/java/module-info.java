@@ -228,6 +228,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
     exports org.elasticsearch.health.node;
+    exports org.elasticsearch.health.node.tracker;
     exports org.elasticsearch.health.node.selection;
     exports org.elasticsearch.health.stats;
     exports org.elasticsearch.http;
@@ -434,4 +435,5 @@ module org.elasticsearch.server {
             org.elasticsearch.shardhealth,
             org.elasticsearch.serverless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
+    exports org.elasticsearch.lucene.spatial;
 }

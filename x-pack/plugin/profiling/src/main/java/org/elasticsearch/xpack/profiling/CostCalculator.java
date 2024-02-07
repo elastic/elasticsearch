@@ -14,22 +14,30 @@ final class CostCalculator {
     private static final double SECONDS_PER_HOUR = 60 * 60;
     private static final double SECONDS_PER_YEAR = SECONDS_PER_HOUR * 24 * 365.0d; // unit: seconds
     public static final double DEFAULT_COST_USD_PER_CORE_HOUR = 0.0425d; // unit: USD / (core * hour)
-    private static final double DEFAULT_AWS_COST_FACTOR = 1.0d;
+    private static final double DEFAULT_COST_FACTOR = 1.0d;
+    private static final double DEFAULT_AWS_COST_FACTOR = DEFAULT_COST_FACTOR;
+    private static final double DEFAULT_AZURE_COST_FACTOR = DEFAULT_COST_FACTOR;
     private final Map<String, HostMetadata> hostMetadata;
     private final double samplingDurationInSeconds;
-    private final double awsCostFactor;
     private final double customCostPerCoreHour;
+    private final Map<String, Double> providerCostFactors;
 
     CostCalculator(
         Map<String, HostMetadata> hostMetadata,
         double samplingDurationInSeconds,
         Double awsCostFactor,
+        Double azureCostFactor,
         Double customCostPerCoreHour
     ) {
         this.hostMetadata = hostMetadata;
         this.samplingDurationInSeconds = samplingDurationInSeconds > 0 ? samplingDurationInSeconds : 1.0d; // avoid division by zero
-        this.awsCostFactor = awsCostFactor == null ? DEFAULT_AWS_COST_FACTOR : awsCostFactor;
         this.customCostPerCoreHour = customCostPerCoreHour == null ? DEFAULT_COST_USD_PER_CORE_HOUR : customCostPerCoreHour;
+        this.providerCostFactors = Map.of(
+            "aws",
+            awsCostFactor == null ? DEFAULT_AWS_COST_FACTOR : awsCostFactor,
+            "azure",
+            azureCostFactor == null ? DEFAULT_AZURE_COST_FACTOR : azureCostFactor
+        );
     }
 
     public double annualCostsUSD(String hostID, double samples) {
@@ -40,7 +48,7 @@ final class CostCalculator {
             return annualCoreHours * customCostPerCoreHour;
         }
 
-        double providerCostFactor = host.instanceType.provider.equals("aws") ? awsCostFactor : 1.0d;
+        double providerCostFactor = providerCostFactors.getOrDefault(host.instanceType.provider, DEFAULT_COST_FACTOR);
 
         CostEntry costs = InstanceTypeService.getCosts(host.instanceType);
         if (costs == null) {

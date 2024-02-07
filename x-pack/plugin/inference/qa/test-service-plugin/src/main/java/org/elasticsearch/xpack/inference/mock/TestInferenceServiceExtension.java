@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -26,7 +28,10 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,11 +75,12 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
 
         @Override
         @SuppressWarnings("unchecked")
-        public TestServiceModel parseRequestConfig(
+        public void parseRequestConfig(
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platfromArchitectures
+            Set<String> platfromArchitectures,
+            ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
             var serviceSettings = TestServiceSettings.fromMap(serviceSettingsMap);
@@ -83,7 +89,7 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
             var taskSettingsMap = getTaskSettingsMap(config);
             var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
-            return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings);
+            parsedModelListener.onResponse(new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings));
         }
 
         @Override
@@ -138,6 +144,26 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
             }
         }
 
+        @Override
+        public void chunkedInfer(
+            Model model,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            ChunkingOptions chunkingOptions,
+            ActionListener<ChunkedInferenceServiceResults> listener
+        ) {
+            switch (model.getConfigurations().getTaskType()) {
+                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));
+                default -> listener.onFailure(
+                    new ElasticsearchStatusException(
+                        TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+            }
+        }
+
         private SparseEmbeddingResults makeResults(List<String> input) {
             var embeddings = new ArrayList<SparseEmbeddingResults.Embedding>();
             for (int i = 0; i < input.size(); i++) {
@@ -148,6 +174,18 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
                 embeddings.add(new SparseEmbeddingResults.Embedding(tokens, false));
             }
             return new SparseEmbeddingResults(embeddings);
+        }
+
+        private ChunkedSparseEmbeddingResults makeChunkedResults(List<String> input) {
+            var chunks = new ArrayList<ChunkedTextExpansionResults.ChunkedResult>();
+            for (int i = 0; i < input.size(); i++) {
+                var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
+                for (int j = 0; j < 5; j++) {
+                    tokens.add(new TextExpansionResults.WeightedToken(Integer.toString(j), (float) j));
+                }
+                chunks.add(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens));
+            }
+            return new ChunkedSparseEmbeddingResults(chunks);
         }
 
         @Override

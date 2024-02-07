@@ -12,6 +12,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -113,18 +115,31 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
+        protected void doChunkedInfer(
+            Model model,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            ChunkingOptions chunkingOptions,
+            ActionListener<ChunkedInferenceServiceResults> listener
+        ) {
+
+        }
+
+        @Override
         public String name() {
             return "test service";
         }
 
         @Override
-        public Model parseRequestConfig(
+        public void parseRequestConfig(
             String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platfromArchitectures
+            Set<String> platfromArchitectures,
+            ActionListener<Model> parsedModelListener
         ) {
-            return null;
+            parsedModelListener.onResponse(null);
         }
 
         @Override

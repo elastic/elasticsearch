@@ -1,0 +1,138 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "manage_users_role"
+        body: >
+          {
+            "cluster": ["manage_security"]
+          }
+
+  - do:
+      security.put_user:
+        username: "users_admin"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "manage_users_role" ],
+            "full_name" : "Read User"
+          }
+
+---
+teardown:
+  - do:
+      security.delete_role:
+        name: "manage_users_role"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "users_admin"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "test_user_1"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "test_user_2"
+        ignore: 404
+
+---
+"Test query user":
+
+  - do:
+      headers:
+        Authorization: "Basic dXNlcnNfYWRtaW46eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # users_admin
+      security.put_user:
+        username: "test_user_1"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "test-role-1" ],
+            "full_name" : "Test User 1"
+          }
+  - match: { "created": true }
+
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "test_user_1",
+            "password" : "x-pack-test-password"
+          }
+  - is_true: uid
+  - set: { uid: profile_uid_1 }
+
+  - do:
+      headers:
+        Authorization: "Basic dXNlcnNfYWRtaW46eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # users_admin
+      security.put_user:
+        username: "test_user_2"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "test-role-2" ],
+            "full_name" : "Test User 2"
+          }
+  - match: { "created": true }
+
+  # empty body works just like match_all
+  - do:
+      headers:
+        Authorization: "Basic dXNlcnNfYWRtaW46eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # users_admin
+      security.query_user:
+        body: { }
+  - match: { total: 3 }
+  - match: { count: 3 }
+
+  # match_all
+  - do:
+      headers:
+        Authorization: "Basic dXNlcnNfYWRtaW46eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # users_admin
+      security.query_user:
+        body: >
+          {
+            "query": { "match_all": {} }
+          }
+  - match: { total: 3 }
+  - match: { count: 3 }
+
+  # Wildcard
+  - do:
+      headers:
+        Authorization: "Basic dXNlcnNfYWRtaW46eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # users_admin
+      security.query_user:
+        body: >
+          {
+            "query": { "wildcard": {"roles": "test-role-*"} }
+          }
+  - match: { total: 2 }
+  - match: { count: 2 }
+
+  - do:
+      headers:
+        Authorization: "Basic dXNlcnNfYWRtaW46eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # users_admin
+      security.query_user:
+        body: >
+          {
+            "query": { "wildcard": {"roles": "test-role-*"} },
+            "sort": [ {"username": {"order": "desc"}} ],
+            "from": 1,
+            "size": 1
+          }
+        with_profile_uid: true
+  - match: { total: 2 }
+  - match: { count: 1 }
+  - match: { users.0.username: "test_user_1" }
+  - match: { users.0.profile_uid: "$profile_uid_1" }

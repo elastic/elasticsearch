@@ -13,6 +13,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -50,29 +52,46 @@ public class OpenAiService extends SenderService {
     }
 
     @Override
-    public OpenAiModel parseRequestConfig(
+    public void parseRequestConfig(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures
+        Set<String> platformArchitectures,
+        ActionListener<Model> parsedModelListener
     ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+        try {
+            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        OpenAiModel model = createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            serviceSettingsMap,
-            TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME)
-        );
+            OpenAiModel model = createModel(
+                inferenceEntityId,
+                taskType,
+                serviceSettingsMap,
+                taskSettingsMap,
+                serviceSettingsMap,
+                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
+                true
+            );
 
-        throwIfNotEmptyMap(config, NAME);
-        throwIfNotEmptyMap(serviceSettingsMap, NAME);
-        throwIfNotEmptyMap(taskSettingsMap, NAME);
+            throwIfNotEmptyMap(config, NAME);
+            throwIfNotEmptyMap(serviceSettingsMap, NAME);
+            throwIfNotEmptyMap(taskSettingsMap, NAME);
 
-        return model;
+            parsedModelListener.onResponse(model);
+        } catch (Exception e) {
+            parsedModelListener.onFailure(e);
+        }
+    }
+
+    private static OpenAiModel createModelWithoutLoggingDeprecations(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        @Nullable Map<String, Object> secretSettings,
+        String failureMessage
+    ) {
+        return createModel(inferenceEntityId, taskType, serviceSettings, taskSettings, secretSettings, failureMessage, false);
     }
 
     private static OpenAiModel createModel(
@@ -81,7 +100,8 @@ public class OpenAiService extends SenderService {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage
+        String failureMessage,
+        boolean logDeprecations
     ) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new OpenAiEmbeddingsModel(
@@ -90,7 +110,8 @@ public class OpenAiService extends SenderService {
                 NAME,
                 serviceSettings,
                 taskSettings,
-                secretSettings
+                secretSettings,
+                logDeprecations
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
@@ -107,7 +128,7 @@ public class OpenAiService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        return createModel(
+        return createModelWithoutLoggingDeprecations(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
@@ -122,7 +143,7 @@ public class OpenAiService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        return createModel(
+        return createModelWithoutLoggingDeprecations(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
@@ -150,6 +171,18 @@ public class OpenAiService extends SenderService {
 
         var action = openAiModel.accept(actionCreator, taskSettings);
         action.execute(input, listener);
+    }
+
+    @Override
+    protected void doChunkedInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ChunkingOptions chunkingOptions,
+        ActionListener<ChunkedInferenceServiceResults> listener
+    ) {
+        listener.onFailure(new ElasticsearchStatusException("Chunking not supported by the {} service", RestStatus.BAD_REQUEST, NAME));
     }
 
     /**

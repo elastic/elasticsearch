@@ -1,0 +1,5 @@
+pr: 104750
+summary: "[Connectors API] Implement connector status update action"
+area: Application
+type: enhancement
+issues: []

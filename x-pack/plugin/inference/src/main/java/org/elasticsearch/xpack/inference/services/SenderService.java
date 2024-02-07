@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.services;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -54,12 +56,34 @@ public abstract class SenderService implements InferenceService {
         doInfer(model, input, taskSettings, inputType, listener);
     }
 
+    @Override
+    public void chunkedInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ChunkingOptions chunkingOptions,
+        ActionListener<ChunkedInferenceServiceResults> listener
+    ) {
+        init();
+        doChunkedInfer(model, input, taskSettings, inputType, chunkingOptions, listener);
+    }
+
     protected abstract void doInfer(
         Model model,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         ActionListener<InferenceServiceResults> listener
+    );
+
+    protected abstract void doChunkedInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ChunkingOptions chunkingOptions,
+        ActionListener<ChunkedInferenceServiceResults> listener
     );
 
     @Override

@@ -787,8 +787,10 @@ public abstract class StreamOutput extends OutputStream {
         })
     );
 
+    public static final byte GENERIC_LIST_HEADER = (byte) 7;
+
     public <T> void writeGenericList(List<T> v, Writer<T> writer) throws IOException {
-        writeByte((byte) 7);
+        writeByte(GENERIC_LIST_HEADER);
         writeCollection(v, writer);
     }
 

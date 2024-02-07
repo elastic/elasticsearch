@@ -1,0 +1,6 @@
+pr: 104905
+summary: "Execute lazy rollover with an internal dedicated user #104732"
+area: Data streams
+type: bug
+issues:
+ - 104732

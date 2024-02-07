@@ -1,0 +1,5 @@
+pr: 105150
+summary: Remove `SearchException` usages without a proper status code
+area: Search
+type: bug
+issues: []

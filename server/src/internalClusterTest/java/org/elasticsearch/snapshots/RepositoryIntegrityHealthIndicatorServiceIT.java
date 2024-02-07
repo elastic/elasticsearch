@@ -21,7 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
-import static org.elasticsearch.health.HealthStatus.RED;
+import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,7 +61,7 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
             containsString("[" + repository + "] The repository has been disabled to prevent data corruption")
         );
 
-        assertSnapshotRepositoryHealth("Indicator should be red after file is deleted from the repository", client, RED);
+        assertSnapshotRepositoryHealth("Indicator should be yellow after file is deleted from the repository", client, YELLOW);
 
         deleteRepository(repository);
     }

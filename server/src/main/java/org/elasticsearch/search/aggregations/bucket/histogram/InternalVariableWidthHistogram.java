@@ -529,7 +529,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
             final List<InternalVariableWidthHistogram> aggregations = new ArrayList<>(size);
 

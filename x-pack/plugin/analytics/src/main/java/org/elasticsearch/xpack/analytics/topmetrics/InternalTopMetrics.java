@@ -112,7 +112,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         final PriorityQueue<ReduceState> queue = new PriorityQueue<>(size) {
             @Override
             protected boolean lessThan(ReduceState lhs, ReduceState rhs) {
@@ -122,15 +122,17 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
         return new AggregatorReducer() {
             @Override
             public void accept(InternalAggregation aggregation) {
-                InternalTopMetrics result = (InternalTopMetrics) aggregation;
-                if (result.canLeadReduction()) {
-                    queue.add(new ReduceState(result));
+                if (aggregation.canLeadReduction()) {
+                    queue.add(new ReduceState((InternalTopMetrics) aggregation));
                 }
             }
 
             @Override
             public InternalAggregation get() {
-                final List<TopMetric> merged = new ArrayList<>(size);
+                if (queue.size() == 1) {
+                    return queue.top().result;
+                }
+                final List<TopMetric> merged = new ArrayList<>(getSize());
                 while (queue.size() > 0 && merged.size() < getSize()) {
                     merged.add(queue.top().topMetric());
                     queue.top().index++;

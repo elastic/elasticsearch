@@ -221,7 +221,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
             final List<InternalIpPrefix> aggregations = new ArrayList<>(size);
 

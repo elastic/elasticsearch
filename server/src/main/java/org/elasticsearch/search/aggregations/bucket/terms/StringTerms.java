@@ -152,7 +152,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
             private final List<InternalAggregation> aggregations = new ArrayList<>(size);
 

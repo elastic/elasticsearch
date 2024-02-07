@@ -87,7 +87,7 @@ public class InternalGeoBounds extends InternalBounds<GeoPoint> implements GeoBo
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
 
             double top = Double.NEGATIVE_INFINITY;

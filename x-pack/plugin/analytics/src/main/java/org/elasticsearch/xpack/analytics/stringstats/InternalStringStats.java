@@ -201,7 +201,7 @@ public class InternalStringStats extends InternalAggregation {
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
             long count = 0;
             long totalLength = 0;

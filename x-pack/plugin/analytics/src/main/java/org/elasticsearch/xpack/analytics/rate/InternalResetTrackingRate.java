@@ -92,9 +92,8 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
-
-        List<InternalResetTrackingRate> aggregations = new ArrayList<>(size);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        final List<InternalResetTrackingRate> aggregations = new ArrayList<>(size);
         return new AggregatorReducer() {
             @Override
             public void accept(InternalAggregation aggregation) {

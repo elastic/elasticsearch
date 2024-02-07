@@ -108,7 +108,7 @@ public final class InternalItemSetMapReduceAggregation<
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext aggReduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext aggReduceContext, int size) {
         return new AggregatorReducer() {
 
             final List<InternalItemSetMapReduceAggregation<MapContext, MapFinalContext, ReduceContext, Result>> aggregations =
@@ -123,7 +123,9 @@ public final class InternalItemSetMapReduceAggregation<
 
             @Override
             public InternalAggregation get() {
-                Stream<MapFinalContext> contexts = aggregations.stream().map(agg -> agg.getMapFinalContext()).filter(Objects::nonNull);
+                Stream<MapFinalContext> contexts = aggregations.stream()
+                    .map(InternalItemSetMapReduceAggregation::getMapFinalContext)
+                    .filter(Objects::nonNull);
 
                 if (aggReduceContext.isFinalReduce()) {
                     // we can use the reduce context big arrays, because we finalize here

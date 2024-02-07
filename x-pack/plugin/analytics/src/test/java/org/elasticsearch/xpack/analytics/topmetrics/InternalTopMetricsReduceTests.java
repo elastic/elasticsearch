@@ -34,8 +34,9 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
 
     public void testFirstEmpty() {
         InternalTopMetrics first = buildEmpty();
-        InternalTopMetrics reduced = reduce(first, buildFilled(1, top(SortValue.from(1), 1.0)));
-        assertThat(reduced, sameInstance(first));
+        InternalTopMetrics second = buildFilled(1, top(SortValue.from(1), 1.0));
+        InternalTopMetrics reduced = reduce(first, second);
+        assertThat(reduced, sameInstance(second));
     }
 
     public void testManyToReduce() {

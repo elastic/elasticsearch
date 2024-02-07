@@ -322,7 +322,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     @SuppressWarnings("unchecked")
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         reduceContext.consumeBucketsAndMaybeBreak(ranges.size());
         @SuppressWarnings("rawtypes")
         List<B>[] rangeList = new List[ranges.size()];

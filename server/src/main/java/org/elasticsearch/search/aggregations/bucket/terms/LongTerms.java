@@ -201,7 +201,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         final Predicate<DocValueFormat> needsPromoting;
         if (format == DocValueFormat.RAW) {
             needsPromoting = docFormat -> docFormat == DocValueFormat.UNSIGNED_LONG_SHIFTED;

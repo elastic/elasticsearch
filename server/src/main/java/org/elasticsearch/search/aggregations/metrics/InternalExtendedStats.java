@@ -254,9 +254,8 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
-
-        AggregatorReducer statsReducer = InternalStats.getReducer(name, format, getMetadata());
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        final AggregatorReducer statsReducer = InternalStats.getReducer(name, format, getMetadata());
         return new AggregatorReducer() {
 
             double sumOfSqrs = 0;

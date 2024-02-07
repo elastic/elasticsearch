@@ -113,7 +113,7 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
 
         return new AggregatorReducer() {
 

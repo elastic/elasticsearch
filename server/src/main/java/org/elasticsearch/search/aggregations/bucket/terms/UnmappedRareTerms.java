@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -50,31 +49,8 @@ public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, Unma
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
-        InternalAggregation empty = this;
-        return new AggregatorReducer() {
-            AggregatorReducer aggregatorReducer = null;
-
-            @Override
-            public void accept(InternalAggregation aggregation) {
-                if (aggregatorReducer != null) {
-                    aggregatorReducer.accept(aggregation);
-                } else if ((aggregation instanceof UnmappedRareTerms) == false) {
-                    aggregatorReducer = aggregation.getReducer(reduceContext, size);
-                    aggregatorReducer.accept(aggregation);
-                }
-            }
-
-            @Override
-            public InternalAggregation get() {
-                return aggregatorReducer != null ? aggregatorReducer.get() : empty;
-            }
-
-            @Override
-            public void close() {
-                Releasables.close(aggregatorReducer);
-            }
-        };
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -98,7 +98,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
             final List<InternalTopHits> aggregations = new ArrayList<>(size);
 

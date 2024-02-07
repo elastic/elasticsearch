@@ -46,7 +46,7 @@ public class InternalInferenceAggregation extends InternalAggregation {
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         throw new UnsupportedOperationException("Reducing an inference aggregation is not supported");
     }
 

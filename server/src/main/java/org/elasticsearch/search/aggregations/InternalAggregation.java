@@ -117,7 +117,33 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * Return an object that Reduces several aggregations to a single one. In <b>most</b> cases, the assumption will be the all given
      * aggregations are of the same type (the same type as this aggregation).
      */
-    public abstract AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size);
+    public final AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+        if (canLeadReduction()) {
+            return getLeaderReducer(reduceContext, size);
+        }
+        InternalAggregation current = this;
+        return new AggregatorReducer() {
+
+            AggregatorReducer aggregatorReducer = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                if (aggregatorReducer != null) {
+                    aggregatorReducer.accept(aggregation);
+                } else if (aggregation.canLeadReduction()) {
+                    aggregatorReducer = aggregation.getReducer(reduceContext, size);
+                    aggregatorReducer.accept(aggregation);
+                }
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return aggregatorReducer == null ? current : aggregatorReducer.get();
+            }
+        };
+    }
+
+    protected abstract AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size);
 
     /**
      * Called by the parent sampling context. Should only ever be called once as some aggregations scale their internal values

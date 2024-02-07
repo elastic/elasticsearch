@@ -197,7 +197,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     public abstract List<B> getBuckets();
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
             long globalSubsetSize = 0;
             long globalSupersetSize = 0;

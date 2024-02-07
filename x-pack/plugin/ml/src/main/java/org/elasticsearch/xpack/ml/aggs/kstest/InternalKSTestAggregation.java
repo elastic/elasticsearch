@@ -49,7 +49,7 @@ public class InternalKSTestAggregation extends InternalAggregation {
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         throw new UnsupportedOperationException("Reducing a bucket_count_ks_test aggregation is not supported");
     }
 

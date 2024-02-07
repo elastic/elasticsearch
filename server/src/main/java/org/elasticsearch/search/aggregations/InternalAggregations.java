@@ -246,7 +246,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
             final List<InternalAggregation> reduced = new ArrayList<>(internalAggregations.size());
             for (InternalAggregation aggregation : internalAggregations) {
                 if (aggregation.mustReduceOnSingleInternalAgg()) {
-                    try (AggregatorReducer aggregatorReducer = aggregation.getReducer(context, 1)) {
+                    try (AggregatorReducer aggregatorReducer = aggregation.getReducer(context.forAgg(aggregation.getName()), 1)) {
                         aggregatorReducer.accept(aggregation);
                         reduced.add(aggregatorReducer.get());
                     }
@@ -263,7 +263,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
                 for (InternalAggregation aggregation : aggregations.aggregations) {
                     AggregatorReducer reducer = aggByName.computeIfAbsent(
                         aggregation.getName(),
-                        k -> aggregation.getReducer(context, aggregationsList.size())
+                        k -> aggregation.getReducer(context.forAgg(aggregation.getName()), aggregationsList.size())
                     );
                     reducer.accept(aggregation);
                 }

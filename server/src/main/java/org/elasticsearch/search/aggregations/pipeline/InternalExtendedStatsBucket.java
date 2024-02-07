@@ -45,7 +45,7 @@ public class InternalExtendedStatsBucket extends InternalExtendedStats implement
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         throw new UnsupportedOperationException("Not supported");
     }
 }

@@ -55,7 +55,7 @@ public class InternalTTest extends InternalNumericMetricsAggregation.SingleValue
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return state.getReducer(name, format, getMetadata());
     }
 

@@ -67,7 +67,7 @@ public class InternalCartesianBounds extends InternalBounds<CartesianPoint> impl
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
             double top = Double.NEGATIVE_INFINITY;
             double bottom = Double.POSITIVE_INFINITY;

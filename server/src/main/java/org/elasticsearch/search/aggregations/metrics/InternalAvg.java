@@ -77,7 +77,7 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         return new AggregatorReducer() {

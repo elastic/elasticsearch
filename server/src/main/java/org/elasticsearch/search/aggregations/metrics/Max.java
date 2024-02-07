@@ -69,7 +69,7 @@ public class Max extends InternalNumericMetricsAggregation.SingleValue {
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
             double max = Double.NEGATIVE_INFINITY;
 

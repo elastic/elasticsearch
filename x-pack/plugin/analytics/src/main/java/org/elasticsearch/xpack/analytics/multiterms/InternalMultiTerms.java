@@ -553,7 +553,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
 
             final List<InternalAggregation> aggregations = new ArrayList<>(size);

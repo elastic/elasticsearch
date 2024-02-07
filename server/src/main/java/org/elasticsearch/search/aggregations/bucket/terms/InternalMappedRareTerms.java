@@ -75,7 +75,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
             final Map<Object, List<B>> buckets = new HashMap<>();
             InternalRareTerms<A, B> referenceTerms = null;

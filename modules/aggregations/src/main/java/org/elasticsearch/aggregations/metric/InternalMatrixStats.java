@@ -238,13 +238,13 @@ public class InternalMatrixStats extends InternalAggregation {
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
-        List<InternalMatrixStats> aggregations = new ArrayList<>(size);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        final List<InternalMatrixStats> aggregations = new ArrayList<>(size);
         return new AggregatorReducer() {
             @Override
             public void accept(InternalAggregation aggregation) {
-                // TODO: probably can be done in one
-                InternalMatrixStats internalMatrixStats = (InternalMatrixStats) aggregation;
+                // TODO: probably can be done in without collecting the aggregators
+                final InternalMatrixStats internalMatrixStats = (InternalMatrixStats) aggregation;
                 if (internalMatrixStats.stats != null) {
                     aggregations.add(internalMatrixStats);
                 }

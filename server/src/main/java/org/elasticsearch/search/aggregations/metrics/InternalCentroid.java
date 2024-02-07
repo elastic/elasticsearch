@@ -95,7 +95,7 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
     /** Create a new centroid with by reducing from the sums and total count */
     protected abstract InternalCentroid copyWith(double firstSum, double secondSum, long totalCount);
 
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
 
             double firstSum = Double.NaN;

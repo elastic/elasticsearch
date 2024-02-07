@@ -198,7 +198,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
             final PriorityQueue<BucketIterator> pq = new PriorityQueue<>(size) {
                 @Override

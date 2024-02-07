@@ -33,9 +33,9 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.aggregations.metrics.AggregatorReducer;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -119,10 +119,12 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(getNamedWriteables());
 
     public static InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        final List<InternalAggregations> toReduce = aggregations.stream().map(a -> InternalAggregations.from(List.of(a))).toList();
-        final List<InternalAggregation> reduced = InternalAggregations.reduce(toReduce, reduceContext).asList();
-        assertThat(reduced.size(), equalTo(1));
-        return reduced.get(0);
+        try (AggregatorReducer reducer = aggregations.get(0).getReducer(reduceContext, aggregations.size())) {
+            for (InternalAggregation aggregation : aggregations) {
+                reducer.accept(aggregation);
+            }
+            return reducer.get();
+        }
     }
 
     @Override

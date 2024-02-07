@@ -244,32 +244,38 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
-        reduceContext.consumeBucketsAndMaybeBreak(buckets.size());
-        long[] docCounts = new long[buckets.size()];
-        InternalAggregations[][] aggs = new InternalAggregations[buckets.size()][];
-        for (int i = 0; i < aggs.length; ++i) {
-            aggs[i] = new InternalAggregations[size];
-        }
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+
         return new AggregatorReducer() {
-            int i = 0;
+
+            final List<InternalBinaryRange> aggregations = new ArrayList<>(size);
 
             @Override
             public void accept(InternalAggregation aggregation) {
-                InternalBinaryRange range = (InternalBinaryRange) aggregation;
-                if (range.buckets.size() != buckets.size()) {
-                    throw new IllegalStateException("Expected [" + buckets.size() + "] buckets, but got [" + range.buckets.size() + "]");
-                }
-                for (int j = 0; j < buckets.size(); ++j) {
-                    Bucket bucket = range.buckets.get(j);
-                    docCounts[j] += bucket.docCount;
-                    aggs[j][i] = bucket.aggregations;
-                }
-                i++;
+                aggregations.add((InternalBinaryRange) aggregation);
             }
 
             @Override
             public InternalAggregation get() {
+                reduceContext.consumeBucketsAndMaybeBreak(buckets.size());
+                long[] docCounts = new long[buckets.size()];
+                InternalAggregations[][] aggs = new InternalAggregations[buckets.size()][];
+                for (int i = 0; i < aggs.length; ++i) {
+                    aggs[i] = new InternalAggregations[aggregations.size()];
+                }
+                for (int i = 0; i < aggregations.size(); ++i) {
+                    InternalBinaryRange range = aggregations.get(i);
+                    if (range.buckets.size() != buckets.size()) {
+                        throw new IllegalStateException(
+                            "Expected [" + buckets.size() + "] buckets, but got [" + range.buckets.size() + "]"
+                        );
+                    }
+                    for (int j = 0; j < buckets.size(); ++j) {
+                        Bucket bucket = range.buckets.get(j);
+                        docCounts[j] += bucket.docCount;
+                        aggs[j][i] = bucket.aggregations;
+                    }
+                }
                 List<Bucket> buckets = new ArrayList<>(getBuckets().size());
                 for (int i = 0; i < getBuckets().size(); ++i) {
                     Bucket b = getBuckets().get(i);

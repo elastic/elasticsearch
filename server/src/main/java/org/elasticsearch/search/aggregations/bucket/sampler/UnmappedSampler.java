@@ -39,7 +39,7 @@ public class UnmappedSampler extends InternalSampler {
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         InternalAggregation empty = this;
         return new AggregatorReducer() {
             AggregatorReducer aggregatorReducer = null;

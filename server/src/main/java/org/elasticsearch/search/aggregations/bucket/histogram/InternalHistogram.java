@@ -451,7 +451,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     }
 
     @Override
-    public AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
 
             List<InternalAggregation> aggregations = new ArrayList<>(size);

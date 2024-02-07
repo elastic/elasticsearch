@@ -1439,7 +1439,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
             }
             NodeMetadata prevMetadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());
-            assertEquals(IndexVersion.current(), prevMetadata.nodeVersionAsIndexVersion());
+            assertEquals(IndexVersion.current(), prevMetadata.indexVersionCheckpoint());
             // TODO[wrb]: fixup...
             PersistedClusterStateService.overrideVersion(Version.V_8_0_0, persistedClusterStateService.getDataPaths());
             NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());

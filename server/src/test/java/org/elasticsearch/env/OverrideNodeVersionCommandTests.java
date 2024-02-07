@@ -185,7 +185,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
-        assertThat(nodeMetadata.nodeVersionAsIndexVersion(), equalTo(IndexVersion.current()));
+        assertThat(nodeMetadata.indexVersionCheckpoint(), equalTo(IndexVersion.current()));
     }
 
     public void testOverwritesIfTooNew() throws Exception {
@@ -207,6 +207,6 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
-        assertThat(nodeMetadata.nodeVersionAsIndexVersion(), equalTo(IndexVersion.current()));
+        assertThat(nodeMetadata.indexVersionCheckpoint(), equalTo(IndexVersion.current()));
     }
 }

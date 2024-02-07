@@ -634,8 +634,8 @@ public final class NodeEnvironment implements Closeable {
         }
 
         metadata = metadata.upgradeToCurrentVersion();
-        assert metadata.nodeVersionAsIndexVersion().equals(IndexVersion.current())
-            : metadata.nodeVersionAsIndexVersion() + " != " + IndexVersion.current();
+        assert metadata.indexVersionCheckpoint().equals(IndexVersion.current())
+            : metadata.indexVersionCheckpoint() + " != " + IndexVersion.current();
 
         return metadata;
     }

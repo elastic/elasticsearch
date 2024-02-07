@@ -57,17 +57,17 @@ public class NodeMetadataTests extends ESTestCase {
             nodeMetadata -> switch (randomInt(3)) {
                 case 0 -> NodeMetadata.createWithIndexVersion(
                     randomAlphaOfLength(21 - nodeMetadata.nodeId().length()),
-                    nodeMetadata.nodeVersionAsIndexVersion(),
+                    nodeMetadata.indexVersionCheckpoint(),
                     nodeMetadata.oldestIndexVersion()
                 );
                 case 1 -> NodeMetadata.createWithIndexVersion(
                     nodeMetadata.nodeId(),
-                    randomValueOtherThan(nodeMetadata.nodeVersionAsIndexVersion(), this::randomIndexVersion),
+                    randomValueOtherThan(nodeMetadata.indexVersionCheckpoint(), this::randomIndexVersion),
                     nodeMetadata.oldestIndexVersion()
                 );
                 default -> NodeMetadata.createWithIndexVersion(
                     nodeMetadata.nodeId(),
-                    nodeMetadata.nodeVersionAsIndexVersion(),
+                    nodeMetadata.indexVersionCheckpoint(),
                     randomValueOtherThan(nodeMetadata.oldestIndexVersion(), this::randomIndexVersion)
                 );
             }
@@ -87,7 +87,7 @@ public class NodeMetadataTests extends ESTestCase {
         Files.copy(resource, stateDir.resolve(NodeMetadata.FORMAT.getStateFileName(between(0, Integer.MAX_VALUE))));
         final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempDir);
         assertThat(nodeMetadata.nodeId(), equalTo("y6VUVMSaStO4Tz-B5BxcOw"));
-        assertThat(nodeMetadata.nodeVersionAsIndexVersion(), equalTo(IndexVersions.ZERO));
+        assertThat(nodeMetadata.indexVersionCheckpoint(), equalTo(IndexVersions.ZERO));
     }
 
     public void testUpgradesLegitimateVersions() {
@@ -97,7 +97,7 @@ public class NodeMetadataTests extends ESTestCase {
             randomValueOtherThanMany(v -> v.after(IndexVersion.current()) || v.before(IndexVersions.V_7_17_0), this::randomIndexVersion),
             IndexVersion.current()
         ).upgradeToCurrentVersion();
-        assertThat(nodeMetadata.nodeVersionAsIndexVersion(), equalTo(IndexVersion.current()));
+        assertThat(nodeMetadata.indexVersionCheckpoint(), equalTo(IndexVersion.current()));
         assertThat(nodeMetadata.nodeId(), equalTo(nodeId));
     }
 
@@ -167,7 +167,7 @@ public class NodeMetadataTests extends ESTestCase {
 
         final NodeMetadata nodeMetadata = NodeMetadata.createWithIndexVersion(nodeId, nodeVersion, IndexVersion.current())
             .upgradeToCurrentVersion();
-        assertThat(nodeMetadata.nodeVersionAsIndexVersion(), equalTo(IndexVersion.current()));
+        assertThat(nodeMetadata.indexVersionCheckpoint(), equalTo(IndexVersion.current()));
         assertThat(nodeMetadata.previousNodeVersion().toString(), equalTo(nodeVersion.toReleaseVersion()));
     }
 

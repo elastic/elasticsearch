@@ -340,7 +340,7 @@ public class Node implements Closeable {
                     nodeEnvironment.nodeDataPaths()
                 );
                 assert nodeMetadata != null;
-                assert nodeMetadata.nodeVersionAsIndexVersion().equals(IndexVersion.current());
+                assert nodeMetadata.indexVersionCheckpoint().equals(IndexVersion.current());
                 assert nodeMetadata.nodeId().equals(localNodeFactory.getNode().getId());
             } catch (IOException e) {
                 assert false : e;

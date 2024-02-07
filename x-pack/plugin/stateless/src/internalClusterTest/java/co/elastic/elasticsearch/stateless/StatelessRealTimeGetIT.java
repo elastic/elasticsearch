@@ -25,6 +25,8 @@ import co.elastic.elasticsearch.stateless.engine.StatelessLiveVersionMapArchive;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
@@ -77,6 +79,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.getArchive;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isSafeAccessRequired;
@@ -415,12 +419,12 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                 }
                 var indexResponse = client().prepareIndex(indexName)
                     .setSource("date", randomPositiveTimeValue(), "value", randomInt())
-                    .get(TimeValue.timeValueSeconds(10));
+                    .get(timeValueSeconds(10));
                 var id = indexResponse.getId();
                 assertNotEquals(id, "");
                 var gets = randomIntBetween(20, 50);
                 for (int read = 0; read < gets; read++) {
-                    var getResponse = client().prepareGet(indexName, id).setRealtime(true).get(TimeValue.timeValueSeconds(10));
+                    var getResponse = client().prepareGet(indexName, id).setRealtime(true).get(timeValueSeconds(10));
                     assertTrue(Strings.format("(write %d): failed to get '%s' at read %s", write, id, read), getResponse.isExists());
                 }
             }
@@ -482,7 +486,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                     for (int i = 0; i < docs; i++) {
                         bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
                     }
-                    var response = bulkRequest.get(TimeValue.timeValueSeconds(30));
+                    var response = bulkRequest.get(timeValueSeconds(30));
                     assertNoFailures(response);
                     ids.add(randomFrom(Arrays.stream(response.getItems()).map(BulkItemResponse::getId).toList()));
                     safeSleep(randomLongBetween(0, 100));
@@ -498,7 +502,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                 try {
                     var id = randomBoolean() ? ids.poll(1, TimeUnit.SECONDS) : ids.peek();
                     if (id != null) {
-                        var getResponse = client().prepareGet(indexName, id).get(TimeValue.timeValueSeconds(30));
+                        var getResponse = client().prepareGet(indexName, id).get(timeValueSeconds(30));
                         assertTrue(Strings.format("could not GET id '%s'", id), getResponse.isExists());
                         safeSleep(randomLongBetween(1, 100));
                     }
@@ -585,6 +589,74 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         });
         indexDocs(indexName, 100);
         assertBusy(() -> assertThat(sentNewCommitNotificationsForIndex.get(), greaterThan(0)));
+    }
+
+    public void testRealTimeGetAndMGetFailsWhenPromotableIsUnassigned() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+        internalCluster().stopNode(indexNode);
+        // Wait until the shard is unassigned, otherwise we get a NodeNotConnectedException.
+        assertBusy(() -> assertTrue(clusterService().state().routingTable().shardRoutingTable(indexName, 0).primaryShard().unassigned()));
+        if (randomBoolean()) {
+            var response = client().prepareMultiGet().addIds(indexName, "non-existing").setRealtime(true).get(timeValueSeconds(10));
+            assertEquals(response.getResponses().length, 1);
+            var shardMGetResponse = response.getResponses()[0];
+            assertNull(shardMGetResponse.getResponse());
+            assertThat(shardMGetResponse.getFailure().getFailure(), instanceOf(NoShardAvailableActionException.class));
+        } else {
+            expectThrows(NoShardAvailableActionException.class, client().prepareGet(indexName, "non-existing").setRealtime(true));
+        }
+    }
+
+    public void testRealTimeGetAndMGetRetryFailsWhenIndexDeletedOrUnassigned() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
+        final String indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
+                .build()
+        );
+        ensureGreen(indexName);
+        String actionName = randomBoolean() ? TransportGetFromTranslogAction.NAME : TransportShardMultiGetFomTranslogAction.NAME;
+        final var shardId = findIndexShard(indexName).shardId();
+        final var getFromTranslogCount = new AtomicInteger();
+        final var getFromTranslogHandled = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNode).addRequestHandlingBehavior(actionName, (handler, request, channel, task) -> {
+            getFromTranslogCount.incrementAndGet();
+            // Remove the index or make the promotable shard unassigned and cause a retry
+            if (randomBoolean()) {
+                assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)));
+            } else {
+                var indicesService = internalCluster().getInstance(IndicesService.class, indexNode);
+                var indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
+                var indexShard = indexService.getShard(shardId.id());
+                indexShard.failShard("test", new Exception("test"));
+            }
+            channel.sendResponse(randomFrom(new IndexNotFoundException(indexName), new ShardNotFoundException(shardId)));
+            getFromTranslogHandled.countDown();
+        });
+        if (actionName.equals(TransportGetFromTranslogAction.NAME)) {
+            final var getFuture = client().prepareGet(indexName, "non-existing").setRealtime(true).execute();
+            safeAwait(getFromTranslogHandled);
+            // The deletion/unassignment of the index/shard should cause a retry
+            expectThrows(NoShardAvailableActionException.class, getFuture);
+        } else {
+            final var mgetFuture = client().prepareMultiGet().addIds(indexName, "non-existing").setRealtime(true).execute();
+            safeAwait(getFromTranslogHandled);
+            // The deletion/unassignment of the index/shard should cause a retry
+            var mgetResponse = mgetFuture.get(10, TimeUnit.SECONDS);
+            assertEquals(mgetResponse.getResponses().length, 1);
+            var responseItem = mgetResponse.getResponses()[0];
+            assertThat(responseItem.getFailure().getFailure(), instanceOf(NoShardAvailableActionException.class));
+        }
+        assertEquals(1, getFromTranslogCount.get());
     }
 
     public void testGetFromTranslogDuringRelocation() throws ExecutionException, InterruptedException, TimeoutException {

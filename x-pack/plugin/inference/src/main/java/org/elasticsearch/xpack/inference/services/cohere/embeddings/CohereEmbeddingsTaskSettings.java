@@ -40,7 +40,12 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
     public static final String NAME = "cohere_embeddings_task_settings";
     public static final CohereEmbeddingsTaskSettings EMPTY_SETTINGS = new CohereEmbeddingsTaskSettings(null, null);
     static final String INPUT_TYPE = "input_type";
-    private static final EnumSet<InputType> VALID_REQUEST_VALUES2 = EnumSet.of(InputType.INGEST, InputType.SEARCH);
+    static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(
+        InputType.INGEST,
+        InputType.SEARCH,
+        InputType.CLASSIFICATION,
+        InputType.CLUSTERING
+    );
 
     public static CohereEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
@@ -54,7 +59,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
             INPUT_TYPE,
             ModelConfigurations.TASK_SETTINGS,
             InputType::fromString,
-            VALID_REQUEST_VALUES2,
+            VALID_REQUEST_VALUES,
             validationException
         );
         CohereTruncation truncation = extractOptionalEnum(
@@ -103,7 +108,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
     ) {
         InputType inputTypeToUse = originalSettings.inputType;
 
-        if (VALID_REQUEST_VALUES2.contains(requestInputType)) {
+        if (VALID_REQUEST_VALUES.contains(requestInputType)) {
             inputTypeToUse = requestInputType;
         } else if (requestTaskSettings.inputType != null) {
             inputTypeToUse = requestTaskSettings.inputType;
@@ -137,7 +142,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
             return;
         }
 
-        assert VALID_REQUEST_VALUES2.contains(inputType) : invalidInputTypeMessage(inputType);
+        assert VALID_REQUEST_VALUES.contains(inputType) : invalidInputTypeMessage(inputType);
     }
 
     @Override

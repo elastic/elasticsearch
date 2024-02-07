@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
@@ -18,10 +19,14 @@ import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
+import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings.VALID_REQUEST_VALUES;
 import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<CohereEmbeddingsTaskSettings> {
@@ -68,7 +73,12 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
         MatcherAssert.assertThat(
             exception.getMessage(),
-            is("Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [ingest, search];")
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [%s];",
+                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
+                )
+            )
         );
     }
 
@@ -82,8 +92,20 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
         MatcherAssert.assertThat(
             exception.getMessage(),
-            is("Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [ingest, search];")
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [%s];",
+                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
+                )
+            )
         );
+    }
+
+    private static <E extends Enum<E>> String getValidValuesSortedAndCombined(EnumSet<E> validValues) {
+        var validValuesAsStrings = validValues.stream().map(value -> value.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
+        Arrays.sort(validValuesAsStrings);
+
+        return String.join(", ", validValuesAsStrings);
     }
 
     public void testXContent_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {

@@ -214,8 +214,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
          * In the following loop we intentionally remove the builders from requestBuilders so that they can be garbage collected. This is
          * so that we don't require double the memory of all of the inner requests, which could be really bad for a lage bulk request.
          */
-        for (ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse> builder = requestBuilders
-            .pollFirst(); builder != null; builder = requestBuilders.pollFirst()) {
+        for (var builder = requestBuilders.pollFirst(); builder != null; builder = requestBuilders.pollFirst()) {
             request.add(builder.request());
         }
         for (DocWriteRequest<?> childRequest : requests) {

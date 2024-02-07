@@ -1,0 +1,54 @@
+setup:
+  - do:
+      inference.put_model:
+        task_type: sparse_embedding
+        model_id: test-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            index:
+              number_of_shards: 2
+              number_of_replicas: 0
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                model_id: test-inference-id
+              another_inference_field:
+                type: semantic_text
+                model_id: test-inference-id
+              non_inference_field:
+                type: text
+
+---
+"Create index with semantic_text field type":
+    - do:
+        index:
+          index: test-index
+          id: doc_1
+          body:
+            inference_field: "inference test"
+            another_inference_field: "another inference test"
+            non_inference_field: "non inference test"
+
+    - do:
+        get:
+          index: test-index
+          id: doc_1
+
+    - match: { _source.inference_field: "inference test" }
+    - match: { _source.another_inference_field: "another inference test" }
+    - match: { _source.non_inference_field: "non inference test" }

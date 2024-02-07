@@ -184,6 +184,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         ActionListener<AcknowledgedResponse> listener
     ) {
         String sourceIndexName = request.getSourceIndex();
+        downsamplingInterval = request.getDownsampleConfig().getInterval().toString();
 
         final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl != null) {
@@ -235,7 +236,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
-        downsamplingInterval = request.getDownsampleConfig().getInterval().toString();
         // Shortcircuit if target index has been downsampled:
         final String downsampleIndexName = request.getTargetIndex();
         IndexMetadata downsampleIndex = state.getMetadata().index(downsampleIndexName);

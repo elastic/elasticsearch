@@ -25,7 +25,6 @@ import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -1001,11 +1000,12 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         if (bulkRefreshes) {
             bulkRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
         }
-        assertNoFailures(bulkRequest.get());
+        BulkResponse response = bulkRequest.get();
+        assertNoFailures(response);
         if (bulkRefreshes == false) {
             assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
         }
-        return bulkRequest.request().requests().stream().map(DocWriteRequest::id).collect(Collectors.toSet());
+        return Arrays.stream(response.getItems()).map(BulkItemResponse::getId).collect(Collectors.toSet());
     }
 
     private void deleteDocsById(String indexName, Collection<String> docIds) {

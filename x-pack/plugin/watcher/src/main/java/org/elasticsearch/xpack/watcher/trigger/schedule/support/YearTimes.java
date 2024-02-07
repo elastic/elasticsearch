@@ -26,11 +26,11 @@ import static org.elasticsearch.xpack.watcher.support.Strings.join;
 
 public final class YearTimes implements Times {
 
-    public static final EnumSet<Month> DEFAULT_MONTHS = EnumSet.of(Month.JANUARY);
+    public static final Set<Month> DEFAULT_MONTHS = Collections.unmodifiableSet(EnumSet.of(Month.JANUARY));
     public static final int[] DEFAULT_DAYS = new int[] { 1 };
     public static final DayTimes[] DEFAULT_TIMES = new DayTimes[] { new DayTimes() };
 
-    private final EnumSet<Month> months;
+    private final Set<Month> months;
     private final int[] days;
     private final DayTimes[] times;
 
@@ -38,8 +38,8 @@ public final class YearTimes implements Times {
         this(DEFAULT_MONTHS, DEFAULT_DAYS, DEFAULT_TIMES);
     }
 
-    public YearTimes(EnumSet<Month> months, int[] days, DayTimes[] times) {
-        this.months = months.isEmpty() ? DEFAULT_MONTHS : months;
+    public YearTimes(Set<Month> months, int[] days, DayTimes[] times) {
+        this.months = months.isEmpty() ? DEFAULT_MONTHS : EnumSet.copyOf(months);
         this.days = days.length == 0 ? DEFAULT_DAYS : days;
         Arrays.sort(this.days);
         this.times = times.length == 0 ? DEFAULT_TIMES : times;
@@ -57,7 +57,7 @@ public final class YearTimes implements Times {
         }
     }
 
-    public EnumSet<Month> months() {
+    public Set<Month> months() {
         return months;
     }
 
@@ -243,7 +243,7 @@ public final class YearTimes implements Times {
         }
 
         public YearTimes build() {
-            return new YearTimes(EnumSet.copyOf(months), CollectionUtils.toArray(days), times.toArray(new DayTimes[times.size()]));
+            return new YearTimes(months, CollectionUtils.toArray(days), times.toArray(new DayTimes[times.size()]));
         }
     }
 }

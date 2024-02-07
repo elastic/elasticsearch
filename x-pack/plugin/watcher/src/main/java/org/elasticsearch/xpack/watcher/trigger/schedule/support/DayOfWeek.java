@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.watcher.trigger.schedule.support;
 
 import org.elasticsearch.ElasticsearchParseException;
 
-import java.util.EnumSet;
 import java.util.Locale;
+import java.util.Set;
 
 public enum DayOfWeek {
 
@@ -27,7 +27,7 @@ public enum DayOfWeek {
         this.cronKey = cronKey;
     }
 
-    public static String cronPart(EnumSet<DayOfWeek> days) {
+    public static String cronPart(Set<DayOfWeek> days) {
         StringBuilder sb = new StringBuilder();
         for (DayOfWeek day : days) {
             if (sb.length() != 0) {

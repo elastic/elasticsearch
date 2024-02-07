@@ -84,8 +84,10 @@ public class IndexResolver {
         // value for user types unrecognized
         UNKNOWN("UNKNOWN", "UNKNOWN");
 
-        public static final EnumSet<IndexType> VALID_INCLUDE_FROZEN = EnumSet.of(STANDARD_INDEX, ALIAS, FROZEN_INDEX);
-        public static final EnumSet<IndexType> VALID_REGULAR = EnumSet.of(STANDARD_INDEX, ALIAS);
+        public static final Set<IndexType> VALID_INCLUDE_FROZEN = Collections.unmodifiableSet(
+            EnumSet.of(STANDARD_INDEX, ALIAS, FROZEN_INDEX)
+        );
+        public static final Set<IndexType> VALID_REGULAR = Collections.unmodifiableSet(EnumSet.of(STANDARD_INDEX, ALIAS));
 
         private final String toSql;
         private final String toNative;
@@ -167,7 +169,7 @@ public class IndexResolver {
         String clusterWildcard,
         String indexWildcard,
         String javaRegex,
-        EnumSet<IndexType> types,
+        Set<IndexType> types,
         ActionListener<Set<IndexInfo>> listener
     ) {
 

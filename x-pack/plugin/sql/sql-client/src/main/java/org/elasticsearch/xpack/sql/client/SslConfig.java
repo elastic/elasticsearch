@@ -16,6 +16,7 @@ import java.nio.file.StandardOpenOption;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Properties;
@@ -54,16 +55,18 @@ public class SslConfig {
     public static final String SSL_TRUSTSTORE_TYPE = "ssl.truststore.type";
     private static final String SSL_TRUSTSTORE_TYPE_DEFAULT = "JKS";
 
-    static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
-        Arrays.asList(
-            SSL,
-            SSL_PROTOCOL,
-            SSL_KEYSTORE_LOCATION,
-            SSL_KEYSTORE_PASS,
-            SSL_KEYSTORE_TYPE,
-            SSL_TRUSTSTORE_LOCATION,
-            SSL_TRUSTSTORE_PASS,
-            SSL_TRUSTSTORE_TYPE
+    static final Set<String> OPTION_NAMES = Collections.unmodifiableSet(
+        new LinkedHashSet<>(
+            Arrays.asList(
+                SSL,
+                SSL_PROTOCOL,
+                SSL_KEYSTORE_LOCATION,
+                SSL_KEYSTORE_PASS,
+                SSL_KEYSTORE_TYPE,
+                SSL_TRUSTSTORE_LOCATION,
+                SSL_TRUSTSTORE_PASS,
+                SSL_TRUSTSTORE_TYPE
+            )
         )
     );
 

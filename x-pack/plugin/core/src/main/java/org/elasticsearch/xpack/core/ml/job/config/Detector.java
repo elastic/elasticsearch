@@ -114,68 +114,74 @@ public class Detector implements ToXContentObject, Writeable {
     /**
      * The set of functions that do not require a field, by field or over field
      */
-    public static final EnumSet<DetectorFunction> COUNT_WITHOUT_FIELD_FUNCTIONS = EnumSet.of(
-        DetectorFunction.COUNT,
-        DetectorFunction.HIGH_COUNT,
-        DetectorFunction.LOW_COUNT,
-        DetectorFunction.NON_ZERO_COUNT,
-        DetectorFunction.LOW_NON_ZERO_COUNT,
-        DetectorFunction.HIGH_NON_ZERO_COUNT,
-        DetectorFunction.TIME_OF_DAY,
-        DetectorFunction.TIME_OF_WEEK
+    public static final Set<DetectorFunction> COUNT_WITHOUT_FIELD_FUNCTIONS = Collections.unmodifiableSet(
+        EnumSet.of(
+            DetectorFunction.COUNT,
+            DetectorFunction.HIGH_COUNT,
+            DetectorFunction.LOW_COUNT,
+            DetectorFunction.NON_ZERO_COUNT,
+            DetectorFunction.LOW_NON_ZERO_COUNT,
+            DetectorFunction.HIGH_NON_ZERO_COUNT,
+            DetectorFunction.TIME_OF_DAY,
+            DetectorFunction.TIME_OF_WEEK
+        )
     );
 
     /**
      * The set of functions that require a fieldname
      */
-    public static final EnumSet<DetectorFunction> FIELD_NAME_FUNCTIONS = EnumSet.of(
-        DetectorFunction.DISTINCT_COUNT,
-        DetectorFunction.LOW_DISTINCT_COUNT,
-        DetectorFunction.HIGH_DISTINCT_COUNT,
-        DetectorFunction.INFO_CONTENT,
-        DetectorFunction.LOW_INFO_CONTENT,
-        DetectorFunction.HIGH_INFO_CONTENT,
-        DetectorFunction.METRIC,
-        DetectorFunction.MEAN,
-        DetectorFunction.AVG,
-        DetectorFunction.HIGH_MEAN,
-        DetectorFunction.HIGH_AVG,
-        DetectorFunction.LOW_MEAN,
-        DetectorFunction.LOW_AVG,
-        DetectorFunction.MEDIAN,
-        DetectorFunction.LOW_MEDIAN,
-        DetectorFunction.HIGH_MEDIAN,
-        DetectorFunction.MIN,
-        DetectorFunction.MAX,
-        DetectorFunction.SUM,
-        DetectorFunction.LOW_SUM,
-        DetectorFunction.HIGH_SUM,
-        DetectorFunction.NON_NULL_SUM,
-        DetectorFunction.LOW_NON_NULL_SUM,
-        DetectorFunction.HIGH_NON_NULL_SUM,
-        DetectorFunction.VARP,
-        DetectorFunction.LOW_VARP,
-        DetectorFunction.HIGH_VARP,
-        DetectorFunction.LAT_LONG
+    public static final Set<DetectorFunction> FIELD_NAME_FUNCTIONS = Collections.unmodifiableSet(
+        EnumSet.of(
+            DetectorFunction.DISTINCT_COUNT,
+            DetectorFunction.LOW_DISTINCT_COUNT,
+            DetectorFunction.HIGH_DISTINCT_COUNT,
+            DetectorFunction.INFO_CONTENT,
+            DetectorFunction.LOW_INFO_CONTENT,
+            DetectorFunction.HIGH_INFO_CONTENT,
+            DetectorFunction.METRIC,
+            DetectorFunction.MEAN,
+            DetectorFunction.AVG,
+            DetectorFunction.HIGH_MEAN,
+            DetectorFunction.HIGH_AVG,
+            DetectorFunction.LOW_MEAN,
+            DetectorFunction.LOW_AVG,
+            DetectorFunction.MEDIAN,
+            DetectorFunction.LOW_MEDIAN,
+            DetectorFunction.HIGH_MEDIAN,
+            DetectorFunction.MIN,
+            DetectorFunction.MAX,
+            DetectorFunction.SUM,
+            DetectorFunction.LOW_SUM,
+            DetectorFunction.HIGH_SUM,
+            DetectorFunction.NON_NULL_SUM,
+            DetectorFunction.LOW_NON_NULL_SUM,
+            DetectorFunction.HIGH_NON_NULL_SUM,
+            DetectorFunction.VARP,
+            DetectorFunction.LOW_VARP,
+            DetectorFunction.HIGH_VARP,
+            DetectorFunction.LAT_LONG
+        )
     );
 
     /**
      * The set of functions that require a by fieldname
      */
-    public static final EnumSet<DetectorFunction> BY_FIELD_NAME_FUNCTIONS = EnumSet.of(DetectorFunction.RARE, DetectorFunction.FREQ_RARE);
+    public static final Set<DetectorFunction> BY_FIELD_NAME_FUNCTIONS = Collections.unmodifiableSet(
+        EnumSet.of(DetectorFunction.RARE, DetectorFunction.FREQ_RARE)
+    );
 
     /**
      * The set of functions that require a over fieldname
      */
-    public static final EnumSet<DetectorFunction> OVER_FIELD_NAME_FUNCTIONS = EnumSet.of(DetectorFunction.FREQ_RARE);
+    public static final Set<DetectorFunction> OVER_FIELD_NAME_FUNCTIONS = Collections.unmodifiableSet(
+        EnumSet.of(DetectorFunction.FREQ_RARE)
+    );
 
     /**
      * The set of functions that cannot have an over fieldname
      */
-    public static final EnumSet<DetectorFunction> NO_OVER_FIELD_NAME_FUNCTIONS = EnumSet.of(
-        DetectorFunction.NON_ZERO_COUNT,
-        DetectorFunction.LOW_NON_ZERO_COUNT,
-        DetectorFunction.HIGH_NON_ZERO_COUNT
+    public static final Set<DetectorFunction> NO_OVER_FIELD_NAME_FUNCTIONS = Collections.unmodifiableSet(
+        EnumSet.of(DetectorFunction.NON_ZERO_COUNT, DetectorFunction.LOW_NON_ZERO_COUNT, DetectorFunction.HIGH_NON_ZERO_COUNT)
     );
 
     /**
@@ -188,11 +194,8 @@ public class Detector implements ToXContentObject, Writeable {
      * <li>freq_rare - because the actual/typical value is not something a user can anticipate
      * </ul>
      */
-    static final EnumSet<DetectorFunction> FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT = EnumSet.of(
-        DetectorFunction.LAT_LONG,
-        DetectorFunction.METRIC,
-        DetectorFunction.RARE,
-        DetectorFunction.FREQ_RARE
+    static final Set<DetectorFunction> FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT = Collections.unmodifiableSet(
+        EnumSet.of(DetectorFunction.LAT_LONG, DetectorFunction.METRIC, DetectorFunction.RARE, DetectorFunction.FREQ_RARE)
     );
 
     /**

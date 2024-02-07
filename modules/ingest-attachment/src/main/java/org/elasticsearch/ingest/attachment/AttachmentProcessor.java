@@ -23,6 +23,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -224,7 +225,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        static final Set<Property> DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
+        static final Set<Property> DEFAULT_PROPERTIES = Collections.unmodifiableSet(EnumSet.allOf(Property.class));
 
         @Override
         public AttachmentProcessor create(

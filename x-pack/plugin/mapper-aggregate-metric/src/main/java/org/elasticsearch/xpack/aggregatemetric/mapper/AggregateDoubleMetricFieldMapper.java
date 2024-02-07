@@ -111,30 +111,34 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         value_count
     }
 
-    public static class Defaults {
-        public static final EnumSet<Metric> METRICS = EnumSet.noneOf(Metric.class);
-    }
-
     public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Parameter<Boolean> ignoreMalformed;
 
-        private final Parameter<EnumSet<Metric>> metrics = new Parameter<>(Names.METRICS, false, () -> Defaults.METRICS, (n, c, o) -> {
-            @SuppressWarnings("unchecked")
-            List<String> metricsList = (List<String>) o;
-            EnumSet<Metric> parsedMetrics = EnumSet.noneOf(Metric.class);
-            for (String s : metricsList) {
-                try {
-                    Metric m = Metric.valueOf(s);
-                    parsedMetrics.add(m);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Metric [" + s + "] is not supported.", e);
+        private final Parameter<EnumSet<Metric>> metrics = new Parameter<>(
+            Names.METRICS,
+            false,
+            () -> EnumSet.noneOf(Metric.class),
+            (n, c, o) -> {
+                @SuppressWarnings("unchecked")
+                List<String> metricsList = (List<String>) o;
+                EnumSet<Metric> parsedMetrics = EnumSet.noneOf(Metric.class);
+                for (String s : metricsList) {
+                    try {
+                        Metric m = Metric.valueOf(s);
+                        parsedMetrics.add(m);
+                    } catch (IllegalArgumentException e) {
+                        throw new IllegalArgumentException("Metric [" + s + "] is not supported.", e);
+                    }
                 }
-            }
-            return parsedMetrics;
-        }, m -> toType(m).metrics, XContentBuilder::enumSet, Objects::toString).addValidator(v -> {
+                return parsedMetrics;
+            },
+            m -> toType(m).metrics,
+            XContentBuilder::enumSet,
+            Objects::toString
+        ).addValidator(v -> {
             if (v == null || v.isEmpty()) {
                 throw new IllegalArgumentException("Property [" + Names.METRICS + "] is required for field [" + name() + "].");
             }

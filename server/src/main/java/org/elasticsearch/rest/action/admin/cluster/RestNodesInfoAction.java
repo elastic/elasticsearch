@@ -22,6 +22,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -29,7 +30,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesInfoAction extends BaseRestHandler {
-    static final Set<String> ALLOWED_METRICS = NodesInfoMetrics.Metric.allMetrics();
+    static final Set<String> ALLOWED_METRICS = Collections.unmodifiableSet(NodesInfoMetrics.Metric.allMetrics());
 
     private final SettingsFilter settingsFilter;
 

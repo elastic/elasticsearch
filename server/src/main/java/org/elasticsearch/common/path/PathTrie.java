@@ -10,11 +10,13 @@ package org.elasticsearch.common.path;
 
 import org.elasticsearch.common.collect.Iterators;
 
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -45,9 +47,8 @@ public class PathTrie<T> {
         WILDCARD_NODES_ALLOWED
     }
 
-    private static final EnumSet<TrieMatchingMode> EXPLICIT_OR_ROOT_WILDCARD = EnumSet.of(
-        TrieMatchingMode.EXPLICIT_NODES_ONLY,
-        TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED
+    private static final Set<TrieMatchingMode> EXPLICIT_OR_ROOT_WILDCARD = Collections.unmodifiableSet(
+        EnumSet.of(TrieMatchingMode.EXPLICIT_NODES_ONLY, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED)
     );
 
     public interface Decoder {

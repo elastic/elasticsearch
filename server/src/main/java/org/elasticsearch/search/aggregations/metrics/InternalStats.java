@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -47,9 +46,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         }
     }
 
-    static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
-        Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet())
-    );
+    static final Set<String> METRIC_NAMES = Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toUnmodifiableSet());
 
     protected final long count;
     protected final double min;

@@ -41,8 +41,6 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
         CLOSED,
         HIDDEN;
 
-        public static final EnumSet<WildcardStates> NONE = EnumSet.noneOf(WildcardStates.class);
-
         public static EnumSet<WildcardStates> parseParameter(Object value, EnumSet<WildcardStates> defaultStates) {
             if (value == null) {
                 return defaultStates;
@@ -91,9 +89,7 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
         ALLOW_NO_INDICES,
         FORBID_ALIASES_TO_MULTIPLE_INDICES,
         FORBID_CLOSED_INDICES,
-        IGNORE_THROTTLED;
-
-        public static final EnumSet<Option> NONE = EnumSet.noneOf(Option.class);
+        IGNORE_THROTTLED
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);

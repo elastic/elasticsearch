@@ -13,6 +13,7 @@ import org.elasticsearch.core.Booleans;
 
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -26,10 +27,8 @@ public abstract class SecureSetting<T> extends Setting<T> {
     /** Determines whether legacy settings with sensitive values should be allowed. */
     private static final boolean ALLOW_INSECURE_SETTINGS = Booleans.parseBoolean(System.getProperty("es.allow_insecure_settings", "false"));
 
-    private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(
-        Property.Deprecated,
-        Property.DeprecatedWarning,
-        Property.Consistent
+    private static final Set<Property> ALLOWED_PROPERTIES = Collections.unmodifiableSet(
+        EnumSet.of(Property.Deprecated, Property.DeprecatedWarning, Property.Consistent)
     );
 
     private static final Property[] FIXED_PROPERTIES = { Property.NodeScope };

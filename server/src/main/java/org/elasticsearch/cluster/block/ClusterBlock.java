@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 public class ClusterBlock implements Writeable, ToXContentFragment {
 
@@ -51,7 +52,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         boolean disableStatePersistence,
         boolean allowReleaseResources,
         RestStatus status,
-        EnumSet<ClusterBlockLevel> levels
+        Set<ClusterBlockLevel> levels
     ) {
         this(id, null, description, retryable, disableStatePersistence, allowReleaseResources, status, levels);
     }
@@ -64,7 +65,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         boolean disableStatePersistence,
         boolean allowReleaseResources,
         RestStatus status,
-        EnumSet<ClusterBlockLevel> levels
+        Set<ClusterBlockLevel> levels
     ) {
         this.id = id;
         this.uuid = uuid;
@@ -72,7 +73,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         this.retryable = retryable;
         this.disableStatePersistence = disableStatePersistence;
         this.status = status;
-        this.levels = levels;
+        this.levels = EnumSet.copyOf(levels);
         this.allowReleaseResources = allowReleaseResources;
     }
 
@@ -93,7 +94,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         return this.status;
     }
 
-    public EnumSet<ClusterBlockLevel> levels() {
+    public Set<ClusterBlockLevel> levels() {
         return this.levels;
     }
 

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -51,7 +52,9 @@ public class ZeroShotClassificationConfig implements NlpConfig {
         return LENIENT_PARSER.apply(parser, null);
     }
 
-    private static final Set<String> REQUIRED_CLASSIFICATION_LABELS = new TreeSet<>(List.of("entailment", "neutral", "contradiction"));
+    private static final Set<String> REQUIRED_CLASSIFICATION_LABELS = Collections.unmodifiableSet(
+        new TreeSet<>(List.of("entailment", "neutral", "contradiction"))
+    );
     private static final String DEFAULT_HYPOTHESIS_TEMPLATE = "This example is {}.";
     private static final ConstructingObjectParser<ZeroShotClassificationConfig, Void> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<ZeroShotClassificationConfig, Void> LENIENT_PARSER = createParser(true);

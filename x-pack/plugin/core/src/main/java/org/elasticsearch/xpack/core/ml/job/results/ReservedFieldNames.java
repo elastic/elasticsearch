@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -244,7 +242,7 @@ public final class ReservedFieldNames {
      * A set of all reserved field names in our results.  Fields from the raw
      * data with these names are not added to any result.
      */
-    public static final Set<String> RESERVED_RESULT_FIELD_NAMES = new HashSet<>(Arrays.asList(RESERVED_RESULT_FIELD_NAME_ARRAY));
+    public static final Set<String> RESERVED_RESULT_FIELD_NAMES = Set.of(RESERVED_RESULT_FIELD_NAME_ARRAY);
 
     private ReservedFieldNames() {}
 }

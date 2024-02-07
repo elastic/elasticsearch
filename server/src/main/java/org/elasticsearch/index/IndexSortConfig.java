@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -290,12 +291,8 @@ public final class IndexSortConfig {
     }
 
     /** We only allow index sorting on these types */
-    private static final EnumSet<SortField.Type> ALLOWED_INDEX_SORT_TYPES = EnumSet.of(
-        SortField.Type.STRING,
-        SortField.Type.LONG,
-        SortField.Type.INT,
-        SortField.Type.DOUBLE,
-        SortField.Type.FLOAT
+    private static final Set<SortField.Type> ALLOWED_INDEX_SORT_TYPES = Collections.unmodifiableSet(
+        EnumSet.of(SortField.Type.STRING, SortField.Type.LONG, SortField.Type.INT, SortField.Type.DOUBLE, SortField.Type.FLOAT)
     );
 
     public static SortField.Type getSortFieldType(SortField sortField) {

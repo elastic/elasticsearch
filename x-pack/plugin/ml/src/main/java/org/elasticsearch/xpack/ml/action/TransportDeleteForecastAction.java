@@ -59,7 +59,7 @@ import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -73,7 +73,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
 
     private static final Set<String> DELETABLE_STATUSES = Stream.of(ForecastRequestStatus.FINISHED, ForecastRequestStatus.FAILED)
         .map(ForecastRequestStatus::toString)
-        .collect(toSet());
+        .collect(toUnmodifiableSet());
 
     @Inject
     public TransportDeleteForecastAction(

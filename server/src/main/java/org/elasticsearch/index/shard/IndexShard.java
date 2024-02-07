@@ -253,17 +253,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final IndexShardOperationPermits indexShardOperationPermits;
 
-    private static final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.POST_RECOVERY);
+    private static final Set<IndexShardState> readAllowedStates = Collections.unmodifiableSet(
+        EnumSet.of(IndexShardState.STARTED, IndexShardState.POST_RECOVERY)
+    );
     // for primaries, we only allow to write when actually started (so the cluster has decided we started)
     // in case we have a relocation of a primary, we also allow to write after phase 2 completed, where the shard may be
     // in state RECOVERING or POST_RECOVERY.
     // for replicas, replication is also allowed while recovering, since we index also during recovery to replicas and rely on
-    // version checks to make sure its consistent a relocated shard can also be target of a replication if the relocation target has not
-    // been marked as active yet and is syncing it's changes back to the relocation source
-    private static final EnumSet<IndexShardState> writeAllowedStates = EnumSet.of(
-        IndexShardState.RECOVERING,
-        IndexShardState.POST_RECOVERY,
-        IndexShardState.STARTED
+    // version checks to make sure its consistent a relocated shard can also be a target of a replication if the relocation target has not
+    // been marked as active yet and is syncing its changes back to the relocation source
+    private static final Set<IndexShardState> writeAllowedStates = Collections.unmodifiableSet(
+        EnumSet.of(IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED)
     );
 
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;

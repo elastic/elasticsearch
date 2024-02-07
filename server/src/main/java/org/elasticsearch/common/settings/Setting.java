@@ -166,11 +166,8 @@ public class Setting<T> implements ToXContentObject {
     private final Validator<T> validator;
     private final EnumSet<Property> properties;
 
-    private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
-    private static final EnumSet<Property> DEPRECATED_PROPERTIES = EnumSet.of(
-        Property.Deprecated,
-        Property.DeprecatedWarning,
-        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    private static final Set<Property> DEPRECATED_PROPERTIES = Collections.unmodifiableSet(
+        EnumSet.of(Property.Deprecated, Property.DeprecatedWarning, Property.IndexSettingDeprecatedInV7AndRemovedInV8)
     );
 
     @SuppressWarnings("this-escape")
@@ -193,7 +190,7 @@ public class Setting<T> implements ToXContentObject {
             throw new IllegalArgumentException("properties cannot be null for setting [" + key + "]");
         }
         if (properties.length == 0) {
-            this.properties = EMPTY_PROPERTIES;
+            this.properties = EnumSet.noneOf(Property.class);
         } else {
             final EnumSet<Property> propertiesAsSet = EnumSet.copyOf(Arrays.asList(properties));
             if ((propertiesAsSet.contains(Property.Dynamic) || propertiesAsSet.contains(Property.OperatorDynamic))

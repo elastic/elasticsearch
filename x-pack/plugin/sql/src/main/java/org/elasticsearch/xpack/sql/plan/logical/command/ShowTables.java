@@ -15,9 +15,9 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
@@ -67,7 +67,7 @@ public class ShowTables extends Command {
 
         boolean withFrozen = session.configuration().includeFrozen() || includeFrozen;
         // to avoid redundancy, indicate whether frozen fields are required by specifying the type
-        EnumSet<IndexType> indexType = withFrozen ? IndexType.VALID_INCLUDE_FROZEN : IndexType.VALID_REGULAR;
+        Set<IndexType> indexType = withFrozen ? IndexType.VALID_INCLUDE_FROZEN : IndexType.VALID_REGULAR;
         session.indexResolver()
             .resolveNames(
                 cat,

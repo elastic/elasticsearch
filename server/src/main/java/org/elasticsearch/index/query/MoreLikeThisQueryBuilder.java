@@ -85,9 +85,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public static final boolean DEFAULT_INCLUDE = false;
     public static final boolean DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS = true;
 
-    private static final Set<Class<? extends MappedFieldType>> SUPPORTED_FIELD_TYPES = new HashSet<>(
-        Arrays.asList(TextFieldType.class, KeywordFieldType.class)
-    );
+    private static final Set<Class<? extends MappedFieldType>> SUPPORTED_FIELD_TYPES = Set.of(TextFieldType.class, KeywordFieldType.class);
 
     private static final ParseField FIELDS = new ParseField("fields");
     private static final ParseField LIKE = new ParseField("like");

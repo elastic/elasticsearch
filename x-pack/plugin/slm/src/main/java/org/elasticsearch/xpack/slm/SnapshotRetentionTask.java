@@ -22,7 +22,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -35,7 +34,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -56,12 +54,6 @@ import static org.elasticsearch.core.Strings.format;
 public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     private static final Logger logger = LogManager.getLogger(SnapshotRetentionTask.class);
-
-    private static final Set<SnapshotState> RETAINABLE_STATES = EnumSet.of(
-        SnapshotState.SUCCESS,
-        SnapshotState.FAILED,
-        SnapshotState.PARTIAL
-    );
 
     private final Client client;
     private final ClusterService clusterService;

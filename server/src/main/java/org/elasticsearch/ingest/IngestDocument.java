@@ -933,7 +933,7 @@ public final class IngestDocument {
 
         private static final Set<String> METADATA_NAMES = Arrays.stream(Metadata.values())
             .map(metadata -> metadata.fieldName)
-            .collect(Collectors.toSet());
+            .collect(Collectors.toUnmodifiableSet());
 
         private final String fieldName;
 

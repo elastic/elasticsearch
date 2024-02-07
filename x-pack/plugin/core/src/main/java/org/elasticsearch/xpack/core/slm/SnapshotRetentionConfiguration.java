@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.Map;
@@ -43,7 +44,9 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
     private static final ParseField MAXIMUM_SNAPSHOT_COUNT = new ParseField("max_count");
     private static final Logger logger = LogManager.getLogger(SnapshotRetentionConfiguration.class);
 
-    private static final Set<SnapshotState> UNSUCCESSFUL_STATES = EnumSet.of(SnapshotState.FAILED, SnapshotState.PARTIAL);
+    private static final Set<SnapshotState> UNSUCCESSFUL_STATES = Collections.unmodifiableSet(
+        EnumSet.of(SnapshotState.FAILED, SnapshotState.PARTIAL)
+    );
 
     private static final ConstructingObjectParser<SnapshotRetentionConfiguration, Void> PARSER = new ConstructingObjectParser<>(
         "snapshot_retention",

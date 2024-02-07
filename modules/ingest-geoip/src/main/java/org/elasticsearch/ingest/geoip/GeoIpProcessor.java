@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -513,28 +514,24 @@ public final class GeoIpProcessor extends AbstractProcessor {
         ORGANIZATION_NAME,
         NETWORK;
 
-        static final EnumSet<Property> ALL_CITY_PROPERTIES = EnumSet.of(
-            Property.IP,
-            Property.COUNTRY_ISO_CODE,
-            Property.COUNTRY_NAME,
-            Property.CONTINENT_NAME,
-            Property.REGION_ISO_CODE,
-            Property.REGION_NAME,
-            Property.CITY_NAME,
-            Property.TIMEZONE,
-            Property.LOCATION
+        static final Set<Property> ALL_CITY_PROPERTIES = Collections.unmodifiableSet(
+            EnumSet.of(
+                Property.IP,
+                Property.COUNTRY_ISO_CODE,
+                Property.COUNTRY_NAME,
+                Property.CONTINENT_NAME,
+                Property.REGION_ISO_CODE,
+                Property.REGION_NAME,
+                Property.CITY_NAME,
+                Property.TIMEZONE,
+                Property.LOCATION
+            )
         );
-        static final EnumSet<Property> ALL_COUNTRY_PROPERTIES = EnumSet.of(
-            Property.IP,
-            Property.CONTINENT_NAME,
-            Property.COUNTRY_NAME,
-            Property.COUNTRY_ISO_CODE
+        static final Set<Property> ALL_COUNTRY_PROPERTIES = Collections.unmodifiableSet(
+            EnumSet.of(Property.IP, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
         );
-        static final EnumSet<Property> ALL_ASN_PROPERTIES = EnumSet.of(
-            Property.IP,
-            Property.ASN,
-            Property.ORGANIZATION_NAME,
-            Property.NETWORK
+        static final Set<Property> ALL_ASN_PROPERTIES = Collections.unmodifiableSet(
+            EnumSet.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
         );
 
         public static Property parseProperty(String databaseType, String value) {

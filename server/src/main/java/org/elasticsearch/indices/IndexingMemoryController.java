@@ -100,10 +100,8 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
     private final Cancellable scheduler;
 
-    private static final EnumSet<IndexShardState> CAN_WRITE_INDEX_BUFFER_STATES = EnumSet.of(
-        IndexShardState.RECOVERING,
-        IndexShardState.POST_RECOVERY,
-        IndexShardState.STARTED
+    private static final Set<IndexShardState> CAN_WRITE_INDEX_BUFFER_STATES = Collections.unmodifiableSet(
+        EnumSet.of(IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED)
     );
 
     private final ShardsIndicesStatusChecker statusChecker;

@@ -28,6 +28,7 @@ import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class MockFSIndexStore {
 
@@ -70,9 +71,8 @@ public final class MockFSIndexStore {
         }
     }
 
-    private static final EnumSet<IndexShardState> validCheckIndexStates = EnumSet.of(
-        IndexShardState.STARTED,
-        IndexShardState.POST_RECOVERY
+    private static final Set<IndexShardState> validCheckIndexStates = Collections.unmodifiableSet(
+        EnumSet.of(IndexShardState.STARTED, IndexShardState.POST_RECOVERY)
     );
 
     private static final class Listener implements IndexEventListener {

@@ -64,15 +64,12 @@ public class ClusterBlockTests extends ESTestCase {
 
     public void testRemoveIndexBlockWithId() {
         final ClusterBlocks.Builder builder = ClusterBlocks.builder();
-        builder.addIndexBlock("index-1", new ClusterBlock(1, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
-        builder.addIndexBlock("index-1", new ClusterBlock(2, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
-        builder.addIndexBlock("index-1", new ClusterBlock(3, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
-        builder.addIndexBlock(
-            "index-1",
-            new ClusterBlock(3, "other uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL))
-        );
+        builder.addIndexBlock("index-1", new ClusterBlock(1, "uuid", "", true, true, true, RestStatus.OK, ClusterBlockLevel.ALL));
+        builder.addIndexBlock("index-1", new ClusterBlock(2, "uuid", "", true, true, true, RestStatus.OK, ClusterBlockLevel.ALL));
+        builder.addIndexBlock("index-1", new ClusterBlock(3, "uuid", "", true, true, true, RestStatus.OK, ClusterBlockLevel.ALL));
+        builder.addIndexBlock("index-1", new ClusterBlock(3, "other uuid", "", true, true, true, RestStatus.OK, ClusterBlockLevel.ALL));
 
-        builder.addIndexBlock("index-2", new ClusterBlock(3, "uuid3", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock("index-2", new ClusterBlock(3, "uuid3", "", true, true, true, RestStatus.OK, ClusterBlockLevel.ALL));
 
         ClusterBlocks clusterBlocks = builder.build();
         assertThat(clusterBlocks.indices().get("index-1").size(), equalTo(4));
@@ -103,7 +100,7 @@ public class ClusterBlockTests extends ESTestCase {
 
         final ClusterBlocks.Builder builder = ClusterBlocks.builder();
         for (int i = 0; i < clusterBlocks.length; i++) {
-            clusterBlocks[i] = new ClusterBlock(blockId, "uuid" + i, "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL));
+            clusterBlocks[i] = new ClusterBlock(blockId, "uuid" + i, "", true, true, true, RestStatus.OK, ClusterBlockLevel.ALL);
             builder.addIndexBlock("index", clusterBlocks[i]);
         }
 

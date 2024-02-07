@@ -86,12 +86,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
                 Arrays.asList(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE)
             );
 
-            instance.indicesOptions(
-                new IndicesOptions(
-                    options.isEmpty() ? IndicesOptions.Option.NONE : EnumSet.copyOf(options),
-                    wildcardStates.isEmpty() ? IndicesOptions.WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
-                )
-            );
+            instance.indicesOptions(new IndicesOptions(EnumSet.copyOf(options), EnumSet.copyOf(wildcardStates)));
         }
 
         instance.waitForCompletion(randomBoolean());

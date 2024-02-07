@@ -11,6 +11,7 @@ import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Properties;
 import java.util.Set;
@@ -22,7 +23,7 @@ class ProxyConfig {
     private static final String SOCKS_PROXY = "proxy.socks";
     private static final String SOCKS_PROXY_DEFAULT = StringUtils.EMPTY;
 
-    static final Set<String> OPTION_NAMES = new LinkedHashSet<>(Arrays.asList(HTTP_PROXY, SOCKS_PROXY));
+    static final Set<String> OPTION_NAMES = Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(HTTP_PROXY, SOCKS_PROXY)));
 
     private final Proxy proxy;
 

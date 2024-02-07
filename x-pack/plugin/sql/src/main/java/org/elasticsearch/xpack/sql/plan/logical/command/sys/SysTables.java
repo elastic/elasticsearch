@@ -127,7 +127,7 @@ public class SysTables extends Command {
         String idx = hasText(index) ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
-        EnumSet<IndexType> tableTypes = types;
+        Set<IndexType> tableTypes = types;
 
         // initialize types for name resolution
         if (tableTypes == null) {

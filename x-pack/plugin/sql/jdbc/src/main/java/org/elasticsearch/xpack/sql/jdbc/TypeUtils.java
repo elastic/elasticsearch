@@ -38,16 +38,18 @@ final class TypeUtils {
     private static final Map<String, EsType> ENUM_NAME_TO_TYPE;
     private static final Map<Integer, EsType> SQL_TO_TYPE;
 
-    private static final Set<EsType> SIGNED_TYPE = EnumSet.of(
-        EsType.BYTE,
-        EsType.SHORT,
-        EsType.INTEGER,
-        EsType.LONG,
-        EsType.FLOAT,
-        EsType.HALF_FLOAT,
-        EsType.SCALED_FLOAT,
-        EsType.DOUBLE,
-        EsType.DATETIME
+    private static final Set<EsType> SIGNED_TYPE = Collections.unmodifiableSet(
+        EnumSet.of(
+            EsType.BYTE,
+            EsType.SHORT,
+            EsType.INTEGER,
+            EsType.LONG,
+            EsType.FLOAT,
+            EsType.HALF_FLOAT,
+            EsType.SCALED_FLOAT,
+            EsType.DOUBLE,
+            EsType.DATETIME
+        )
     );
 
     public static final int LONG_MAX_LENGTH = String.valueOf(Long.MAX_VALUE).length(); // type length value as defined in ES

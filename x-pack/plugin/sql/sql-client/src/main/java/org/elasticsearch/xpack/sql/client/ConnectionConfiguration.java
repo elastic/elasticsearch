@@ -10,6 +10,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
 import java.util.Properties;
@@ -73,25 +74,27 @@ public class ConnectionConfiguration {
     public static final String ALLOW_PARTIAL_SEARCH_RESULTS = "allow.partial.search.results";
     public static final String ALLOW_PARTIAL_SEARCH_RESULTS_DEFAULT = "false";
 
-    protected static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
-        Arrays.asList(
-            PROPERTIES_VALIDATION,
-            BINARY_COMMUNICATION,
-            CONNECT_TIMEOUT,
-            NETWORK_TIMEOUT,
-            QUERY_TIMEOUT,
-            PAGE_TIMEOUT,
-            PAGE_SIZE,
-            AUTH_USER,
-            AUTH_PASS,
-            CATALOG,
-            ALLOW_PARTIAL_SEARCH_RESULTS
-        )
-    );
+    protected static final Set<String> OPTION_NAMES;
 
     static {
-        OPTION_NAMES.addAll(SslConfig.OPTION_NAMES);
-        OPTION_NAMES.addAll(ProxyConfig.OPTION_NAMES);
+        Set<String> allOptions = new LinkedHashSet<>(
+            Arrays.asList(
+                PROPERTIES_VALIDATION,
+                BINARY_COMMUNICATION,
+                CONNECT_TIMEOUT,
+                NETWORK_TIMEOUT,
+                QUERY_TIMEOUT,
+                PAGE_TIMEOUT,
+                PAGE_SIZE,
+                AUTH_USER,
+                AUTH_PASS,
+                CATALOG,
+                ALLOW_PARTIAL_SEARCH_RESULTS
+            )
+        );
+        allOptions.addAll(SslConfig.OPTION_NAMES);
+        allOptions.addAll(ProxyConfig.OPTION_NAMES);
+        OPTION_NAMES = Collections.unmodifiableSet(allOptions);
     }
 
     private final boolean validateProperties;

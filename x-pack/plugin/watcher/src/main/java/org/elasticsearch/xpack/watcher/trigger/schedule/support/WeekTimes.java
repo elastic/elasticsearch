@@ -22,10 +22,10 @@ import static org.elasticsearch.xpack.watcher.support.Strings.join;
 
 public class WeekTimes implements Times {
 
-    public static final EnumSet<DayOfWeek> DEFAULT_DAYS = EnumSet.of(DayOfWeek.MONDAY);
+    public static final Set<DayOfWeek> DEFAULT_DAYS = Collections.unmodifiableSet(EnumSet.of(DayOfWeek.MONDAY));
     public static final DayTimes[] DEFAULT_TIMES = new DayTimes[] { new DayTimes() };
 
-    private final EnumSet<DayOfWeek> days;
+    private final Set<DayOfWeek> days;
     private final DayTimes[] times;
 
     public WeekTimes() {
@@ -40,12 +40,12 @@ public class WeekTimes implements Times {
         this(EnumSet.of(day), times);
     }
 
-    public WeekTimes(EnumSet<DayOfWeek> days, DayTimes[] times) {
-        this.days = days.isEmpty() ? DEFAULT_DAYS : days;
+    public WeekTimes(Set<DayOfWeek> days, DayTimes[] times) {
+        this.days = days.isEmpty() ? DEFAULT_DAYS : EnumSet.copyOf(days);
         this.times = times.length == 0 ? DEFAULT_TIMES : times;
     }
 
-    public EnumSet<DayOfWeek> days() {
+    public Set<DayOfWeek> days() {
         return days;
     }
 
@@ -189,8 +189,7 @@ public class WeekTimes implements Times {
         }
 
         public WeekTimes build() {
-            EnumSet<DayOfWeek> dow = days.isEmpty() ? WeekTimes.DEFAULT_DAYS : EnumSet.copyOf(days);
-            return new WeekTimes(dow, times.toArray(new DayTimes[times.size()]));
+            return new WeekTimes(days, times.toArray(new DayTimes[times.size()]));
         }
 
     }

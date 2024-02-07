@@ -43,16 +43,13 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         static final String HYPERPARAMETERS = "hyperparameters";
         static final String DEFINITION_STATUS = TrainedModelConfig.DEFINITION_STATUS;
 
-        private static final Set<String> KNOWN_INCLUDES;
-        static {
-            HashSet<String> includes = new HashSet<>(4, 1.0f);
-            includes.add(DEFINITION);
-            includes.add(TOTAL_FEATURE_IMPORTANCE);
-            includes.add(FEATURE_IMPORTANCE_BASELINE);
-            includes.add(HYPERPARAMETERS);
-            includes.add(DEFINITION_STATUS);
-            KNOWN_INCLUDES = Collections.unmodifiableSet(includes);
-        }
+        private static final Set<String> KNOWN_INCLUDES = Set.of(
+            DEFINITION,
+            TOTAL_FEATURE_IMPORTANCE,
+            FEATURE_IMPORTANCE_BASELINE,
+            HYPERPARAMETERS,
+            DEFINITION_STATUS
+        );
 
         public static Includes forModelDefinition() {
             return new Includes(new HashSet<>(Collections.singletonList(DEFINITION)));

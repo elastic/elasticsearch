@@ -10,7 +10,6 @@ package org.elasticsearch.common.ssl;
 
 import java.security.KeyStore;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -132,8 +131,11 @@ public class SslConfigurationKeys {
      */
     public static final String KEY_LEGACY_PASSPHRASE = "key_passphrase";
 
-    private static final Set<String> DEPRECATED_KEYS = new HashSet<>(
-        Arrays.asList(TRUSTSTORE_LEGACY_PASSWORD, KEYSTORE_LEGACY_PASSWORD, KEYSTORE_LEGACY_KEY_PASSWORD, KEY_LEGACY_PASSPHRASE)
+    private static final Set<String> DEPRECATED_KEYS = Set.of(
+        TRUSTSTORE_LEGACY_PASSWORD,
+        KEYSTORE_LEGACY_PASSWORD,
+        KEYSTORE_LEGACY_KEY_PASSWORD,
+        KEY_LEGACY_PASSPHRASE
     );
 
     private SslConfigurationKeys() {

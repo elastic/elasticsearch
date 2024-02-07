@@ -11,6 +11,7 @@ package org.elasticsearch.dissect;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -85,13 +86,11 @@ import java.util.stream.Collectors;
 public final class DissectParser {
     private static final Pattern LEADING_DELIMITER_PATTERN = Pattern.compile("^(.*?)%\\{");
     private static final Pattern KEY_DELIMITER_FIELD_PATTERN = Pattern.compile("%\\{([^}]*?)}(.+?(?=%\\{)|.*$)", Pattern.DOTALL);
-    private static final EnumSet<DissectKey.Modifier> ASSOCIATE_MODIFIERS = EnumSet.of(
-        DissectKey.Modifier.FIELD_NAME,
-        DissectKey.Modifier.FIELD_VALUE
+    private static final Set<DissectKey.Modifier> ASSOCIATE_MODIFIERS = Collections.unmodifiableSet(
+        EnumSet.of(DissectKey.Modifier.FIELD_NAME, DissectKey.Modifier.FIELD_VALUE)
     );
-    private static final EnumSet<DissectKey.Modifier> APPEND_MODIFIERS = EnumSet.of(
-        DissectKey.Modifier.APPEND,
-        DissectKey.Modifier.APPEND_WITH_ORDER
+    private static final Set<DissectKey.Modifier> APPEND_MODIFIERS = Collections.unmodifiableSet(
+        EnumSet.of(DissectKey.Modifier.APPEND, DissectKey.Modifier.APPEND_WITH_ORDER)
     );
     private static final Function<DissectPair, String> KEY_NAME = val -> val.key().getName();
     private final List<DissectPair> matchPairs;

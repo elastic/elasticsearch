@@ -67,7 +67,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariate_by_fields");
 
     public static final String ML_CATEGORY_FIELD = "mlcategory";
-    public static final Set<String> AUTO_CREATED_FIELDS = new HashSet<>(Collections.singletonList(ML_CATEGORY_FIELD));
 
     // Since the C++ backend truncates the categorization field at length 1000 (see model::CCategoryExamplesCollector::MAX_EXAMPLE_LENGTH),
     // adding an ellipsis on truncation, it makes no sense to send potentially very long strings to it. For the backend logic still to work

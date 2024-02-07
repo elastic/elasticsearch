@@ -337,10 +337,7 @@ public class IndicesOptionsTests extends ESTestCase {
         Collection<WildcardStates> wildcardStates = randomSubsetOf(Arrays.asList(WildcardStates.values()));
         Collection<Option> options = randomSubsetOf(Arrays.asList(Option.values()));
 
-        IndicesOptions indicesOptions = new IndicesOptions(
-            options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
-            wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
-        );
+        IndicesOptions indicesOptions = new IndicesOptions(EnumSet.copyOf(options), EnumSet.copyOf(wildcardStates));
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
@@ -371,10 +368,7 @@ public class IndicesOptionsTests extends ESTestCase {
         Collection<WildcardStates> wildcardStates = randomSubsetOf(Arrays.asList(WildcardStates.values()));
         Collection<Option> options = randomSubsetOf(Arrays.asList(Option.values()));
 
-        IndicesOptions indicesOptions = new IndicesOptions(
-            options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
-            wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
-        );
+        IndicesOptions indicesOptions = new IndicesOptions(EnumSet.copyOf(options), EnumSet.copyOf(wildcardStates));
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);

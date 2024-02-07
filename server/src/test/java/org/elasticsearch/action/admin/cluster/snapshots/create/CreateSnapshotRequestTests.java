@@ -82,12 +82,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             Collection<WildcardStates> wildcardStates = randomSubsetOf(Arrays.asList(WildcardStates.values()));
             Collection<Option> options = randomSubsetOf(Arrays.asList(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE));
 
-            original.indicesOptions(
-                new IndicesOptions(
-                    options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
-                    wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
-                )
-            );
+            original.indicesOptions(new IndicesOptions(EnumSet.copyOf(options), EnumSet.copyOf(wildcardStates)));
         }
 
         if (randomBoolean()) {

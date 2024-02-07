@@ -54,6 +54,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -76,7 +77,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         Property.NodeScope
     );
     public static final String ACTION_SHARD_EXISTS = "internal:index/shard/exists";
-    private static final EnumSet<IndexShardState> ACTIVE_STATES = EnumSet.of(IndexShardState.STARTED);
+    private static final Set<IndexShardState> ACTIVE_STATES = Collections.unmodifiableSet(EnumSet.of(IndexShardState.STARTED));
     private final Settings settings;
     private final IndicesService indicesService;
     private final ClusterService clusterService;

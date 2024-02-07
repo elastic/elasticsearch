@@ -8,7 +8,9 @@
 
 package org.elasticsearch.cluster.block;
 
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Set;
 
 public enum ClusterBlockLevel {
     READ,
@@ -16,6 +18,6 @@ public enum ClusterBlockLevel {
     METADATA_READ,
     METADATA_WRITE;
 
-    public static final EnumSet<ClusterBlockLevel> ALL = EnumSet.allOf(ClusterBlockLevel.class);
-    public static final EnumSet<ClusterBlockLevel> READ_WRITE = EnumSet.of(READ, WRITE);
+    public static final Set<ClusterBlockLevel> ALL = Collections.unmodifiableSet(EnumSet.allOf(ClusterBlockLevel.class));
+    public static final Set<ClusterBlockLevel> READ_WRITE = Collections.unmodifiableSet(EnumSet.of(READ, WRITE));
 }

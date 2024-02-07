@@ -19,7 +19,6 @@ import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -187,9 +186,9 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         return new InternalBoxplot(name, TDigestState.create(compression, executionHint), format, metadata);
     }
 
-    static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
-        Stream.of(Metrics.values()).map(m -> m.name().toLowerCase(Locale.ROOT)).collect(Collectors.toSet())
-    );
+    static final Set<String> METRIC_NAMES = Stream.of(Metrics.values())
+        .map(m -> m.name().toLowerCase(Locale.ROOT))
+        .collect(Collectors.toUnmodifiableSet());
 
     private final TDigestState state;
 

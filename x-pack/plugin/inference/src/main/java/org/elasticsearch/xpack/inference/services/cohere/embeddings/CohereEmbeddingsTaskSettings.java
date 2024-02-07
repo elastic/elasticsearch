@@ -21,9 +21,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.TRUNCATE;
@@ -40,7 +42,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
     public static final String NAME = "cohere_embeddings_task_settings";
     public static final CohereEmbeddingsTaskSettings EMPTY_SETTINGS = new CohereEmbeddingsTaskSettings(null, null);
     static final String INPUT_TYPE = "input_type";
-    private static final EnumSet<InputType> VALID_REQUEST_VALUES2 = EnumSet.of(InputType.INGEST, InputType.SEARCH);
+    private static final Set<InputType> VALID_REQUEST_VALUES2 = Collections.unmodifiableSet(EnumSet.of(InputType.INGEST, InputType.SEARCH));
 
     public static CohereEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {

@@ -50,9 +50,11 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -764,10 +766,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         private final CountDownLatch recoveryBlocked;
         private final CountDownLatch releaseRecovery;
         private final RecoveryState.Stage stageToBlock;
-        static final EnumSet<RecoveryState.Stage> SUPPORTED_STAGES = EnumSet.of(
-            RecoveryState.Stage.INDEX,
-            RecoveryState.Stage.TRANSLOG,
-            RecoveryState.Stage.FINALIZE
+        static final Set<RecoveryState.Stage> SUPPORTED_STAGES = Collections.unmodifiableSet(
+            EnumSet.of(RecoveryState.Stage.INDEX, RecoveryState.Stage.TRANSLOG, RecoveryState.Stage.FINALIZE)
         );
         private final Logger logger;
 

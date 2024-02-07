@@ -28,7 +28,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 
@@ -52,7 +51,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String DELETE_PHASE = "delete";
     public static final List<String> ORDERED_VALID_PHASES = List.of(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
 
-    public static final List<String> ORDERED_VALID_HOT_ACTIONS = Stream.of(
+    public static final List<String> ORDERED_VALID_HOT_ACTIONS = List.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         RolloverAction.NAME,
@@ -61,8 +60,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
         SearchableSnapshotAction.NAME
-    ).filter(Objects::nonNull).toList();
-    public static final List<String> ORDERED_VALID_WARM_ACTIONS = Stream.of(
+    );
+    public static final List<String> ORDERED_VALID_WARM_ACTIONS = List.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
@@ -71,8 +70,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
         MigrateAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME
-    ).filter(Objects::nonNull).toList();
-    public static final List<String> ORDERED_VALID_COLD_ACTIONS = Stream.of(
+    );
+    public static final List<String> ORDERED_VALID_COLD_ACTIONS = List.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
@@ -81,15 +80,24 @@ public class TimeseriesLifecycleType implements LifecycleType {
         AllocateAction.NAME,
         MigrateAction.NAME,
         FreezeAction.NAME
-    ).filter(Objects::nonNull).toList();
+    );
     public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
     public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);
 
-    static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
-    static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
-    static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
-    static final Set<String> VALID_FROZEN_ACTIONS = Sets.newHashSet(ORDERED_VALID_FROZEN_ACTIONS);
-    static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
+    static final Set<String> VALID_HOT_ACTIONS = Set.copyOf(ORDERED_VALID_HOT_ACTIONS);
+    static final Set<String> VALID_WARM_ACTIONS = Set.copyOf(ORDERED_VALID_WARM_ACTIONS);
+    static final Set<String> VALID_COLD_ACTIONS = Set.copyOf(ORDERED_VALID_COLD_ACTIONS);
+    static final Set<String> VALID_FROZEN_ACTIONS = Set.copyOf(ORDERED_VALID_FROZEN_ACTIONS);
+    static final Set<String> VALID_DELETE_ACTIONS = Set.copyOf(ORDERED_VALID_DELETE_ACTIONS);
+
+    static {
+        // check for potential duplicates
+        assert VALID_HOT_ACTIONS.size() == ORDERED_VALID_HOT_ACTIONS.size();
+        assert VALID_WARM_ACTIONS.size() == ORDERED_VALID_WARM_ACTIONS.size();
+        assert VALID_COLD_ACTIONS.size() == ORDERED_VALID_COLD_ACTIONS.size();
+        assert VALID_FROZEN_ACTIONS.size() == ORDERED_VALID_FROZEN_ACTIONS.size();
+        assert VALID_DELETE_ACTIONS.size() == ORDERED_VALID_DELETE_ACTIONS.size();
+    }
 
     private static final Map<String, Set<String>> ALLOWED_ACTIONS = Map.of(
         HOT_PHASE,

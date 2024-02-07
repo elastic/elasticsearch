@@ -39,7 +39,6 @@ import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 import java.security.SecurityPermission;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.PropertyPermission;
 import java.util.Set;
@@ -52,20 +51,17 @@ import java.util.Set;
 final class TikaImpl {
 
     /** Exclude some formats */
-    private static final Set<MediaType> EXCLUDES = new HashSet<>(
-        Arrays.asList(
-            MediaType.application("vnd.ms-visio.drawing"),
-            MediaType.application("vnd.ms-visio.drawing.macroenabled.12"),
-            MediaType.application("vnd.ms-visio.stencil"),
-            MediaType.application("vnd.ms-visio.stencil.macroenabled.12"),
-            MediaType.application("vnd.ms-visio.template"),
-            MediaType.application("vnd.ms-visio.template.macroenabled.12"),
-            MediaType.application("vnd.ms-visio.drawing")
-        )
+    private static final Set<MediaType> EXCLUDES = Set.of(
+        MediaType.application("vnd.ms-visio.drawing"),
+        MediaType.application("vnd.ms-visio.drawing.macroenabled.12"),
+        MediaType.application("vnd.ms-visio.stencil"),
+        MediaType.application("vnd.ms-visio.stencil.macroenabled.12"),
+        MediaType.application("vnd.ms-visio.template"),
+        MediaType.application("vnd.ms-visio.template.macroenabled.12")
     );
 
     /** subset of parsers for types we support */
-    private static final Parser PARSERS[] = new Parser[] {
+    private static final Parser[] PARSERS = new Parser[] {
         // documents
         new org.apache.tika.parser.html.HtmlParser(),
         new org.apache.tika.parser.microsoft.rtf.RTFParser(),
@@ -88,7 +84,7 @@ final class TikaImpl {
     /**
      * parses with tika, throwing any exception hit while parsing the document
      */
-    static String parse(final byte content[], final Metadata metadata, final int limit) throws TikaException, IOException {
+    static String parse(final byte[] content, final Metadata metadata, final int limit) throws TikaException, IOException {
         // check that its not unprivileged code like a script
         SpecialPermission.check();
 

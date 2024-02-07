@@ -24,11 +24,11 @@ import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
@@ -226,7 +226,7 @@ public class ServiceUtils {
         String settingName,
         String scope,
         EnumConstructor<E> constructor,
-        EnumSet<E> validValues,
+        Set<E> validValues,
         ValidationException validationException
     ) {
         var enumString = extractOptionalString(map, settingName, scope, validationException);
@@ -247,7 +247,7 @@ public class ServiceUtils {
         return null;
     }
 
-    private static <E extends Enum<E>> void validateEnumValue(E enumValue, EnumSet<E> validValues) {
+    private static <E extends Enum<E>> void validateEnumValue(E enumValue, Set<E> validValues) {
         if (validValues.contains(enumValue) == false) {
             throw new IllegalArgumentException(Strings.format("Enum value [%s] is not one of the acceptable values", enumValue.toString()));
         }

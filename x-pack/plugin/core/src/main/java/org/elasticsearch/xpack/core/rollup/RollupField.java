@@ -16,7 +16,7 @@ import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilde
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xcontent.ParseField;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -38,14 +38,14 @@ public class RollupField {
     public static final String TYPE_NAME = "_doc";
     public static final String AGG = "agg";
     public static final String ROLLUP_MISSING = "ROLLUP_MISSING_40710B25931745D4B0B8B310F6912A69";
-    public static final List<String> SUPPORTED_NUMERIC_METRICS = Arrays.asList(
+    public static final List<String> SUPPORTED_NUMERIC_METRICS = List.of(
         MaxAggregationBuilder.NAME,
         MinAggregationBuilder.NAME,
         SumAggregationBuilder.NAME,
         AvgAggregationBuilder.NAME,
         ValueCountAggregationBuilder.NAME
     );
-    public static final List<String> SUPPORTED_DATE_METRICS = Arrays.asList(
+    public static final List<String> SUPPORTED_DATE_METRICS = List.of(
         MaxAggregationBuilder.NAME,
         MinAggregationBuilder.NAME,
         ValueCountAggregationBuilder.NAME
@@ -54,9 +54,10 @@ public class RollupField {
     // a set of ALL our supported metrics, to be a union of all other supported metric types (numeric, date, etc.)
     public static final Set<String> SUPPORTED_METRICS;
     static {
-        SUPPORTED_METRICS = new HashSet<>();
-        SUPPORTED_METRICS.addAll(SUPPORTED_NUMERIC_METRICS);
-        SUPPORTED_METRICS.addAll(SUPPORTED_DATE_METRICS);
+        Set<String> supportedMetrics = new HashSet<>();
+        supportedMetrics.addAll(SUPPORTED_NUMERIC_METRICS);
+        supportedMetrics.addAll(SUPPORTED_DATE_METRICS);
+        SUPPORTED_METRICS = Collections.unmodifiableSet(supportedMetrics);
     }
 
     // these mapper types are used by the configs (metric, histo, etc) to validate field mappings
@@ -66,7 +67,7 @@ public class RollupField {
             .map(NumberFieldMapper.NumberType::typeName)
             .collect(Collectors.toList());
         types.add("scaled_float"); // have to add manually since scaled_float is in a module
-        NUMERIC_FIELD_MAPPER_TYPES = types;
+        NUMERIC_FIELD_MAPPER_TYPES = Collections.unmodifiableList(types);
     }
 
     public static final List<String> DATE_FIELD_MAPPER_TYPES = List.of(

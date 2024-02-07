@@ -17,6 +17,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Properties;
@@ -69,8 +70,10 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     static final String INDEX_INCLUDE_FROZEN_DEFAULT = "false";
 
     // options that don't change at runtime
-    private static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
-        Arrays.asList(TIME_ZONE, CATALOG, FIELD_MULTI_VALUE_LENIENCY, INDEX_INCLUDE_FROZEN, DEBUG, DEBUG_OUTPUT, DEBUG_FLUSH_ALWAYS)
+    private static final Set<String> OPTION_NAMES = Collections.unmodifiableSet(
+        new LinkedHashSet<>(
+            Arrays.asList(TIME_ZONE, CATALOG, FIELD_MULTI_VALUE_LENIENCY, INDEX_INCLUDE_FROZEN, DEBUG, DEBUG_OUTPUT, DEBUG_FLUSH_ALWAYS)
+        )
     );
 
     static {

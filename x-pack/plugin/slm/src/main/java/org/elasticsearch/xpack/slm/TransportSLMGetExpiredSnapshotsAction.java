@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -296,9 +297,7 @@ public class TransportSLMGetExpiredSnapshotsAction extends TransportAction<
         }
     }
 
-    private static final Set<SnapshotState> RETAINABLE_STATES = EnumSet.of(
-        SnapshotState.SUCCESS,
-        SnapshotState.FAILED,
-        SnapshotState.PARTIAL
+    private static final Set<SnapshotState> RETAINABLE_STATES = Collections.unmodifiableSet(
+        EnumSet.of(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL)
     );
 }

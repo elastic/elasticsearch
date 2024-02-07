@@ -103,12 +103,15 @@ import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsInd
 import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.PutConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.RestDeleteConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.RestGetConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.RestPostConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.RestPutConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportDeleteConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportGetConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportPostConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.TransportPutConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
@@ -290,7 +293,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                 List.of(
                     new ActionHandler<>(DeleteConnectorSecretAction.INSTANCE, TransportDeleteConnectorSecretAction.class),
                     new ActionHandler<>(GetConnectorSecretAction.INSTANCE, TransportGetConnectorSecretAction.class),
-                    new ActionHandler<>(PostConnectorSecretAction.INSTANCE, TransportPostConnectorSecretAction.class)
+                    new ActionHandler<>(PostConnectorSecretAction.INSTANCE, TransportPostConnectorSecretAction.class),
+                    new ActionHandler<>(PutConnectorSecretAction.INSTANCE, TransportPutConnectorSecretAction.class)
                 )
             );
         }
@@ -378,7 +382,12 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
         if (ConnectorSecretsFeature.isEnabled()) {
             restHandlers.addAll(
-                List.of(new RestGetConnectorSecretAction(), new RestPostConnectorSecretAction(), new RestDeleteConnectorSecretAction())
+                List.of(
+                    new RestDeleteConnectorSecretAction(),
+                    new RestGetConnectorSecretAction(),
+                    new RestPostConnectorSecretAction(),
+                    new RestPutConnectorSecretAction()
+                )
             );
         }
 

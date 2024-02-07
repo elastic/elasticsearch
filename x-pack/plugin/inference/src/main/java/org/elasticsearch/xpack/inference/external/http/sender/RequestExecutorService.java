@@ -186,8 +186,10 @@ class RequestExecutorService implements RequestExecutor {
                 command.run();
             }
 
+            // TODO add logic to complete pending items in the queue before shutting down
             if (running.get() == false) {
                 logger.debug(() -> format("Http executor service [%s] exiting", serviceName));
+                rejectTaskBecauseOfShutdown(task);
             } else {
                 executeTask(task);
             }

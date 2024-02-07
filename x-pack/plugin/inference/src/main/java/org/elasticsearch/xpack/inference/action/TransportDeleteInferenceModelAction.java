@@ -71,6 +71,19 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
         SubscribableListener.<ModelRegistry.UnparsedModel>newForked(modelConfigListener -> {
             modelRegistry.getModel(request.getInferenceEntityId(), modelConfigListener);
         }).<Boolean>andThen((l1, unparsedModel) -> {
+
+            if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
+                // specific task type in request does not match the models
+                l1.onFailure(
+                    new ElasticsearchStatusException(
+                        "Requested task type [{}] does not match the model's task type [{}]",
+                        RestStatus.BAD_REQUEST,
+                        request.getTaskType(),
+                        unparsedModel.taskType()
+                    )
+                );
+                return;
+            }
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
                 service.get().stop(request.getInferenceEntityId(), l1);

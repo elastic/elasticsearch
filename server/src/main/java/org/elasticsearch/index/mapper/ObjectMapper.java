@@ -182,6 +182,11 @@ public class ObjectMapper extends Mapper {
         }
     }
 
+    @Override
+    public int getTotalFieldsCount() {
+        return 1 + mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum();
+    }
+
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public boolean supportsVersion(IndexVersion indexCreatedVersion) {
@@ -547,7 +552,7 @@ public class ObjectMapper extends Mapper {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
                 Mapper merged = null;
                 if (mergeIntoMapper == null) {
-                    if (objectMergeContext.decrementFieldBudgetIfPossible(mergeWithMapper.mapperSize())) {
+                    if (objectMergeContext.decrementFieldBudgetIfPossible(mergeWithMapper.getTotalFieldsCount())) {
                         merged = mergeWithMapper;
                     } else if (mergeWithMapper instanceof ObjectMapper om) {
                         merged = truncateObjectMapper(reason, objectMergeContext, om);
@@ -581,7 +586,7 @@ public class ObjectMapper extends Mapper {
             // there's not enough capacity for the whole object mapper,
             // so we're just trying to add the shallow object, without it's sub-fields
             ObjectMapper shallowObjectMapper = objectMapper.withoutMappers();
-            if (context.decrementFieldBudgetIfPossible(shallowObjectMapper.mapperSize())) {
+            if (context.decrementFieldBudgetIfPossible(shallowObjectMapper.getTotalFieldsCount())) {
                 // now trying to add the sub-fields one by one via a merge, until we hit the limit
                 return shallowObjectMapper.merge(objectMapper, reason, context);
             }

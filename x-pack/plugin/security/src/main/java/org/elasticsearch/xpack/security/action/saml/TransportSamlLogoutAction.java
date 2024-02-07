@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
@@ -47,7 +46,7 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
         Realms realms,
         TokenService tokenService
     ) {
-        super(SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new, transportService.getThreadPool().generic());
         this.realms = realms;
         this.tokenService = tokenService;
     }

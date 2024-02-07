@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -61,7 +60,7 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
             transportService,
             actionFilters,
             SamlInvalidateSessionRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            transportService.getThreadPool().generic()
         );
         this.tokenService = tokenService;
         this.realms = realms;

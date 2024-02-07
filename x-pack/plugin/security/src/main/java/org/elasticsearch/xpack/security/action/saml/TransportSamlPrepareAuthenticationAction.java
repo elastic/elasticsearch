@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
@@ -43,7 +42,7 @@ public final class TransportSamlPrepareAuthenticationAction extends HandledTrans
             transportService,
             actionFilters,
             SamlPrepareAuthenticationRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            transportService.getThreadPool().generic()
         );
         this.realms = realms;
     }

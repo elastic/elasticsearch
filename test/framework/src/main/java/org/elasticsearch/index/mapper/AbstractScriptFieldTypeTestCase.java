@@ -199,9 +199,12 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         }
     }
 
-    public void testScriptFieldAlwaysHaveValue() {
-        MappedFieldType fieldType = build("loop", Map.of(), OnScriptError.FAIL);
-        assertTrue(fieldType.fieldHasValue(FieldInfos.EMPTY));
+    public void testSimpleScriptFieldAlwaysHaveValue() {
+        assertTrue(simpleMappedFieldType().fieldHasValue(FieldInfos.EMPTY));
+    }
+
+    public void testLoopScriptFieldAlwaysHaveValue() {
+        assertTrue(loopFieldType().fieldHasValue(FieldInfos.EMPTY));
     }
 
     protected abstract AbstractScriptFieldType<?> build(String error, Map<String, Object> emptyMap, OnScriptError onScriptError);

@@ -127,12 +127,17 @@ public final class Zstd813StoredFieldsFormat extends Lucene90CompressingStoredFi
         public void compress(ByteBuffersDataInput buffersInput, DataOutput out) throws IOException {
             final int len = Math.toIntExact(buffersInput.length());
 
+            // Longer term, both `buffer` and `compressed` would ideally be stored in native memory so that the call to ZSTD doesn't have to
+            // do yet another copy.
             buffer = ArrayUtil.growNoCopy(buffer, len);
             buffersInput.readBytes(buffer, 0, len);
 
             final int maxCompressedLength = Zstd.compressBound(len);
             compressed = ArrayUtil.growNoCopy(compressed, maxCompressedLength);
 
+            // NOTE: ZSTD has APIs to reuse a compression context across calls, which helps efficiency. We're not using it here on purpose
+            // because compression contexts are quite heavy memory-wise, and there would be multiple of them per actively indexing shard.
+            // The compression context is allocated and released as part of the call to `compress`.
             final int compressedLen = Zstd.compress(
                 ByteBuffer.wrap(compressed, 0, compressed.length),
                 ByteBuffer.wrap(buffer, 0, len),

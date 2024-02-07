@@ -61,15 +61,12 @@ import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.TE
  *             "my_semantic_text_field": [
  *                 {
  *                     "sparse_embedding": {
- *                         "is_truncated": false,
- *                         "embedding": {
- *                             "lucas": 0.05212344,
- *                             "ty": 0.041213956,
- *                             "dragon": 0.50991,
- *                             "type": 0.23241979,
- *                             "dr": 1.9312073,
- *                             "##o": 0.2797593
- *                         }
+ *                          "lucas": 0.05212344,
+ *                          "ty": 0.041213956,
+ *                          "dragon": 0.50991,
+ *                          "type": 0.23241979,
+ *                          "dr": 1.9312073,
+ *                          "##o": 0.2797593
  *                     },
  *                     "text": "these are not the droids you're looking for"
  *                 }
@@ -90,11 +87,7 @@ import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.TE
  *                 "type": "nested",
  *                 "properties": {
  *                     "sparse_embedding": {
- *                         "properties": {
- *                             "embedding": {
- *                                 "type": "sparse_vector"
- *                             }
- *                         }
+ *                         "type": "sparse_vector"
  *                     },
  *                     "text": {
  *                         "type": "text",

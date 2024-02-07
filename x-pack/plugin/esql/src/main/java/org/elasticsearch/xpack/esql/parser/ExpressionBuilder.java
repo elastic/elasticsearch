@@ -423,7 +423,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     /**
-     * Similar to {@link #visitFields(EsqlBaseParser.FieldsContext)} however avoids wrapping the exception
+     * Similar to {@link #visitFields(EsqlBaseParser.FieldsContext)} however avoids wrapping the expression
      * into an Alias.
      */
     public List<NamedExpression> visitGrouping(EsqlBaseParser.FieldsContext ctx) {

@@ -1,0 +1,6 @@
+pr: 104614
+summary: Extend `repository_integrity` health indicator for unknown and invalid repos
+area: Health
+type: enhancement
+issues:
+ - 103784

@@ -52,6 +52,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             assertNull(request.getIndices());
             assertNull(request.getStackTraceIdsField());
             assertNull(request.getAwsCostFactor());
+            assertNull(request.getAzureCostFactor());
             assertNull(request.getCustomCO2PerKWH());
             assertNull(request.getCustomDatacenterPUE());
             assertNull(request.getCustomCostPerCoreHour());
@@ -90,6 +91,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             // Expect the default values
             assertNull(request.getRequestedDuration());
             assertNull(request.getAwsCostFactor());
+            assertNull(request.getAzureCostFactor());
             assertNull(request.getCustomCO2PerKWH());
             assertNull(request.getCustomDatacenterPUE());
             assertNull(request.getCustomCostPerCoreHour());
@@ -105,6 +107,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
                 .field("sample_size", 2000)
                 .field("requested_duration", 100.54d)
                 .field("aws_cost_factor", 7.3d)
+                .field("azure_cost_factor", 6.4d)
                 .field("co2_per_kwh", 22.4d)
                 .field("datacenter_pue", 1.05d)
                 .field("cost_per_core_hour", 3.32d)
@@ -127,6 +130,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             assertEquals(2000, request.getSampleSize());
             assertEquals(Double.valueOf(100.54d), request.getRequestedDuration());
             assertEquals(Double.valueOf(7.3d), request.getAwsCostFactor());
+            assertEquals(Double.valueOf(6.4d), request.getAzureCostFactor());
             assertEquals(Double.valueOf(22.4d), request.getCustomCO2PerKWH());
             assertEquals(Double.valueOf(1.05d), request.getCustomDatacenterPUE());
             assertEquals(Double.valueOf(3.32d), request.getCustomCostPerCoreHour());
@@ -170,6 +174,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             randomIntBetween(Integer.MIN_VALUE, 0),
             1.0d,
             1.0d,
+            1.0d,
             null,
             null,
             null,
@@ -189,6 +194,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             10,
             1.0d,
             1.0d,
+            1.0d,
             null,
             randomAlphaOfLength(7),
             randomAlphaOfLength(3),
@@ -204,6 +210,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
     public void testValidateStacktraceWithoutIndices() {
         GetStackTracesRequest request = new GetStackTracesRequest(
             1,
+            1.0d,
             1.0d,
             1.0d,
             null,
@@ -223,6 +230,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
     public void testValidateIndicesWithoutStacktraces() {
         GetStackTracesRequest request = new GetStackTracesRequest(
             null,
+            1.0d,
             1.0d,
             1.0d,
             null,
@@ -245,6 +253,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             1,
             1.0d,
             1.0d,
+            1.0d,
             null,
             customIndex,
             randomAlphaOfLength(3),
@@ -260,7 +269,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
     }
 
     public void testConsidersDefaultIndicesInRelatedIndices() {
-        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, 1.0d, null, null, null, null, null, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, 1.0d, 1.0d, null, null, null, null, null, null, null, null);
         String[] indices = request.indices();
         assertEquals(15, indices.length);
     }

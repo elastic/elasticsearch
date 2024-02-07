@@ -255,16 +255,15 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
     @Override
     protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         InternalTimeSeries.InternalBucket reduced = null;
-        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
         for (InternalTimeSeries.InternalBucket bucket : buckets) {
             if (reduced == null) {
                 reduced = new InternalTimeSeries.InternalBucket(bucket.key, bucket.docCount, bucket.aggregations, bucket.keyed);
             } else {
                 reduced.docCount += bucket.docCount;
             }
-            aggregationsList.add(bucket.aggregations);
         }
-        reduced.aggregations = InternalAggregations.reduce(aggregationsList, context);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        reduced.aggregations = InternalAggregations.reduce(aggregations, context);
         return reduced;
     }
 

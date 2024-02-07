@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.util.Collections;
 import java.util.List;
 
 public class GeoIpDownloaderStatsActionResponseSerializingTests extends AbstractWireSerializingTestCase<
@@ -29,7 +28,7 @@ public class GeoIpDownloaderStatsActionResponseSerializingTests extends Abstract
             10,
             GeoIpDownloaderStatsActionNodeResponseSerializingTests::createRandomInstance
         );
-        return new GeoIpDownloaderStatsAction.Response(ClusterName.DEFAULT, nodeResponses, Collections.emptyList());
+        return new GeoIpDownloaderStatsAction.Response(ClusterName.DEFAULT, nodeResponses, List.of());
     }
 
     @Override

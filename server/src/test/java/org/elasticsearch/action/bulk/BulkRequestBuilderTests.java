@@ -10,8 +10,6 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 public class BulkRequestBuilderTests extends ESTestCase {
@@ -20,18 +18,6 @@ public class BulkRequestBuilderTests extends ESTestCase {
         BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(null, null);
         bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
         bulkRequestBuilder.add(new IndexRequest());
-        expectThrows(IllegalStateException.class, bulkRequestBuilder::request);
-
-        bulkRequestBuilder = new BulkRequestBuilder(null, null);
-        bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
-        bulkRequestBuilder.setTimeout(randomTimeValue());
-        bulkRequestBuilder.setTimeout(TimeValue.timeValueSeconds(randomIntBetween(1, 30)));
-        expectThrows(IllegalStateException.class, bulkRequestBuilder::request);
-
-        bulkRequestBuilder = new BulkRequestBuilder(null, null);
-        bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
-        bulkRequestBuilder.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()).getValue());
-        bulkRequestBuilder.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         expectThrows(IllegalStateException.class, bulkRequestBuilder::request);
     }
 }

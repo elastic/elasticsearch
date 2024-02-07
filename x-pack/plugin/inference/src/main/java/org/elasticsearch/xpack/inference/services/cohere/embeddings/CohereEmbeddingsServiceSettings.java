@@ -30,9 +30,9 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
 
     static final String EMBEDDING_TYPE = "embedding_type";
 
-    public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map) {
+    public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, boolean logDeprecations) {
         ValidationException validationException = new ValidationException();
-        var commonServiceSettings = CohereServiceSettings.fromMap(map);
+        var commonServiceSettings = CohereServiceSettings.fromMap(map, logDeprecations);
         CohereEmbeddingType embeddingTypes = extractOptionalEnum(
             map,
             EMBEDDING_TYPE,

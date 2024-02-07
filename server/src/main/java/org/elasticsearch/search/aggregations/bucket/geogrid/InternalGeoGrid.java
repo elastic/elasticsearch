@@ -136,14 +136,13 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
 
     @Override
     protected InternalGeoGridBucket reduceBucket(List<InternalGeoGridBucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
-        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+        assert buckets.isEmpty() == false;
         long docCount = 0;
         for (InternalGeoGridBucket bucket : buckets) {
             docCount += bucket.docCount;
-            aggregationsList.add(bucket.aggregations);
         }
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         return createBucket(buckets.get(0).hashAsLong, docCount, aggs);
     }
 

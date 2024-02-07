@@ -6,9 +6,9 @@ experimental[]
 
 Retrieves {infer} model information.
 
-IMPORTANT: The {infer} APIs enable you to use certain services, such as ELSER, 
-OpenAI, or Hugging Face, in your cluster. This is not the same feature that you 
-can use on an ML node with custom {ml} models. If you want to train and use your 
+IMPORTANT: The {infer} APIs enable you to use certain services, such as ELSER,
+OpenAI, or Hugging Face, in your cluster. This is not the same feature that you
+can use on an ML node with custom {ml} models. If you want to train and use your
 own model, use the <<ml-df-trained-models-apis>>.
 
 
@@ -17,6 +17,8 @@ own model, use the <<ml-df-trained-models-apis>>.
 ==== {api-request-title}
 
 `GET /_inference/_all`
+
+`GET /_inference/<model_id>`
 
 `GET /_inference/<task_type>/_all`
 

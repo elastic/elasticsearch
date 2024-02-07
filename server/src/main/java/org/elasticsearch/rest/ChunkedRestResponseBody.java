@@ -9,6 +9,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -21,6 +22,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -45,13 +48,22 @@ public interface ChunkedRestResponseBody {
     boolean isDone();
 
     /**
-     * @return true if this is the last chunked body in the response.
+     * @return {@code true} if this is the last chunked body in the response, or {@code false} if the REST layer should request further
+     * chunked bodies by calling {@link #getContinuation}.
      */
     boolean isEndOfResponse();
 
     /**
-     * Asynchronously retrieves the next part of the body. Note that this is called on a transport thread, so implementations must take care
-     * to dispatch any nontrivial work elsewhere.
+     * <p>Asynchronously retrieves the next part of the body. Called if {@link #isEndOfResponse} returns {@code false}.</p>
+     *
+     * <p>Note that this is called on a transport thread, so implementations must take care to dispatch any nontrivial work elsewhere.</p>
+
+     * <p>Note that the {@link Task} corresponding to any invocation of {@link Client#execute} completes as soon as the client action
+     * returns its response, so it no longer exists when this method is called and cannot be used to receive cancellation notifications.
+     * Instead, if the HTTP channel is closed while sending a response (including while waiting for a continuation) then the REST layer
+     * will invoke {@link RestResponse#close}. Implementations will typically explicitly create a {@link CancellableTask} to represent the
+     * computation and transmission of the entire {@link RestResponse}, and will cancel this task if the {@link RestResponse} is closed
+     * prematurely.</p>
      *
      * @param listener Listener to complete with the next part of the body. By the point this is called we have already started to send
      *                 the body of the response, so there's no good ways to handle an exception here. Completing the listener exceptionally

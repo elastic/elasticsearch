@@ -239,6 +239,8 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         }
     }
 
+    // TODO add a test showing that we call RestResponse#close even while waiting for a continuation if the HTTP channel closes
+
     private static Releasable withRequestTracker() {
         final var latch = new CountDownLatch(1);
         final var refCounted = AbstractRefCounted.of(latch::countDown);

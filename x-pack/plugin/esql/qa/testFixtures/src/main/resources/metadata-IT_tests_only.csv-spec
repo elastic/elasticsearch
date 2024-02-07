@@ -27,7 +27,7 @@ emp_no:integer
 10002
 ;
 
-metaIndexInAggs[skip:-8.12.99]
+metaIndexInAggs#[skip:-8.12.99]
 // tag::metaIndexInAggs[]
 FROM employees METADATA _index, _id
 | STATS max = MAX(emp_no) BY _index

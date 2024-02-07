@@ -223,7 +223,7 @@ NOTE: You cannot query the role descriptors of an API key.
 ====
 
 `aggs`::
-(Optional, object) Any <<search-aggregations,aggregations>> to run over the corpus of returned API Keys.
+(Optional, object) Any <<search-aggregations,aggregations>> to run over the corpus of returned API keys.
 This supports only a subset of aggregation types, namely: <<search-aggregations-bucket-terms-aggregation,terms>>,
 <<search-aggregations-bucket-range-aggregation,range>>, <<search-aggregations-bucket-daterange-aggregation,date range>>,
 <<search-aggregations-bucket-missing-aggregation,missing>>, <<search-aggregations-metrics-cardinality-aggregation,cardinality>>,
@@ -578,10 +578,16 @@ The response contains a list of matched API keys along with their sort values:
 [[security-api-query-api-key-with-aggs-example]]
 ==== Aggregations Example
 
-Aggregations work together with queries, and cover only the API keys matching the query.
-When the `size` parameter is set to `0`, API Key matches are not returned, but the resulting aggregation is.
+Aggregations and queries work together: aggregations are computed only on the API keys that match the query.
+A missing query is equivalent to a `match_all` query.
 
-You can use the following request to retrieve all valid API keys, i.e. not invalidated and not expired:
+The `size` parameter can be set to `0`, in which case no API key matches are returned,
+but the aggregation is still computed and returned.
+
+For example, given 2 users "june" and "king", each owning 3 API keys
+that respectively expire in 10 and 100 days from now, and never, the following request
+returns the names of valid (not expired and not invalidated) API keys that expire soon (in 30 days time),
+grouped per owner username.
 
 ===== Request
 
@@ -594,25 +600,15 @@ POST /_security/_query/api_key
     "bool": {
       "must": {
         "term": {
-          "invalidated": false
+          "invalidated": false  <1>
         }
       },
-      "should": [
+      "should": [  <2>
         {
-          "range": {
-            "expiration": {
-              "gte": "now"
-            }
-          }
+          "range": { "expiration": { "gte": "now" } }
         },
         {
-          "bool": {
-            "must_not": {
-              "exists": {
-                "field": "expiration"
-              }
-            }
-          }
+          "bool": { "must_not": { "exists": { "field": "expiration" } } }
         }
       ],
       "minimum_should_match": 1
@@ -621,18 +617,12 @@ POST /_security/_query/api_key
   "aggs": {
     "keys_by_username": {
       "composite": {
-        "sources": [
-          { "usernames": { "terms": { "field": "username" } } }
-        ]
+        "sources": [ { "usernames": { "terms": { "field": "username" } } } ]  <3>
       },
       "aggs": {
         "expires_soon": {
           "filter": {
-            "range": {
-              "expiration": {
-                "lte": "now+30d/d"
-              }
-            }
+            "range": { "expiration": { "lte": "now+30d/d" } }  <4>
           },
           "aggs": {
             "key_names": { "terms": { "field": "name" } }
@@ -644,12 +634,17 @@ POST /_security/_query/api_key
 }
 ----
 
+<1> Matching API keys must not be invalidated
+<2> Matching API keys must be either not expired or not have an expiration date
+<3> Aggregate all matching keys (i.e. all valid keys) by their owner username
+<4> Further aggregate the per-username valid keys into a soon-to-expire bucket
+
 ===== Response
 
 [source,console-result]
 ----
 {
-  "total" : 4,
+  "total" : 4,  <1>
   "count" : 0,
   "api_keys" : [ ],
   "aggregations" : {
@@ -662,7 +657,7 @@ POST /_security/_query/api_key
           "key" : {
             "usernames" : "june"
           },
-          "doc_count" : 2,
+          "doc_count" : 2,  <2>
           "expires_soon" : {
             "doc_count" : 1,
             "key_names" : {
@@ -683,11 +678,11 @@ POST /_security/_query/api_key
           },
           "doc_count" : 2,
           "expires_soon" : {
-            "doc_count" : 1,
+            "doc_count" : 1,  <3>
             "key_names" : {
               "doc_count_error_upper_bound" : 0,
               "sum_other_doc_count" : 0,
-              "buckets" : [
+              "buckets" : [  <4>
                 {
                   "key" : "king-key-10",
                   "doc_count" : 1
@@ -701,3 +696,8 @@ POST /_security/_query/api_key
   }
 }
 ----
+
+<1> Total number of valid API keys (2 for each user)
+<2> Number of valid API keys for user "june"
+<3> Number of valid API keys expiring soon for user "king"
+<4> The names of soon-to-expire API keys for user "king"

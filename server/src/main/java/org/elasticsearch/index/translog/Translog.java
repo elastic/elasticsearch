@@ -1315,7 +1315,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (format < FORMAT_NO_DOC_TYPE) {
                 final String docType = in.readString();
                 assert docType.equals(IdFieldMapper.NAME) : docType + " != " + IdFieldMapper.NAME;
-                in.readBytesRef(); // uid
+                in.readSlicedBytesReference(); // uid
             }
             long version = in.readLong();
             if (format < FORMAT_NO_VERSION_TYPE) {

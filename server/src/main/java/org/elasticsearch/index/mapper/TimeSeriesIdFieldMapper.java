@@ -161,7 +161,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
      */
     public static Object encodeTsid(StreamInput in) {
         try {
-            return base64Encode(in.readBytesRef());
+            return base64Encode(in.readSlicedBytesReference().toBytesRef());
         } catch (IOException e) {
             throw new IllegalArgumentException("Unable to read tsid");
         }
@@ -359,7 +359,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     private static String base64Encode(final BytesRef bytesRef) {
         byte[] bytes = new byte[bytesRef.length];
-        System.arraycopy(bytesRef.bytes, 0, bytes, 0, bytesRef.length);
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, bytes, 0, bytesRef.length);
         return BASE64_ENCODER.encodeToString(bytes);
     }
 
@@ -379,7 +379,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             for (int i = 0; i < size; i++) {
                 String name = null;
                 try {
-                    name = in.readBytesRef().utf8ToString();
+                    name = in.readSlicedBytesReference().utf8ToString();
                 } catch (AssertionError ae) {
                     throw new IllegalArgumentException("Error parsing keyword dimension: " + ae.getMessage(), ae);
                 }
@@ -389,7 +389,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                     case (byte) 's' -> {
                         // parse a string
                         try {
-                            result.put(name, in.readBytesRef().utf8ToString());
+                            result.put(name, in.readSlicedBytesReference().utf8ToString());
                         } catch (AssertionError ae) {
                             throw new IllegalArgumentException("Error parsing keyword dimension: " + ae.getMessage(), ae);
                         }

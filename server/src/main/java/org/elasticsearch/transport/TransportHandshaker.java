@@ -277,7 +277,7 @@ final class TransportHandshaker {
             super(streamInput);
             BytesReference remainingMessage;
             try {
-                remainingMessage = streamInput.readBytesReference();
+                remainingMessage = streamInput.readSlicedBytesReference();
             } catch (EOFException e) {
                 remainingMessage = null;
             }

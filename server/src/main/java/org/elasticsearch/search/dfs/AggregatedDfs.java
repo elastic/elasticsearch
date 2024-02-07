@@ -29,8 +29,13 @@ public class AggregatedDfs implements Writeable {
         int size = in.readVInt();
         termStatistics = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            Term term = new Term(in.readString(), in.readBytesRef());
-            TermStatistics stats = new TermStatistics(in.readBytesRef(), in.readVLong(), DfsSearchResult.subOne(in.readVLong()));
+            // term constructor copies the bytes so we can work with a slice
+            Term term = new Term(in.readString(), in.readSlicedBytesReference().toBytesRef());
+            TermStatistics stats = new TermStatistics(
+                in.readSlicedBytesReference().toBytesRef(),
+                in.readVLong(),
+                DfsSearchResult.subOne(in.readVLong())
+            );
             termStatistics.put(term, stats);
         }
         fieldStatistics = DfsSearchResult.readFieldStats(in);

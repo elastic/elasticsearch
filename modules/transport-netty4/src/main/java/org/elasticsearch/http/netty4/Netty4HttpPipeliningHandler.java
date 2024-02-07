@@ -142,6 +142,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         try {
             final Netty4HttpResponse restResponse = (Netty4HttpResponse) msg;
             if (restResponse.getSequence() != writeSequence) {
+                assert restResponse instanceof Netty4ChunkedHttpContinuation == false
+                    : "received out-of-order continuation at [" + restResponse.getSequence() + "], expecting [" + writeSequence + "]";
                 assert restResponse.getSequence() > writeSequence
                     : "response sequence [" + restResponse.getSequence() + "] we below write sequence [" + writeSequence + "]";
                 if (outboundHoldingQueue.size() >= maxEventsHeld) {

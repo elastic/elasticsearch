@@ -56,9 +56,9 @@ public final class NodeMetadata {
     ) {
         this.nodeId = Objects.requireNonNull(nodeId);
         this.nodeVersion = Objects.requireNonNull(nodeVersion);
-        this.nodeVersionAsIndexVersion = nodeVersionAsIndexVersion;
+        this.nodeVersionAsIndexVersion = Objects.requireNonNull(nodeVersionAsIndexVersion);
         this.previousNodeVersion = Objects.requireNonNull(previousNodeVersion);
-        this.previousNodeVersionAsIndexVersion = nodeVersionAsIndexVersion;
+        this.previousNodeVersionAsIndexVersion = Objects.requireNonNull(nodeVersionAsIndexVersion);
         this.oldestIndexVersion = Objects.requireNonNull(oldestIndexVersion);
     }
 
@@ -232,13 +232,13 @@ public final class NodeMetadata {
 
         return nodeVersion.equals(Version.CURRENT)
             ? this
-            : new NodeMetadata(nodeId, Version.CURRENT, IndexVersion.current(), nodeVersion, null, oldestIndexVersion);
+            : new NodeMetadata(nodeId, Version.CURRENT, IndexVersion.current(), nodeVersion, nodeVersionAsIndexVersion, oldestIndexVersion);
     }
 
     private static class Builder {
         String nodeId;
-        Version nodeVersion;
-        Version previousNodeVersion;
+        IndexVersion nodeVersion;
+        IndexVersion previousNodeVersion;
         IndexVersion oldestIndexVersion;
 
         public void setNodeId(String nodeId) {
@@ -246,20 +246,20 @@ public final class NodeMetadata {
         }
 
         public void setNodeVersionId(int nodeVersionId) {
-            this.nodeVersion = Version.fromId(nodeVersionId);
+            this.nodeVersion = versionToIndexVersion(Version.fromId(nodeVersionId));
         }
 
         public void setOldestIndexVersion(int oldestIndexVersion) {
             this.oldestIndexVersion = IndexVersion.fromId(oldestIndexVersion);
         }
 
-        private Version getVersionOrFallbackToEmpty() {
-            return Objects.requireNonNullElse(this.nodeVersion, Version.V_EMPTY);
+        private IndexVersion getVersionOrFallbackToEmpty() {
+            return Objects.requireNonNullElse(this.nodeVersion, IndexVersions.ZERO);
         }
 
         public NodeMetadata build() {
             @UpdateForV9 // version is required in the node metadata from v9 onwards
-            final Version nodeVersion = getVersionOrFallbackToEmpty();
+            final IndexVersion nodeVersion = getVersionOrFallbackToEmpty();
             final IndexVersion oldestIndexVersion;
 
             if (this.previousNodeVersion == null) {
@@ -271,8 +271,14 @@ public final class NodeMetadata {
                 oldestIndexVersion = this.oldestIndexVersion;
             }
 
-            // TODO[wrb]: fix nulls
-            return new NodeMetadata(nodeId, nodeVersion, null, previousNodeVersion, null, oldestIndexVersion);
+            return new NodeMetadata(
+                nodeId,
+                Version.fromId(nodeVersion.id()),
+                nodeVersion,
+                Version.fromId(previousNodeVersion.id()),
+                previousNodeVersion,
+                oldestIndexVersion
+            );
         }
     }
 

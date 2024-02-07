@@ -841,15 +841,15 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
     static String createAndInvalidateApiKey(String name, String authHeader) throws IOException {
         final Tuple<String, String> tuple = createApiKey(name, null, authHeader);
-        invalidateApiKey(tuple.v1(), authHeader);
+        invalidateApiKey(tuple.v1(), true, authHeader);
         return tuple.v1();
     }
 
-    static void invalidateApiKey(String id, String authHeader) throws IOException {
+    static void invalidateApiKey(String id, boolean owner, String authHeader) throws IOException {
         final Request request = new Request("DELETE", "/_security/api_key");
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
         request.setJsonEntity(Strings.format("""
-            {"ids": ["%s"]}""", id));
+            {"ids": ["%s"],"owner":%s}""", id, owner));
         assertOK(client().performRequest(request));
     }
 

@@ -355,11 +355,16 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                   "value_count": {
                     "field": "type"
                   }
+                },
+                "missing_type_count": {
+                  "missing": {
+                    "field": "type"
+                  }
                 }
               }
             }
             """, aggs -> {
-            assertThat(aggs.size(), is(2));
+            assertThat(aggs.size(), is(3));
             // 3 types
             assertThat(((Map<String, Object>) aggs.get("type_cardinality")).get("value"), is(3));
             if (isAdmin) {
@@ -369,6 +374,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
                 // 4 keys
                 assertThat(((Map<String, Object>) aggs.get("type_value_count")).get("value"), is(4));
             }
+            assertThat(((Map<String, Object>) aggs.get("missing_type_count")).get("doc_count"), is(0));
         });
         // runtime type field is disallowed
         {
@@ -401,22 +407,10 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
         String user2Creds = createUser("test-user-2", new String[] { "api_key_user_role" });
         String user3Creds = createUser("test-user-3", new String[] { "api_key_user_role" });
         // create 6 keys for 3 users (2 keys each, one granted)
-        String key1User1KeyId = grantApiKey(
-            "key-1-user-1",
-            "10d",
-            Map.of("labels", List.of("grant", "1", "10d")),
-            API_KEY_ADMIN_AUTH_HEADER,
-            "test-user-1"
-        ).v1();
+        grantApiKey("key-1-user-1", "10d", Map.of("labels", List.of("grant", "1", "10d")), API_KEY_ADMIN_AUTH_HEADER, "test-user-1").v1();
         String key2User1KeyId = createApiKey("key-2-user-1", "20d", null, Map.of("labels", List.of("2", "20d")), user1Creds).v1();
-        String key1User2KeyId = grantApiKey(
-            "key-1-user-2",
-            "30d",
-            Map.of("labels", List.of("grant", "1", "30d")),
-            API_KEY_ADMIN_AUTH_HEADER,
-            "test-user-2"
-        ).v1();
-        String key2User2KeyId = createApiKey("key-2-user-2", "40d", null, Map.of("labels", List.of("2", "40d")), user2Creds).v1();
+        grantApiKey("key-1-user-2", "30d", Map.of("labels", List.of("grant", "1", "30d")), API_KEY_ADMIN_AUTH_HEADER, "test-user-2").v1();
+        createApiKey("key-2-user-2", "40d", null, Map.of("labels", List.of("2", "40d")), user2Creds).v1();
         String key1User3KeyId = grantApiKey(
             "key-1-user-3",
             "50d",
@@ -424,10 +418,10 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             API_KEY_ADMIN_AUTH_HEADER,
             "test-user-3"
         ).v1();
-        String key2User3KeyId = createApiKey("key-2-user-3", "60d", null, Map.of("labels", List.of("2", "60d")), user3Creds).v1();
+        createApiKey("key-2-user-3", "60d", null, Map.of("labels", List.of("2", "60d")), user3Creds).v1();
         // invalidate some two keys
-        invalidateApiKey(key2User1KeyId, API_KEY_ADMIN_AUTH_HEADER);
-        invalidateApiKey(key1User3KeyId, API_KEY_ADMIN_AUTH_HEADER);
+        invalidateApiKey(key2User1KeyId, false, API_KEY_ADMIN_AUTH_HEADER);
+        invalidateApiKey(key1User3KeyId, false, API_KEY_ADMIN_AUTH_HEADER);
 
         assertAggs(API_KEY_ADMIN_AUTH_HEADER, """
             {
@@ -460,6 +454,71 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             assertThat(((Map<String, Object>) buckets.get(2).get("key")).get("usernames"), is("test-user-3"));
             assertThat(buckets.get(2).get("doc_count"), is(1));
         });
+
+        assertAggs(API_KEY_ADMIN_AUTH_HEADER, """
+            {
+              "aggs": {
+                "keys_by_username": {
+                  "composite": {
+                    "sources": [
+                      { "usernames": { "terms": { "field": "username" } } }
+                    ]
+                  },
+                  "aggs": {
+                    "not_expired": {
+                      "filter": {
+                        "range": {
+                          "expiration": {
+                            "gte": "now+35d/d"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """, aggs -> {
+            List<Map<String, Object>> buckets = (List<Map<String, Object>>) ((Map<String, Object>) aggs.get("keys_by_username")).get(
+                "buckets"
+            );
+            assertThat(buckets.size(), is(3));
+            assertThat(buckets.get(0).get("doc_count"), is(2));
+            assertThat(((Map<String, Object>) buckets.get(0).get("key")).get("usernames"), is("test-user-1"));
+            assertThat(((Map<String, Object>) buckets.get(0).get("not_expired")).get("doc_count"), is(0));
+            assertThat(buckets.get(1).get("doc_count"), is(2));
+            assertThat(((Map<String, Object>) buckets.get(1).get("key")).get("usernames"), is("test-user-2"));
+            assertThat(((Map<String, Object>) buckets.get(1).get("not_expired")).get("doc_count"), is(1));
+            assertThat(buckets.get(2).get("doc_count"), is(2));
+            assertThat(((Map<String, Object>) buckets.get(2).get("key")).get("usernames"), is("test-user-3"));
+            assertThat(((Map<String, Object>) buckets.get(2).get("not_expired")).get("doc_count"), is(2));
+        });
+        // "creator" field is disallowed
+        {
+            Request request = new Request("GET", "/_security/_query/api_key");
+            request.setOptions(
+                request.getOptions()
+                    .toBuilder()
+                    .addHeader(HttpHeaders.AUTHORIZATION, randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER))
+            );
+            request.setJsonEntity("""
+                {
+                  "aggs": {
+                    "keys_by_username": {
+                      "composite": {
+                        "sources": [
+                          { "usernames": { "terms": { "field": "username" } } },
+                          { "histo": { "histogram": { "field": "creator", "interval": 5 } } }
+                        ]
+                      }
+                    }
+                  }
+                }
+                """);
+            ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(exception.getResponse().toString(), exception.getResponse().getStatusLine().getStatusCode(), is(400));
+            assertThat(exception.getMessage(), containsString("Field [creator] is not allowed for API Key query or aggregation"));
+        }
     }
 
     void assertAggs(String authHeader, String body, Consumer<Map<String, Object>> aggsVerifier) throws IOException {

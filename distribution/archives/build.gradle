@@ -17,6 +17,20 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
       into('lib') {
         with libFiles
       }
+      //        if ("aarch64".equals(architecture)) {
+//          if ("darwin".equals(platform)) {
+//            into('lib/darwin-aarch64') {
+//              with libsNative
+//            }
+//          } else if ("linux".equals(platform)) {
+//            into('lib/linux-aarch64') {
+//              with libsNative
+//            }
+//          }
+//        }
+      into("lib/${platform}-${architecture}") {
+        with libNativeFiles("${platform}-${architecture}")
+      }
       into('config') {
         dirMode 0750
         fileMode 0660

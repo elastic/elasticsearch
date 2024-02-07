@@ -30,7 +30,7 @@ public class VectorDataInputTests extends AbstractVectorTestCase {
         Path topLevelDir = createTempDir(getTestName());
         var provider = VectorScorerProvider.getInstanceOrNull();
 
-        for  (int times = 0; times < 10; times++) {
+        for (int times = 0; times < 10; times++) {
             int dims = randomIntBetween(1, 10);
             var pad = new byte[dims];
             byte[] bytes = concat(

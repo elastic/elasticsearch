@@ -19,9 +19,12 @@ import org.elasticsearch.core.PathUtils;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -101,9 +104,24 @@ public class ServerProcessBuilder {
         return envVars;
     }
 
+    private List<String> maybeAddJavaLibraryPath(Path esHome, List<String> args) {
+        if (jdk21OrGreater() && isAArch64() && isMacOrLinux()) {
+            var libPath = esHome.resolve("lib").resolve(platformName() + "-aarch64").toAbsolutePath();
+            if (Files.notExists(libPath)) {
+                throw new IllegalStateException("Library path does not exist:" + libPath);
+            }
+            ArrayList<String> l = new ArrayList<>();
+            l.add("-Djava.library.path=" + libPath);
+            l.addAll(args);
+            return List.copyOf(l);
+        } else {
+            return args;
+        }
+    }
+
     private List<String> getJvmArgs() {
         Path esHome = processInfo.workingDir();
-        return List.of(
+        var args = List.of(
             "--module-path",
             esHome.resolve("lib").toString(),
             // Special circumstances require some modules (not depended on by the main server module) to be explicitly added:
@@ -113,6 +131,8 @@ public class ServerProcessBuilder {
             "-m",
             "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch"
         );
+        args = maybeAddJavaLibraryPath(esHome, args);
+        return args;
     }
 
     private String getCommand() {
@@ -203,6 +223,29 @@ public class ServerProcessBuilder {
             // A failure to write here means the process has problems, and it will die anyway. We let this fall through
             // so the pump thread can complete, writing out the actual error. All we get here is the failure to write to
             // the process pipe, which isn't helpful to print.
+        }
+    }
+
+    boolean isAArch64() {
+        String arch = processInfo.sysprops().get("os.arch");
+        return "aarch64".equals(arch);
+    }
+
+    boolean isMacOrLinux() {
+        String name = processInfo.sysprops().get("os.name");
+        return name.startsWith("Mac") || name.startsWith("Linux");
+    }
+
+    boolean jdk21OrGreater() {
+        return Runtime.version().feature() >= 21;
+    }
+
+    String platformName() {
+        String name = processInfo.sysprops().get("os.name");
+        if (name.startsWith("Mac")) {
+            return "darwin";
+        } else {
+            return name.toLowerCase(Locale.ROOT);
         }
     }
 }

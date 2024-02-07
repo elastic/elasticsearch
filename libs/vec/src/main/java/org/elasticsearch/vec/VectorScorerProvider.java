@@ -45,18 +45,12 @@ public interface VectorScorerProvider {
 
         static boolean isAArch64() {
             String arch = getProperty("os.arch");
-            if ("aarch64".equals(arch)) {
-                return true;
-            }
-            return false;
+            return "aarch64".equals(arch);
         }
 
         static boolean isMacOrLinux() {
             String name = getProperty("os.name");
-            if (name.startsWith("Mac") || name.startsWith("Linux")) {
-                return true;
-            }
-            return false;
+            return name.startsWith("Mac") || name.startsWith("Linux");
         }
 
         static boolean jdk21OrGreater() {

@@ -15,8 +15,12 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.lang.reflect.Method;
 import java.nio.channels.FileChannel;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 
 import static java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED;
 import static java.nio.ByteOrder.LITTLE_ENDIAN;
@@ -42,12 +46,14 @@ public class VectorDataInput implements Closeable {
     }
 
     static VectorDataInput createVectorDataInput(Path path) throws IOException {
+        // TODO: add existence / file checks
+
         // Work around for JDK-8259028: we need to unwrap our test-only file system layers
         path = unwrapAll(path);
 
         boolean success = false;
         final Arena arena = Arena.ofShared();
-        try (var fc = FileChannel.open(path, StandardOpenOption.READ)) {
+        try (var fc = privilegedOpen(path, StandardOpenOption.READ)) {
             long fileSize = fc.size();
             var segment = fc.map(FileChannel.MapMode.READ_ONLY, 0, fileSize, arena);
             success = true;
@@ -56,6 +62,15 @@ public class VectorDataInput implements Closeable {
             if (success == false) {
                 arena.close();
             }
+        }
+    }
+
+    @SuppressWarnings("removal")
+    private static FileChannel privilegedOpen(Path path, OpenOption... options) throws IOException {
+        try {
+            return AccessController.doPrivileged((PrivilegedExceptionAction<FileChannel>) () -> FileChannel.open(path, options));
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getCause();
         }
     }
 

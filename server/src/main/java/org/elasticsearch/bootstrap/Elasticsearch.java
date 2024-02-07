@@ -39,6 +39,8 @@ import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.vec.VectorScorerProvider;
+import org.elasticsearch.vec.VectorSimilarityType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -264,6 +266,11 @@ class Elasticsearch {
         } else {
             startCliMonitorThread(System.in);
         }
+
+        // TODO remove - hack just for testing. Ensures that the native lib can be loaded
+        var scorerProvider = VectorScorerProvider.getInstanceOrNull();
+        var scorer = scorerProvider.getScalarQuantizedVectorScorer(1, 2, 1, VectorSimilarityType.DOT_PRODUCT, Path.of("/tmp/x"));
+        scorer.score(0, 1);
     }
 
     /**

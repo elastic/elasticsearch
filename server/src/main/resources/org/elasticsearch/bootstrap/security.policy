@@ -69,6 +69,8 @@ grant codeBase "${codebase.elasticsearch-cli}" {
 
 grant codeBase "${codebase.elasticsearch-vec}" {
   permission java.lang.RuntimePermission "loadLibrary.vec";
+   // TODO remove - hack just for testing.
+  permission java.io.FilePermission "/tmp/x", "read";
 };
 
 grant codeBase "${codebase.jna}" {

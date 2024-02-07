@@ -43,7 +43,6 @@ tasks.withType(Test) {
 // TODO: --enable-native-access= both for test/ALL_UNNAMED, and in the es launcher
 
 tasks.named('forbiddenApisMain21').configure {
-  // TODO: figure out how to allow preview apis
   enabled = false
 }
 

@@ -52,7 +52,6 @@ public class VectorScorerProviderTests extends AbstractVectorTestCase {
         }
     }
 
-    @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
     public void testDotProductRandom() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         final Path topLevelDir = createTempDir(getTestName());

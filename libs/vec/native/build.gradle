@@ -7,12 +7,22 @@
  */
 apply plugin: 'c'
 
+import org.gradle.internal.os.OperatingSystem
+OperatingSystem os = OperatingSystem.current();
+
 // This task is deliberately not depended upon. Run it manually if you
-// modify the native code, then commit the native library:
-//   ./gradlew :libs:elasticsearch-vec:native:vecSharedLibrary
+// modify the native code,
+//   ./gradlew :libs:elasticsearch-vec:native:buildNativeLibrary
+// then commit the native library, e.g.
+//   git commit libs/vec/platform/darwin-aarch64/libvec.dylib
 //
 // Look at the disassemble:
 //  objdump --disassemble-symbols=_dot8s libs/vec/native/build/libs/vec/shared/libvec.dylib
+
+tasks.register("buildNativeLibrary") {
+  dependsOn tasks.named("copyLib")
+}
+
 model {
   platforms {
     aarch64 {
@@ -32,4 +42,9 @@ model {
   }
 }
 
-
+tasks.register("copyLib", Copy).configure {
+  description "Copy native lib"
+  from "build/libs/vec/shared/${os.getSharedLibraryName('vec')}"
+  into "../platform/${os.getNativePrefix()}-aarch64"
+  dependsOn tasks.named("vecSharedLibrary")
+}

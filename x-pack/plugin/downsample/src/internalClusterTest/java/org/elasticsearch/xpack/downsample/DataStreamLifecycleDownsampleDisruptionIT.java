@@ -129,7 +129,8 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         waitUntil(() -> getClusterPendingTasks(cluster.client()).pendingTasks().isEmpty(), 60, TimeUnit.SECONDS);
         ensureStableCluster(cluster.numDataAndMasterNodes());
 
-        final String targetIndex = "downsample-5m-" + sourceIndex;
+        // if the source index has already been downsampled and moved into the data stream just use its name directly
+        final String targetIndex = sourceIndex.startsWith("downsample-5m-") ? sourceIndex : "downsample-5m-" + sourceIndex;
         assertBusy(() -> {
             try {
                 GetSettingsResponse getSettingsResponse = cluster.client()

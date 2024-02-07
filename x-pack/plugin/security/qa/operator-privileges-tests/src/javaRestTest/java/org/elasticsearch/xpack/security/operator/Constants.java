@@ -144,6 +144,7 @@ public class Constants {
         "cluster:admin/xpack/connector/secret/delete",
         "cluster:admin/xpack/connector/secret/get",
         "cluster:admin/xpack/connector/secret/post",
+        "cluster:admin/xpack/connector/secret/put",
         "cluster:admin/xpack/connector/sync_job/cancel",
         "cluster:admin/xpack/connector/sync_job/check_in",
         "cluster:admin/xpack/connector/sync_job/delete",

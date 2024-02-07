@@ -43,7 +43,7 @@ public class NodeMetadataTests extends ESTestCase {
     public void testEqualsHashcodeSerialization() {
         final Path tempDir = createTempDir();
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            NodeMetadata.createWithIndexVersion(randomAlphaOfLength(10), randomIndexVersion(), randomIndexVersion()),
+            NodeMetadata.create(randomAlphaOfLength(10), randomIndexVersion(), randomIndexVersion()),
             nodeMetadata -> {
                 final long generation = NodeMetadata.FORMAT.writeAndCleanup(nodeMetadata, tempDir);
                 final Tuple<NodeMetadata, Long> nodeMetadataLongTuple = NodeMetadata.FORMAT.loadLatestStateWithGeneration(
@@ -55,17 +55,17 @@ public class NodeMetadataTests extends ESTestCase {
                 return nodeMetadataLongTuple.v1();
             },
             nodeMetadata -> switch (randomInt(3)) {
-                case 0 -> NodeMetadata.createWithIndexVersion(
+                case 0 -> NodeMetadata.create(
                     randomAlphaOfLength(21 - nodeMetadata.nodeId().length()),
                     nodeMetadata.indexVersionCheckpoint(),
                     nodeMetadata.oldestIndexVersion()
                 );
-                case 1 -> NodeMetadata.createWithIndexVersion(
+                case 1 -> NodeMetadata.create(
                     nodeMetadata.nodeId(),
                     randomValueOtherThan(nodeMetadata.indexVersionCheckpoint(), this::randomIndexVersion),
                     nodeMetadata.oldestIndexVersion()
                 );
-                default -> NodeMetadata.createWithIndexVersion(
+                default -> NodeMetadata.create(
                     nodeMetadata.nodeId(),
                     nodeMetadata.indexVersionCheckpoint(),
                     randomValueOtherThan(nodeMetadata.oldestIndexVersion(), this::randomIndexVersion)
@@ -92,7 +92,7 @@ public class NodeMetadataTests extends ESTestCase {
 
     public void testUpgradesLegitimateVersions() {
         final String nodeId = randomAlphaOfLength(10);
-        final NodeMetadata nodeMetadata = NodeMetadata.createWithIndexVersion(
+        final NodeMetadata nodeMetadata = NodeMetadata.create(
             nodeId,
             randomValueOtherThanMany(v -> v.after(IndexVersion.current()) || v.before(IndexVersions.V_7_17_0), this::randomIndexVersion),
             IndexVersion.current()
@@ -106,7 +106,7 @@ public class NodeMetadataTests extends ESTestCase {
 
         final IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> NodeMetadata.createWithIndexVersion(nodeId, IndexVersions.ZERO, IndexVersion.current()).upgradeToCurrentVersion()
+            () -> NodeMetadata.create(nodeId, IndexVersions.ZERO, IndexVersion.current()).upgradeToCurrentVersion()
         );
         assertThat(
             illegalStateException.getMessage(),
@@ -121,7 +121,7 @@ public class NodeMetadataTests extends ESTestCase {
     }
 
     public void testDoesNotUpgradeFutureVersion() {
-        NodeMetadata nodeMetadata = NodeMetadata.createWithIndexVersion(
+        NodeMetadata nodeMetadata = NodeMetadata.create(
             randomAlphaOfLength(10),
             tooNewIndexVersion(),
             IndexVersion.current()
@@ -139,7 +139,7 @@ public class NodeMetadataTests extends ESTestCase {
     public void testDoesNotUpgradeAncientVersion() {
         final IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> NodeMetadata.createWithIndexVersion(
+            () -> NodeMetadata.create(
                 randomAlphaOfLength(10),
                 // TODO[wrb]: clumsy, fix it
                 IndexVersion.fromId(tooOldVersion().id()),
@@ -165,7 +165,7 @@ public class NodeMetadataTests extends ESTestCase {
         final String nodeId = randomAlphaOfLength(10);
         final IndexVersion nodeVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_17_0, IndexVersions.V_8_0_0);
 
-        final NodeMetadata nodeMetadata = NodeMetadata.createWithIndexVersion(nodeId, nodeVersion, IndexVersion.current())
+        final NodeMetadata nodeMetadata = NodeMetadata.create(nodeId, nodeVersion, IndexVersion.current())
             .upgradeToCurrentVersion();
         assertThat(nodeMetadata.indexVersionCheckpoint(), equalTo(IndexVersion.current()));
         assertThat(nodeMetadata.previousIndexVersionCheckpoint(), equalTo(nodeVersion));

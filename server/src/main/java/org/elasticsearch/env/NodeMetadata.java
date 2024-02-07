@@ -23,8 +23,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Metadata associated with this node: its persistent node ID and its version.
@@ -47,12 +45,12 @@ public final class NodeMetadata {
     private NodeMetadata(
         final String nodeId,
         final IndexVersion indexVersionCheckpoint,
-        final IndexVersion previousNodeVersionAsIndexVersion,
+        final IndexVersion previousIndexVersionCheckpoint,
         final IndexVersion oldestIndexVersion
     ) {
         this.nodeId = Objects.requireNonNull(nodeId);
         this.indexVersionCheckpoint = Objects.requireNonNull(indexVersionCheckpoint);
-        this.previousIndexVersionCheckpoint = Objects.requireNonNull(previousNodeVersionAsIndexVersion);
+        this.previousIndexVersionCheckpoint = Objects.requireNonNull(previousIndexVersionCheckpoint);
         this.oldestIndexVersion = Objects.requireNonNull(oldestIndexVersion);
     }
 
@@ -60,55 +58,12 @@ public final class NodeMetadata {
         this(nodeId, indexVersionCheckpoint, indexVersionCheckpoint, oldestIndexVersion);
     }
 
-    public static NodeMetadata createWithIndexVersion(
+    public static NodeMetadata create(
         final String nodeId,
-        final IndexVersion nodeVersion,
+        final IndexVersion indexVersionCheckpoint,
         final IndexVersion oldestIndexVersion
     ) {
-        return new NodeMetadata(nodeId, nodeVersion, oldestIndexVersion);
-    }
-
-    static Version indexVersionToVersion(IndexVersion indexVersion) {
-        // index version id and Version id match
-        if (indexVersion.before(IndexVersions.FIRST_DETACHED_INDEX_VERSION)) {
-            return Version.fromId(indexVersion.id());
-        }
-
-        String releaseVersion = indexVersion.toReleaseVersion();
-        // snapshot version
-        if (releaseVersion.contains("snapshot")) {
-            Pattern snapshotPattern = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)-snapshot\\[(\\d+)]$");
-            Matcher matcher = snapshotPattern.matcher(releaseVersion);
-            if (matcher.matches() == false) {
-                throw new AssertionError("Unexpected regex failure for [" + releaseVersion + "]");
-            }
-            // snapshot at or before current version
-            if (Integer.parseInt(matcher.group(2)) <= IndexVersion.current().id()) {
-                return Version.fromString(matcher.group(1));
-            }
-            // snapshot after current version
-            return Version.fromId(indexVersion.id());
-        } else if (indexVersion.between(IndexVersions.FIRST_DETACHED_INDEX_VERSION, IndexVersion.current())) {
-            // two cases: single version (easy) or range of versions
-            if (releaseVersion.contains("-") == false) {
-                return Version.fromString(releaseVersion);
-            }
-
-            Pattern rangePattern = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)-(\\d+\\.\\d+\\.\\d+)$");
-            Matcher matcher = rangePattern.matcher(releaseVersion);
-            if (matcher.matches() == false) {
-                throw new AssertionError("Unexpected regex failure for [" + releaseVersion + "]");
-            }
-            return Version.fromString(matcher.group(2));
-        } else {
-            throw new AssertionError(
-                "Unexpected case of index version id ["
-                    + indexVersion.id()
-                    + "] with release version ["
-                    + indexVersion.toReleaseVersion()
-                    + "]"
-            );
-        }
+        return new NodeMetadata(nodeId, indexVersionCheckpoint, oldestIndexVersion);
     }
 
     @Override
@@ -133,9 +88,9 @@ public final class NodeMetadata {
             + "nodeId='"
             + nodeId
             + '\''
-            + ", nodeVersion="
+            + ", indexVersionCheckpoint="
             + indexVersionCheckpoint
-            + ", previousNodeVersion="
+            + ", previousIndexVersionCheckpoint="
             + previousIndexVersionCheckpoint
             + ", oldestIndexVersion="
             + oldestIndexVersion
@@ -150,8 +105,9 @@ public final class NodeMetadata {
         return this.indexVersionCheckpoint;
     }
 
-    static IndexVersion versionToIndexVersion(Version version) {
+    static IndexVersion idToIndexVersionCheckpoint(int versionId) {
         // case -- ids match
+        Version version = Version.fromId(versionId);
         if (version.before(Version.V_8_11_0)) {
             return IndexVersion.fromId(version.id());
         }
@@ -175,6 +131,7 @@ public final class NodeMetadata {
     }
 
     /**
+     * // TODO[wrb] update comment
      * When a node starts we read the existing node metadata from disk (see NodeEnvironment@loadNodeMetadata), store a reference to the
      * node version that we read from there in {@code previousNodeVersion} and then proceed to upgrade the version to
      * the current version of the node ({@link NodeMetadata#upgradeToCurrentVersion()} before storing the node metadata again on disk.
@@ -227,16 +184,17 @@ public final class NodeMetadata {
 
     private static class Builder {
         String nodeId;
-        IndexVersion nodeVersion;
-        IndexVersion previousNodeVersion;
+        IndexVersion indexVersionCheckpoint;
+        IndexVersion previousIndexVersionCheckpoint;
         IndexVersion oldestIndexVersion;
 
         public void setNodeId(String nodeId) {
             this.nodeId = nodeId;
         }
 
+        // TODO[wrb] rename
         public void setNodeVersionId(int nodeVersionId) {
-            this.nodeVersion = versionToIndexVersion(Version.fromId(nodeVersionId));
+            this.indexVersionCheckpoint = idToIndexVersionCheckpoint(nodeVersionId);
         }
 
         public void setOldestIndexVersion(int oldestIndexVersion) {
@@ -244,16 +202,16 @@ public final class NodeMetadata {
         }
 
         private IndexVersion getVersionOrFallbackToEmpty() {
-            return Objects.requireNonNullElse(this.nodeVersion, IndexVersions.ZERO);
+            return Objects.requireNonNullElse(this.indexVersionCheckpoint, IndexVersions.ZERO);
         }
 
         public NodeMetadata build() {
             @UpdateForV9 // version is required in the node metadata from v9 onwards
-            final IndexVersion nodeVersion = getVersionOrFallbackToEmpty();
+            final IndexVersion indexVersionCheckpoint = getVersionOrFallbackToEmpty();
             final IndexVersion oldestIndexVersion;
 
-            if (this.previousNodeVersion == null) {
-                previousNodeVersion = nodeVersion;
+            if (this.previousIndexVersionCheckpoint == null) {
+                previousIndexVersionCheckpoint = indexVersionCheckpoint;
             }
             if (this.oldestIndexVersion == null) {
                 oldestIndexVersion = IndexVersions.ZERO;
@@ -261,7 +219,7 @@ public final class NodeMetadata {
                 oldestIndexVersion = this.oldestIndexVersion;
             }
 
-            return new NodeMetadata(nodeId, nodeVersion, previousNodeVersion, oldestIndexVersion);
+            return new NodeMetadata(nodeId, indexVersionCheckpoint, previousIndexVersionCheckpoint, oldestIndexVersion);
         }
     }
 

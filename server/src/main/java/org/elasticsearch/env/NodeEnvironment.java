@@ -626,7 +626,7 @@ public final class NodeEnvironment implements Closeable {
                 assert nodeIds.isEmpty() : nodeIds;
                 // If we couldn't find legacy metadata, we set the latest index version to this version. This happens
                 // when we are starting a new node and there are no indices to worry about.
-                metadata = NodeMetadata.createWithIndexVersion(generateNodeId(settings), IndexVersion.current(), IndexVersion.current());
+                metadata = NodeMetadata.create(generateNodeId(settings), IndexVersion.current(), IndexVersion.current());
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
                 metadata = legacyMetadata;

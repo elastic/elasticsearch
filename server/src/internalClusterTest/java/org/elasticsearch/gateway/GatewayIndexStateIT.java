@@ -565,7 +565,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                     .build()
             );
             NodeMetadata.FORMAT.writeAndCleanup(
-                NodeMetadata.createWithIndexVersion(nodeId, IndexVersion.current(), metadata.oldestIndexVersion()),
+                NodeMetadata.create(nodeId, IndexVersion.current(), metadata.oldestIndexVersion()),
                 paths
             );
         });

@@ -222,7 +222,7 @@ public class GatewayMetaState implements Closeable {
             }
             // write legacy node metadata to prevent accidental downgrades from spawning empty cluster state
             NodeMetadata.FORMAT.writeAndCleanup(
-                NodeMetadata.createWithIndexVersion(
+                NodeMetadata.create(
                     persistedClusterStateService.getNodeId(),
                     IndexVersion.current(),
                     clusterState.metadata().oldestIndexVersion()
@@ -264,7 +264,7 @@ public class GatewayMetaState implements Closeable {
             metaStateService.deleteAll();
             // write legacy node metadata to prevent downgrades from spawning empty cluster state
             NodeMetadata.FORMAT.writeAndCleanup(
-                NodeMetadata.createWithIndexVersion(
+                NodeMetadata.create(
                     persistedClusterStateService.getNodeId(),
                     IndexVersion.current(),
                     clusterState.metadata().oldestIndexVersion()

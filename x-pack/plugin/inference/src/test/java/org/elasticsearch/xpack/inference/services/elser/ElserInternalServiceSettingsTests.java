@@ -87,6 +87,19 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
         assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_allocations]"));
     }
 
+    public void testBwcWrite() throws IOException {
+        {
+            var settings = new ElserInternalServiceSettings(1, 1, ".elser_model_1");
+            var copy = copyInstance(settings, TransportVersions.V_8_12_X);
+            assertEquals(settings, copy);
+        }
+        {
+            var settings = new ElserInternalServiceSettings(1, 1, ".elser_model_1");
+            var copy = copyInstance(settings, TransportVersions.V_8_11_X);
+            assertEquals(settings, copy);
+        }
+    }
+
     public void testFromMapInvalidSettings() {
         var settingsMap = new HashMap<String, Object>(
             Map.of(ElserInternalServiceSettings.NUM_ALLOCATIONS, 0, ElserInternalServiceSettings.NUM_THREADS, -1)

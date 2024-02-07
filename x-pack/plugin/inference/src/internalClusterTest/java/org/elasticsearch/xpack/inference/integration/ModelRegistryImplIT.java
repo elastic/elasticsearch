@@ -26,10 +26,10 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeModel;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceTests;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalModel;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceTests;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettingsTests;
 import org.junit.Before;
 
@@ -116,8 +116,8 @@ public class ModelRegistryImplIT extends ESSingleNodeTestCase {
 
         assertEquals(model.getConfigurations().getService(), modelHolder.get().service());
 
-        var elserService = new ElserMlNodeService(new InferenceServiceExtension.InferenceServiceFactoryContext(mock(Client.class)));
-        ElserMlNodeModel roundTripModel = elserService.parsePersistedConfigWithSecrets(
+        var elserService = new ElserInternalService(new InferenceServiceExtension.InferenceServiceFactoryContext(mock(Client.class)));
+        ElserInternalModel roundTripModel = elserService.parsePersistedConfigWithSecrets(
             modelHolder.get().inferenceEntityId(),
             modelHolder.get().taskType(),
             modelHolder.get().settings(),
@@ -273,7 +273,7 @@ public class ModelRegistryImplIT extends ESSingleNodeTestCase {
     }
 
     private Model buildElserModelConfig(String inferenceEntityId, TaskType taskType) {
-        return ElserMlNodeServiceTests.randomModelConfig(inferenceEntityId, taskType);
+        return ElserInternalServiceTests.randomModelConfig(inferenceEntityId, taskType);
     }
 
     protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)
@@ -296,8 +296,8 @@ public class ModelRegistryImplIT extends ESSingleNodeTestCase {
             new ModelWithUnknownField(
                 inferenceEntityId,
                 TaskType.SPARSE_EMBEDDING,
-                ElserMlNodeService.NAME,
-                ElserMlNodeServiceSettingsTests.createRandom(),
+                ElserInternalService.NAME,
+                ElserInternalServiceSettingsTests.createRandom(),
                 ElserMlNodeTaskSettingsTests.createRandom()
             )
         );

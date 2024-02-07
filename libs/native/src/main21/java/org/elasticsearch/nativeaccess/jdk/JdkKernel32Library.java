@@ -30,9 +30,9 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_CHAR;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.elasticsearch.nativeaccess.jdk.RuntimeHelper.downcallHandle;
-import static org.elasticsearch.nativeaccess.jdk.RuntimeHelper.upcallHandle;
-import static org.elasticsearch.nativeaccess.jdk.RuntimeHelper.upcallStub;
+import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.upcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.upcallStub;
 
 class JdkKernel32Library implements Kernel32Library {
 

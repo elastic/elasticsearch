@@ -25,7 +25,7 @@ import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.elasticsearch.nativeaccess.jdk.RuntimeHelper.downcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 class JdkPosixCLibrary implements PosixCLibrary {
 

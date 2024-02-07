@@ -28,7 +28,7 @@ import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 import static org.elasticsearch.nativeaccess.jdk.JdkPosixCLibrary.CAPTURE_ERRNO_OPTION;
 import static org.elasticsearch.nativeaccess.jdk.JdkPosixCLibrary.downcallHandleWithErrno;
 import static org.elasticsearch.nativeaccess.jdk.JdkPosixCLibrary.errnoState;
-import static org.elasticsearch.nativeaccess.jdk.RuntimeHelper.downcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 class JdkLinuxCLibrary implements LinuxCLibrary {
 

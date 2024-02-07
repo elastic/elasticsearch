@@ -23,7 +23,7 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.jdk.JdkPosixCLibrary.errnoState;
-import static org.elasticsearch.nativeaccess.jdk.RuntimeHelper.downcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 class JdkMacCLibrary implements MacCLibrary {
 

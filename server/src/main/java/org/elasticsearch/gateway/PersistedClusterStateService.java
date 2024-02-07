@@ -381,7 +381,7 @@ public class PersistedClusterStateService {
         // case 1: "legacy" ID, matches an IndexVersion
         // case 2: version ID that's diverged from indexVersion ID
         // case 3: indexVersion ID from new code
-        return new NodeMetadata(nodeId, version, oldestIndexVersion);
+        return NodeMetadata.createWithVersion(nodeId, version, oldestIndexVersion);
     }
 
     /**

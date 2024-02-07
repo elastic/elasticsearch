@@ -56,8 +56,12 @@ public final class NodeMetadata {
         this.oldestIndexVersion = Objects.requireNonNull(oldestIndexVersion);
     }
 
-    public NodeMetadata(final String nodeId, final Version nodeVersion, final IndexVersion oldestIndexVersion) {
+    private NodeMetadata(final String nodeId, final Version nodeVersion, final IndexVersion oldestIndexVersion) {
         this(nodeId, nodeVersion, nodeVersion, oldestIndexVersion);
+    }
+
+    public static NodeMetadata createWithVersion(final String nodeId, final Version nodeVersion, final IndexVersion oldestIndexVersion) {
+        return new NodeMetadata(nodeId, nodeVersion, oldestIndexVersion);
     }
 
     public static NodeMetadata createWithIndexVersion(

@@ -56,17 +56,17 @@ public class NodeMetadataTests extends ESTestCase {
             },
             nodeMetadata -> switch (randomInt(3)) {
                 // TODO[wrb]: change these after we have nodeVersion as indexVersion getter
-                case 0 -> new NodeMetadata(
+                case 0 -> NodeMetadata.createWithVersion(
                     randomAlphaOfLength(21 - nodeMetadata.nodeId().length()),
                     nodeMetadata.nodeVersion(),
                     nodeMetadata.oldestIndexVersion()
                 );
-                case 1 -> new NodeMetadata(
+                case 1 -> NodeMetadata.createWithVersion(
                     nodeMetadata.nodeId(),
                     randomValueOtherThan(nodeMetadata.nodeVersion(), this::randomVersion),
                     nodeMetadata.oldestIndexVersion()
                 );
-                default -> new NodeMetadata(
+                default -> NodeMetadata.createWithVersion(
                     nodeMetadata.nodeId(),
                     nodeMetadata.nodeVersion(),
                     randomValueOtherThan(nodeMetadata.oldestIndexVersion(), this::randomIndexVersion)

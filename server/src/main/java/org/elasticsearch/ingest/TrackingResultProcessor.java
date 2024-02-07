@@ -184,13 +184,13 @@ public final class TrackingResultProcessor implements Processor {
         });
     }
 
-    private void decorateAndExecutePipeline(Pipeline pipeline, IngestDocument ingestDocument, Tuple<String, Boolean> conditionalWithResult,
-                                            BiConsumer<IngestDocument, Exception> handler) {
-        CompoundProcessor verbosePipelineProcessor = decorateNoCycleCheck(
-            pipeline.getCompoundProcessor(),
-            null,
-            processorResultList
-        );
+    private void decorateAndExecutePipeline(
+        Pipeline pipeline,
+        IngestDocument ingestDocument,
+        Tuple<String, Boolean> conditionalWithResult,
+        BiConsumer<IngestDocument, Exception> handler
+    ) {
+        CompoundProcessor verbosePipelineProcessor = decorateNoCycleCheck(pipeline.getCompoundProcessor(), null, processorResultList);
         // add the pipeline process to the results
         processorResultList.add(
             new SimulateProcessorResult(

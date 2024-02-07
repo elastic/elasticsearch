@@ -6,6 +6,79 @@
 <titleabbrev>Query API key information</titleabbrev>
 ++++
 
+////
+[source,console]
+----
+POST /_security/user/king
+{
+  "password" : "security-test-password"
+}
+POST /_security/user/june
+{
+  "password" : "security-test-password"
+}
+POST /_security/api_key/grant
+{
+  "grant_type": "password",
+  "username" : "king",
+  "password" : "security-test-password",
+  "api_key" : {
+    "name": "king-key-no-expire"
+  }
+}
+POST /_security/api_key/grant
+{
+  "grant_type": "password",
+  "username" : "king",
+  "password" : "security-test-password",
+  "api_key" : {
+    "name": "king-key-10",
+    "expiration": "10d"
+  }
+}
+POST /_security/api_key/grant
+{
+  "grant_type": "password",
+  "username" : "king",
+  "password" : "security-test-password",
+  "api_key" : {
+    "name": "king-key-100",
+    "expiration": "100d"
+  }
+}
+POST /_security/api_key/grant
+{
+  "grant_type": "password",
+  "username" : "june",
+  "password" : "security-test-password",
+  "api_key" : {
+    "name": "june-key-no-expire"
+  }
+}
+POST /_security/api_key/grant
+{
+  "grant_type": "password",
+  "username" : "june",
+  "password" : "security-test-password",
+  "api_key" : {
+    "name": "june-key-10",
+    "expiration": "10d"
+  }
+}
+POST /_security/api_key/grant
+{
+  "grant_type": "password",
+  "username" : "june",
+  "password" : "security-test-password",
+  "api_key" : {
+    "name": "june-key-100",
+    "expiration": "100d"
+  }
+}
+----
+// TESTSETUP
+////
+
 Retrieves information for API keys with <<query-dsl,Query DSL>>
 in a <<paginate-search-results,paginated>> fashion.
 

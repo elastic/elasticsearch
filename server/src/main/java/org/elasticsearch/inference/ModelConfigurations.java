@@ -53,6 +53,18 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         );
     }
 
+    public static ModelConfigurations withoutHiddenFields(ModelConfigurations configurations) {
+        Objects.requireNonNull(configurations);
+
+        return new ModelConfigurations(
+            configurations.inferenceEntityId,
+            configurations.taskType,
+            configurations.service,
+            configurations.serviceSettings.withoutHiddenFields(),
+            configurations.taskSettings
+        );
+    }
+
     private final String inferenceEntityId;
     private final TaskType taskType;
     private final String service;
@@ -124,6 +136,18 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings);
+        builder.field(TASK_SETTINGS, taskSettings);
+        builder.endObject();
+        return builder;
+    }
+
+    // TODO make an interface for this
+    public XContentBuilder toFilteredXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(MODEL_ID, inferenceEntityId);
+        builder.field(TaskType.NAME, taskType.toString());
+        builder.field(SERVICE, service);
+        builder.field(SERVICE_SETTINGS, serviceSettings.toFilteredXContentObject());
         builder.field(TASK_SETTINGS, taskSettings);
         builder.endObject();
         return builder;

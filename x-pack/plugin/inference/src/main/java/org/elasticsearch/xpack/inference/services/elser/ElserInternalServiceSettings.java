@@ -118,5 +118,4 @@ public class ElserInternalServiceSettings extends InternalServiceSettings {
             && getNumThreads() == that.getNumThreads()
             && Objects.equals(getModelId(), that.getModelId());
     }
-
 }

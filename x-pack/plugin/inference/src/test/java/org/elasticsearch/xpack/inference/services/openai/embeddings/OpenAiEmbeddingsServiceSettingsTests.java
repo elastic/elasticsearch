@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.openai;
+package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -15,6 +15,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiParseContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -23,21 +24,21 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<OpenAiServiceSettings> {
+public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<OpenAiEmbeddingsServiceSettings> {
 
-    public static OpenAiServiceSettings createRandomWithNonNullUrl() {
+    public static OpenAiEmbeddingsServiceSettings createRandomWithNonNullUrl() {
         return createRandom(randomAlphaOfLength(15));
     }
 
     /**
      * The created settings can have a url set to null.
      */
-    public static OpenAiServiceSettings createRandom() {
+    public static OpenAiEmbeddingsServiceSettings createRandom() {
         var url = randomBoolean() ? randomAlphaOfLength(15) : null;
         return createRandom(url);
     }
 
-    private static OpenAiServiceSettings createRandom(String url) {
+    private static OpenAiEmbeddingsServiceSettings createRandom(String url) {
         var organizationId = randomBoolean() ? randomAlphaOfLength(15) : null;
         SimilarityMeasure similarityMeasure = null;
         Integer dims = null;
@@ -47,21 +48,28 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
             dims = 1536;
         }
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
-        return new OpenAiServiceSettings(ServiceUtils.createUri(url), organizationId, similarityMeasure, dims, maxInputTokens);
+        return new OpenAiEmbeddingsServiceSettings(
+            ServiceUtils.createUri(url),
+            organizationId,
+            similarityMeasure,
+            dims,
+            maxInputTokens,
+            randomBoolean()
+        );
     }
 
-    public void testFromMap() {
+    public void testFromRequestMap() {
         var url = "https://www.abc.com";
         var org = "organization";
         var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         var dims = 1536;
         var maxInputTokens = 512;
-        var serviceSettings = OpenAiServiceSettings.fromMap(
+        var serviceSettings = OpenAiEmbeddingsServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.URL,
                     url,
-                    OpenAiServiceSettings.ORGANIZATION,
+                    OpenAiEmbeddingsServiceSettings.ORGANIZATION,
                     org,
                     ServiceFields.SIMILARITY,
                     similarity,
@@ -70,17 +78,29 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens
                 )
-            )
+            ),
+            OpenAiParseContext.REQUEST
         );
 
         assertThat(
             serviceSettings,
-            is(new OpenAiServiceSettings(ServiceUtils.createUri(url), org, SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens))
+            is(
+                new OpenAiEmbeddingsServiceSettings(
+                    ServiceUtils.createUri(url),
+                    org,
+                    SimilarityMeasure.DOT_PRODUCT,
+                    dims,
+                    maxInputTokens,
+                    true
+                )
+            )
         );
     }
 
     public void testFromMap_MissingUrl_DoesNotThrowException() {
-        var serviceSettings = OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceSettings.ORGANIZATION, "org")));
+        var serviceSettings = OpenAiEmbeddingsServiceSettings.fromMap(
+            new HashMap<>(Map.of(OpenAiEmbeddingsServiceSettings.ORGANIZATION, "org"))
+        );
         assertNull(serviceSettings.uri());
         assertThat(serviceSettings.organizationId(), is("org"));
     }
@@ -88,7 +108,7 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
     public void testFromMap_EmptyUrl_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")))
+            () -> OpenAiEmbeddingsServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")))
         );
 
         assertThat(
@@ -103,7 +123,7 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
     }
 
     public void testFromMap_MissingOrganization_DoesNotThrowException() {
-        var serviceSettings = OpenAiServiceSettings.fromMap(new HashMap<>());
+        var serviceSettings = OpenAiEmbeddingsServiceSettings.fromMap(new HashMap<>());
         assertNull(serviceSettings.uri());
         assertNull(serviceSettings.organizationId());
     }
@@ -111,7 +131,7 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
     public void testFromMap_EmptyOrganization_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceSettings.ORGANIZATION, "")))
+            () -> OpenAiEmbeddingsServiceSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsServiceSettings.ORGANIZATION, "")))
         );
 
         assertThat(
@@ -119,7 +139,7 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
             containsString(
                 Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
-                    OpenAiServiceSettings.ORGANIZATION
+                    OpenAiEmbeddingsServiceSettings.ORGANIZATION
                 )
             )
         );
@@ -129,7 +149,7 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
         var url = "https://www.abc^.com";
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url)))
+            () -> OpenAiEmbeddingsServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url)))
         );
 
         assertThat(
@@ -142,24 +162,24 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
         var similarity = "by_size";
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.SIMILARITY, similarity)))
+            () -> OpenAiEmbeddingsServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.SIMILARITY, similarity)))
         );
 
         assertThat(thrownException.getMessage(), is("Validation Failed: 1: [service_settings] Unknown similarity measure [by_size];"));
     }
 
     @Override
-    protected Writeable.Reader<OpenAiServiceSettings> instanceReader() {
-        return OpenAiServiceSettings::new;
+    protected Writeable.Reader<OpenAiEmbeddingsServiceSettings> instanceReader() {
+        return OpenAiEmbeddingsServiceSettings::new;
     }
 
     @Override
-    protected OpenAiServiceSettings createTestInstance() {
+    protected OpenAiEmbeddingsServiceSettings createTestInstance() {
         return createRandomWithNonNullUrl();
     }
 
     @Override
-    protected OpenAiServiceSettings mutateInstance(OpenAiServiceSettings instance) throws IOException {
+    protected OpenAiEmbeddingsServiceSettings mutateInstance(OpenAiEmbeddingsServiceSettings instance) throws IOException {
         return createRandomWithNonNullUrl();
     }
 
@@ -171,7 +191,7 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
         }
 
         if (org != null) {
-            map.put(OpenAiServiceSettings.ORGANIZATION, org);
+            map.put(OpenAiEmbeddingsServiceSettings.ORGANIZATION, org);
         }
         return map;
     }

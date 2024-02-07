@@ -19,6 +19,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiParseContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,11 +44,11 @@ public record OpenAiEmbeddingsTaskSettings(String modelId, @Nullable String user
         "The openai [task_settings.model] field is deprecated. Please use [task_settings.model_id] instead.";
     private static final Logger logger = LogManager.getLogger(OpenAiEmbeddingsTaskSettings.class);
 
-    public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, boolean logDeprecations) {
+    public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, OpenAiParseContext context) {
         ValidationException validationException = new ValidationException();
 
         String oldModelId = extractOptionalString(map, OLD_MODEL_ID_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
-        if (logDeprecations && oldModelId != null) {
+        if (OpenAiParseContext.isRequestContext(context) && oldModelId != null) {
             logger.info(MODEL_DEPRECATION_MESSAGE);
         }
 

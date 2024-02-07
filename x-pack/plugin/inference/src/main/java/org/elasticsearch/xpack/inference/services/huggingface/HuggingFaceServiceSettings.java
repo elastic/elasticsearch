@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
@@ -115,6 +116,11 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
     }
 
     @Override
+    public ToXContentObject toFilteredXContentObject() {
+        return this;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -165,4 +171,5 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
     public int hashCode() {
         return Objects.hash(uri, similarity, dimensions, maxInputTokens);
     }
+
 }

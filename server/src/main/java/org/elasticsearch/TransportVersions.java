@@ -173,6 +173,7 @@ public class TransportVersions {
     public static final TransportVersion SEARCH_TIMEOUT_EXCEPTION_ADDED = def(8_586_00_0);
     public static final TransportVersion ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED = def(8_587_00_0);
     public static final TransportVersion HEALTH_INFO_ENRICHED_WITH_REPOS = def(8_588_00_0);
+    public static final TransportVersion ML_DIMENSIONS_SET_BY_USER_ADDED = def(8_589_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

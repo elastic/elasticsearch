@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.textembedding.MultilingualE5SmallInternalServiceSettings;
@@ -125,7 +125,11 @@ public class InferenceNamedWriteablesProvider {
 
         // OpenAI
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(ServiceSettings.class, OpenAiServiceSettings.NAME, OpenAiServiceSettings::new)
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OpenAiEmbeddingsServiceSettings.NAME,
+                OpenAiEmbeddingsServiceSettings::new
+            )
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(TaskSettings.class, OpenAiEmbeddingsTaskSettings.NAME, OpenAiEmbeddingsTaskSettings::new)

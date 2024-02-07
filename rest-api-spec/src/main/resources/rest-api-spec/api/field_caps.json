@@ -74,6 +74,7 @@
       },
       "include_empty_fields": {
         "type":"boolean",
+        "default": true,
         "description":"Include empty fields in result"
       }
     },

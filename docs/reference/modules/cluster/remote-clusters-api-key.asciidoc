@@ -179,7 +179,7 @@ keystore:
 ./bin/elasticsearch-keystore add cluster.remote.ALIAS.credentials
 ----
 +
-Replace `ALIAS` with the alias you will use to connect to the remote cluster
+Replace `ALIAS` with the same name that you will use to create the remote cluster entry
 later. When prompted, enter the encoded cross-cluster API key created on the
 remote cluster earlier.
 

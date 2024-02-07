@@ -146,10 +146,6 @@ public final class NodeMetadata {
         return nodeId;
     }
 
-    public Version nodeVersion() {
-        return indexVersionToVersion(indexVersionCheckpoint);
-    }
-
     public IndexVersion indexVersionCheckpoint() {
         return this.indexVersionCheckpoint;
     }
@@ -184,10 +180,6 @@ public final class NodeMetadata {
      * the current version of the node ({@link NodeMetadata#upgradeToCurrentVersion()} before storing the node metadata again on disk.
      * In doing so, {@code previousNodeVersion} refers to the previously last known version that this node was started on.
      */
-    public Version previousNodeVersion() {
-        return indexVersionToVersion(previousIndexVersionCheckpoint);
-    }
-
     public IndexVersion previousIndexVersionCheckpoint() {
         return this.previousIndexVersionCheckpoint;
     }

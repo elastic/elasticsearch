@@ -168,7 +168,7 @@ public class NodeMetadataTests extends ESTestCase {
         final NodeMetadata nodeMetadata = NodeMetadata.createWithIndexVersion(nodeId, nodeVersion, IndexVersion.current())
             .upgradeToCurrentVersion();
         assertThat(nodeMetadata.indexVersionCheckpoint(), equalTo(IndexVersion.current()));
-        assertThat(nodeMetadata.previousNodeVersion().toString(), equalTo(nodeVersion.toReleaseVersion()));
+        assertThat(nodeMetadata.previousIndexVersionCheckpoint(), equalTo(nodeVersion));
     }
 
     public static Version tooNewVersion() {

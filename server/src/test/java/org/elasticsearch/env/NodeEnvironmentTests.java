@@ -588,7 +588,7 @@ public class NodeEnvironmentTests extends ESTestCase {
 
             Version oldVersion = Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
             IndexVersion oldIndexVersion = IndexVersion.fromId(between(1, IndexVersions.MINIMUM_COMPATIBLE.id() - 1));
-            Version previousNodeVersion = Version.fromId(between(Version.CURRENT.minimumCompatibilityVersion().id, Version.CURRENT.id - 1));
+            IndexVersion previousNodeVersion = IndexVersion.fromId(between(IndexVersions.V_7_17_0.id(), IndexVersion.current().id() - 1));
             overrideOldestIndexVersion(oldIndexVersion, previousNodeVersion, env.nodeDataPaths());
 
             IllegalStateException ex = expectThrows(
@@ -604,7 +604,9 @@ public class NodeEnvironmentTests extends ESTestCase {
                     containsString("it holds metadata for indices with version [" + oldIndexVersion + "]"),
                     containsString(
                         "Revert this node to version ["
-                            + (previousNodeVersion.major == Version.V_8_0_0.major ? Version.V_7_17_0 : previousNodeVersion)
+                            + (previousNodeVersion.onOrAfter(IndexVersions.V_8_0_0)
+                                ? IndexVersions.V_7_17_0.toReleaseVersion()
+                                : previousNodeVersion.toReleaseVersion())
                             + "]"
                     )
                 )
@@ -756,7 +758,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
-    private static void overrideOldestIndexVersion(IndexVersion oldestIndexVersion, Version previousNodeVersion, Path... dataPaths)
+    private static void overrideOldestIndexVersion(IndexVersion oldestIndexVersion, IndexVersion previousNodeVersion, Path... dataPaths)
         throws IOException {
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
@@ -772,7 +774,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                         )
                     ) {
                         final Map<String, String> commitData = new HashMap<>(userData);
-                        commitData.put(NODE_VERSION_KEY, Integer.toString(previousNodeVersion.id));
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(previousNodeVersion.id()));
                         commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id()));
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();

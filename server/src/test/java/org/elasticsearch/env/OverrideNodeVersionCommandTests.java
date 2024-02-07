@@ -114,6 +114,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
     }
 
+    // TODO[wrb] fix up to use index versions?
     public void testWarnsIfTooOld() throws Exception {
         final Version nodeVersion = NodeMetadataTests.tooOldVersion();
         PersistedClusterStateService.overrideVersion(nodeVersion, dataPaths);
@@ -130,17 +131,18 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
                 containsString("too old"),
                 containsString("data loss"),
                 containsString("You should not use this tool"),
-                containsString(Version.CURRENT.toString()),
-                containsString(nodeVersion.toString())
+                containsString(IndexVersion.current().toReleaseVersion()),
+                containsString(IndexVersion.fromId(nodeVersion.id()).toReleaseVersion())
             )
         );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
-        assertThat(nodeMetadata.nodeVersion(), equalTo(nodeVersion));
+        assertThat(nodeMetadata.indexVersionCheckpoint(), equalTo(IndexVersion.fromId(nodeVersion.id())));
     }
 
     public void testWarnsIfTooNew() throws Exception {
+        // TODO[wrb]: fix this up to use index version
         final Version nodeVersion = NodeMetadataTests.tooNewVersion();
         PersistedClusterStateService.overrideVersion(nodeVersion, dataPaths);
         final MockTerminal mockTerminal = MockTerminal.create();
@@ -155,16 +157,17 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             allOf(
                 containsString("data loss"),
                 containsString("You should not use this tool"),
-                containsString(Version.CURRENT.toString()),
-                containsString(nodeVersion.toString())
+                containsString(IndexVersion.current().toReleaseVersion()),
+                containsString(IndexVersion.fromId(nodeVersion.id()).toReleaseVersion())
             )
         );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
-        assertThat(nodeMetadata.nodeVersion(), equalTo(nodeVersion));
+        assertThat(nodeMetadata.indexVersionCheckpoint(), equalTo(IndexVersion.fromId(nodeVersion.id())));
     }
 
+    // TODO[wrb] fixup message here
     public void testOverwritesIfTooOld() throws Exception {
         final Version nodeVersion = NodeMetadataTests.tooOldVersion();
         PersistedClusterStateService.overrideVersion(nodeVersion, dataPaths);
@@ -177,8 +180,8 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
                 containsString("too old"),
                 containsString("data loss"),
                 containsString("You should not use this tool"),
-                containsString(Version.CURRENT.toString()),
-                containsString(nodeVersion.toString()),
+                containsString(IndexVersion.current().toReleaseVersion()),
+                containsString(IndexVersion.fromId(nodeVersion.id()).toReleaseVersion()),
                 containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)
             )
         );
@@ -188,6 +191,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         assertThat(nodeMetadata.indexVersionCheckpoint(), equalTo(IndexVersion.current()));
     }
 
+    // TODO[wrb] fixup to use index version
     public void testOverwritesIfTooNew() throws Exception {
         final Version nodeVersion = NodeMetadataTests.tooNewVersion();
         PersistedClusterStateService.overrideVersion(nodeVersion, dataPaths);
@@ -199,8 +203,8 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             allOf(
                 containsString("data loss"),
                 containsString("You should not use this tool"),
-                containsString(Version.CURRENT.toString()),
-                containsString(nodeVersion.toString()),
+                containsString(IndexVersion.current().toReleaseVersion()),
+                containsString(IndexVersion.fromId(nodeVersion.id()).toReleaseVersion()),
                 containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)
             )
         );

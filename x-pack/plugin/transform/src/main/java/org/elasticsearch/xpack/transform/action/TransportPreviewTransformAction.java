@@ -306,6 +306,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             );
         }, listener::onFailure);
 
-        function.deduceMappings(parentTaskClient, filteredHeaders, source, deduceMappingsListener);
+        function.deduceMappings(parentTaskClient, filteredHeaders, transformId, source, deduceMappingsListener);
     }
 }

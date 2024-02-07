@@ -210,7 +210,7 @@ public class QueryPhase {
             if (searcher.timeExceeded()) {
                 assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
                 if (searchContext.request().allowPartialSearchResults() == false) {
-                    throw new QueryPhaseTimeoutException(searchContext.shardTarget(), "Time exceeded");
+                    throw new SearchTimeoutException(searchContext.shardTarget(), "Time exceeded");
                 }
                 queryResult.searchTimedOut(true);
             }

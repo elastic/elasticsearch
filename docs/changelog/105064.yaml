@@ -1,0 +1,17 @@
+pr: 105064
+summary: "ES|QL: remove PROJECT keyword from the grammar"
+area: ES|QL
+type: breaking
+issues: []
+breaking:
+  title: "ES|QL: remove PROJECT keyword from the grammar"
+  area: REST API
+  details: "Removes the PROJECT keyword (an alias for KEEP) from ES|QL grammar"
+  impact: "Before this change, users could use PROJECT as an alias for KEEP in ESQL queries,\
+    \ (eg. 'FROM idx | PROJECT name, surname')\
+    \ the parser replaced PROJECT with KEEP, emitted a warning:\
+    \ 'PROJECT command is no longer supported, please use KEEP instead'\
+    \ and the query was executed normally.\
+    \ With this change, PROJECT command is no longer recognized by the query parser;\
+    \ queries using PROJECT command now return a parsing exception."
+  notable: false

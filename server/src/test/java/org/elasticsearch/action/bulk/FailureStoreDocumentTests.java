@@ -16,6 +16,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -58,10 +59,11 @@ public class FailureStoreDocumentTests extends ESTestCase {
         assertThat(ObjectPath.eval("error.message", convertedRequest.sourceAsMap()), is(equalTo("Test exception please ignore")));
         assertThat(
             ObjectPath.eval("error.stack_trace", convertedRequest.sourceAsMap()),
-            startsWith(
-                "org.elasticsearch.ElasticsearchException: Test exception please ignore\n"
-                    + "\tat org.elasticsearch.action.bulk.FailureStoreDocumentTests.testFailureStoreDocumentConverstion"
-            )
+            startsWith("org.elasticsearch.ElasticsearchException: Test exception please ignore")
+        );
+        assertThat(
+            ObjectPath.eval("error.stack_trace", convertedRequest.sourceAsMap()),
+            containsString("at org.elasticsearch.action.bulk.FailureStoreDocumentTests.testFailureStoreDocumentConverstion")
         );
 
         assertThat(convertedRequest.isWriteToFailureStore(), is(true));

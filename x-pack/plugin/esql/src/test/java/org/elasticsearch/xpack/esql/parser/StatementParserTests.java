@@ -754,8 +754,9 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testUsageOfProject() {
-        processingCommand("project a");
-        assertWarnings("PROJECT command is no longer supported, please use KEEP instead");
+        String query = "from test | project foo, bar";
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
+        assertThat(e.getMessage(), containsString("mismatched input 'project' expecting"));
     }
 
     public void testInputParams() {

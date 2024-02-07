@@ -6,7 +6,7 @@ setup:
   - do:
       inference.put_model:
         task_type: sparse_embedding
-        model_id: test-inference-id
+        inference_id: test-inference-id
         body: >
           {
             "service": "test_service",

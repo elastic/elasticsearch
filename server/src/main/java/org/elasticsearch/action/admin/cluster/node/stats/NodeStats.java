@@ -304,7 +304,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
         return Iterators.concat(
 
-            Iterators.single((builder, params) -> {
+            singleChunk((builder, params) -> {
                 builder.field("name", getNode().getName());
                 builder.field("transport_address", getNode().getAddress().toString());
                 builder.field("host", getNode().getHostName());
@@ -343,8 +343,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
             ifPresent(getIngestStats()).toXContentChunked(outerParams),
             singleChunk(ifPresent(getAdaptiveSelectionStats())),
             ifPresent(getScriptCacheStats()).toXContentChunked(outerParams),
-            singleChunk(ifPresent(getIndexingPressureStats())),
-            singleChunk(ifPresent(getRepositoriesStats()))
+            singleChunk((builder, p) -> builder.value(ifPresent(getIndexingPressureStats()), p).value(ifPresent(getRepositoriesStats()), p))
         );
     }
 

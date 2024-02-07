@@ -1,6 +1,6 @@
-# Distributed Internals
+# Distributed Area Team Internals
 
-(Summary  brief discussion of our features)
+(Summary, brief discussion of our features)
 
 # Networking
 

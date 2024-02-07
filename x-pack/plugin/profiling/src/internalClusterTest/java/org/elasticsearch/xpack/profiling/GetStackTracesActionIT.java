@@ -77,6 +77,8 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(39, stackTrace.fileIds.size());
         assertEquals(39, stackTrace.frameIds.size());
         assertEquals(39, stackTrace.typeIds.size());
+        assertTrue(stackTrace.annualCO2Tons > 0.0d);
+        assertTrue(stackTrace.annualCostsUSD > 0.0d);
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("fhsEKXDuxJ-jIJrZpdRuSAAAAAAAAFtj");
@@ -141,6 +143,8 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(39, stackTrace.fileIds.size());
         assertEquals(39, stackTrace.frameIds.size());
         assertEquals(39, stackTrace.typeIds.size());
+        assertTrue(stackTrace.annualCO2Tons > 0.0d);
+        assertTrue(stackTrace.annualCostsUSD > 0.0d);
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("fhsEKXDuxJ-jIJrZpdRuSAAAAAAAAFtj");

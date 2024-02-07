@@ -88,14 +88,13 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
 
     @Override
     public B reduceBucket(List<B> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
+        assert buckets.isEmpty() == false;
         long docCount = 0;
         // For the per term doc count error we add up the errors from the
         // shards that did not respond with the term. To do this we add up
         // the errors from the shards that did respond with the terms and
         // subtract that from the sum of the error from all shards
         long docCountError = 0;
-        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
         for (B bucket : buckets) {
             docCount += bucket.getDocCount();
             if (docCountError != -1) {
@@ -105,9 +104,9 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                     docCountError += bucket.getDocCountError();
                 }
             }
-            aggregationsList.add(bucket.getAggregations());
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         return createBucket(docCount, aggs, docCountError, buckets.get(0));
     }
 

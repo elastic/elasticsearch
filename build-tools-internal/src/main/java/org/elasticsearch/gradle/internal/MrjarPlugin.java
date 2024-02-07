@@ -11,11 +11,14 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.api.tasks.testing.Test;
 import org.gradle.jvm.tasks.Jar;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
@@ -72,9 +75,19 @@ public class MrjarPlugin implements Plugin<Project> {
         SourceSet sourceSet = javaExtension.getSourceSets().maybeCreate(sourcesetName);
         GradleUtils.extendSourceSet(project, SourceSet.MAIN_SOURCE_SET_NAME, sourcesetName);
 
-        project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME).configure(jarTask -> {
-            jarTask.into("META-INF/versions/" + javaVersion, copySpec -> copySpec.from(sourceSet.getOutput()));
-            jarTask.manifest(manifest -> { manifest.attributes(Map.of("Multi-Release", "true")); });
+        var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
+        jarTask.configure(task -> {
+            task.into("META-INF/versions/" + javaVersion, copySpec -> copySpec.from(sourceSet.getOutput()));
+            task.manifest(manifest -> { manifest.attributes(Map.of("Multi-Release", "true")); });
+        });
+
+        project.getTasks().withType(Test.class).named(JavaPlugin.TEST_TASK_NAME).configure(testTask -> {
+            testTask.dependsOn(jarTask);
+
+            SourceSetContainer sourceSets = GradleUtils.getJavaSourceSets(project);
+            FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
+            FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();
+            testTask.setClasspath(testRuntime.minus(mainRuntime).plus(project.files(jarTask)));
         });
 
         project.getTasks().withType(JavaCompile.class).named(sourceSet.getCompileJavaTaskName()).configure(compileTask -> {

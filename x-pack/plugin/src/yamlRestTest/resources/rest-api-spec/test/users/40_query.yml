@@ -64,6 +64,17 @@ teardown:
   - match: { "created": true }
 
   - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "test_user_1",
+            "password" : "x-pack-test-password"
+          }
+  - is_true: uid
+  - set: { uid: profile_uid_1 }
+
+  - do:
       headers:
         Authorization: "Basic dXNlcnNfYWRtaW46eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # users_admin
       security.put_user:
@@ -120,6 +131,8 @@ teardown:
             "from": 1,
             "size": 1
           }
+        with_profile_uid: true
   - match: { total: 2 }
   - match: { count: 1 }
   - match: { users.0.username: "test_user_1" }
+  - match: { users.0.profile_uid: "$profile_uid_1" }

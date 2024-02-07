@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.services.cohere;
@@ -11,6 +13,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -96,7 +99,22 @@ public class CohereServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var model = service.parseRequestConfig(
+
+            ActionListener<Model> modelListener = ActionListener.wrap(model -> {
+                MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
+
+                var embeddingsModel = (CohereEmbeddingsModel) model;
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
+                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+                MatcherAssert.assertThat(
+                    embeddingsModel.getTaskSettings(),
+                    is(new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START))
+                );
+                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
+
+            service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
@@ -104,20 +122,10 @@ public class CohereServiceTests extends ESTestCase {
                     getTaskSettingsMap(InputType.INGEST, CohereTruncation.START),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of()
+                Set.of(),
+                modelListener
             );
 
-            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
-
-            var embeddingsModel = (CohereEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
-            MatcherAssert.assertThat(
-                embeddingsModel.getTaskSettings(),
-                is(new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START))
-            );
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
@@ -128,25 +136,31 @@ public class CohereServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var thrownException = expectThrows(
+
+            var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig(
-                    "id",
-                    TaskType.SPARSE_EMBEDDING,
-                    getRequestConfigMap(
-                        CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null, null),
-                        getTaskSettingsMapEmpty(),
-                        getSecretSettingsMap("secret")
-                    ),
-                    Set.of()
-                )
+                "The [cohere] service does not support task type [sparse_embedding]"
             );
 
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("The [cohere] service does not support task type [sparse_embedding]")
+            service.parseRequestConfig(
+                "id",
+                TaskType.SPARSE_EMBEDDING,
+                getRequestConfigMap(
+                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null, null),
+                    getTaskSettingsMapEmpty(),
+                    getSecretSettingsMap("secret")
+                ),
+                Set.of(),
+                failureListener
             );
         }
+    }
+
+    private static ActionListener<Model> getModelListenerForException(Class<?> exceptionClass, String expectedMessage) {
+        return ActionListener.<Model>wrap((model) -> fail("Model parsing should have failed"), e -> {
+            MatcherAssert.assertThat(e, instanceOf(exceptionClass));
+            MatcherAssert.assertThat(e.getMessage(), is(expectedMessage));
+        });
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
@@ -163,15 +177,11 @@ public class CohereServiceTests extends ESTestCase {
             );
             config.put("extra_key", "value");
 
-            var thrownException = expectThrows(
+            var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
+                "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
-
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service")
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), failureListener);
         }
     }
 
@@ -187,15 +197,11 @@ public class CohereServiceTests extends ESTestCase {
 
             var config = getRequestConfigMap(serviceSettings, getTaskSettingsMap(null, null), getSecretSettingsMap("secret"));
 
-            var thrownException = expectThrows(
+            var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
+                "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
-
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service")
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), failureListener);
         }
     }
 
@@ -215,15 +221,12 @@ public class CohereServiceTests extends ESTestCase {
                 getSecretSettingsMap("secret")
             );
 
-            var thrownException = expectThrows(
+            var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
+                "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), failureListener);
 
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service")
-            );
         }
     }
 
@@ -243,15 +246,11 @@ public class CohereServiceTests extends ESTestCase {
                 secretSettingsMap
             );
 
-            var thrownException = expectThrows(
+            var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
+                "Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
             );
-
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service")
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), failureListener);
         }
     }
 
@@ -262,7 +261,16 @@ public class CohereServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var model = service.parseRequestConfig(
+            var modelListener = ActionListener.<Model>wrap((model) -> {
+                MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
+
+                var embeddingsModel = (CohereEmbeddingsModel) model;
+                assertNull(embeddingsModel.getServiceSettings().getCommonSettings().getUri());
+                MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
+                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, (e) -> fail("Model parsing should have succeeded " + e.getMessage()));
+
+            service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
@@ -270,15 +278,10 @@ public class CohereServiceTests extends ESTestCase {
                     getTaskSettingsMapEmpty(),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of()
+                Set.of(),
+                modelListener
             );
 
-            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
-
-            var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertNull(embeddingsModel.getServiceSettings().getCommonSettings().getUri());
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
@@ -306,7 +309,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -396,7 +399,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.INT8));
             MatcherAssert.assertThat(
                 embeddingsModel.getTaskSettings(),
@@ -463,7 +466,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -524,7 +527,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.SEARCH, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -548,7 +551,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, CohereTruncation.NONE)));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -596,7 +599,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().getCommonSettings().getUri());
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
             assertNull(embeddingsModel.getSecretSettings());
@@ -671,7 +674,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getUri().toString(), is("url"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModel(), is("model"));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().getModelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.INGEST, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }

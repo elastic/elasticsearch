@@ -461,6 +461,7 @@ public class Constants {
         "indices:admin/block/add",
         "indices:admin/block/add[s]",
         "indices:admin/cache/clear",
+        "indices:admin/data_stream/lazy_rollover",
         "indices:internal/admin/ccr/restore/file_chunk/get",
         "indices:internal/admin/ccr/restore/session/clear",
         "indices:internal/admin/ccr/restore/session/put",

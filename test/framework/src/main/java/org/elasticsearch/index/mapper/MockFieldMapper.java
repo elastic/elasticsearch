@@ -70,18 +70,18 @@ public class MockFieldMapper extends FieldMapper {
             this.fieldType = new FakeFieldType(name);
         }
 
+        protected Builder(MappedFieldType fieldType) {
+            super(fieldType.name());
+            this.fieldType = fieldType;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return FieldMapper.EMPTY_PARAMETERS;
         }
 
-        public Builder addMultiField(Builder builder) {
+        public Builder addMultiField(FieldMapper.Builder builder) {
             this.multiFieldsBuilder.add(builder);
-            return this;
-        }
-
-        public Builder addMultiField(FieldMapper mapper) {
-            this.multiFieldsBuilder.add(mapper);
             return this;
         }
 

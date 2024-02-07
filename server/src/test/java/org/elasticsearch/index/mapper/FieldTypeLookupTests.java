@@ -451,15 +451,19 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     public void testInferenceModelFieldTypeInMultiField() {
-        MockFieldMapper inferenceModelFieldMapper = new MockFieldMapper(new MockInferenceModelFieldType("field.semantic", "test_model"));
-        MockFieldMapper.Builder parentFieldMapperBuilder = new MockFieldMapper.Builder("field").addMultiField(inferenceModelFieldMapper);
+        MockFieldMapper.Builder inferenceModelFieldMapperBuilder = new MockFieldMapper.Builder(
+            new MockInferenceModelFieldType("field.semantic", "test_model")
+        );
+        MockFieldMapper.Builder parentFieldMapperBuilder = new MockFieldMapper.Builder("field").addMultiField(
+            inferenceModelFieldMapperBuilder
+        );
         MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
         // TODO: testSourcePathWithMultiFields doesn't pass mappers that are multi-fields directly to FieldTypeLookup.
         //       Is this a problem?
         {
             FieldTypeLookup lookup = new FieldTypeLookup(
-                List.of(parentFieldMapperBuilder.build(context), inferenceModelFieldMapper),
+                List.of(parentFieldMapperBuilder.build(context), inferenceModelFieldMapperBuilder.build(context)),
                 emptyList(),
                 emptyList()
             );
@@ -469,7 +473,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         {
             // Invert mapper order to test that processing order in FieldTypeLookup constructor does not matter
             FieldTypeLookup lookup = new FieldTypeLookup(
-                List.of(inferenceModelFieldMapper, parentFieldMapperBuilder.build(context)),
+                List.of(inferenceModelFieldMapperBuilder.build(context), parentFieldMapperBuilder.build(context)),
                 emptyList(),
                 emptyList()
             );
@@ -506,8 +510,10 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     public void testInferenceModelFieldTypeInMultiFieldWithCopyTo() {
-        MockFieldMapper inferenceModelFieldMapper = new MockFieldMapper(new MockInferenceModelFieldType("field1.semantic", "test_model"));
-        MockFieldMapper.Builder field1MapperBuilder = new MockFieldMapper.Builder("field1").addMultiField(inferenceModelFieldMapper);
+        MockFieldMapper.Builder inferenceModelFieldMapperBuilder = new MockFieldMapper.Builder(
+            new MockInferenceModelFieldType("field1.semantic", "test_model")
+        );
+        MockFieldMapper.Builder field1MapperBuilder = new MockFieldMapper.Builder("field1").addMultiField(inferenceModelFieldMapperBuilder);
         MockFieldMapper.Builder field2MapperBuilder = new MockFieldMapper.Builder("field2").copyTo("field1");
         MockFieldMapper.Builder field3MapperBuilder = new MockFieldMapper.Builder("field3").copyTo("field1");
         MapperBuilderContext context = MapperBuilderContext.root(false, false);
@@ -518,7 +524,7 @@ public class FieldTypeLookupTests extends ESTestCase {
                     field1MapperBuilder.build(context),
                     field2MapperBuilder.build(context),
                     field3MapperBuilder.build(context),
-                    inferenceModelFieldMapper
+                    inferenceModelFieldMapperBuilder.build(context)
                 ),
                 emptyList(),
                 emptyList()
@@ -534,7 +540,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             // Pass inferenceModelFieldMapper first to test that processing order in FieldTypeLookup constructor does not matter
             FieldTypeLookup lookup = new FieldTypeLookup(
                 List.of(
-                    inferenceModelFieldMapper,
+                    inferenceModelFieldMapperBuilder.build(context),
                     field1MapperBuilder.build(context),
                     field2MapperBuilder.build(context),
                     field3MapperBuilder.build(context)

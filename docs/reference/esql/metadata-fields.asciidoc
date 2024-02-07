@@ -5,10 +5,10 @@
 <titleabbrev>Metadata fields</titleabbrev>
 ++++
 
-{esql} can access <<mapping-fields, metadata fields>>. The currently
-supported ones are:
+{esql} can access <<mapping-fields, metadata fields>>. The following are currently
+supported:
 
-  * <<mapping-index-field,`_index`>>: the index to which the document belongs.
+  * <<mapping-index-field,`_index`>>: the index the document belongs to.
   The field is of the type <<keyword, keyword>>.
 
   * <<mapping-id-field,`_id`>>: the source document's ID. The field is of the
@@ -21,8 +21,8 @@ supported ones are:
   that was passed at index time. The field is loaded as a special `_source` 
   type. This field is not supported by functions.
 
-To enable the access to these fields, the <<esql-from,`FROM`>> source command needs
-to be provided with a dedicated directive:
+To enable access to these fields, the <<esql-from,`FROM`>> source command 
+requires a dedicated directive:
 
 [source,esql]
 ----
@@ -33,8 +33,8 @@ Metadata fields are only available if the source of the data is an index.
 Consequently, `FROM` is the only source commands that supports the `METADATA`
 directive.
 
-Once enabled, the fields are then available to subsequent processing commands, just
-like the other index fields:
+Once enabled, these fields will be available to subsequent processing commands, just
+like other index fields:
 
 [source.merge.styled,esql]
 ----
@@ -45,9 +45,9 @@ include::{esql-specs}/metadata-IT_tests_only.csv-spec[tag=multipleIndices]
 include::{esql-specs}/metadata-IT_tests_only.csv-spec[tag=multipleIndices-result]
 |===
 
-Also, similar to the index fields, once an aggregation is performed, a
+Similar to index fields, once an aggregation is performed, a
 metadata field will no longer be accessible to subsequent commands, unless
-used as grouping field:
+used as a grouping field:
 
 [source.merge.styled,esql]
 ----

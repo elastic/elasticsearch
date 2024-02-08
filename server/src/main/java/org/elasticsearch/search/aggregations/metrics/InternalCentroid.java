@@ -12,6 +12,7 @@ import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ParseField;
@@ -95,25 +96,33 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
     /** Create a new centroid with by reducing from the sums and total count */
     protected abstract InternalCentroid copyWith(double firstSum, double secondSum, long totalCount);
 
-    @Override
-    public InternalCentroid reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        double firstSum = Double.NaN;
-        double secondSum = Double.NaN;
-        long totalCount = 0;
-        for (InternalAggregation aggregation : aggregations) {
-            InternalCentroid centroidAgg = (InternalCentroid) aggregation;
-            if (centroidAgg.count > 0) {
-                totalCount += centroidAgg.count;
-                if (Double.isNaN(firstSum)) {
-                    firstSum = centroidAgg.count * firstField.extractor.apply(centroidAgg.centroid);
-                    secondSum = centroidAgg.count * secondField.extractor.apply(centroidAgg.centroid);
-                } else {
-                    firstSum += centroidAgg.count * firstField.extractor.apply(centroidAgg.centroid);
-                    secondSum += centroidAgg.count * secondField.extractor.apply(centroidAgg.centroid);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+
+            double firstSum = Double.NaN;
+            double secondSum = Double.NaN;
+            long totalCount = 0;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalCentroid centroidAgg = (InternalCentroid) aggregation;
+                if (centroidAgg.count > 0) {
+                    totalCount += centroidAgg.count;
+                    if (Double.isNaN(firstSum)) {
+                        firstSum = centroidAgg.count * firstField.extractor.apply(centroidAgg.centroid);
+                        secondSum = centroidAgg.count * secondField.extractor.apply(centroidAgg.centroid);
+                    } else {
+                        firstSum += centroidAgg.count * firstField.extractor.apply(centroidAgg.centroid);
+                        secondSum += centroidAgg.count * secondField.extractor.apply(centroidAgg.centroid);
+                    }
                 }
             }
-        }
-        return copyWith(firstSum, secondSum, totalCount);
+
+            @Override
+            public InternalAggregation get() {
+                return copyWith(firstSum, secondSum, totalCount);
+            }
+        };
     }
 
     @Override

@@ -89,7 +89,7 @@ public class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuild
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.COUNTED_KEYWORD_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.IntSummaryStatistics;
 import java.util.List;
@@ -224,7 +225,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         List<QueryRulesetListItem> results = response.queryPage().results();
         IntSummaryStatistics ruleStats = results.stream().mapToInt(QueryRulesetListItem::ruleTotalCount).summaryStatistics();
 
-        Map<QueryRuleCriteriaType, Integer> criteriaTypeCountMap = new HashMap<>();
+        Map<QueryRuleCriteriaType, Integer> criteriaTypeCountMap = new EnumMap<>(QueryRuleCriteriaType.class);
         results.stream()
             .flatMap(result -> result.criteriaTypeToCountMap().entrySet().stream())
             .forEach(entry -> criteriaTypeCountMap.merge(entry.getKey(), entry.getValue(), Integer::sum));

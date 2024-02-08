@@ -72,12 +72,6 @@ public abstract class InternalMultiBucketAggregation<
      */
     public abstract B createBucket(InternalAggregations aggregations, B prototype);
 
-    /**
-     * Reduce a list of same-keyed buckets (from multiple shards) to a single bucket. This
-     * requires all buckets to have the same key.
-     */
-    protected abstract B reduceBucket(List<B> buckets, AggregationReduceContext context);
-
     /** Helps to lazily construct the aggregation list for reduction */
     protected static class BucketAggregationList<B extends Bucket> extends AbstractList<InternalAggregations> {
         private final List<B> buckets;

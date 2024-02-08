@@ -1739,7 +1739,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     public void testPushDownMetadataIndexInWildcard() {
         var plan = physicalPlan("""
-            from test [metadata _index]
+            from test metadata _index
             | where _index like "test*"
             """);
 
@@ -1766,7 +1766,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      */
     public void testPushDownMetadataIndexInEquality() {
         var plan = physicalPlan("""
-            from test [metadata _index]
+            from test metadata _index
             | where _index == "test"
             """);
 
@@ -1793,7 +1793,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      */
     public void testPushDownMetadataIndexInNotEquality() {
         var plan = physicalPlan("""
-            from test [metadata _index]
+            from test metadata _index
             | where _index != "test"
             """);
 
@@ -1830,7 +1830,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             tuple("<=", LessThanOrEqual.class)
             // no NullEquals use
         )) {
-            var plan = physicalPlan("from test [metadata _index] | where _index " + t.v1() + " \"test\"");
+            var plan = physicalPlan("from test metadata _index | where _index " + t.v1() + " \"test\"");
 
             var optimized = optimizedPlan(plan);
             var limit = as(optimized, LimitExec.class);
@@ -1851,7 +1851,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     public void testDontPushDownMetadataVersionAndId() {
         for (var t : List.of(tuple("_version", "2"), tuple("_id", "\"2\""))) {
-            var plan = physicalPlan("from test [metadata " + t.v1() + "] | where " + t.v1() + " == " + t.v2());
+            var plan = physicalPlan("from test metadata " + t.v1() + " | where " + t.v1() + " == " + t.v2());
 
             var optimized = optimizedPlan(plan);
             var limit = as(optimized, LimitExec.class);

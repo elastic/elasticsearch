@@ -58,8 +58,8 @@
 ---
 "unsupported and invalid mapped fields":
   - skip:
-      version: " - 8.11.99"
-      reason: "fixes in 8.12 or later"
+      version: " - 8.12.99"
+      reason: "fixes in 8.13 or later"
   - do:
       indices.create:
         index: index1
@@ -107,7 +107,7 @@
   - do:
       esql.query:
         body:
-          query: 'from index* [metadata _index] | limit 5 | sort _index desc'
+          query: 'from index* metadata _index | limit 5 | sort _index desc'
   - match: { columns.0.name: http.headers }
   - match: { columns.0.type: unsupported }
   - match: { columns.1.name: http.headers.location }

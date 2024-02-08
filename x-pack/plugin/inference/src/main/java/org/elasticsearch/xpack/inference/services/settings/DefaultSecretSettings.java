@@ -71,7 +71,7 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_OPENAI_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override

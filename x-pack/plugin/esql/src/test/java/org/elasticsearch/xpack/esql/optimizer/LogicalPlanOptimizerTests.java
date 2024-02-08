@@ -12,9 +12,11 @@ import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
+import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
@@ -85,9 +87,11 @@ import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -96,6 +100,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
@@ -124,21 +129,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static Map<String, EsField> mapping;
     private static Map<String, EsField> mappingAirports;
     private static Analyzer analyzerAirports;
+    private static EnrichResolution enrichResolution;
 
     @BeforeClass
     public static void init() {
         parser = new EsqlParser();
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
-        var enrichResolution = AnalyzerTestUtils.loadEnrichPolicyResolution(
-            "languages_idx",
-            "id",
-            "languages_idx",
-            "mapping-languages.json"
-        );
+        enrichResolution = AnalyzerTestUtils.loadEnrichPolicyResolution("languages_idx", "id", "languages_idx", "mapping-languages.json");
 
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping);
+        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
@@ -147,7 +148,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         // Some tests use data from the airports index, so we load it here, and use it in the plan_airports() function.
         mappingAirports = loadMapping("mapping-airports.json");
-        EsIndex airports = new EsIndex("airports", mappingAirports);
+        EsIndex airports = new EsIndex("airports", mappingAirports, Set.of("airports"));
         IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
         analyzerAirports = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
@@ -2921,6 +2922,30 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(agg.output()), contains("count(salary + 1)", "max(salary   +  23)", "languages   + 1", "emp_no %  3"));
     }
 
+    public void testLogicalPlanOptimizerVerifier() {
+        var plan = plan("""
+            from test
+            | eval bucket_start = 1, bucket_end = 100000
+            | eval auto_bucket(salary, 10, bucket_start, bucket_end)
+            """);
+        var ab = as(plan, Eval.class);
+        assertTrue(ab.optimized());
+    }
+
+    public void testLogicalPlanOptimizerVerificationException() {
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+            from test
+            | eval bucket_end = 100000
+            | eval auto_bucket(salary, 10, emp_no, bucket_end)
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        final String header = "Found 1 problem\nline ";
+        assertEquals(
+            "3:8: third argument of [auto_bucket(salary, 10, emp_no, bucket_end)] must be a constant, received [emp_no]",
+            e.getMessage().substring(header.length())
+        );
+    }
+
     /**
      * Expects
      * Project[[x{r}#5]]
@@ -3180,6 +3205,33 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var fields = eval.fields();
         assertThat(Expressions.attribute(fields.get(0)), is(Expressions.attribute(grouping)));
         assertThat(Expressions.attribute(fields.get(1)), is(Expressions.attribute(sum_argument)));
+    }
+
+    public void testEmptyMappingIndex() {
+        EsIndex empty = new EsIndex("empty_test", emptyMap(), emptySet());
+        IndexResolution getIndexResultAirports = IndexResolution.valid(empty);
+        var analyzer = new Analyzer(
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
+            TEST_VERIFIER
+        );
+
+        var plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test")));
+        as(plan, LocalRelation.class);
+        assertThat(plan.output(), equalTo(NO_FIELDS));
+
+        plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test metadata _id | eval x = 1")));
+        as(plan, LocalRelation.class);
+        assertThat(Expressions.names(plan.output()), contains("_id", "x"));
+
+        plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test metadata _id, _version | limit 5")));
+        as(plan, LocalRelation.class);
+        assertThat(Expressions.names(plan.output()), contains("_id", "_version"));
+
+        plan = logicalOptimizer.optimize(
+            analyzer.analyze(parser.createStatement("from empty_test | eval x = \"abc\" | enrich languages_idx on x"))
+        );
+        LocalRelation local = as(plan, LocalRelation.class);
+        assertThat(Expressions.names(local.output()), contains(NO_FIELDS.get(0).name(), "x", "language_code", "language_name"));
     }
 
     private LogicalPlan optimizedPlan(String query) {

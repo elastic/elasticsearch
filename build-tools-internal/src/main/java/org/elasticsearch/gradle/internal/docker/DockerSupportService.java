@@ -25,8 +25,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -75,7 +75,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             Version version = null;
             boolean isVersionHighEnough = false;
             boolean isComposeAvailable = false;
-            Set<Architecture> supportedArchitectures = new HashSet<>();
+            Set<Architecture> supportedArchitectures = EnumSet.noneOf(Architecture.class);
 
             // Check if the Docker binary exists
             final Optional<String> dockerBinary = getDockerPath();

@@ -18,7 +18,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeDocValuesQuery;
+import org.elasticsearch.lucene.spatial.CartesianShapeDocValuesQuery;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 
 public class ShapeQueryProcessor {

@@ -24,6 +24,7 @@ class GetStackTracesResponseBuilder {
     private long totalSamples;
     private Double requestedDuration;
     private final Double awsCostFactor;
+    private final Double azureCostFactor;
     private final Double customCO2PerKWH;
     private final Double customDatacenterPUE;
     private final Double customPerCoreWattX86;
@@ -106,6 +107,10 @@ class GetStackTracesResponseBuilder {
         return awsCostFactor;
     }
 
+    public Double getAzureCostFactor() {
+        return azureCostFactor;
+    }
+
     public Double getCustomCO2PerKWH() {
         return customCO2PerKWH;
     }
@@ -133,6 +138,7 @@ class GetStackTracesResponseBuilder {
     GetStackTracesResponseBuilder(GetStackTracesRequest request) {
         this.requestedDuration = request.getRequestedDuration();
         this.awsCostFactor = request.getAwsCostFactor();
+        this.azureCostFactor = request.getAzureCostFactor();
         this.customCO2PerKWH = request.getCustomCO2PerKWH();
         this.customDatacenterPUE = request.getCustomDatacenterPUE();
         this.customPerCoreWattX86 = request.getCustomPerCoreWattX86();

@@ -974,8 +974,11 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 assertEquals(request.uri(), url);
                 final var response = RestResponse.chunked(
                     OK,
-                    ChunkedRestResponseBody.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
-                    responseReleasedLatch::countDown
+                    ChunkedRestResponseBody.fromTextChunks(
+                        RestResponse.TEXT_CONTENT_TYPE,
+                        Collections.emptyIterator(),
+                        responseReleasedLatch::countDown
+                    )
                 );
                 transportClosedFuture.addListener(ActionListener.running(() -> channel.sendResponse(response)));
                 handlingRequestLatch.countDown();

@@ -314,8 +314,14 @@ public class TextEmbeddingInternalService implements InferenceService {
                 INFERENCE_ORIGIN,
                 PutTrainedModelAction.INSTANCE,
                 putRequest,
-                listener.delegateFailure((l, r) -> {
-                    l.onResponse(Boolean.TRUE);
+                ActionListener.wrap(response -> listener.onResponse(Boolean.TRUE), e -> {
+                    if (e instanceof ElasticsearchStatusException esException
+                        && esException.getMessage()
+                            .contains("the model id is the same as the deployment id of a current model deployment")) {
+                        listener.onResponse(Boolean.TRUE);
+                    } else {
+                        listener.onFailure(e);
+                    }
                 })
             );
         } else if (model instanceof CustomElandModel elandModel) {

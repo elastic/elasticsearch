@@ -230,7 +230,8 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         if (TrainedModelAssignmentMetadata.fromState(state).hasDeployment(trainedModelConfig.getModelId())) {
             finalResponseListener.onFailure(
                 ExceptionsHelper.badRequestException(
-                    "Cannot create model [{}] the id is the same as an current model deployment",
+                    // The inference service depends on this error message to determine if the model is already downloaded
+                    "Cannot create model [{}] the model id is the same as the deployment id of a current model deployment",
                     config.getModelId()
                 )
             );

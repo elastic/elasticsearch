@@ -120,7 +120,7 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
                 }
             );
             if (randomBoolean()) {
-                safeSleep(10);
+                safeSleep(scaledRandomIntBetween(10, 500));
             }
             cancellable.cancel();
         }

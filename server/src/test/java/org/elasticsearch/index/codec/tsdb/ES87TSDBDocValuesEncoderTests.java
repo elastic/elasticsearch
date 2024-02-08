@@ -269,7 +269,13 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         doTestOrdinals(arr, 49);
     }
 
-    public void testEncodeOrdinalsCycle() throws IOException {
+    public void testEncodeOrdinalsCycle2() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.setAll(arr, i -> i % 2);
+        doTestOrdinals(arr, 3);
+    }
+
+    public void testEncodeOrdinalsCycle3() throws IOException {
         long[] arr = new long[blockSize];
         Arrays.setAll(arr, i -> i % 3);
         doTestOrdinals(arr, 4);
@@ -277,13 +283,13 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
 
     public void testEncodeOrdinalsLongCycle() throws IOException {
         long[] arr = new long[blockSize];
-        Arrays.setAll(arr, i -> i % 63);
-        doTestOrdinals(arr, 65);
+        Arrays.setAll(arr, i -> i % 32);
+        doTestOrdinals(arr, 34);
     }
 
     public void testEncodeOrdinalsCycleTooLong() throws IOException {
         long[] arr = new long[blockSize];
-        Arrays.setAll(arr, i -> i % 64);
+        Arrays.setAll(arr, i -> i % 33);
         // the cycle is too long and the vales are bit-packed
         doTestOrdinals(arr, 97);
     }

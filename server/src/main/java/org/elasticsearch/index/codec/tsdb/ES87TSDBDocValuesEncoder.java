@@ -206,8 +206,10 @@ public class ES87TSDBDocValuesEncoder {
                 if (cycleLength == 0) {
                     // first candidate cycle detected
                     cycleLength = i;
-                } else if (i % cycleLength != 0) {
-                    // this isn't a cycle if the index of the next occurrence of the first value
+                } else if (cycleLength == 1 || i % cycleLength != 0) {
+                    // this isn't a cycle if the first two values are the same,
+                    // because ordinals are a sorted set, it might be a run, though
+                    // this also isn't a cycle if the index of the next occurrence of the first value
                     // isn't a multiple of the candidate cycle length
                     // we can stop looking for cycles
                     cycleLength = -1;
@@ -215,16 +217,14 @@ public class ES87TSDBDocValuesEncoder {
             }
             previousValue = currentValue;
         }
-        if (numRuns > 2 && cycleLength > 1 && cycleLength < in.length >> 1) {
-            // check if the data cycles through the same values
+        // if the cycle is too long, bit-packing may be more space efficient
+        int maxCycleLength = in.length / 4;
+        if (numRuns > 2 && cycleLength > 1 && cycleLength <= maxCycleLength) {
             cyclic = true;
-            outer: for (int i = 0; i < cycleLength; i++) {
-                long v = in[i];
-                for (int j = i + cycleLength; j < in.length; j += cycleLength) {
-                    if (v != in[j]) {
-                        cyclic = false;
-                        break outer;
-                    }
+            for (int i = cycleLength; i < in.length; ++i) {
+                if (in[i] != in[i - cycleLength]) {
+                    cyclic = false;
+                    break;
                 }
             }
         }
@@ -279,8 +279,11 @@ public class ES87TSDBDocValuesEncoder {
             for (int i = 0; i < cycleLength; i++) {
                 out[i] = in.readVLong();
             }
-            for (int i = 0; i < out.length; i++) {
-                out[i] = out[i % cycleLength];
+            int length = cycleLength;
+            while (length < out.length) {
+                int copyLength = Math.min(length, out.length - length);
+                System.arraycopy(out, 0, out, length, copyLength);
+                length += copyLength;
             }
         } else if (encoding == 7) {
             // bit-packed

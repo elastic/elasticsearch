@@ -153,19 +153,6 @@ class JNANatives {
         }
     }
 
-    /** Returns true if user is root, false if not, or if we don't know */
-    static boolean definitelyRunningAsRoot() {
-        if (Constants.WINDOWS) {
-            return false; // don't know
-        }
-        try {
-            return JNACLibrary.geteuid() == 0;
-        } catch (UnsatisfiedLinkError e) {
-            // this will have already been logged by Kernel32Library, no need to repeat it
-            return false;
-        }
-    }
-
     static void tryVirtualLock() {
         JNAKernel32Library kernel = JNAKernel32Library.getInstance();
         Pointer process = null;

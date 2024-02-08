@@ -1884,19 +1884,19 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             TooManyScrollContextsException.class,
             TooManyScrollContextsException::new,
             173,
-            TransportVersions.TOO_MANY_SCROLL_CONTEXTS_EXCEPTION_ADDED
+            TransportVersions.V_8_12_0
         ),
         INVALID_BUCKET_PATH_EXCEPTION(
             AggregationExecutionException.InvalidPath.class,
             AggregationExecutionException.InvalidPath::new,
             174,
-            TransportVersions.INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED
+            TransportVersions.V_8_12_0
         ),
         MISSED_INDICES_UPDATE_EXCEPTION(
             AutoscalingMissedIndicesUpdateException.class,
             AutoscalingMissedIndicesUpdateException::new,
             175,
-            TransportVersions.MISSED_INDICES_UPDATE_EXCEPTION_ADDED
+            TransportVersions.V_8_12_0
         ),
         SEARCH_TIMEOUT_EXCEPTION(
             SearchTimeoutException.class,

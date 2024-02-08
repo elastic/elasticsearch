@@ -76,7 +76,7 @@ about whether it has any indices, aliases or data streams that match `my-index-*
 `view_index_metadata`, `read`, or `manage` <<privileges-list-indices,index
 privilege>> for the target data stream, index, or alias.
 
-[[resolve-index-api-path-params]]
+[[resolve-cluster-api-path-params]]
 ==== {api-path-parms-title}
 
 `<index_expression>`::
@@ -134,7 +134,7 @@ will be present. (This is also where security/permission errors will be shown.)
 use in your search.
 
 
-[[resolve-index-api-example]]
+[[resolve-cluster-api-example]]
 ==== {api-examples-title}
 
 [source,console]
@@ -196,7 +196,7 @@ The API returns the following response:
 
 
 [discrete]
-[[resolve-index-api-error-example]]
+[[resolve-cluster-api-error-example]]
 ==== An example showing potential problems with your search set up
 
 The following request shows examples of several reasons why you might want

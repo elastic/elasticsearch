@@ -57,7 +57,7 @@ setup:
 
   - do:
       catch: forbidden
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # read-only access
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
       connector_sync_job.delete:
         connector_sync_job_id: $sync-job-id-to-delete
 

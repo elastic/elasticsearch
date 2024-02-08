@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -35,12 +34,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class ListConnectorAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/list";
+    public static final String NAME = "indices:data/read/xpack/connector/list";
     public static final ActionType<ListConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private ListConnectorAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final PageParams pageParams;
         private final List<String> indexNames;

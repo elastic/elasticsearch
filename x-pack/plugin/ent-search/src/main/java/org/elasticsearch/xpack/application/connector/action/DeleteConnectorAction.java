@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -28,12 +27,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class DeleteConnectorAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/delete";
+    public static final String NAME = "indices:data/write/xpack/connector/delete";
     public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>(NAME);
 
     private DeleteConnectorAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
 

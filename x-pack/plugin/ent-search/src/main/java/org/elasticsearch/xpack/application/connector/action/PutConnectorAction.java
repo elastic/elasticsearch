@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,12 +38,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class PutConnectorAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/put";
+    public static final String NAME = "indices:data/write/xpack/connector/put";
     public static final ActionType<PutConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private PutConnectorAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements IndicesRequest, ToXContentObject {
 
         private final String connectorId;
 

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
@@ -34,12 +33,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class UpdateConnectorFilteringAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/update_filtering";
+    public static final String NAME = "indices:data/write/xpack/connector/update_filtering";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorFilteringAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
         private final List<ConnectorFiltering> filtering;

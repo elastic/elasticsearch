@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -38,12 +37,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class PostConnectorAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/post";
+    public static final String NAME = "indices:data/write/xpack/connector/post";
     public static final ActionType<PostConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private PostConnectorAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         @Nullable
         private final String description;

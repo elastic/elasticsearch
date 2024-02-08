@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.connector.syncjob.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
@@ -34,14 +33,14 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class UpdateConnectorSyncJobErrorAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/sync_job/update_error";
+    public static final String NAME = "indices:data/write/xpack/connector/sync_job/update_error";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorSyncJobErrorAction() {/* no instances */}
 
     public static final String ERROR_EMPTY_MESSAGE = "[error] of the connector sync job cannot be null or empty";
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorSyncJobActionRequest implements ToXContentObject {
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
             "connector_sync_job_error_request",
             false,

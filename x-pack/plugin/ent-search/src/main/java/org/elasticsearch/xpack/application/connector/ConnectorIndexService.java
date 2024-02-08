@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -66,14 +65,13 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
 /**
  * A service that manages persistent {@link Connector} configurations.
  */
 public class ConnectorIndexService {
 
-    private final Client clientWithOrigin;
+    private final Client client;
 
     public static final String CONNECTOR_INDEX_NAME = ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
 
@@ -81,7 +79,7 @@ public class ConnectorIndexService {
      * @param client A client for executing actions on the connector index
      */
     public ConnectorIndexService(Client client) {
-        this.clientWithOrigin = new OriginSettingClient(client, CONNECTORS_ORIGIN);
+        this.client = client;
     }
 
     /**
@@ -121,7 +119,7 @@ public class ConnectorIndexService {
                         .id(connectorId)
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                         .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
-                    clientWithOrigin.index(indexRequest, listener);
+                    client.index(indexRequest, listener);
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }
@@ -169,7 +167,7 @@ public class ConnectorIndexService {
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                         .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
 
-                    clientWithOrigin.index(
+                    client.index(
                         indexRequest,
                         listener.delegateFailureAndWrap(
                             (ll, indexResponse) -> ll.onResponse(new PostConnectorAction.Response(indexResponse.getId()))
@@ -231,7 +229,7 @@ public class ConnectorIndexService {
         try {
             final GetRequest getRequest = new GetRequest(CONNECTOR_INDEX_NAME).id(connectorId).realtime(true);
 
-            clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, getResponse) -> {
+            client.get(getRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, getResponse) -> {
                 if (getResponse.isExists() == false) {
                     l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                     return;
@@ -264,16 +262,13 @@ public class ConnectorIndexService {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         try {
-            clientWithOrigin.delete(
-                deleteRequest,
-                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, deleteResponse) -> {
-                    if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                        return;
-                    }
-                    l.onResponse(deleteResponse);
-                })
-            );
+            client.delete(deleteRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, deleteResponse) -> {
+                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(deleteResponse);
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -307,7 +302,7 @@ public class ConnectorIndexService {
                 .fetchSource(true)
                 .sort(Connector.INDEX_NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(CONNECTOR_INDEX_NAME).source(source);
-            clientWithOrigin.search(req, new ActionListener<>() {
+            client.search(req, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     try {
@@ -417,16 +412,13 @@ public class ConnectorIndexService {
             final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).script(script)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            clientWithOrigin.update(
-                updateRequest,
-                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
-            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(updateResponse);
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -447,16 +439,13 @@ public class ConnectorIndexService {
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .source(Map.of(Connector.ERROR_FIELD.getPreferredName(), request.getError()))
             );
-            clientWithOrigin.update(
-                updateRequest,
-                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
-            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(updateResponse);
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -478,16 +467,13 @@ public class ConnectorIndexService {
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .source(request.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
             );
-            clientWithOrigin.update(
-                updateRequest,
-                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
-            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(updateResponse);
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -508,16 +494,13 @@ public class ConnectorIndexService {
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .source(Map.of(Connector.FILTERING_FIELD.getPreferredName(), request.getFiltering()))
             );
-            clientWithOrigin.update(
-                updateRequest,
-                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
-            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(updateResponse);
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -537,16 +520,13 @@ public class ConnectorIndexService {
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .source(Map.of(Connector.LAST_SEEN_FIELD.getPreferredName(), Instant.now()))
             );
-            clientWithOrigin.update(
-                updateRequest,
-                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
-            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(updateResponse);
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -567,16 +547,13 @@ public class ConnectorIndexService {
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .source(request.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
             );
-            clientWithOrigin.update(
-                updateRequest,
-                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
-            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(updateResponse);
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -607,16 +584,13 @@ public class ConnectorIndexService {
                     )
 
             );
-            clientWithOrigin.update(
-                updateRequest,
-                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
-            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(updateResponse);
+            }));
 
         } catch (Exception e) {
             listener.onFailure(e);
@@ -639,16 +613,13 @@ public class ConnectorIndexService {
                     .source(Map.of(Connector.PIPELINE_FIELD.getPreferredName(), request.getPipeline()))
                     .source(request.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
             );
-            clientWithOrigin.update(
-                updateRequest,
-                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
-            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(updateResponse);
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -684,16 +655,13 @@ public class ConnectorIndexService {
                         .source(Map.of(Connector.INDEX_NAME_FIELD.getPreferredName(), request.getIndexName()))
 
                 );
-                clientWithOrigin.update(
-                    updateRequest,
-                    new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
-                        if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                            ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                            return;
-                        }
-                        ll.onResponse(updateResponse);
-                    })
-                );
+                client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
+                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                        ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                        return;
+                    }
+                    ll.onResponse(updateResponse);
+                }));
             }));
 
         } catch (Exception e) {
@@ -716,16 +684,13 @@ public class ConnectorIndexService {
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .source(Map.of(Connector.SCHEDULING_FIELD.getPreferredName(), request.getScheduling()))
             );
-            clientWithOrigin.update(
-                updateRequest,
-                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
-            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(updateResponse);
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -761,7 +726,7 @@ public class ConnectorIndexService {
                         )
 
                 );
-                clientWithOrigin.update(
+                client.update(
                     updateRequest,
                     new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (updateListener, updateResponse) -> {
                         if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
@@ -804,7 +769,7 @@ public class ConnectorIndexService {
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                         .source(Map.of(Connector.STATUS_FIELD.getPreferredName(), request.getStatus()))
                 );
-                clientWithOrigin.update(
+                client.update(
                     updateRequest,
                     new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (updateListener, updateResponse) -> {
                         if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
@@ -832,16 +797,13 @@ public class ConnectorIndexService {
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .source(request.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
             );
-            clientWithOrigin.update(
-                updateRequest,
-                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
-            );
+            client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                    l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                    return;
+                }
+                l.onResponse(updateResponse);
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -890,7 +852,7 @@ public class ConnectorIndexService {
             final SearchSourceBuilder searchSource = new SearchSourceBuilder().query(boolFilterQueryBuilder);
 
             final SearchRequest searchRequest = new SearchRequest(CONNECTOR_INDEX_NAME).source(searchSource);
-            clientWithOrigin.search(searchRequest, new ActionListener<>() {
+            client.search(searchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     boolean indexNameIsInUse = searchResponse.getHits().getTotalHits().value > 0L;

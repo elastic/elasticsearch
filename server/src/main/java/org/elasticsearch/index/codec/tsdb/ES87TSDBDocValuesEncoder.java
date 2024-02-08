@@ -207,11 +207,10 @@ public class ES87TSDBDocValuesEncoder {
                     // first candidate cycle detected
                     cycleLength = i;
                 } else if (cycleLength == 1 || i % cycleLength != 0) {
-                    // this isn't a cycle if the first two values are the same,
-                    // because ordinals are a sorted set, it might be a run, though
+                    // if the first two values are the same this isn't a cycle, it might be a run, though
                     // this also isn't a cycle if the index of the next occurrence of the first value
                     // isn't a multiple of the candidate cycle length
-                    // we can stop looking for cycles
+                    // we can stop looking for cycles now
                     cycleLength = -1;
                 }
             }

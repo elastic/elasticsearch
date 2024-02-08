@@ -142,8 +142,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
         );
     }
 
-    @Override
-    protected InternalGeoGridBucket reduceBucket(List<InternalGeoGridBucket> buckets, AggregationReduceContext context) {
+    private InternalGeoGridBucket reduceBucket(List<InternalGeoGridBucket> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
         long docCount = 0;
         for (InternalGeoGridBucket bucket : buckets) {

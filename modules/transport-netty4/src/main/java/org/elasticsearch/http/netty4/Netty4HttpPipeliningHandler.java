@@ -386,9 +386,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             queuedWrite.failAsClosedChannel();
         }
         if (currentChunkedWrite != null) {
-            final var finishingWrite = currentChunkedWrite;
+            safeFailPromise(currentChunkedWrite.onDone, new ClosedChannelException());
             currentChunkedWrite = null;
-            finishingWrite.combiner.finish(finishingWrite.onDone());
         }
     }
 

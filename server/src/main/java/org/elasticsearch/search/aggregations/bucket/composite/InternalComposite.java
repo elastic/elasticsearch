@@ -290,8 +290,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         );
     }
 
-    @Override
-    protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
+    private InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
         long docCount = 0;
         for (InternalBucket bucket : buckets) {

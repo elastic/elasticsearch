@@ -307,8 +307,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         );
     }
 
-    @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
+    private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
         final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
         final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);

@@ -90,7 +90,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         if (fieldType != null) {
             if (supportsAgg(fieldType) == false) {
                 throw new IllegalArgumentException(
-                    "Field [" + fieldType.name() + "] has no analyzer, but SignificantText " + "requires an analyzed field"
+                    "Field [" + fieldType.name() + "] has no analyzer, but SignificantText requires an analyzed field"
                 );
             }
             String indexedFieldName = fieldType.name();

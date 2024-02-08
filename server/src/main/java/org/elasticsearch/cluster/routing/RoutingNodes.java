@@ -1102,7 +1102,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             @Override
             public void remove() {
                 throw new UnsupportedOperationException(
-                    "remove is not supported in unassigned iterator," + " use removeAndIgnore or initialize"
+                    "remove is not supported in unassigned iterator, use removeAndIgnore or initialize"
                 );
             }
 

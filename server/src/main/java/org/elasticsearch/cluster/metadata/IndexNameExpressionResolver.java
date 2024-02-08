@@ -516,7 +516,7 @@ public class IndexNameExpressionResolver {
 
     private static IllegalArgumentException aliasesNotSupportedException(String expression) {
         return new IllegalArgumentException(
-            "The provided expression [" + expression + "] matches an " + "alias, specify the corresponding concrete indices instead."
+            "The provided expression [" + expression + "] matches an alias, specify the corresponding concrete indices instead."
         );
     }
 
@@ -537,7 +537,7 @@ public class IndexNameExpressionResolver {
         Index[] indices = concreteIndices(state, request.indicesOptions(), indexExpression);
         if (indices.length != 1) {
             throw new IllegalArgumentException(
-                "unable to return a single index as the index and options" + " provided got resolved to multiple indices"
+                "unable to return a single index as the index and options provided got resolved to multiple indices"
             );
         }
         return indices[0];
@@ -1459,7 +1459,7 @@ public class IndexNameExpressionResolver {
                                 inPlaceHolderSb.append(c);
                             } else {
                                 throw new ElasticsearchParseException(
-                                    "invalid dynamic name expression [{}]." + " invalid character in placeholder at position [{}]",
+                                    "invalid dynamic name expression [{}]. invalid character in placeholder at position [{}]",
                                     new String(text, from, length),
                                     i
                                 );
@@ -1486,7 +1486,7 @@ public class IndexNameExpressionResolver {
                                 } else {
                                     if (inPlaceHolderString.lastIndexOf(RIGHT_BOUND) != inPlaceHolderString.length() - 1) {
                                         throw new ElasticsearchParseException(
-                                            "invalid dynamic name expression [{}]. missing closing `}`" + " for date math format",
+                                            "invalid dynamic name expression [{}]. missing closing `}` for date math format",
                                             inPlaceHolderString
                                         );
                                     }

@@ -158,7 +158,7 @@ public class MoreTypes {
 
         } else {
             throw new IllegalArgumentException(
-                "Expected a Class, ParameterizedType, or " + "GenericArrayType, but <" + type + "> is of type " + type.getClass().getName()
+                "Expected a Class, ParameterizedType, or GenericArrayType, but <" + type + "> is of type " + type.getClass().getName()
             );
         }
     }

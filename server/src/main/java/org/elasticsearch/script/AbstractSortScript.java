@@ -28,14 +28,14 @@ abstract class AbstractSortScript extends DocBasedScript implements ScorerAware 
         deprecationLogger.warn(
             DeprecationCategory.SCRIPTING,
             "sort-script_doc",
-            "Accessing variable [doc] via [params.doc] from within an sort-script " + "is deprecated in favor of directly accessing [doc]."
+            "Accessing variable [doc] via [params.doc] from within an sort-script is deprecated in favor of directly accessing [doc]."
         );
         return value;
     }, "_doc", value -> {
         deprecationLogger.warn(
             DeprecationCategory.SCRIPTING,
             "sort-script__doc",
-            "Accessing variable [doc] via [params._doc] from within an sort-script " + "is deprecated in favor of directly accessing [doc]."
+            "Accessing variable [doc] via [params._doc] from within an sort-script is deprecated in favor of directly accessing [doc]."
         );
         return value;
     }, "_source", value -> ((Supplier<Source>) value).get().source());

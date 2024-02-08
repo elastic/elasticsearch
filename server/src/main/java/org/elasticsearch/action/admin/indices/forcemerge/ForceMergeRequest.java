@@ -178,7 +178,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         ActionRequestValidationException validationError = super.validate();
         if (onlyExpungeDeletes && maxNumSegments != Defaults.MAX_NUM_SEGMENTS) {
             validationError = addValidationError(
-                "cannot set only_expunge_deletes and max_num_segments at the same time, those two " + "parameters are mutually exclusive",
+                "cannot set only_expunge_deletes and max_num_segments at the same time, those two parameters are mutually exclusive",
                 validationError
             );
         }

@@ -601,7 +601,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     public void onTimeout(TimeValue timeout) {
                         // note that we do not use a timeout (see comment above)
                         listener.onFailure(
-                            new ElasticsearchTimeoutException("timed out waiting for mapping updates " + "(timeout [" + timeout + "])")
+                            new ElasticsearchTimeoutException("timed out waiting for mapping updates (timeout [" + timeout + "])")
                         );
                     }
                 });

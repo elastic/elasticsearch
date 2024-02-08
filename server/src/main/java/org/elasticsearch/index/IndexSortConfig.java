@@ -111,7 +111,7 @@ public final class IndexSortConfig {
 
     private static String validateMissingValue(String missing) {
         if ("_last".equals(missing) == false && "_first".equals(missing) == false) {
-            throw new IllegalArgumentException("Illegal missing value:[" + missing + "], " + "must be one of [_last, _first]");
+            throw new IllegalArgumentException("Illegal missing value:[" + missing + "], must be one of [_last, _first]");
         }
         return missing;
     }
@@ -128,7 +128,7 @@ public final class IndexSortConfig {
         MultiValueMode mode = MultiValueMode.fromString(value);
         if (mode != MultiValueMode.MAX && mode != MultiValueMode.MIN) {
             throw new IllegalArgumentException(
-                "Illegal index sort mode:[" + mode + "], " + "must be one of [" + MultiValueMode.MAX + ", " + MultiValueMode.MIN + "]"
+                "Illegal index sort mode:[" + mode + "], must be one of [" + MultiValueMode.MAX + ", " + MultiValueMode.MIN + "]"
             );
         }
         return mode;

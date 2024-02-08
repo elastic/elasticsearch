@@ -83,7 +83,7 @@ public final class GeoPoint implements SpatialPoint, ToXContentFragment {
     public GeoPoint resetFromCoordinates(String value, final boolean ignoreZValue) {
         String[] vals = value.split(",");
         if (vals.length > 3) {
-            throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates " + "but found: [{}]", vals.length);
+            throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates but found: [{}]", vals.length);
         }
         final double lat;
         final double lon;
@@ -111,9 +111,7 @@ public final class GeoPoint implements SpatialPoint, ToXContentFragment {
             throw new ElasticsearchParseException("Invalid WKT format", e);
         }
         if (geometry.type() != ShapeType.POINT) {
-            throw new ElasticsearchParseException(
-                "[geo_point] supports only POINT among WKT primitives, " + "but found " + geometry.type()
-            );
+            throw new ElasticsearchParseException("[geo_point] supports only POINT among WKT primitives, but found " + geometry.type());
         }
         Point point = (Point) geometry;
         return reset(point.getY(), point.getX());
@@ -250,7 +248,7 @@ public final class GeoPoint implements SpatialPoint, ToXContentFragment {
     public static double assertZValue(final boolean ignoreZValue, double zValue) {
         if (ignoreZValue == false) {
             throw new ElasticsearchParseException(
-                "Exception parsing coordinates: found Z value [{}] but [ignore_z_value] " + "parameter is [{}]",
+                "Exception parsing coordinates: found Z value [{}] but [ignore_z_value] parameter is [{}]",
                 zValue,
                 ignoreZValue
             );

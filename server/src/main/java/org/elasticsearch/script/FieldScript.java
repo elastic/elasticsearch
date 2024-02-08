@@ -34,7 +34,7 @@ public abstract class FieldScript extends DocBasedScript {
         deprecationLogger.warn(
             DeprecationCategory.SCRIPTING,
             "field-script_doc",
-            "Accessing variable [doc] via [params.doc] from within an field-script " + "is deprecated in favor of directly accessing [doc]."
+            "Accessing variable [doc] via [params.doc] from within an field-script is deprecated in favor of directly accessing [doc]."
         );
         return value;
     }, "_doc", value -> {

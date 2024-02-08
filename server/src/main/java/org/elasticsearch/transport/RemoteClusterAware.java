@@ -92,7 +92,7 @@ public abstract class RemoteClusterAware {
                     if (indexName.equals("*") == false) {
                         throw new IllegalArgumentException(
                             Strings.format(
-                                "To exclude a cluster you must specify the '*' wildcard for " + "the index expression, but found: [%s]",
+                                "To exclude a cluster you must specify the '*' wildcard for the index expression, but found: [%s]",
                                 indexName
                             )
                         );

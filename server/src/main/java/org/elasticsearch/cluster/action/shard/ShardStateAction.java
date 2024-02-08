@@ -134,7 +134,7 @@ public class ShardStateAction {
                     } else {
                         logger.warn(
                             () -> format(
-                                "unexpected failure while sending request [%s]" + " to [%s] for shard entry [%s]",
+                                "unexpected failure while sending request [%s] to [%s] for shard entry [%s]",
                                 actionName,
                                 masterNode,
                                 request

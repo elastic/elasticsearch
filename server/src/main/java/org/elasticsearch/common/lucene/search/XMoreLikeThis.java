@@ -586,7 +586,7 @@ public final class XMoreLikeThis {
      */
     private void addTermFrequencies(Reader r, Map<String, Int> termFreqMap, String fieldName) throws IOException {
         if (analyzer == null) {
-            throw new UnsupportedOperationException("To use MoreLikeThis without " + "term vectors, you must provide an Analyzer");
+            throw new UnsupportedOperationException("To use MoreLikeThis without term vectors, you must provide an Analyzer");
         }
         try (TokenStream ts = analyzer.tokenStream(fieldName, r)) {
             int tokenCount = 0;

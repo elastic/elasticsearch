@@ -1000,14 +1000,14 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public T get(Settings settings) {
             throw new UnsupportedOperationException(
-                "affix settings can't return values" + " use #getConcreteSetting to obtain a concrete setting"
+                "affix settings can't return values use #getConcreteSetting to obtain a concrete setting"
             );
         }
 
         @Override
         public String innerGetRaw(final Settings settings) {
             throw new UnsupportedOperationException(
-                "affix settings can't return values" + " use #getConcreteSetting to obtain a concrete setting"
+                "affix settings can't return values use #getConcreteSetting to obtain a concrete setting"
             );
         }
 

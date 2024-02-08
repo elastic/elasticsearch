@@ -734,7 +734,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 + "]";
 
         assert b == false || this.primary == other.primary
-            : "ShardRouting is a relocation target but primary flag is different." + " This [" + this + "], target [" + other + "]";
+            : "ShardRouting is a relocation target but primary flag is different. This [" + this + "], target [" + other + "]";
 
         return b;
     }

@@ -140,7 +140,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
         // TODO review: what size cap should we put on this?
         if (maxDocCount > MAX_MAX_DOC_COUNT) {
             throw new IllegalArgumentException(
-                "[" + MAX_DOC_COUNT_FIELD_NAME.getPreferredName() + "] must be smaller" + "than " + MAX_MAX_DOC_COUNT + "in [" + name + "]"
+                "[" + MAX_DOC_COUNT_FIELD_NAME.getPreferredName() + "] must be smaller than " + MAX_MAX_DOC_COUNT + "in [" + name + "]"
             );
         }
         this.maxDocCount = (int) maxDocCount;

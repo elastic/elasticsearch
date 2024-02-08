@@ -132,7 +132,7 @@ public final class Errors {
 
     public Errors converterReturnedNull(String stringValue, Object source, TypeLiteral<?> type, MatcherAndConverter matchingConverter) {
         return addMessage(
-            "Received null converting '%s' (bound at %s) to %s%n" + " using %s.",
+            "Received null converting '%s' (bound at %s) to %s%n using %s.",
             stringValue,
             convert(source),
             type,
@@ -148,7 +148,7 @@ public final class Errors {
         Object converted
     ) {
         return addMessage(
-            "Type mismatch converting '%s' (bound at %s) to %s%n" + " using %s.%n" + " Converter returned %s.",
+            "Type mismatch converting '%s' (bound at %s) to %s%n using %s.%n Converter returned %s.",
             stringValue,
             convert(source),
             type,
@@ -166,7 +166,7 @@ public final class Errors {
     ) {
         return errorInUserCode(
             cause,
-            "Error converting '%s' (bound at %s) to %s%n" + " using %s.%n" + " Reason: %s",
+            "Error converting '%s' (bound at %s) to %s%n using %s.%n Reason: %s",
             stringValue,
             convert(source),
             type,
@@ -216,7 +216,7 @@ public final class Errors {
     }
 
     public Errors missingRuntimeRetention(Object source) {
-        return addMessage("Please annotate with @Retention(RUNTIME).%n" + " Bound at %s.", convert(source));
+        return addMessage("Please annotate with @Retention(RUNTIME).%n Bound at %s.", convert(source));
     }
 
     public Errors missingScopeAnnotation() {
@@ -224,7 +224,7 @@ public final class Errors {
     }
 
     public Errors optionalConstructor(Constructor constructor) {
-        return addMessage("%s is annotated @Inject(optional=true), " + "but constructors cannot be optional.", constructor);
+        return addMessage("%s is annotated @Inject(optional=true), but constructors cannot be optional.", constructor);
     }
 
     public Errors cannotBindToGuiceType(String simpleName) {
@@ -237,7 +237,7 @@ public final class Errors {
 
     public Errors scopeAnnotationOnAbstractType(Class<? extends Annotation> scopeAnnotation, Class<?> type, Object source) {
         return addMessage(
-            "%s is annotated with %s, but scope annotations are not supported " + "for abstract types.%n Bound at %s.",
+            "%s is annotated with %s, but scope annotations are not supported for abstract types.%n Bound at %s.",
             type,
             scopeAnnotation,
             convert(source)
@@ -246,7 +246,7 @@ public final class Errors {
 
     public Errors misplacedBindingAnnotation(Member member, Annotation bindingAnnotation) {
         return addMessage(
-            "%s is annotated with %s, but binding annotations should be applied " + "to its parameters instead.",
+            "%s is annotated with %s, but binding annotations should be applied to its parameters instead.",
             member,
             bindingAnnotation
         );
@@ -278,13 +278,13 @@ public final class Errors {
 
     public Errors cannotInjectInnerClass(Class<?> type) {
         return addMessage(
-            "Injecting into inner classes is not supported.  " + "Please use a 'static' class (top-level or nested) instead of %s.",
+            "Injecting into inner classes is not supported. Please use a 'static' class (top-level or nested) instead of %s.",
             type
         );
     }
 
     public Errors duplicateBindingAnnotations(Member member, Class<? extends Annotation> a, Class<? extends Annotation> b) {
-        return addMessage("%s has more than one annotation annotated with @BindingAnnotation: " + "%s and %s", member, a, b);
+        return addMessage("%s has more than one annotation annotated with @BindingAnnotation: %s and %s", member, a, b);
     }
 
     public Errors duplicateScopeAnnotations(Class<? extends Annotation> a, Class<? extends Annotation> b) {
@@ -316,11 +316,11 @@ public final class Errors {
     }
 
     public Errors errorInUserInjector(MembersInjector<?> listener, TypeLiteral<?> type, RuntimeException cause) {
-        return errorInUserCode(cause, "Error injecting %s using %s.%n" + " Reason: %s", type, listener, cause);
+        return errorInUserCode(cause, "Error injecting %s using %s.%n Reason: %s", type, listener, cause);
     }
 
     public Errors errorNotifyingInjectionListener(InjectionListener<?> listener, TypeLiteral<?> type, RuntimeException cause) {
-        return errorInUserCode(cause, "Error notifying InjectionListener %s of %s.%n" + " Reason: %s", listener, type, cause);
+        return errorInUserCode(cause, "Error notifying InjectionListener %s of %s.%n Reason: %s", listener, type, cause);
     }
 
     public static Collection<Message> getMessagesFromThrowable(Throwable throwable) {

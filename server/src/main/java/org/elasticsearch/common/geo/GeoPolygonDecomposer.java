@@ -783,7 +783,7 @@ class GeoPolygonDecomposer {
 
         @Override
         public String toString() {
-            return "Edge[Component=" + component + "; start=" + coordinate + " " + "; intersection=" + intersect + "]";
+            return "Edge[Component=" + component + "; start=" + coordinate + "; intersection=" + intersect + "]";
         }
     }
 }

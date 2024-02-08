@@ -143,7 +143,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             originGeoPoint = GeoUtils.parseFromString((String) origin);
         } else {
             throw new IllegalArgumentException(
-                "Illegal type [" + origin.getClass() + "] for [origin]! " + "Must be of type [geo_point] or [string] for geo_point fields!"
+                "Illegal type [" + origin.getClass() + "] for [origin]! Must be of type [geo_point] or [string] for geo_point fields!"
             );
         }
         double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);

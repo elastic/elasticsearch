@@ -82,7 +82,7 @@ public class SchedulerEngine {
 
         @Override
         public String toString() {
-            return "Event[jobName=" + jobName + "," + "triggeredTime=" + triggeredTime + "," + "scheduledTime=" + scheduledTime + "]";
+            return "Event[jobName=" + jobName + ", triggeredTime=" + triggeredTime + ", scheduledTime=" + scheduledTime + "]";
         }
     }
 

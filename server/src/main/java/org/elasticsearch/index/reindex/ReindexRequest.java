@@ -499,7 +499,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     static void setMaxDocsValidateIdentical(AbstractBulkByScrollRequest<?> request, int maxDocs) {
         if (request.getMaxDocs() != AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
             throw new IllegalArgumentException(
-                "[max_docs] set to two different values [" + request.getMaxDocs() + "]" + " and [" + maxDocs + "]"
+                "[max_docs] set to two different values [" + request.getMaxDocs() + "] and [" + maxDocs + "]"
             );
         } else {
             request.setMaxDocs(maxDocs);

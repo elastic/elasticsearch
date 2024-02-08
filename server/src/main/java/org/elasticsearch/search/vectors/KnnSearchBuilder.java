@@ -194,7 +194,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         if (numCandidates < k) {
             throw new IllegalArgumentException(
-                "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
+                "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than [" + K_FIELD.getPreferredName() + "]"
             );
         }
         if (numCandidates > NUM_CANDS_LIMIT) {

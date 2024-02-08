@@ -57,7 +57,7 @@ public abstract class ScoreScript extends DocBasedScript {
         deprecationLogger.warn(
             DeprecationCategory.SCRIPTING,
             "score-script_doc",
-            "Accessing variable [doc] via [params.doc] from within an score-script " + "is deprecated in favor of directly accessing [doc]."
+            "Accessing variable [doc] via [params.doc] from within an score-script is deprecated in favor of directly accessing [doc]."
         );
         return value;
     }, "_doc", value -> {

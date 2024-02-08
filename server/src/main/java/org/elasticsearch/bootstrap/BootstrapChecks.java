@@ -233,7 +233,7 @@ final class BootstrapChecks {
                 } else {
                     message = String.format(
                         Locale.ROOT,
-                        "initial heap size [%d] not equal to maximum heap size [%d]; " + "this can cause resize pauses",
+                        "initial heap size [%d] not equal to maximum heap size [%d]; this can cause resize pauses",
                         getInitialHeapSize(),
                         getMaxHeapSize()
                     );

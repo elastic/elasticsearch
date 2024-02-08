@@ -243,7 +243,7 @@ public final class Script implements ToXContentObject, Writeable {
                     options = null;
                 } else {
                     throw new IllegalArgumentException(
-                        "field [" + OPTIONS_PARSE_FIELD.getPreferredName() + "] " + "cannot be specified using a stored script"
+                        "field [" + OPTIONS_PARSE_FIELD.getPreferredName() + "] cannot be specified using a stored script"
                     );
                 }
             }

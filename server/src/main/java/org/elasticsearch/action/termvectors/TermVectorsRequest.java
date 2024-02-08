@@ -565,14 +565,14 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
                 } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.doc != null) {
                         throw new ElasticsearchParseException(
-                            "failed to parse term vectors request. " + "either [id] or [doc] can be specified, but not both!"
+                            "failed to parse term vectors request. either [id] or [doc] can be specified, but not both!"
                         );
                     }
                     termVectorsRequest.id = parser.text();
                 } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.id != null) {
                         throw new ElasticsearchParseException(
-                            "failed to parse term vectors request. " + "either [id] or [doc] can be specified, but not both!"
+                            "failed to parse term vectors request. either [id] or [doc] can be specified, but not both!"
                         );
                     }
                     termVectorsRequest.doc(jsonBuilder().copyCurrentStructure(parser));

@@ -331,7 +331,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 } else {
                     logger.trace(
                         () -> format(
-                            "[%s] on node [%s] has allocation id [%s] but the store can not be " + "opened, treating as no allocation id",
+                            "[%s] on node [%s] has allocation id [%s] but the store can not be opened, treating as no allocation id",
                             shard,
                             nodeShardState.getNode(),
                             finalAllocationId

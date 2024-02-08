@@ -163,7 +163,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             throw new IllegalArgumentException("[interval] must not be null: [date_histogram]");
         }
         if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) == null) {
-            throw new IllegalArgumentException("The supplied interval [" + interval + "] could not be parsed " + "as a calendar interval.");
+            throw new IllegalArgumentException("The supplied interval [" + interval + "] could not be parsed as a calendar interval.");
         }
         setIntervalType(IntervalTypeEnum.CALENDAR);
         this.dateHistogramInterval = interval;

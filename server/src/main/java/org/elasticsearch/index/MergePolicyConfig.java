@@ -287,7 +287,7 @@ public final class MergePolicyConfig {
         this.mergesEnabled = indexSettings.getSettings().getAsBoolean(INDEX_MERGE_ENABLED, true);
         if (mergesEnabled == false) {
             logger.warn(
-                "[{}] is set to false, this should only be used in tests and can cause serious problems in production" + " environments",
+                "[{}] is set to false, this should only be used in tests and can cause serious problems in production environments",
                 INDEX_MERGE_ENABLED
             );
         }
@@ -373,7 +373,7 @@ public final class MergePolicyConfig {
                 newMaxMergeAtOnce = 2;
             }
             logger.debug(
-                "changing max_merge_at_once from [{}] to [{}] because segments_per_tier [{}] has to be higher or " + "equal to it",
+                "changing max_merge_at_once from [{}] to [{}] because segments_per_tier [{}] has to be higher or equal to it",
                 maxMergeAtOnce,
                 newMaxMergeAtOnce,
                 segmentsPerTier

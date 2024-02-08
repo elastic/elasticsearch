@@ -1168,7 +1168,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             } catch (Exception e) {
                 logger.warn(
-                    () -> format("[%s] failed to load state file from a stale deleted index, " + "folders will be left on disk", index),
+                    () -> format("[%s] failed to load state file from a stale deleted index, folders will be left on disk", index),
                     e
                 );
                 return null;

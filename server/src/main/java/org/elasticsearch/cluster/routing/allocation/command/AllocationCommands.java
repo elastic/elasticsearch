@@ -145,7 +145,7 @@ public class AllocationCommands implements ToXContentFragment {
                 // move to the end object one
                 if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     throw new ElasticsearchParseException(
-                        "allocation command is malformed, done parsing a command," + " but didn't get END_OBJECT, got [{}] instead",
+                        "allocation command is malformed, done parsing a command, but didn't get END_OBJECT, got [{}] instead",
                         token
                     );
                 }

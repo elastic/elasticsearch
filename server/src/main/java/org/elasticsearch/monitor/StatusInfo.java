@@ -50,6 +50,6 @@ public record StatusInfo(Status status, String info) implements Writeable {
 
     @Override
     public String toString() {
-        return "status[" + status + "]" + ", info[" + info + "]";
+        return "status[" + status + "], info[" + info + "]";
     }
 }

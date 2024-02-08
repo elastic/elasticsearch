@@ -92,7 +92,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         if (getSamplingContext().map(SamplingContext::isSampled).orElse(false)) {
             if (minDocCount > 1) {
                 throw new ElasticsearchStatusException(
-                    "aggregation [{}] is within a sampling context; " + "min_doc_count, provided [{}], cannot be greater than 1",
+                    "aggregation [{}] is within a sampling context; min_doc_count, provided [{}], cannot be greater than 1",
                     RestStatus.BAD_REQUEST,
                     name(),
                     minDocCount

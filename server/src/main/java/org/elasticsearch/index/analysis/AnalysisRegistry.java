@@ -476,7 +476,7 @@ public final class AnalysisRegistry implements Closeable {
                         factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
                     } else {
                         throw new IllegalArgumentException(
-                            component + " [" + name + "] " + "must specify either an analyzer type, or a tokenizer"
+                            component + " [" + name + "] must specify either an analyzer type, or a tokenizer"
                         );
                     }
                 } else if (typeName.equals("custom")) {

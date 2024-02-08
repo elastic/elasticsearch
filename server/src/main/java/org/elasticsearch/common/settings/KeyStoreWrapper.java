@@ -106,8 +106,7 @@ public class KeyStoreWrapper implements SecureSettings {
     public static final Setting<SecureString> SEED_SETTING = SecureSetting.secureString("keystore.seed", null);
 
     /** Characters that may be used in the bootstrap seed setting added to all keystores. */
-    private static final char[] SEED_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" + "~!@#$%^&*-_=+?")
-        .toCharArray();
+    private static final char[] SEED_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~!@#$%^&*-_=+?").toCharArray();
 
     /** The name of the keystore file to read and write. */
     public static final String KEYSTORE_FILENAME = "elasticsearch.keystore";

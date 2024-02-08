@@ -313,7 +313,7 @@ final class SystemCallFilter {
                 if (errno == EINVAL) {
                     // friendly error, this will be the typical case for an old kernel
                     throw new UnsupportedOperationException(
-                        "seccomp unavailable: requires kernel 3.5+ with" + " CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in"
+                        "seccomp unavailable: requires kernel 3.5+ with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in"
                     );
                 } else {
                     throw new UnsupportedOperationException("prctl(PR_GET_NO_NEW_PRIVS): " + JNACLibrary.strerror(errno));

@@ -83,7 +83,7 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
     @Override
     public int preceding(int offset) {
         if (offset < lastPrecedingOffset) {
-            throw new IllegalArgumentException("offset < lastPrecedingOffset: " + "usage doesn't look like UnifiedHighlighter");
+            throw new IllegalArgumentException("offset < lastPrecedingOffset: usage doesn't look like UnifiedHighlighter");
         }
         if (offset > windowStart && offset < windowEnd) {
             innerStart = innerEnd;

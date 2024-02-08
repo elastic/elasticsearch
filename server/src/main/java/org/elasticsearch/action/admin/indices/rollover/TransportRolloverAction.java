@@ -174,7 +174,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     message = "Lazy rollover can be used only without any conditions."
                         + " Please remove the conditions from the request body or the query parameter 'lazy'.";
                 } else if (rolloverRequest.getConditions().hasConditions() == false) {
-                    message = "Lazy rollover can be applied only on a data stream." + " Please remove the query parameter 'lazy'.";
+                    message = "Lazy rollover can be applied only on a data stream. Please remove the query parameter 'lazy'.";
                 } else {
                     message = "Lazy rollover can be applied only on a data stream with no conditions."
                         + " Please remove the query parameter 'lazy'.";

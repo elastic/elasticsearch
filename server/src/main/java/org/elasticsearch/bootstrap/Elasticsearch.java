@@ -471,9 +471,7 @@ class Elasticsearch {
             es.node.prepareForClose();
             IOUtils.close(es.node, es.spawner);
             if (es.node.awaitClose(10, TimeUnit.SECONDS) == false) {
-                throw new IllegalStateException(
-                    "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
-                );
+                throw new IllegalStateException("Node didn't stop within 10 seconds. Any outstanding requests or tasks might get killed.");
             }
         } catch (IOException ex) {
             throw new ElasticsearchException("Failure occurred while shutting down node", ex);

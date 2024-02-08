@@ -249,7 +249,7 @@ public class KnnSearchRequestParser {
             }
             if (numCands < k) {
                 throw new IllegalArgumentException(
-                    "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
+                    "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than [" + K_FIELD.getPreferredName() + "]"
                 );
             }
             if (numCands > NUM_CANDS_LIMIT) {

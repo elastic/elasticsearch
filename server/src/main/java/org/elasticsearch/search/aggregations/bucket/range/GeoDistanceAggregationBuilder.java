@@ -163,7 +163,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             if (Double.isNaN(lat) || Double.isNaN(lon)) {
                 throw new ParsingException(
                     parser.getTokenLocation(),
-                    "malformed [" + currentFieldName + "] geo point object. either [lat] or [lon] (or both) are " + "missing"
+                    "malformed [" + currentFieldName + "] geo point object. either [lat] or [lon] (or both) are missing"
                 );
             }
             return new GeoPoint(lat, lon);

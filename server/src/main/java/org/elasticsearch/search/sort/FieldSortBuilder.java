@@ -136,7 +136,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
                 throw new IOException(
-                    "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " + "please use [nested] instead"
+                    "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, please use [nested] instead"
                 );
             }
         }
@@ -272,7 +272,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
             default:
                 throw new IllegalArgumentException(
-                    "invalid value for [numeric_type], " + "must be [long, double, date, date_nanos], got " + lowerCase
+                    "invalid value for [numeric_type], must be [long, double, date, date_nanos], got " + lowerCase
                 );
         }
         this.numericType = lowerCase;
@@ -330,7 +330,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             case "date" -> NumericType.DATE;
             case "date_nanos" -> NumericType.DATE_NANOSECONDS;
             default -> throw new IllegalArgumentException(
-                "invalid value for [numeric_type], " + "must be [long, double, date, date_nanos], got " + value
+                "invalid value for [numeric_type], must be [long, double, date, date_nanos], got " + value
             );
         };
     }

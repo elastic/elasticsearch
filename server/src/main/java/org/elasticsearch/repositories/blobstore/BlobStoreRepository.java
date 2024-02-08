@@ -2236,7 +2236,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 genToLoad = latestKnownRepoGen.accumulateAndGet(generation, Math::max);
                 if (genToLoad > generation) {
                     logger.info(
-                        "Determined repository generation [{}] from repository contents but correct generation must be at " + "least [{}]",
+                        "Determined repository generation [{}] from repository contents but correct generation must be at least [{}]",
                         generation,
                         genToLoad
                     );

@@ -210,7 +210,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         }
         if (fieldType.isIndexed() == false && (innerHits != null && innerHits.isEmpty() == false)) {
             throw new IllegalArgumentException(
-                "cannot expand `inner_hits` for collapse field `" + field + "`, " + "only indexed field can retrieve `inner_hits`"
+                "cannot expand `inner_hits` for collapse field `" + field + "`, only indexed field can retrieve `inner_hits`"
             );
         }
 

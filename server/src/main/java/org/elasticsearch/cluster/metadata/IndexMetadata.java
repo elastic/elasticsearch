@@ -2865,14 +2865,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             factor = targetNumberOfShards / sourceNumberOfShards;
             if (factor * sourceNumberOfShards != targetNumberOfShards || factor <= 1) {
                 throw new IllegalArgumentException(
-                    "the number of source shards [" + sourceNumberOfShards + "] must be a " + "factor of [" + targetNumberOfShards + "]"
+                    "the number of source shards [" + sourceNumberOfShards + "] must be a factor of [" + targetNumberOfShards + "]"
                 );
             }
         } else if (sourceNumberOfShards > targetNumberOfShards) { // shrink
             factor = sourceNumberOfShards / targetNumberOfShards;
             if (factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1) {
                 throw new IllegalArgumentException(
-                    "the number of source shards [" + sourceNumberOfShards + "] must be a " + "multiple of [" + targetNumberOfShards + "]"
+                    "the number of source shards [" + sourceNumberOfShards + "] must be a multiple of [" + targetNumberOfShards + "]"
                 );
             }
         } else {

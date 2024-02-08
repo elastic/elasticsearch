@@ -150,7 +150,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_configured_hosts_resolver]");
         executorService.set(
             EsExecutors.newScaling(
-                nodeName + "/" + "unicast_configured_hosts_resolver",
+                nodeName + "/unicast_configured_hosts_resolver",
                 0,
                 concurrentConnects,
                 60,

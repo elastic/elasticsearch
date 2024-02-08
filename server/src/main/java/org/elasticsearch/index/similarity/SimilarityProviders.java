@@ -103,7 +103,7 @@ final class SimilarityProviders {
             if (replacement != null) {
                 if (indexCreatedVersion.onOrAfter(IndexVersions.V_7_0_0)) {
                     throw new IllegalArgumentException(
-                        "Basic model [" + basicModel + "] isn't supported anymore, " + "please use another model."
+                        "Basic model [" + basicModel + "] isn't supported anymore, please use another model."
                     );
                 } else {
                     deprecationLogger.warn(

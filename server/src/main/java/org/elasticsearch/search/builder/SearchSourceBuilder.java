@@ -675,9 +675,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     public SearchSourceBuilder trackTotalHitsUpTo(int trackTotalHitsUpTo) {
         if (trackTotalHitsUpTo < TRACK_TOTAL_HITS_DISABLED) {
-            throw new IllegalArgumentException(
-                "[track_total_hits] parameter must be positive or equals to -1, " + "got " + trackTotalHitsUpTo
-            );
+            throw new IllegalArgumentException("[track_total_hits] parameter must be positive or equals to -1, got " + trackTotalHitsUpTo);
         }
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         return this;

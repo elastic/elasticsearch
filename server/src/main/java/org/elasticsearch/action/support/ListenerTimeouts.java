@@ -40,7 +40,7 @@ public class ListenerTimeouts {
         String listenerName
     ) {
         return wrapWithTimeout(threadPool, timeout, executor, listener, (ignore) -> {
-            String timeoutMessage = "[" + listenerName + "]" + " timed out after [" + timeout + "]";
+            String timeoutMessage = "[" + listenerName + "] timed out after [" + timeout + "]";
             listener.onFailure(new ElasticsearchTimeoutException(timeoutMessage));
         });
     }

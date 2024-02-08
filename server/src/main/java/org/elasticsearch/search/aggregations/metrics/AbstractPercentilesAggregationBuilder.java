@@ -183,7 +183,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
             percentilesConfig = new PercentilesConfig.Hdr(numberOfSignificantValueDigits);
         } else {
             throw new IllegalArgumentException(
-                "Cannot set [numberOfSignificantValueDigits] because the method " + "has already been configured for TDigest"
+                "Cannot set [numberOfSignificantValueDigits] because the method has already been configured for TDigest"
             );
         }
 

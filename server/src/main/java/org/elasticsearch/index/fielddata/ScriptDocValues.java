@@ -90,7 +90,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     protected void throwIfEmpty() {
         if (size() == 0) {
             throw new IllegalStateException(
-                "A document doesn't have a value for a field! " + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+                "A document doesn't have a value for a field! Use doc[<field>].size()==0 to check if a document is missing a field!"
             );
         }
     }

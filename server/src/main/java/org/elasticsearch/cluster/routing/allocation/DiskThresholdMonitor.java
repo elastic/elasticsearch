@@ -252,7 +252,7 @@ public class DiskThresholdMonitor {
                     // will log about this node when the reroute completes
                 } else {
                     logger.debug(
-                        "high disk watermark exceeded on {} but an automatic reroute has occurred " + "in the last [{}], skipping reroute",
+                        "high disk watermark exceeded on {} but an automatic reroute has occurred in the last [{}], skipping reroute",
                         node,
                         diskThresholdSettings.getRerouteInterval()
                     );

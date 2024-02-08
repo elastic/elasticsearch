@@ -110,7 +110,7 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
                     if (token == XContentParser.Token.VALUE_NUMBER) {
                         if (ignoreZValue == false) {
                             throw new ElasticsearchParseException(
-                                "Exception parsing coordinates: found Z value [{}] but [ignore_z_value] " + "parameter is [{}]",
+                                "Exception parsing coordinates: found Z value [{}] but [ignore_z_value] parameter is [{}]",
                                 parser.doubleValue(),
                                 ignoreZValue
                             );

@@ -363,7 +363,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private void ensureRefCount() {
         if (refCount() <= 0) {
             throw new ElasticsearchException(
-                "RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef " + "calls"
+                "RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef calls"
             );
         }
     }

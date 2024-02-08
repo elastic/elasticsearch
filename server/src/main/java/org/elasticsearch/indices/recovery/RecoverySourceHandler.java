@@ -601,7 +601,7 @@ public class RecoverySourceHandler {
         if (logger.isTraceEnabled()) {
             for (StoreFileMetadata md : shardRecoveryPlan.getFilesPresentInTarget()) {
                 logger.trace(
-                    "recovery [phase1]: not recovering [{}], exist in local store and has checksum [{}]," + " size [{}]",
+                    "recovery [phase1]: not recovering [{}], exist in local store and has checksum [{}], size [{}]",
                     md.name(),
                     md.checksum(),
                     md.length()

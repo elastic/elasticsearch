@@ -54,7 +54,7 @@ public final class AnalyzerComponents {
         TokenizerFactory tokenizer = tokenizers.get(tokenizerName);
         if (tokenizer == null) {
             throw new IllegalArgumentException(
-                "Custom Analyzer [" + name + "] failed to find tokenizer under name " + "[" + tokenizerName + "]"
+                "Custom Analyzer [" + name + "] failed to find tokenizer under name [" + tokenizerName + "]"
             );
         }
 
@@ -64,7 +64,7 @@ public final class AnalyzerComponents {
             CharFilterFactory charFilter = charFilters.get(charFilterName);
             if (charFilter == null) {
                 throw new IllegalArgumentException(
-                    "Custom Analyzer [" + name + "] failed to find char_filter under name " + "[" + charFilterName + "]"
+                    "Custom Analyzer [" + name + "] failed to find char_filter under name [" + charFilterName + "]"
                 );
             }
             charFiltersList.add(charFilter);
@@ -76,7 +76,7 @@ public final class AnalyzerComponents {
             TokenFilterFactory tokenFilter = tokenFilters.get(tokenFilterName);
             if (tokenFilter == null) {
                 throw new IllegalArgumentException(
-                    "Custom Analyzer [" + name + "] failed to find filter under name " + "[" + tokenFilterName + "]"
+                    "Custom Analyzer [" + name + "] failed to find filter under name [" + tokenFilterName + "]"
                 );
             }
             tokenFilter = tokenFilter.getChainAwareTokenFilterFactory(

@@ -266,7 +266,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
     void convert() {
         if (isSetMode == false) {
             throw new IllegalStateException(
-                "Cannot convert SetBackedScalingCuckooFilter to approximate " + "when it has already been converted."
+                "Cannot convert SetBackedScalingCuckooFilter to approximate when it has already been converted."
             );
         }
         long oldSize = getSizeInBytes();

@@ -846,7 +846,7 @@ public class MetadataCreateIndexService {
         final Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, request.mappings());
         if (mappings.isEmpty() == false) {
             throw new IllegalArgumentException(
-                "mappings are not allowed when creating an index from a source index, " + "all mappings are copied from the source index"
+                "mappings are not allowed when creating an index from a source index, all mappings are copied from the source index"
             );
         }
 

@@ -113,7 +113,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
                 throw new IOException(
-                    "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " + "please use [nested] instead"
+                    "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, please use [nested] instead"
                 );
             }
         }

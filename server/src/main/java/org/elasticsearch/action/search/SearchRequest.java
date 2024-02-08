@@ -477,7 +477,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (minCompatibleShardNode() != null) {
             if (isCcsMinimizeRoundtrips()) {
                 validationException = addValidationError(
-                    "[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible " + "shard version",
+                    "[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible shard version",
                     validationException
                 );
             }

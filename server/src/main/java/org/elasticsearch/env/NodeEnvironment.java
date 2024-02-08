@@ -526,20 +526,20 @@ public final class NodeEnvironment implements Closeable {
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
 
             // TODO[wrb]: can we just use toReleaseVersion() ?
-            String bestDowngradeVersion = getBestDowngradeVersion(metadata.previousIndexVersionCheckpoint().toReleaseVersion());
+            // String bestDowngradeVersion = getBestDowngradeVersion(metadata.previousIndexVersionCheckpoint().toReleaseVersion());
             throw new IllegalStateException(
                 "Cannot start this node because it holds metadata for indices with version ["
-                    + metadata.oldestIndexVersion()
+                    + metadata.oldestIndexVersion().toReleaseVersion().split("-")[0]
                     + "] with which this node of version ["
                     + Build.current().version()
                     + "] is incompatible. Revert this node to version ["
-                    + bestDowngradeVersion
+                    + metadata.previousIndexVersionCheckpoint().toReleaseVersion()
                     + "] and delete any indices with versions earlier than ["
-                    + IndexVersions.MINIMUM_COMPATIBLE
+                    + IndexVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
                     + "] before upgrading to version ["
                     + Build.current().version()
                     + "]. If all such indices have already been deleted, revert this node to version ["
-                    + bestDowngradeVersion
+                    + metadata.previousIndexVersionCheckpoint().toReleaseVersion()
                     + "] and wait for it to join the cluster to clean up any older indices from its metadata."
             );
         }

@@ -135,11 +135,7 @@ public class NodeMetadataTests extends ESTestCase {
     public void testDoesNotUpgradeAncientVersion() {
         final IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> NodeMetadata.create(
-                randomAlphaOfLength(10),
-                tooOldIndexVersion(),
-                IndexVersion.current()
-            ).upgradeToCurrentVersion()
+            () -> NodeMetadata.create(randomAlphaOfLength(10), tooOldIndexVersion(), IndexVersion.current()).upgradeToCurrentVersion()
         );
         assertThat(
             illegalStateException.getMessage(),

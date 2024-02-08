@@ -16,6 +16,7 @@ import java.time.Clock;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * {@link PrintWriter} formatting lines as JSON using a subset of fields written by ECSJsonLayout.
@@ -25,29 +26,41 @@ import java.util.Locale;
 public class JsonPrintWriter extends PrintWriter {
     private static final DateTimeFormatter ISO_INSTANT_FORMATTER = new DateTimeFormatterBuilder().appendInstant(3).toFormatter(Locale.ROOT);
     private static final String QUOTED_LINE_SEPARATOR = JsonUtils.quoteAsString(System.getProperty("line.separator"));
-    static final int BUFFER_INITIAL_SIZE = 512;
+    static final int BUFFER_INITIAL_SIZE = 1024;
     static final int BUFFER_TRIM_THRESHOLD = 2 * BUFFER_INITIAL_SIZE;
 
     // Buffer to build JSON mimicking the ECSJsonLayout.
     // NEVER acquire monitor lock on `lock` if holding `buffer`, always acquire `lock` first!
-    private final StringBuilder buffer = new StringBuilder(BUFFER_INITIAL_SIZE);
+    private final StringBuilder buffer;
+    private final int bufferPreambleSize;
     private final Clock clock;
+
     private boolean singleLineMode = false;
 
-    public JsonPrintWriter(OutputStream out, boolean autoFlush) {
-        this(out, autoFlush, Clock.systemUTC());
+    public JsonPrintWriter(Map<String, String> staticFields, OutputStream out, boolean autoFlush) {
+        this(staticFields, out, autoFlush, Clock.systemUTC());
     }
 
     @SuppressForbidden(reason = "Override PrintWriter to emit Json")
-    protected JsonPrintWriter(OutputStream out, boolean autoFlush, Clock clock) {
+    protected JsonPrintWriter(Map<String, String> staticFields, OutputStream out, boolean autoFlush, Clock clock) {
         super(out, autoFlush);
         this.clock = clock;
+        this.buffer = new StringBuilder(BUFFER_INITIAL_SIZE);
+        this.bufferPreambleSize = initStaticPreamble(buffer, staticFields);
     }
 
-    private void initJsonIfEmpty() {
+    private static int initStaticPreamble(StringBuilder builder, Map<String, String> fields) {
+        builder.append('{');
+        fields.forEach((name, value) -> builder.append('"').append(name).append("\":\"").append(value).append("\","));
+        builder.append("\"@timestamp\":\"");
+        return builder.length();
+    }
+
+    private void initMessageIfAtPreamble() {
         assert Thread.holdsLock(buffer); // only allow if holding lock on buffer
-        if (buffer.isEmpty()) {
-            buffer.append("{\"@timestamp\":\"");
+        assert buffer.length() >= bufferPreambleSize;
+
+        if (buffer.length() == bufferPreambleSize) {
             ISO_INSTANT_FORMATTER.formatTo(clock.instant(), buffer);
             buffer.append("\", \"message\":\"");
         }
@@ -56,7 +69,7 @@ public class JsonPrintWriter extends PrintWriter {
     @Override
     public void write(int c) {
         synchronized (buffer) {
-            initJsonIfEmpty();
+            initMessageIfAtPreamble();
             JsonUtils.quote((char) c, buffer);
         }
     }
@@ -64,7 +77,7 @@ public class JsonPrintWriter extends PrintWriter {
     @Override
     public void write(char[] chars, int off, int len) {
         synchronized (buffer) {
-            initJsonIfEmpty();
+            initMessageIfAtPreamble();
             JsonUtils.quoteAsString(chars, off, len, buffer);
         }
     }
@@ -72,7 +85,7 @@ public class JsonPrintWriter extends PrintWriter {
     @Override
     public void write(String msg, int off, int len) {
         synchronized (buffer) {
-            initJsonIfEmpty();
+            initMessageIfAtPreamble();
             JsonUtils.quoteAsString(msg, off, len, buffer);
         }
     }
@@ -156,7 +169,7 @@ public class JsonPrintWriter extends PrintWriter {
         String json = null;
         boolean newline = false;
         synchronized (buffer) {
-            if (buffer.length() > 0) {
+            if (buffer.length() > bufferPreambleSize) {
                 // properly handle trailing newlines if not emitted using println()
                 newline = stripSuffix(buffer, QUOTED_LINE_SEPARATOR);
                 json = buffer.append("\"}").toString();
@@ -164,7 +177,7 @@ public class JsonPrintWriter extends PrintWriter {
                     buffer.setLength(buffer.capacity() >> 1); // reduce capacity again by half
                     buffer.trimToSize();
                 }
-                buffer.setLength(0); // clear buffer
+                buffer.setLength(bufferPreambleSize); // reset to preamble
             }
         }
         if (json != null) {

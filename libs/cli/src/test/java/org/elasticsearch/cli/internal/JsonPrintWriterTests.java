@@ -24,6 +24,7 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLengthBetween;
@@ -287,7 +288,8 @@ public class JsonPrintWriterTests extends ESTestCase {
     }
 
     private JsonPrintWriter jsonPrintWriter() {
-        return new JsonPrintWriter(outputStream, true, FIXED_CLOCK);
+        Map<String, String> fields = Map.of("field1", "value1", "field2", "value2");
+        return new JsonPrintWriter(new TreeMap<>(fields), outputStream, true, FIXED_CLOCK);
     }
 
     private void assertWritten(String expected) {
@@ -297,6 +299,6 @@ public class JsonPrintWriterTests extends ESTestCase {
 
     private static String jsonMessage(String msg) {
         // timestamp according to fixed clock
-        return "{\"@timestamp\":\"2024-01-08T11:06:54.000Z\", \"message\":\"" + msg + "\"}";
+        return "{\"field1\":\"value1\",\"field2\":\"value2\",\"@timestamp\":\"2024-01-08T11:06:54.000Z\", \"message\":\"" + msg + "\"}";
     }
 }

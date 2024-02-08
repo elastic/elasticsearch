@@ -24,6 +24,7 @@ import java.lang.reflect.Method;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * A Terminal wraps access to reading input and writing output for a cli.
@@ -353,7 +354,20 @@ public abstract class Terminal {
         }
 
         private static PrintWriter printWriter(OutputStream out, boolean useJsonOutput) {
-            return useJsonOutput ? new JsonPrintWriter(out, true) : new PrintWriter(out, true);
+            if (useJsonOutput == false) {
+                return new PrintWriter(out, true);
+            }
+            var fields = Map.of(
+                "log.level",
+                out == System.err ? "ERROR" : "INFO",
+                "log.logger",
+                out == System.err ? "stderr" : "stdout",
+                "service.name",
+                "ES_ECS",
+                "event.dataset",
+                "elasticsearch.server"
+            );
+            return new JsonPrintWriter(fields, out, true);
         }
 
         @Override

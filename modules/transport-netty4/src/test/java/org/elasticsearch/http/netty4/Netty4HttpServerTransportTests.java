@@ -1007,7 +1007,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             try (var client = RestClient.builder(new HttpHost(address.getAddress(), address.getPort())).build()) {
                 client.performRequestAsync(new Request("GET", url), ActionTestUtils.wrapAsRestResponseListener(ActionListener.noop()));
                 safeAwait(handlingRequestLatch);
-
                 transport.close();
                 transportClosedFuture.onResponse(null);
                 safeAwait(responseReleasedLatch);

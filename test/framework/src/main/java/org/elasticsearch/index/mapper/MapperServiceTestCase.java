@@ -72,7 +72,6 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -101,7 +100,7 @@ import static org.mockito.Mockito.mock;
  * mapping. Useful when you don't need to spin up an entire index but do
  * need most of the trapping of the mapping.
  */
-public abstract class MapperServiceTestCase extends ESTestCase {
+public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
     protected static final Settings SETTINGS = Settings.builder()
         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())

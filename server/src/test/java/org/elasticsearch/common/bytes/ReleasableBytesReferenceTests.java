@@ -40,7 +40,9 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
         String type = randomFrom(composite, paged, array);
         if (array.equals(type)) {
             final BytesStreamOutput out = new BytesStreamOutput(content.length);
-            out.writeBytes(content, 0, content.length);
+            for (int i = 0; i < content.length; i++) {
+                out.writeByte(content[i]);
+            }
             assertThat(content.length, equalTo(out.size()));
             BytesArray ref = new BytesArray(out.bytes().toBytesRef().bytes, 0, content.length);
             assertThat(content.length, equalTo(ref.length()));
@@ -48,7 +50,9 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
             delegate = ref;
         } else if (paged.equals(type)) {
             ByteArray byteArray = bigarrays.newByteArray(content.length);
-            byteArray.set(0, content, 0, content.length);
+            for (int i = 0; i < content.length; i++) {
+                byteArray.set(i, content[i]);
+            }
             assertThat(byteArray.size(), Matchers.equalTo((long) content.length));
             BytesReference ref = BytesReference.fromByteArray(byteArray, content.length);
             assertThat(ref.length(), Matchers.equalTo(content.length));
@@ -60,7 +64,10 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
                 int remaining = content.length - i;
                 int sliceLength = randomIntBetween(1, remaining);
                 ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(sliceLength, bigarrays);
-                out.writeBytes(content);
+                int offset = content.length - remaining;
+                for (int j = 0; j < sliceLength; j++) {
+                    out.writeByte(content[offset + j]);
+                }
                 assertThat(sliceLength, equalTo(out.size()));
                 referenceList.add(out.bytes());
                 i += sliceLength;

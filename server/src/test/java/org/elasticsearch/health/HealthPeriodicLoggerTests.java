@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
@@ -44,6 +45,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -105,6 +107,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     public void cleanup() {
         clusterService.close();
         if (testHealthPeriodicLogger != null) {
+            if (testHealthPeriodicLogger.lifecycleState() == Lifecycle.State.STARTED) {
+                testHealthPeriodicLogger.stop();
+            }
             testHealthPeriodicLogger.close();
         }
         threadPool.shutdownNow();
@@ -157,7 +162,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
     public void testHealthNodeIsSelected() {
         HealthService testHealthService = this.getMockedHealthService();
-        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(clusterService, testHealthService, true);
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(clusterService, testHealthService, randomBoolean());
 
         // test that it knows that it's not initially the health node
         assertFalse(testHealthPeriodicLogger.isHealthNode);
@@ -167,22 +172,31 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         assertTrue(testHealthPeriodicLogger.isHealthNode);
     }
 
-    public void testJobScheduling() {
+    public void testJobScheduling() throws Exception {
         HealthService testHealthService = this.getMockedHealthService();
 
-        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(clusterService, testHealthService, true);
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(clusterService, testHealthService, false);
 
         testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
         assertTrue(testHealthPeriodicLogger.isHealthNode);
 
-        SchedulerEngine scheduler = testHealthPeriodicLogger.getScheduler();
-        assertNotNull(scheduler);
-        assertTrue(scheduler.scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
+        // Even if this is the health node, we do not schedule a job because the service is not started yet
+        assertNull(testHealthPeriodicLogger.getScheduler());
+        // Starting the service should schedule a try to schedule a run
+        testHealthPeriodicLogger.start();
+        AtomicReference<SchedulerEngine> scheduler = new AtomicReference<>();
+        assertBusy(() -> {
+            var s = testHealthPeriodicLogger.getScheduler();
+            assertNotNull(s);
+            scheduler.set(s);
+        });
+        assertTrue(scheduler.get().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
 
+        // Changing the health node should cancel the run
         ClusterState noHealthNode = ClusterStateCreationUtils.state(node2, node1, new DiscoveryNode[] { node1, node2 });
         testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", noHealthNode, stateWithLocalHealthNode));
         assertFalse(testHealthPeriodicLogger.isHealthNode);
-        assertFalse(scheduler.scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
+        assertFalse(scheduler.get().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
     }
 
     public void testEnabled() {
@@ -207,23 +221,82 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 testHealthPeriodicLogger.getScheduler().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
             );
         }
+        // ensure the job is not recreated during enabling if the service has stopped
+        {
+            testHealthPeriodicLogger.stop();
+            assertFalse(
+                testHealthPeriodicLogger.getScheduler().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
+            );
+            this.clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build());
+            assertFalse(
+                testHealthPeriodicLogger.getScheduler().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
+            );
+        }
     }
 
     public void testUpdatePollInterval() {
         HealthService testHealthService = this.getMockedHealthService();
-
         testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(clusterService, testHealthService, false);
-        assertNull(testHealthPeriodicLogger.getScheduler());
-
         testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
         assertTrue(testHealthPeriodicLogger.isHealthNode);
+        // Ensure updating the poll interval won't trigger a job when service not started
+        {
+            TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(15, 59));
+            this.clusterSettings.applySettings(
+                Settings.builder()
+                    .put(HealthPeriodicLogger.POLL_INTERVAL_SETTING.getKey(), pollInterval)
+                    .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true)
+                    .build()
+            );
+            assertEquals(pollInterval, testHealthPeriodicLogger.getPollInterval());
+            assertNull(testHealthPeriodicLogger.getScheduler());
+        }
 
-        // verify that updating the polling interval doesn't schedule the job
+        testHealthPeriodicLogger.start();
+        // Start the service and check it's scheduled
+        {
+            TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(15, 59));
+            this.clusterSettings.applySettings(
+                Settings.builder()
+                    .put(HealthPeriodicLogger.POLL_INTERVAL_SETTING.getKey(), pollInterval)
+                    .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true)
+                    .build()
+            );
+            assertEquals(pollInterval, testHealthPeriodicLogger.getPollInterval());
+            assertNotNull(testHealthPeriodicLogger.getScheduler());
+            assertTrue(
+                testHealthPeriodicLogger.getScheduler().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
+            );
+        }
+
+        // Poll interval doesn't schedule a job when disabled
+        {
+            TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(15, 59));
+            this.clusterSettings.applySettings(
+                Settings.builder().put(HealthPeriodicLogger.POLL_INTERVAL_SETTING.getKey(), pollInterval).build()
+            );
+            assertEquals(pollInterval, testHealthPeriodicLogger.getPollInterval());
+            assertFalse(
+                testHealthPeriodicLogger.getScheduler().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
+            );
+            // Re-enable
+            this.clusterSettings.applySettings(
+                Settings.builder().put(HealthPeriodicLogger.POLL_INTERVAL_SETTING.getKey(), pollInterval).build()
+            );
+        }
+
+        testHealthPeriodicLogger.stop();
+        // verify that updating the polling interval doesn't schedule the job if it's stopped
         {
             this.clusterSettings.applySettings(
-                Settings.builder().put(HealthPeriodicLogger.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(15)).build()
+                Settings.builder()
+                    .put(HealthPeriodicLogger.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30))
+                    .put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true)
+                    .build()
             );
-            assertNull(testHealthPeriodicLogger.getScheduler());
+            assertFalse(
+                testHealthPeriodicLogger.getScheduler().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
+            );
         }
     }
 
@@ -342,7 +415,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             return null;
         }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
 
-        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true);
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, false);
 
         HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
         spyHealthPeriodicLogger.isHealthNode = true;
@@ -369,7 +442,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         HealthService testHealthService = this.getMockedHealthService();
 
-        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true);
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, false);
 
         HealthPeriodicLogger spyHealthPeriodicLogger = spy(testHealthPeriodicLogger);
         spyHealthPeriodicLogger.isHealthNode = true;
@@ -437,7 +510,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         HealthService testHealthService = this.getMockedHealthService();
 
-        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true);
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, false);
 
         // switch to Log only mode
         this.clusterSettings.applySettings(
@@ -497,7 +570,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         HealthService testHealthService = this.getMockedHealthService();
 
-        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true);
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, false);
 
         // switch to Metrics only mode
         this.clusterSettings.applySettings(
@@ -533,7 +606,13 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         Consumer<ESLogMessage> logWriter = msg -> logs.add(msg.asString());
 
         HealthService testHealthService = this.getMockedHealthService();
-        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true, metricWriter, logWriter);
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(
+            this.clusterService,
+            testHealthService,
+            false,
+            metricWriter,
+            logWriter
+        );
 
         // switch to Metrics only mode
         this.clusterSettings.applySettings(
@@ -592,15 +671,15 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     private HealthPeriodicLogger createAndInitHealthPeriodicLogger(
         ClusterService clusterService,
         HealthService testHealthService,
-        boolean enabled
+        boolean started
     ) {
-        return createAndInitHealthPeriodicLogger(clusterService, testHealthService, enabled, null, null);
+        return createAndInitHealthPeriodicLogger(clusterService, testHealthService, started, null, null);
     }
 
     private HealthPeriodicLogger createAndInitHealthPeriodicLogger(
         ClusterService clusterService,
         HealthService testHealthService,
-        boolean enabled,
+        boolean started,
         BiConsumer<LongGaugeMetric, Long> metricWriter,
         Consumer<ESLogMessage> logWriter
     ) {
@@ -626,8 +705,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 provider
             );
         }
-        if (enabled) {
-            clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build());
+        clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build());
+        if (started) {
+            testHealthPeriodicLogger.start();
         }
 
         return testHealthPeriodicLogger;

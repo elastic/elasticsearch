@@ -432,6 +432,7 @@ public class Node implements Closeable {
         }
 
         injector.getInstance(NodeMetrics.class).start();
+        injector.getInstance(HealthPeriodicLogger.class).start();
 
         logger.info("started {}", transportService.getLocalNode());
 
@@ -456,6 +457,8 @@ public class Node implements Closeable {
         if (ReadinessService.enabled(environment)) {
             stopIfStarted(ReadinessService.class);
         }
+        // We stop the health periodic logger first since certain checks won't be possible anyway
+        stopIfStarted(HealthPeriodicLogger.class);
         stopIfStarted(FileSettingsService.class);
         injector.getInstance(ResourceWatcherService.class).close();
         stopIfStarted(HttpServerTransport.class);

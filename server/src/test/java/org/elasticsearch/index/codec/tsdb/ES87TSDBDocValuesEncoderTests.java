@@ -291,7 +291,7 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
     public void testEncodeOrdinalsAlmostCycle() throws IOException {
         long[] arr = new long[blockSize];
         Arrays.setAll(arr, i -> i % 3);
-        arr[arr.length -1] = 4;
+        arr[arr.length - 1] = 4;
         doTestOrdinals(arr, 49);
     }
 

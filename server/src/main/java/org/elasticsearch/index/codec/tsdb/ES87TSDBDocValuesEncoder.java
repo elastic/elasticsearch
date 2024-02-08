@@ -229,10 +229,9 @@ public class ES87TSDBDocValuesEncoder {
         if (numRuns > 2 && cycleLength > 1 && cycleLength < in.length >> 1) {
             // check if the data cycles through the same values
             cyclic = true;
-            outer:
-            for (int i = 0; i < cycleLength; i++) {
+            outer: for (int i = 0; i < cycleLength; i++) {
                 long v = in[i];
-                for (int j = i + cycleLength; j < in.length; j+= cycleLength) {
+                for (int j = i + cycleLength; j < in.length; j += cycleLength) {
                     if (v != in[j]) {
                         cyclic = false;
                         break outer;

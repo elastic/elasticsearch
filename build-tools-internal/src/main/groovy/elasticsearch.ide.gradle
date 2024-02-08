@@ -7,6 +7,7 @@
  */
 
 import org.elasticsearch.gradle.util.Pair
+import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.jetbrains.gradle.ext.JUnit
 
@@ -101,12 +102,22 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     description = 'Configures the appropriate JVM for Gradle'
 
     doLast {
-      modifyXml('.idea/gradle.xml') { xml ->
+      /*modifyXml('.idea/gradle.xml') { xml ->
         def gradleSettings = xml.component.find { it.'@name' == 'GradleSettings' }.option[0].GradleProjectSettings
         // Remove configured JVM option to force IntelliJ to use the project JDK for Gradle
         gradleSettings.option.findAll { it.'@name' == 'gradleJvm' }.each { it.parent().remove(it) }
-      }
+      }*/
     }
+  }
+
+  // aggregate task so dependency artifacts below can can use one task name
+  tasks.register("generateProviderImpls").configure {
+    group = 'ide'
+    description = 'Builds all embedded provider impls'
+
+    dependsOn subprojects
+      .collect { GradleUtils.findByName(it.tasks, 'generateProviderImpls') }
+      .findAll { it != null }
   }
 
   tasks.register('buildDependencyArtifacts') {
@@ -114,11 +125,12 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     description = 'Builds artifacts needed as dependency for IDE modules'
     dependsOn([':client:rest-high-level:shadowJar',
       ':plugins:repository-hdfs:hadoop-client-api:shadowJar',
-      ':libs:elasticsearch-x-content:generateImplProviderImpl',
       ':x-pack:plugin:esql:compute:ann:jar',
       ':x-pack:plugin:esql:compute:gen:jar',
       ':server:generateModulesList',
-      ':server:generatePluginsList'].collect { elasticsearchProject.right()?.task(it) ?: it })
+      ':server:generatePluginsList',
+      ':generateProviderImpls'].collect { elasticsearchProject.right()?.task(it) ?: it })
+    // generate all embedded providers
   }
 
   idea {

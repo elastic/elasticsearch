@@ -30,7 +30,7 @@ public class NodesInfoRequestTests extends ESTestCase {
     public void testAddMetricsSet() {
         final NodesInfoRequest request = new NodesInfoRequest(randomAlphaOfLength(8));
         request.clear();
-        final var requestedMetrics = randomSubsetOf(NodesInfoMetrics.Metric.allMetrics());
+        final var requestedMetrics = randomSubsetOf(NodesInfoMetrics.Metric.ALL_METRICS);
         requestedMetrics.forEach(request::addMetric);
         assertThat(request.requestedMetrics(), equalTo(Set.copyOf(requestedMetrics)));
     }
@@ -41,12 +41,12 @@ public class NodesInfoRequestTests extends ESTestCase {
     public void testRemoveSingleMetric() {
         NodesInfoRequest request = new NodesInfoRequest(randomAlphaOfLength(8));
         request.all();
-        String metric = randomFrom(NodesInfoMetrics.Metric.allMetrics());
+        String metric = randomFrom(NodesInfoMetrics.Metric.ALL_METRICS);
         request.removeMetric(metric);
 
         assertThat(
             request.requestedMetrics(),
-            equalTo(NodesInfoMetrics.Metric.allMetrics().stream().filter(m -> m.equals(metric) == false).collect(Collectors.toSet()))
+            equalTo(NodesInfoMetrics.Metric.ALL_METRICS.stream().filter(m -> m.equals(metric) == false).collect(Collectors.toSet()))
         );
     }
 
@@ -69,7 +69,7 @@ public class NodesInfoRequestTests extends ESTestCase {
         NodesInfoRequest request = new NodesInfoRequest("node");
         request.all();
 
-        assertThat(request.requestedMetrics(), equalTo(NodesInfoMetrics.Metric.allMetrics()));
+        assertThat(request.requestedMetrics(), equalTo(NodesInfoMetrics.Metric.ALL_METRICS));
     }
 
     /**
@@ -90,7 +90,7 @@ public class NodesInfoRequestTests extends ESTestCase {
         String unknownMetric2 = "unknown_metric2";
         Set<String> unknownMetrics = new HashSet<>();
         unknownMetrics.add(unknownMetric1);
-        unknownMetrics.addAll(randomSubsetOf(NodesInfoMetrics.Metric.allMetrics()));
+        unknownMetrics.addAll(randomSubsetOf(NodesInfoMetrics.Metric.ALL_METRICS));
 
         NodesInfoRequest request = new NodesInfoRequest();
 

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -21,7 +22,7 @@ import java.util.stream.Collectors;
  * This class is a container that encapsulates the necessary information needed to indicate which node information is requested.
  */
 public class NodesInfoMetrics implements Writeable {
-    private Set<String> requestedMetrics = Metric.allMetrics();
+    private final Set<String> requestedMetrics = new HashSet<>(Metric.ALL_METRICS);
 
     public NodesInfoMetrics() {}
 
@@ -58,6 +59,10 @@ public class NodesInfoMetrics implements Writeable {
         AGGREGATIONS("aggregations"),
         INDICES("indices");
 
+        public static final Set<String> ALL_METRICS = Arrays.stream(values())
+            .map(Metric::metricName)
+            .collect(Collectors.toUnmodifiableSet());
+
         private final String metricName;
 
         Metric(String name) {
@@ -66,10 +71,6 @@ public class NodesInfoMetrics implements Writeable {
 
         public String metricName() {
             return this.metricName;
-        }
-
-        public static Set<String> allMetrics() {
-            return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
         }
     }
 }

@@ -57,7 +57,7 @@ public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Sets to return all the data.
      */
     public NodesInfoRequest all() {
-        nodesInfoMetrics.requestedMetrics().addAll(NodesInfoMetrics.Metric.allMetrics());
+        nodesInfoMetrics.requestedMetrics().addAll(NodesInfoMetrics.Metric.ALL_METRICS);
         return this;
     }
 
@@ -72,7 +72,7 @@ public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Add metric
      */
     public NodesInfoRequest addMetric(String metric) {
-        if (NodesInfoMetrics.Metric.allMetrics().contains(metric) == false) {
+        if (NodesInfoMetrics.Metric.ALL_METRICS.contains(metric) == false) {
             throw new IllegalStateException("Used an illegal metric: " + metric);
         }
         nodesInfoMetrics.requestedMetrics().add(metric);
@@ -91,8 +91,8 @@ public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Add multiple metrics
      */
     public NodesInfoRequest addMetrics(Set<String> metricsSet) {
-        if (NodesInfoMetrics.Metric.allMetrics().containsAll(metricsSet) == false) {
-            metricsSet.removeAll(NodesInfoMetrics.Metric.allMetrics());
+        if (NodesInfoMetrics.Metric.ALL_METRICS.containsAll(metricsSet) == false) {
+            metricsSet.removeAll(NodesInfoMetrics.Metric.ALL_METRICS);
             String plural = metricsSet.size() == 1 ? "" : "s";
             throw new IllegalStateException("Used illegal metric" + plural + ": " + metricsSet);
         }
@@ -104,7 +104,7 @@ public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Remove metric
      */
     public NodesInfoRequest removeMetric(String metric) {
-        if (NodesInfoMetrics.Metric.allMetrics().contains(metric) == false) {
+        if (NodesInfoMetrics.Metric.ALL_METRICS.contains(metric) == false) {
             throw new IllegalStateException("Used an illegal metric: " + metric);
         }
         nodesInfoMetrics.requestedMetrics().remove(metric);

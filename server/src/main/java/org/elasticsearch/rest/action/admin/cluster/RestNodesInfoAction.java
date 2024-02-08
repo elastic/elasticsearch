@@ -29,7 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesInfoAction extends BaseRestHandler {
-    static final Set<String> ALLOWED_METRICS = NodesInfoMetrics.Metric.allMetrics();
+    static final Set<String> ALLOWED_METRICS = NodesInfoMetrics.Metric.ALL_METRICS;
 
     private final SettingsFilter settingsFilter;
 

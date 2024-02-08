@@ -56,7 +56,6 @@ import org.elasticsearch.http.HttpRouteStatsTracker;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
@@ -68,6 +67,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -123,7 +123,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         """;
 
     public void testBasic() throws IOException {
-        try (var ignored = withRequestTracker()) {
+        try (var ignored = withResourceTracker()) {
             final var response = getRestClient().performRequest(new Request("GET", YieldsContinuationsPlugin.ROUTE));
             assertEquals(200, response.getStatusLine().getStatusCode());
             assertThat(response.getEntity().getContentType().toString(), containsString(TEXT_CONTENT_TYPE));
@@ -167,7 +167,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
             public void assertMatched() {}
         });
 
-        try (var ignored = withRequestTracker(); var ignored2 = mockLogAppender.capturing("org.elasticsearch.http.HttpBodyTracer")) {
+        try (var ignored = withResourceTracker(); var ignored2 = mockLogAppender.capturing("org.elasticsearch.http.HttpBodyTracer")) {
             assertEquals(
                 expectedBody,
                 ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(logger, Level.INFO, "response body", ReferenceDocs.HTTP_TRACER, () -> {
@@ -180,7 +180,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
     }
 
     public void testResponseBodySizeStats() throws IOException {
-        try (var ignored = withRequestTracker()) {
+        try (var ignored = withResourceTracker()) {
             final var totalResponseSizeBefore = getTotalResponseSize();
             getRestClient().performRequest(new Request("GET", YieldsContinuationsPlugin.ROUTE));
             final var totalResponseSizeAfter = getTotalResponseSize();
@@ -206,7 +206,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
     }
 
     public void testPipelining() throws Exception {
-        try (var ignored = withRequestTracker(); var nettyClient = new Netty4HttpClient()) {
+        try (var ignored = withResourceTracker(); var nettyClient = new Netty4HttpClient()) {
             final var responses = nettyClient.get(
                 randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses()).address(),
                 CountDown3Plugin.ROUTE,
@@ -228,7 +228,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
     public void testContinuationFailure() throws Exception {
         // TODO when https://github.com/netty/netty/issues/13816 addressed, verify that we see the failure properly and no later responses
-        try (var ignored = withRequestTracker(); var nettyClient = new Netty4HttpClient()) {
+        try (var ignored = withResourceTracker(); var nettyClient = new Netty4HttpClient()) {
             final var responses = nettyClient.get(
                 randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses()).address(),
                 YieldsContinuationsPlugin.ROUTE,
@@ -245,7 +245,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
     }
 
     public void testClientCancellation() {
-        try (var ignored = withRequestTracker()) {
+        try (var ignored = withResourceTracker()) {
             final var cancellable = getRestClient().performRequestAsync(
                 new Request("GET", InfiniteContinuationsPlugin.ROUTE),
                 new ResponseListener() {
@@ -267,55 +267,40 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         } // closing the request tracker ensures that everything is released, including all response chunks and the overall response
     }
 
-    private static Releasable withRequestTracker() {
+    private static Releasable withResourceTracker() {
+        assertNull(refs);
         final var latch = new CountDownLatch(1);
-        final var refCounted = AbstractRefCounted.of(latch::countDown);
-        setPluginRequestRefs(refCounted);
+        refs = AbstractRefCounted.of(latch::countDown);
         return () -> {
-            setPluginRequestRefs(RefCounted.ALWAYS_REFERENCED);
-            refCounted.decRef();
-            safeAwait(latch);
+            refs.decRef();
+            try {
+                safeAwait(latch);
+            } finally {
+                refs = null;
+            }
         };
     }
 
-    private static void setPluginRequestRefs(RefCounted refCounted) {
-        Iterators.flatMap(
-            internalCluster().getInstances(PluginsService.class).iterator(),
-            pluginsService -> pluginsService.filterPlugins(HasRequestRefs.class).iterator()
-        ).forEachRemaining(p -> p.setRequestRefs(refCounted));
-    }
-
-    interface HasRequestRefs {
-        void setRequestRefs(RefCounted requestRefs);
-    }
+    private static volatile RefCounted refs = null;
 
     /**
      * Adds a REST route which yields a sequence of continuations which are computed asynchronously, effectively pausing after each one..
      */
-    public static class YieldsContinuationsPlugin extends Plugin implements ActionPlugin, HasRequestRefs {
+    public static class YieldsContinuationsPlugin extends Plugin implements ActionPlugin {
         static final String ROUTE = "/_test/yields_continuations";
         static final String FAIL_INDEX_PARAM = "fail_index";
 
         private static final ActionType<YieldsContinuationsPlugin.Response> TYPE = new ActionType<>("test:yields_continuations");
-
-        private RefCounted requestRefs = RefCounted.ALWAYS_REFERENCED;
 
         @Override
         public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
             return List.of(new ActionHandler<>(TYPE, TransportYieldsContinuationsAction.class));
         }
 
-        @Override
-        public void setRequestRefs(RefCounted requestRefs) {
-            this.requestRefs = requestRefs;
-        }
-
         public static class Request extends ActionRequest {
-            final RefCounted requestRefs;
             final int failIndex;
 
-            public Request(RefCounted requestRefs, int failIndex) {
-                this.requestRefs = requestRefs;
+            public Request(int failIndex) {
                 this.failIndex = failIndex;
             }
 
@@ -328,12 +313,10 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         public static class Response extends ActionResponse {
             private final int failIndex;
             private final Executor executor;
-            private final RefCounted requestRefs;
 
-            public Response(int failIndex, Executor executor, RefCounted requestRefs) {
+            public Response(int failIndex, Executor executor) {
                 this.failIndex = failIndex;
                 this.executor = executor;
-                this.requestRefs = requestRefs;
             }
 
             @Override
@@ -371,19 +354,19 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                     @Override
                     public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
                         assertTrue(lines.hasNext());
-                        requestRefs.mustIncRef();
+                        refs.mustIncRef();
                         final var output = new RecyclerBytesStreamOutput(recycler);
                         boolean success = false;
                         try {
                             try (var writer = new OutputStreamWriter(Streams.flushOnCloseStream(output), StandardCharsets.UTF_8)) {
                                 writer.write(lines.next());
                             }
-                            final var result = new ReleasableBytesReference(output.bytes(), Releasables.wrap(output, requestRefs::decRef));
+                            final var result = new ReleasableBytesReference(output.bytes(), Releasables.wrap(output, refs::decRef));
                             success = true;
                             return result;
                         } finally {
                             if (success == false) {
-                                requestRefs.decRef();
+                                refs.decRef();
                                 output.close();
                             }
                         }
@@ -409,7 +392,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
             @Override
             protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-                executor.execute(ActionRunnable.supply(listener, () -> new Response(request.failIndex, executor, request.requestRefs)));
+                executor.execute(ActionRunnable.supply(listener, () -> new Response(request.failIndex, executor)));
             }
         }
 
@@ -439,24 +422,21 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                 @Override
                 protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
                     final var failIndex = request.paramAsInt(FAIL_INDEX_PARAM, Integer.MAX_VALUE);
-                    final var localRequestRefs = requestRefs;
-                    localRequestRefs.mustIncRef();
+                    refs.mustIncRef();
                     return new RestChannelConsumer() {
 
                         @Override
                         public void close() {
-                            localRequestRefs.decRef();
+                            refs.decRef();
                         }
 
                         @Override
                         public void accept(RestChannel channel) {
-                            localRequestRefs.mustIncRef();
-                            client.execute(TYPE, new Request(localRequestRefs, failIndex), new RestActionListener<>(channel) {
+                            refs.mustIncRef();
+                            client.execute(TYPE, new Request(failIndex), new RestActionListener<>(channel) {
                                 @Override
                                 protected void processResponse(Response response) {
-                                    channel.sendResponse(
-                                        RestResponse.chunked(RestStatus.OK, response.getChunkedBody(), localRequestRefs::decRef)
-                                    );
+                                    channel.sendResponse(RestResponse.chunked(RestStatus.OK, response.getChunkedBody(), refs::decRef));
                                 }
                             });
                         }
@@ -469,30 +449,17 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
     /**
      * Adds a REST route which yields an infinite sequence of continuations which can only be stopped by the client closing the connection.
      */
-    public static class InfiniteContinuationsPlugin extends Plugin implements ActionPlugin, HasRequestRefs {
+    public static class InfiniteContinuationsPlugin extends Plugin implements ActionPlugin {
         static final String ROUTE = "/_test/infinite_continuations";
 
         private static final ActionType<Response> TYPE = new ActionType<>("test:infinite_continuations");
-
-        private RefCounted requestRefs = RefCounted.ALWAYS_REFERENCED;
 
         @Override
         public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
             return List.of(new ActionHandler<>(TYPE, TransportInfiniteContinuationsAction.class));
         }
 
-        @Override
-        public void setRequestRefs(RefCounted requestRefs) {
-            this.requestRefs = requestRefs;
-        }
-
         public static class Request extends ActionRequest {
-            final RefCounted requestRefs;
-
-            public Request(RefCounted requestRefs) {
-                this.requestRefs = requestRefs;
-            }
-
             @Override
             public ActionRequestValidationException validate() {
                 return null;
@@ -501,11 +468,9 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
         public static class Response extends ActionResponse {
             private final Executor executor;
-            private final RefCounted requestRefs;
 
-            public Response(Executor executor, RefCounted requestRefs) {
+            public Response(Executor executor) {
                 this.executor = executor;
-                this.requestRefs = requestRefs;
             }
 
             @Override
@@ -535,8 +500,8 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                     @Override
                     public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
                         assertTrue(lines.hasNext());
-                        requestRefs.mustIncRef();
-                        return new ReleasableBytesReference(new BytesArray(lines.next()), requestRefs::decRef);
+                        refs.mustIncRef();
+                        return new ReleasableBytesReference(new BytesArray(lines.next()), refs::decRef);
                     }
 
                     @Override
@@ -559,10 +524,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
             @Override
             protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
                 executor.execute(
-                    ActionRunnable.supply(
-                        ActionTestUtils.assertNoFailureListener(listener::onResponse),
-                        () -> new Response(executor, request.requestRefs)
-                    )
+                    ActionRunnable.supply(ActionTestUtils.assertNoFailureListener(listener::onResponse), () -> new Response(executor))
                 );
             }
         }
@@ -592,27 +554,28 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
                 @Override
                 protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-                    final var localRequestRefs = requestRefs;
-                    localRequestRefs.mustIncRef();
-                    return new RestChannelConsumer() {
-                        @Override
-                        public void close() {
-                            localRequestRefs.decRef();
-                        }
+                    final var localRefs = refs; // single volatile read
+                    if (localRefs != null && localRefs.tryIncRef()) {
+                        return new RestChannelConsumer() {
+                            @Override
+                            public void close() {
+                                refs.decRef();
+                            }
 
-                        @Override
-                        public void accept(RestChannel channel) {
-                            localRequestRefs.mustIncRef();
-                            client.execute(TYPE, new Request(localRequestRefs), new RestActionListener<>(channel) {
-                                @Override
-                                protected void processResponse(Response response) {
-                                    channel.sendResponse(
-                                        RestResponse.chunked(RestStatus.OK, response.getChunkedBody(), localRequestRefs::decRef)
-                                    );
-                                }
-                            });
-                        }
-                    };
+                            @Override
+                            public void accept(RestChannel channel) {
+                                refs.mustIncRef();
+                                client.execute(TYPE, new Request(), new RestActionListener<>(channel) {
+                                    @Override
+                                    protected void processResponse(Response response) {
+                                        channel.sendResponse(RestResponse.chunked(RestStatus.OK, response.getChunkedBody(), refs::decRef));
+                                    }
+                                });
+                            }
+                        };
+                    } else {
+                        throw new TaskCancelledException("request cancelled");
+                    }
                 }
             });
         }
@@ -621,16 +584,9 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
     /**
      * Adds an HTTP route that waits for 3 concurrent executions before returning any of them
      */
-    public static class CountDown3Plugin extends Plugin implements ActionPlugin, HasRequestRefs {
+    public static class CountDown3Plugin extends Plugin implements ActionPlugin {
 
         static final String ROUTE = "/_test/countdown_3";
-
-        private RefCounted requestRefs = RefCounted.ALWAYS_REFERENCED;
-
-        @Override
-        public void setRequestRefs(RefCounted requestRefs) {
-            this.requestRefs = requestRefs;
-        }
 
         @Override
         public Collection<RestHandler> getRestHandlers(
@@ -668,18 +624,18 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
                 @Override
                 protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-                    requestRefs.mustIncRef();
+                    refs.mustIncRef();
                     return new RestChannelConsumer() {
 
                         @Override
                         public void close() {
-                            requestRefs.decRef();
+                            refs.decRef();
                         }
 
                         @Override
                         public void accept(RestChannel channel) {
-                            requestRefs.mustIncRef();
-                            addListener(ActionListener.releaseAfter(new RestToXContentListener<>(channel), requestRefs::decRef));
+                            refs.mustIncRef();
+                            addListener(ActionListener.releaseAfter(new RestToXContentListener<>(channel), refs::decRef));
                         }
                     };
                 }

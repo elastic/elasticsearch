@@ -46,12 +46,9 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
 
     @Before
     public void loadManyPipelines() {
-        long startTime = System.currentTimeMillis();
         internalCluster().ensureAtLeastNumDataNodes(1);
         internalCluster().startMasterOnlyNode();
         createChainedPipelines(manyPipelinesCount);
-        long runtime = System.currentTimeMillis() - startTime;
-        System.out.println("*** load runtime: " + runtime);
     }
 
     public void testIngestManyPipelines() {
@@ -118,7 +115,7 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
                 ]
             }
             """;
-        String pipeline = String.format(pipelineTemplate, nextPipelineId);
+        String pipeline = Strings.format(pipelineTemplate, nextPipelineId);
         clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(Strings.format(pipeline, MockScriptEngine.NAME)), XContentType.JSON)
             .get();
     }
@@ -134,7 +131,7 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
                 ]
             }
             """;
-        String pipeline = String.format(pipelineTemplate, nextPipelineId);
+        String pipeline = Strings.format(pipelineTemplate, nextPipelineId);
         clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(Strings.format(pipeline, MockScriptEngine.NAME)), XContentType.JSON)
             .get();
     }

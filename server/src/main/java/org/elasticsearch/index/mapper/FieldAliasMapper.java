@@ -65,23 +65,6 @@ public final class FieldAliasMapper extends Mapper {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (obj == this) {
-            return true;
-        }
-        if (obj instanceof FieldAliasMapper == false) {
-            return false;
-        }
-        FieldAliasMapper mapper = (FieldAliasMapper) obj;
-        return simpleName().equals(mapper.simpleName()) && name.equals(mapper.name) && path.equals(mapper.path);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(name, path);
-    }
-
-    @Override
     public Iterator<Mapper> iterator() {
         return Collections.emptyIterator();
     }

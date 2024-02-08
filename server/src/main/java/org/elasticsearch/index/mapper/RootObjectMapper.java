@@ -145,12 +145,15 @@ public class RootObjectMapper extends ObjectMapper {
                             // to avoid indexing disruption.
                             // TODO: record an error without affecting document indexing, so that it can be investigated later.
                             Mapper conflict = mappers.get(fieldMapper.simpleName());
-                            if (conflict != null && conflict.equals(fieldMapper) == false) {
-                                logger.warn(
-                                    "Root alias for field "
-                                        + fieldMapper.name()
-                                        + " conflicts with existing field or alias, skipping alias creation."
-                                );
+                            if (conflict != null) {
+                                if (conflict.typeName().equals(FieldAliasMapper.CONTENT_TYPE) == false
+                                    || ((FieldAliasMapper) conflict).path().equals(fieldMapper.mappedFieldType.name()) == false) {
+                                    logger.warn(
+                                        "Root alias for field "
+                                            + fieldMapper.name()
+                                            + " conflicts with existing field or alias, skipping alias creation."
+                                    );
+                                }
                             } else {
                                 FieldAliasMapper aliasMapper = new FieldAliasMapper.Builder(fieldMapper.simpleName()).path(
                                     fieldMapper.mappedFieldType.name()

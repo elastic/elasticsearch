@@ -167,8 +167,7 @@ public final class MappingLookup {
             if (objects.containsKey(aliasMapper.name())) {
                 throw new MapperParsingException("Alias [" + aliasMapper.name() + "] is defined both as an object and an alias");
             }
-            Mapper existing = fieldMappers.put(aliasMapper.name(), aliasMapper);
-            if (existing != null && existing.equals(aliasMapper) == false) {
+            if (fieldMappers.put(aliasMapper.name(), aliasMapper) != null) {
                 throw new MapperParsingException("Alias [" + aliasMapper.name() + "] is defined both as an alias and a concrete field");
             }
         }

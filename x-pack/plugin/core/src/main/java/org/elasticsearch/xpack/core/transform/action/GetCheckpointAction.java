@@ -59,16 +59,13 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             super(in);
             indices = in.readStringArray();
             indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_CHECKPOINT_QUERY_AND_CLUSTER_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 query = in.readOptionalNamedWriteable(QueryBuilder.class);
                 cluster = in.readOptionalString();
+                timeout = in.readOptionalTimeValue();
             } else {
                 query = null;
                 cluster = null;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED)) {
-                timeout = in.readOptionalTimeValue();
-            } else {
                 timeout = null;
             }
         }
@@ -135,11 +132,9 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             super.writeTo(out);
             out.writeStringArray(indices);
             indicesOptions.writeIndicesOptions(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_CHECKPOINT_QUERY_AND_CLUSTER_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeOptionalNamedWriteable(query);
                 out.writeOptionalString(cluster);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED)) {
                 out.writeOptionalTimeValue(timeout);
             }
         }

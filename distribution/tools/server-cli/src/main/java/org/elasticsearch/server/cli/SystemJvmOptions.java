@@ -67,6 +67,7 @@ final class SystemJvmOptions {
              * explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
              */
             "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
+            maybeEnableNativeAccess(),
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
             setReplayFile(distroType, isHotspot),
@@ -116,6 +117,13 @@ final class SystemJvmOptions {
         if (EsExecutors.NODE_PROCESSORS_SETTING.exists(nodeSettings)) {
             int allocated = EsExecutors.allocatedProcessors(nodeSettings);
             return "-XX:ActiveProcessorCount=" + allocated;
+        }
+        return "";
+    }
+
+    private static String maybeEnableNativeAccess() {
+        if (Runtime.version().feature() >= 21) {
+            return "--enable-native-access=org.elasticsearch.nativeaccess";
         }
         return "";
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -89,7 +90,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
             throw new UnsupportedOperationException();
         }
 
@@ -139,7 +140,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
             throw new UnsupportedOperationException();
         }
 

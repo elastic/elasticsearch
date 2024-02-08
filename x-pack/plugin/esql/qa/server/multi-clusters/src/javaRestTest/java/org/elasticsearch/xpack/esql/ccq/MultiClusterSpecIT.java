@@ -161,16 +161,18 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String query = testCase.query;
         String[] commands = query.split("\\|");
         String first = commands[0].trim();
+
         if (commands[0].toLowerCase(Locale.ROOT).startsWith("from")) {
-            String[] parts = commands[0].split("\\[");
+            String[] parts = commands[0].split("(?i)metadata");
             assert parts.length >= 1 : parts;
             String fromStatement = parts[0];
+
             String[] localIndices = fromStatement.substring("FROM ".length()).split(",");
             String remoteIndices = Arrays.stream(localIndices)
                 .map(index -> "*:" + index.trim() + "," + index.trim())
                 .collect(Collectors.joining(","));
-            var newFrom = "FROM " + remoteIndices + commands[0].substring(fromStatement.length());
-            testCase.query = newFrom + " " + query.substring(first.length());
+            var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
+            testCase.query = newFrom + query.substring(first.length());
         }
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {
@@ -195,7 +197,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     static boolean hasIndexMetadata(String query) {
         String[] commands = query.split("\\|");
         if (commands[0].trim().toLowerCase(Locale.ROOT).startsWith("from")) {
-            String[] parts = commands[0].split("\\[");
+            String[] parts = commands[0].split("(?i)metadata");
             return parts.length > 1 && parts[1].contains("_index");
         }
         return false;

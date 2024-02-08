@@ -46,11 +46,16 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         @Nullable
         private final RepositoriesHealthInfo repositoriesHealthInfo;
 
-        public Request(String nodeId, DiskHealthInfo diskHealthInfo, RepositoriesHealthInfo repositoriesHealthInfo) {
+        public Request(
+            String nodeId,
+            DiskHealthInfo diskHealthInfo,
+            DataStreamLifecycleHealthInfo dslHealthInfo,
+            RepositoriesHealthInfo repositoriesHealthInfo
+        ) {
             this.nodeId = nodeId;
             this.diskHealthInfo = diskHealthInfo;
+            this.dslHealthInfo = dslHealthInfo;
             this.repositoriesHealthInfo = repositoriesHealthInfo;
-            this.dslHealthInfo = null;
         }
 
         public Request(String nodeId, DataStreamLifecycleHealthInfo dslHealthInfo) {
@@ -179,7 +184,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             }
 
             public Request build() {
-                return new Request(nodeId, diskHealthInfo, repositoriesHealthInfo);
+                return new Request(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo);
             }
         }
     }

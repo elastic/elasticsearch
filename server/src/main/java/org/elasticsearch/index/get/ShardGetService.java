@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.MultiEngineGet;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
 
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -87,7 +89,31 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
             forceSyntheticSource,
-            false
+            indexShard::get
+        );
+    }
+
+    public GetResult get(
+        String id,
+        String[] gFields,
+        boolean realtime,
+        long version,
+        VersionType versionType,
+        FetchSourceContext fetchSourceContext,
+        boolean forceSyntheticSource,
+        MultiEngineGet mget
+    ) throws IOException {
+        return get(
+            id,
+            gFields,
+            realtime,
+            version,
+            versionType,
+            UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            fetchSourceContext,
+            forceSyntheticSource,
+            mget::get
         );
     }
 
@@ -101,7 +127,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long ifPrimaryTerm,
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
-        boolean translogOnly
+        Function<Engine.Get, Engine.GetResult> engineGetOperator
     ) throws IOException {
         currentMetric.inc();
         try {
@@ -116,7 +142,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 ifPrimaryTerm,
                 fetchSourceContext,
                 forceSyntheticSource,
-                translogOnly
+                engineGetOperator
             );
 
             if (getResult != null && getResult.isExists()) {
@@ -149,7 +175,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
             forceSyntheticSource,
-            true
+            indexShard::getFromTranslog
         );
     }
 
@@ -164,7 +190,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             ifPrimaryTerm,
             FetchSourceContext.FETCH_SOURCE,
             false,
-            false
+            indexShard::get
         );
     }
 
@@ -225,14 +251,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long ifPrimaryTerm,
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
-        boolean translogOnly
+        Function<Engine.Get, Engine.GetResult> engineGetOperator
     ) throws IOException {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
         var engineGet = new Engine.Get(realtime, realtime, id).version(version)
             .versionType(versionType)
             .setIfSeqNo(ifSeqNo)
             .setIfPrimaryTerm(ifPrimaryTerm);
-        try (Engine.GetResult get = translogOnly ? indexShard.getFromTranslog(engineGet) : indexShard.get(engineGet)) {
+        try (Engine.GetResult get = engineGetOperator.apply(engineGet)) {
             if (get == null) {
                 return null;
             }

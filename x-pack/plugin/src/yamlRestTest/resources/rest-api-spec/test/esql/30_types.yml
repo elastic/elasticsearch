@@ -621,6 +621,9 @@ version:
 
 ---
 id:
+  - skip:
+      version: " - 8.12.99"
+      reason: "_source is available in 8.13+"
   - do:
       indices.create:
         index: test
@@ -683,8 +686,8 @@ unsigned_long:
 ---
 _source:
   - skip:
-      version: " - 8.11.99"
-      reason: "_source is available in 8.12+"
+      version: " - 8.12.99"
+      reason: "_source is available in 8.13+"
 
   - do:
       bulk:
@@ -746,8 +749,8 @@ _source keep all:
 ---
 _source disabled:
   - skip:
-      version: " - 8.11.99"
-      reason: "_source is available in 8.12+"
+      version: " - 8.12.99"
+      reason: "_source is available in 8.13+"
 
   - do:
       indices.create:

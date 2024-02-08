@@ -58,8 +58,8 @@
 ---
 "unsupported and invalid mapped fields":
   - skip:
-      version: " - 8.11.99"
-      reason: "fixes in 8.12 or later"
+      version: " - 8.12.99"
+      reason: "fixes in 8.13 or later"
   - do:
       indices.create:
         index: index1

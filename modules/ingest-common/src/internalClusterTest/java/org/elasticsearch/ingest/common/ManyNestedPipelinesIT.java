@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * This test is meant to make sure that we can handle ingesting a document with a reaonsably large number of nested pipeline processors.
  */
 public class ManyNestedPipelinesIT extends ESIntegTestCase {
-    private static final int manyPipelinesCount = randomFrom(2, 20);
+    private static final int manyPipelinesCount = 20;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

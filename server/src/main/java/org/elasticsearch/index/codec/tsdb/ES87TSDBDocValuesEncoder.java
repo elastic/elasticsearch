@@ -229,7 +229,7 @@ public class ES87TSDBDocValuesEncoder {
         }
         if (numRuns == 1 && bitsPerOrd < 63) {
             long value = in[0];
-            // set first bit to 0 (0 trailing bits) to indicate the block has a single run
+            // unset first bit (0 trailing ones) to indicate the block has a single run
             out.writeVLong(value << 1);
         } else if (numRuns == 2 && bitsPerOrd < 62) {
             // set 1 trailing bit to indicate the block has two runs

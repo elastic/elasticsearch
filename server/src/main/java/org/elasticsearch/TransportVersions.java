@@ -273,7 +273,7 @@ public class TransportVersions {
             MINIMUM_CCS_VERSION = MINIMUM_COMPATIBLE;
         } else {
             Version minCcsVersion = Version.fromString(Version.CURRENT.major + "." + (Version.CURRENT.minor - 1) + ".0");
-            int tvCcsId = VERSION_LOOKUP.findId(minCompatVersion)
+            int tvCcsId = VERSION_LOOKUP.findId(minCcsVersion)
                 .orElseThrow(() -> new IllegalStateException("Could not find transport version id for version " + minCcsVersion));
             MINIMUM_CCS_VERSION = VERSION_IDS.get(tvCcsId);
             if (MINIMUM_CCS_VERSION == null) {

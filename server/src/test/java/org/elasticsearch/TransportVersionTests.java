@@ -184,6 +184,17 @@ public class TransportVersionTests extends ESTestCase {
         );
     }
 
+    public void testMinCcsVersionLooksCorrect() {
+        Version minCcsVersion = Version.fromString(
+            TransportVersions.VERSION_LOOKUP.inferVersion(TransportVersions.MINIMUM_CCS_VERSION.id())
+        );
+        if (Version.CURRENT.minor == 0) {
+            assertThat(minCcsVersion, equalTo(Version.CURRENT.minimumCompatibilityVersion()));
+        } else {
+            assertThat(minCcsVersion, equalTo(Version.fromString(Version.CURRENT.major + "." + (Version.CURRENT.minor - 1) + ".0")));
+        }
+    }
+
     public void testToString() {
         assertEquals("5000099", TransportVersion.fromId(5_00_00_99).toString());
         assertEquals("2030099", TransportVersion.fromId(2_03_00_99).toString());

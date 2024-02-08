@@ -68,7 +68,7 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
         assertThat(results.size(), equalTo(1));
         assertThat(results.get(0), instanceOf(SimulateDocumentVerboseResult.class));
         SimulateDocumentVerboseResult result = (SimulateDocumentVerboseResult) results.get(0);
-        assertThat(result.getProcessorResults().size(), equalTo(manyPipelinesCount - 1));
+        assertThat(result.getProcessorResults().size(), equalTo(manyPipelinesCount));
         assertNull(result.getProcessorResults().get(0).getFailure());
     }
 
@@ -124,6 +124,10 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
             {
                 "processors": [
                     {
+                       "set": {
+                          "field": "foo",
+                          "value": "bar"
+                       }
                     }
                 ]
             }

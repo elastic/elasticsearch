@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -177,69 +178,70 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        // TODO: optimize single result case either by having a if check here and return aggregations.get(0) or
-        // by overwriting the mustReduceOnSingleInternalAgg() method
-        final int initialCapacity = aggregations.stream()
-            .map(value -> (InternalTimeSeries) value)
-            .mapToInt(value -> value.getBuckets().size())
-            .max()
-            .getAsInt();
-
-        final PriorityQueue<IteratorAndCurrent<InternalBucket>> pq = new PriorityQueue<>(aggregations.size()) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        final PriorityQueue<IteratorAndCurrent<InternalBucket>> pq = new PriorityQueue<>(size) {
             @Override
             protected boolean lessThan(IteratorAndCurrent<InternalBucket> a, IteratorAndCurrent<InternalBucket> b) {
                 return a.current().key.compareTo(b.current().key) < 0;
             }
         };
-        for (InternalAggregation aggregation : aggregations) {
-            InternalTimeSeries timeSeries = (InternalTimeSeries) aggregation;
-            if (timeSeries.buckets.isEmpty() == false) {
-                IteratorAndCurrent<InternalBucket> iterator = new IteratorAndCurrent<>(timeSeries.buckets.iterator());
-                pq.add(iterator);
-            }
-        }
+        return new AggregatorReducer() {
+            int initialCapacity = 0;
 
-        InternalTimeSeries reduced = new InternalTimeSeries(name, new ArrayList<>(initialCapacity), keyed, getMetadata());
-        Integer size = reduceContext.builder() instanceof TimeSeriesAggregationBuilder
-            ? ((TimeSeriesAggregationBuilder) reduceContext.builder()).getSize()
-            : null; // tests may use a fake builder
-        List<InternalBucket> bucketsWithSameKey = new ArrayList<>(aggregations.size());
-        BytesRef prevTsid = null;
-        while (pq.size() > 0) {
-            reduceContext.consumeBucketsAndMaybeBreak(1);
-            bucketsWithSameKey.clear();
-
-            while (bucketsWithSameKey.isEmpty() || bucketsWithSameKey.get(0).key.equals(pq.top().current().key)) {
-                IteratorAndCurrent<InternalBucket> iterator = pq.top();
-                bucketsWithSameKey.add(iterator.current());
-                if (iterator.hasNext()) {
-                    iterator.next();
-                    pq.updateTop();
-                } else {
-                    pq.pop();
-                    if (pq.size() == 0) {
-                        break;
-                    }
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalTimeSeries timeSeries = (InternalTimeSeries) aggregation;
+                if (timeSeries.buckets.isEmpty() == false) {
+                    initialCapacity = Math.max(initialCapacity, timeSeries.buckets.size());
+                    IteratorAndCurrent<InternalBucket> iterator = new IteratorAndCurrent<>(timeSeries.buckets.iterator());
+                    pq.add(iterator);
                 }
             }
 
-            InternalBucket reducedBucket;
-            if (bucketsWithSameKey.size() == 1) {
-                reducedBucket = bucketsWithSameKey.get(0);
-                reducedBucket.aggregations = InternalAggregations.reduce(List.of(reducedBucket.aggregations), reduceContext);
-            } else {
-                reducedBucket = reduceBucket(bucketsWithSameKey, reduceContext);
+            @Override
+            public InternalAggregation get() {
+                InternalTimeSeries reduced = new InternalTimeSeries(name, new ArrayList<>(initialCapacity), keyed, getMetadata());
+                List<InternalBucket> bucketsWithSameKey = new ArrayList<>(size); // TODO: not sure about this size?
+                Integer size = reduceContext.builder() instanceof TimeSeriesAggregationBuilder
+                    ? ((TimeSeriesAggregationBuilder) reduceContext.builder()).getSize()
+                    : null; // tests may use a fake builder
+                BytesRef prevTsid = null;
+                while (pq.size() > 0) {
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
+                    bucketsWithSameKey.clear();
+
+                    while (bucketsWithSameKey.isEmpty() || bucketsWithSameKey.get(0).key.equals(pq.top().current().key)) {
+                        IteratorAndCurrent<InternalBucket> iterator = pq.top();
+                        bucketsWithSameKey.add(iterator.current());
+                        if (iterator.hasNext()) {
+                            iterator.next();
+                            pq.updateTop();
+                        } else {
+                            pq.pop();
+                            if (pq.size() == 0) {
+                                break;
+                            }
+                        }
+                    }
+
+                    InternalBucket reducedBucket;
+                    if (bucketsWithSameKey.size() == 1) {
+                        reducedBucket = bucketsWithSameKey.get(0);
+                        reducedBucket.aggregations = InternalAggregations.reduce(List.of(reducedBucket.aggregations), reduceContext);
+                    } else {
+                        reducedBucket = reduceBucket(bucketsWithSameKey, reduceContext);
+                    }
+                    BytesRef tsid = reducedBucket.key;
+                    assert prevTsid == null || tsid.compareTo(prevTsid) > 0;
+                    reduced.buckets.add(reducedBucket);
+                    if (size != null && reduced.buckets.size() >= size) {
+                        break;
+                    }
+                    prevTsid = tsid;
+                }
+                return reduced;
             }
-            BytesRef tsid = reducedBucket.key;
-            assert prevTsid == null || tsid.compareTo(prevTsid) > 0;
-            reduced.buckets.add(reducedBucket);
-            if (size != null && reduced.buckets.size() >= size) {
-                break;
-            }
-            prevTsid = tsid;
-        }
-        return reduced;
+        };
     }
 
     @Override
@@ -252,8 +254,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
         return new InternalBucket(prototype.key, prototype.docCount, aggregations, prototype.keyed);
     }
 
-    @Override
-    protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
+    private InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         InternalTimeSeries.InternalBucket reduced = null;
         for (InternalTimeSeries.InternalBucket bucket : buckets) {
             if (reduced == null) {

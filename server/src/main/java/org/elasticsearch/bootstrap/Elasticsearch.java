@@ -37,6 +37,7 @@ import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 
@@ -278,7 +279,7 @@ class Elasticsearch {
         final Logger logger = LogManager.getLogger(Elasticsearch.class);
 
         // check if the user is running as root, and bail
-        if (Natives.definitelyRunningAsRoot()) {
+        if (NativeAccess.instance().definitelyRunningAsRoot()) {
             throw new RuntimeException("can not run elasticsearch as root");
         }
 

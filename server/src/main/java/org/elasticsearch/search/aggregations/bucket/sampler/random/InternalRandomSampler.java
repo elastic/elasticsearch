@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.sampler.random;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
@@ -75,20 +76,28 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        long docCount = 0L;
-        List<InternalAggregations> subAggregationsList = new ArrayList<>(aggregations.size());
-        for (InternalAggregation aggregation : aggregations) {
-            docCount += ((InternalSingleBucketAggregation) aggregation).getDocCount();
-            subAggregationsList.add(((InternalSingleBucketAggregation) aggregation).getAggregations());
-        }
-        InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
-        if (reduceContext.isFinalReduce() && aggs != null) {
-            SamplingContext context = buildContext();
-            aggs = InternalAggregations.from(aggs.asList().stream().map(agg -> agg.finalizeSampling(context)).toList());
-        }
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            long docCount = 0L;
+            final List<InternalAggregations> subAggregationsList = new ArrayList<>(size);
 
-        return newAggregation(getName(), docCount, aggs);
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                docCount += ((InternalSingleBucketAggregation) aggregation).getDocCount();
+                subAggregationsList.add(((InternalSingleBucketAggregation) aggregation).getAggregations());
+            }
+
+            @Override
+            public InternalAggregation get() {
+                InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
+                if (reduceContext.isFinalReduce() && aggs != null) {
+                    SamplingContext context = buildContext();
+                    aggs = InternalAggregations.from(aggs.asList().stream().map(agg -> agg.finalizeSampling(context)).toList());
+                }
+
+                return newAggregation(getName(), docCount, aggs);
+            }
+        };
     }
 
     public SamplingContext buildContext() {

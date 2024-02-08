@@ -8,9 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
@@ -90,7 +88,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     public static final class IgnoredFieldType extends StringFieldType {
 
         private IgnoredFieldType() {
-            super(NAME, true, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -129,10 +127,6 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             if (mappedFieldType.hasDocValues()) {
                 context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(ignoredField)));
             }
-            if (mappedFieldType.isStored()) {
-                context.doc().add(new StringField(NAME, ignoredField, Field.Store.YES));
-            }
-
         }
     }
 

@@ -386,7 +386,7 @@ public class ConnectorIndexService {
      * Updates the {@link ConnectorConfiguration} property of a {@link Connector}.
      * This method supports full configuration replacement or individual configuration value updates.
      * If a full configuration is provided, it overwrites all existing configurations in non-additive way.
-     * If only configuration values are provided, existing configuration object is updated with new values
+     * If only configuration values are provided, the existing {@link ConnectorConfiguration} is updated with new values
      * provided in the request.
      *
      * @param request   Request for updating connector configuration property.

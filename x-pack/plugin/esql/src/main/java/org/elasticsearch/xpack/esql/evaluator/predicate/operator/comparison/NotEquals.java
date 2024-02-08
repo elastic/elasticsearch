@@ -9,44 +9,41 @@ package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
-public class NotEquals extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals {
+public class NotEquals extends EsqlBinaryComparison implements Negatable<BinaryComparison> {
+    private static final Map<DataType, BinaryEvaluator> evaluatorMap = Map.ofEntries(
+        Map.entry(DataTypes.BOOLEAN, NotEqualsBoolsEvaluator.Factory::new),
+        Map.entry(DataTypes.INTEGER, NotEqualsIntsEvaluator.Factory::new),
+        Map.entry(DataTypes.DOUBLE, NotEqualsDoublesEvaluator.Factory::new),
+        Map.entry(DataTypes.LONG, NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(DataTypes.UNSIGNED_LONG, NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(DataTypes.DATETIME, NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(EsqlDataTypes.GEO_POINT, NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(EsqlDataTypes.CARTESIAN_POINT, NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(EsqlDataTypes.GEO_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(EsqlDataTypes.CARTESIAN_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataTypes.KEYWORD, NotEqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataTypes.TEXT, NotEqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataTypes.VERSION, NotEqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataTypes.IP, NotEqualsKeywordsEvaluator.Factory::new)
+    );
     public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, zoneId);
-    }
-
-    @Override
-    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
-        return EsqlTypeResolutions.isExact(e, sourceText(), DEFAULT);
-    }
-
-    @Override
-    protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals> info() {
-        return NodeInfo.create(this, NotEquals::new, left(), right(), zoneId());
-    }
-
-    @Override
-    protected NotEquals replaceChildren(Expression newLeft, Expression newRight) {
-        return new NotEquals(source(), newLeft, newRight, zoneId());
-    }
-
-    @Override
-    public NotEquals swapLeftAndRight() {
-        return new NotEquals(source(), right(), left(), zoneId());
-    }
-
-    @Override
-    public BinaryComparison negate() {
-        return new Equals(source(), left(), right(), zoneId());
+        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.NEQ, zoneId, evaluatorMap);
     }
 
     @Evaluator(extraName = "Ints")
@@ -77,5 +74,35 @@ public class NotEquals extends org.elasticsearch.xpack.ql.expression.predicate.o
     @Evaluator(extraName = "Geometries")
     static boolean processGeometries(BytesRef lhs, BytesRef rhs) {
         return false == lhs.equals(rhs);
+    }
+
+    @Override
+    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
+        return EsqlTypeResolutions.isExact(e, sourceText(), DEFAULT);
+    }
+
+    @Override
+    public BinaryComparison reverse() {
+        return this;
+    }
+
+    @Override
+    protected NodeInfo<NotEquals> info() {
+        return NodeInfo.create(this, NotEquals::new, left(), right(), zoneId());
+    }
+
+    @Override
+    protected NotEquals replaceChildren(Expression newLeft, Expression newRight) {
+        return new NotEquals(source(), newLeft, newRight, zoneId());
+    }
+
+    @Override
+    public NotEquals swapLeftAndRight() {
+        return new NotEquals(source(), right(), left(), zoneId());
+    }
+
+    @Override
+    public BinaryComparison negate() {
+        return new Equals(source(), left(), right(), zoneId());
     }
 }

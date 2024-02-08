@@ -11,18 +11,34 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
-public class LessThan extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan {
+public class LessThan extends EsqlBinaryComparison implements Negatable<BinaryComparison> {
 
+    private static final Map<DataType, BinaryEvaluator> evaluatorMap = Map.ofEntries(
+        Map.entry(DataTypes.INTEGER, LessThanIntsEvaluator.Factory::new),
+        Map.entry(DataTypes.DOUBLE, LessThanDoublesEvaluator.Factory::new),
+        Map.entry(DataTypes.LONG, LessThanLongsEvaluator.Factory::new),
+        Map.entry(DataTypes.UNSIGNED_LONG, LessThanLongsEvaluator.Factory::new),
+        Map.entry(DataTypes.DATETIME, LessThanLongsEvaluator.Factory::new),
+        Map.entry(DataTypes.KEYWORD, LessThanKeywordsEvaluator.Factory::new),
+        Map.entry(DataTypes.TEXT, LessThanKeywordsEvaluator.Factory::new),
+        Map.entry(DataTypes.VERSION, LessThanKeywordsEvaluator.Factory::new),
+        Map.entry(DataTypes.IP, LessThanKeywordsEvaluator.Factory::new)
+    );
     public LessThan(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, zoneId);
+        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.LT, zoneId, evaluatorMap);
     }
 
     @Override
@@ -31,12 +47,12 @@ public class LessThan extends org.elasticsearch.xpack.ql.expression.predicate.op
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan> info() {
+    protected NodeInfo<LessThan> info() {
         return NodeInfo.create(this, LessThan::new, left(), right(), zoneId());
     }
 
     @Override
-    protected org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan replaceChildren(
+    protected LessThan replaceChildren(
         Expression newLeft,
         Expression newRight
     ) {

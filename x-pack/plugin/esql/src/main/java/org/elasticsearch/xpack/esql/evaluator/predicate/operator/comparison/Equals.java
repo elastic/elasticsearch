@@ -53,6 +53,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<BinaryComp
 
     @Override
     protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
+        // TODO: I think this doesn't need to exist anymore; we can use the one on EsqlBinaryComparison?
         return EsqlTypeResolutions.isExact(e, sourceText(), DEFAULT);
     }
 

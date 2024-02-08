@@ -187,22 +187,57 @@ public class ES87TSDBDocValuesEncoder {
      *     <li>byte 0: 1/2 bits header+6/7 bits data</li>
      *     <li>byte 1..n: data</li>
      * </ul>
-     * The header (first 1 or 2 bits) describes how the data is encoded:
+     * The header (first 1-3 bits) describes how the data is encoded:
      * <ul>
-     *     <li>?0 block has a single value (vlong), 2nd bit already contains data</li>
+     *     <li><code>?0</code>: block has a single value (vlong), 2nd bit already contains data</li>
      *     <li>
-     *         01 block has two runs, data contains value 1 (vlong), run-length (vint) of value 1,
+     *         <code>01</code>: block has two runs, data contains value 1 (vlong), run-length (vint) of value 1,
      *         and delta from first to second value (zlong)
      *     </li>
-     *     <li>11 block is bit-packed</li>
+     *     <li>
+     *         <code>111</code>: block contains cyclic data, data contains cycle length (vlong),
+     *         and the values until the cycle repeats (encoded as vlongs)
+     *     </li>
+     *     <li><code>011</code>: block is bit-packed</li>
      * </ul>
      */
     void encodeOrdinals(long[] in, DataOutput out, int bitsPerOrd) throws IOException {
         assert in.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
         int numRuns = 1;
+        long firstValue = in[0];
+        long previousValue = firstValue;
+        boolean cyclic = false;
+        int cycleLength = 0;
         for (int i = 1; i < in.length; ++i) {
-            if (in[i - 1] != in[i]) {
+            long currentValue = in[i];
+            if (previousValue != currentValue) {
                 numRuns++;
+            }
+            if (currentValue == firstValue && cycleLength != -1) {
+                if (cycleLength == 0) {
+                    // first candidate cycle detected
+                    cycleLength = i;
+                } else if (i % cycleLength != 0) {
+                    // this isn't a cycle if the index of the next occurrence of the first value
+                    // isn't a multiple of the candidate cycle length
+                    // we can stop looking for cycles
+                    cycleLength = -1;
+                }
+            }
+            previousValue = currentValue;
+        }
+        if (numRuns > 2 && cycleLength > 1 && cycleLength < in.length >> 1) {
+            // check if the data cycles through the same values
+            cyclic = true;
+            outer:
+            for (int i = 0; i < cycleLength; i++) {
+                long v = in[i];
+                for (int j = i + cycleLength; j < in.length; j+= cycleLength) {
+                    if (v != in[j]) {
+                        cyclic = false;
+                        break outer;
+                    }
+                }
             }
         }
         if (numRuns == 1 && bitsPerOrd < 63) {
@@ -221,6 +256,13 @@ public class ES87TSDBDocValuesEncoder {
             }
             out.writeVInt(firstRunLen);
             out.writeZLong(in[in.length - 1] - in[0]);
+        } else if (cyclic) {
+            // set first three bits to 111 to indicate the block cycles through the same values
+            long headerAndCycleLength = ((long) cycleLength << 3) | 0b111;
+            out.writeVLong(headerAndCycleLength);
+            for (int i = 0; i < cycleLength; i++) {
+                out.writeVLong(in[i]);
+            }
         } else {
             // set first two bits to 11 to indicate the block is bit-packed
             out.writeVLong(0b11);
@@ -232,19 +274,27 @@ public class ES87TSDBDocValuesEncoder {
         assert out.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE : out.length;
 
         long v1 = in.readVLong();
-        int header = (int) (v1 & 0b11L);
-        if (header == 0b00 || header == 0b10) {
-            // first bit is zero -> single run
+        if ((v1 & 0b1L) == 0) {
+            // first bit is 0 -> single run
             Arrays.fill(out, v1 >>> 1);
-        } else if (header == 0b01) {
+        } else if ((v1 & 0b11L) == 0b01) {
             // first two bits are 01 -> two runs
             v1 = v1 >>> 2;
             int runLen = in.readVInt();
             long v2 = v1 + in.readZLong();
             Arrays.fill(out, 0, runLen, v1);
             Arrays.fill(out, runLen, out.length, v2);
+        } else if ((v1 & 0b111L) == 0b111L) {
+            // first three bits are 111 -> cycle
+            int cycleLength = (int) v1 >>> 3;
+            for (int i = 0; i < cycleLength; i++) {
+                out[i] = in.readVLong();
+            }
+            for (int i = 0; i < out.length; i++) {
+                out[i] = out[i % cycleLength];
+            }
         } else {
-            // first two bits are 11 -> bit-packed
+            // first three bits are 011 -> bit-packed
             forUtil.decode(bitsPerOrd, in, out);
         }
     }

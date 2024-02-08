@@ -226,7 +226,7 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
      * This method can parse strings, numbers, booleans, objects, and null values, matching the types commonly
      * supported in connector configurations.
      *
-     * @param p the XContentParser instance from which to parse the configuration value.
+     * @param p the {@link org.elasticsearch.xcontent.XContentParser} instance from which to parse the configuration value.
      */
     public static Object parseConfigurationValue(XContentParser p) throws IOException {
 

@@ -17,7 +17,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
@@ -37,7 +36,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * This test is meant to make sure that we can handle ingesting a document with a reasonably large number of nested pipeline processors.
  */
 public class ManyNestedPipelinesIT extends ESIntegTestCase {
-    private static final int manyPipelinesCount = 20;
+    private final int manyPipelinesCount = randomIntBetween(2, 20);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -116,14 +115,12 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
             }
             """;
         String pipeline = Strings.format(pipelineTemplate, nextPipelineId);
-        clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(Strings.format(pipeline, MockScriptEngine.NAME)), XContentType.JSON)
-            .get();
+        clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(pipeline), XContentType.JSON).get();
     }
 
     private void createLastPipeline(int number) {
         String pipelineId = "pipeline_" + number;
-        String nextPipelineId = "pipeline_" + (number + 1);
-        String pipelineTemplate = """
+        String pipeline = """
             {
                 "processors": [
                     {
@@ -131,8 +128,6 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
                 ]
             }
             """;
-        String pipeline = Strings.format(pipelineTemplate, nextPipelineId);
-        clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(Strings.format(pipeline, MockScriptEngine.NAME)), XContentType.JSON)
-            .get();
+        clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(pipeline), XContentType.JSON).get();
     }
 }

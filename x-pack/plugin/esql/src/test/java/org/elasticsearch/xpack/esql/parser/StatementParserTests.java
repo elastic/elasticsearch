@@ -716,7 +716,7 @@ public class StatementParserTests extends ESTestCase {
                 Map.of(),
                 List.of()
             ),
-            processingCommand("enrich [ccq.mode :" + mode.name() + "] countries ON country_code")
+            processingCommand("enrich _" + mode.name() + ":countries ON country_code")
         );
 
         expectError("from a | enrich countries on foo* ", "Using wildcards (*) in ENRICH WITH projections is not allowed [foo*]");
@@ -730,8 +730,8 @@ public class StatementParserTests extends ESTestCase {
             "Using wildcards (*) in ENRICH WITH projections is not allowed [x*]"
         );
         expectError(
-            "from a | enrich [ccq.mode : typo] countries on foo",
-            "line 1:30: Unrecognized value [typo], ENRICH [ccq.mode] needs to be one of [ANY, COORDINATOR, REMOTE]"
+            "from a | enrich typo:countries on foo",
+            "line 1:18: Unrecognized value [typo], ENRICH policy qualifier needs to be one of [_ANY, _COORDINATOR, _REMOTE]"
         );
     }
 

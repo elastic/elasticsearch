@@ -249,13 +249,9 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH setting* policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
-    ;
-
-setting
-    : OPENING_BRACKET name=SETTING COLON value=SETTING CLOSING_BRACKET
     ;

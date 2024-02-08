@@ -109,7 +109,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
                     .getNodes()[0].getName();
                 logger.info("Candidate node [" + candidateNode + "]");
                 disruption.accept(candidateNode);
-                ensureGreen(sourceIndex);
+                ensureGreen(TimeValue.timeValueSeconds(60), sourceIndex);
                 ensureStableCluster(cluster.numDataAndMasterNodes(), clientNode);
 
             } catch (Exception e) {
@@ -208,7 +208,6 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         assertTargetIndex(cluster, sourceIndex, targetIndex, indexedDocs);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100653")
     public void testDownsampleIndexWithRollingRestart() throws Exception {
         final InternalTestCluster cluster = internalCluster();
         final List<String> masterNodes = cluster.startMasterOnlyNodes(1);

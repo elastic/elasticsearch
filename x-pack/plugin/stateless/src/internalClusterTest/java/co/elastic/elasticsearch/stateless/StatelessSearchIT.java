@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
@@ -55,6 +56,7 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -70,6 +72,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -92,16 +95,19 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1041,4 +1047,67 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         var nodeId = searchShard(indexName).currentNodeId();
         return client().admin().cluster().prepareNodesStats(nodeId).get().getNodesMap().get(nodeId).getNode().getName();
     }
+
+    /**
+     * Tests the lifecycle of active reader state saved in {@link ClosedShardService}.
+     *
+     * When an {@link IndexShard} with active readers is closed, the reader state should move to the {@link ClosedShardService} and be
+     * retained there until all readers finish, at which point the state should be removed from {@link ClosedShardService} on {@link Store}
+     * closure.
+     */
+    public void testShardClosureMovesActiveReaderCommitTrackingToClosedShardService() throws Exception {
+        final String indexNode = startMasterAndIndexNode();
+        final String searchNodeA = startSearchNode();
+        final String searchNodeB = startSearchNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(1, 1)
+                // Start with the shard replica on searchNodeA.
+                .put("index.routing.allocation.exclude._name", searchNodeB)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var searchNodeAClosedShardService = internalCluster().getInstance(ClosedShardService.class, searchNodeA);
+        assertThat(searchNodeAClosedShardService.getPrimaryTermAndGenerations(shardId).size(), equalTo(0));
+
+        // Set up some data to be read.
+        final int numDocsToIndex = randomIntBetween(5, 100);
+        indexDocsAndRefresh(indexName, numDocsToIndex);
+
+        // Start a scroll to pin the reader state on the search node until the scroll is exhausted.
+        final var scrollSearchResponse = client().prepareSearch(indexName)
+            .setQuery(matchAllQuery())
+            .setSize(1)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .get();
+        try {
+            assertThat(scrollSearchResponse.getScrollId(), is(CoreMatchers.notNullValue()));
+
+            // Move shards away from searchNodeA while the search is still active and using the latest shard commit.
+            // The index should be closed, but the active reader state tracking should move to the ClosedShardService until the search
+            // completes and the Store closes.
+            assertThat(searchNodeAClosedShardService.getPrimaryTermAndGenerations(shardId).size(), equalTo(0));
+            {
+                logger.info("--> moving shards in index [{}] away from node [{}]", indexName, searchNodeA);
+                updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
+                assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeA))));
+                logger.info("--> shards in index [{}] have been moved off of node [{}]", indexName, searchNodeA);
+            }
+            assertBusy(() -> assertThat(searchNodeAClosedShardService.getPrimaryTermAndGenerations(shardId).size(), equalTo(1)));
+
+            // Clear the scroll, allowing the Store to close, and the ClosedShardService should be cleared.
+            assertHitCount(scrollSearchResponse, numDocsToIndex);
+            assertThat(scrollSearchResponse.getHits().getHits().length, equalTo(1));
+            client().prepareClearScroll().addScrollId(scrollSearchResponse.getScrollId()).get();
+            assertBusy(() -> assertThat(searchNodeAClosedShardService.getPrimaryTermAndGenerations(shardId).size(), equalTo(0)));
+        } finally {
+            // There's an implicit incRef in prepareSearch(), so call decRef() to release the response object back into the resource pool.
+            scrollSearchResponse.decRef();
+        }
+    }
+
 }

@@ -47,6 +47,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElection
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.TransportConsistentClusterStateReadAction;
+import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -225,6 +226,7 @@ public class Stateless extends Plugin
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
 
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
+    private final SetOnce<ClosedShardService> closedShardService = new SetOnce<>();
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
     private final SetOnce<SharedBlobCacheService<FileCacheKey>> sharedBlobCacheService = new SetOnce<>();
     private final SetOnce<SharedBlobCacheWarmingService> sharedBlobCacheWarmingService = new SetOnce<>();
@@ -391,6 +393,9 @@ public class Stateless extends Plugin
         commitService = wrapStatelessCommitService(commitService);
         clusterService.addListener(commitService);
         setAndGet(this.commitService, commitService);
+        var closedShardService = new ClosedShardService();
+        components.add(closedShardService);
+        setAndGet(this.closedShardService, closedShardService);
         var translogReplicator = setAndGet(
             this.translogReplicator,
             new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService, indicesService)
@@ -734,6 +739,11 @@ public class Stateless extends Plugin
                 public void afterIndexShardStarted(IndexShard indexShard) {
                     collector.collectShardSize(indexShard.shardId());
                 }
+
+                @Override
+                public void onStoreClosed(ShardId shardId) {
+                    getClosedShardService().onStoreClose(shardId);
+                }
             });
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isSearchable()) {
@@ -808,7 +818,7 @@ public class Stateless extends Plugin
                     commitService.get().closedLocalReadersForGeneration(newConfig.getShardId())
                 );
             } else {
-                return new SearchEngine(config);
+                return new SearchEngine(config, getClosedShardService());
             }
         });
     }
@@ -860,6 +870,10 @@ public class Stateless extends Plugin
     // protected to allow tests to override
     protected SearchDirectory createSearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
         return new SearchDirectory(cacheService, shardId);
+    }
+
+    private ClosedShardService getClosedShardService() {
+        return Objects.requireNonNull(this.closedShardService.get());
     }
 
     @Override

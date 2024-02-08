@@ -244,8 +244,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         );
     }
 
-    @Override
-    protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
+    private InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
         InternalBucket reduced = null;
         for (InternalBucket bucket : buckets) {

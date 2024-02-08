@@ -375,8 +375,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         );
     }
 
-    @Override
-    protected B reduceBucket(List<B> buckets, AggregationReduceContext context) {
+    private B reduceBucket(List<B> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
         long docCount = 0;
         for (Bucket bucket : buckets) {

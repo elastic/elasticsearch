@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
@@ -89,6 +90,7 @@ import java.util.stream.Collectors;
 public class SearchEngine extends Engine {
     private static final long SEARCH_IDLE_TIME = TimeUnit.SECONDS.toMillis(30L);
 
+    private final ClosedShardService closedShardService;
     private final Map<PrimaryTermAndGeneration, SubscribableListener<Long>> segmentGenerationListeners = ConcurrentCollections
         .newConcurrentMap();
     private final LinkedBlockingQueue<StatelessCompoundCommit> commitNotifications = new LinkedBlockingQueue<>();
@@ -103,9 +105,10 @@ public class SearchEngine extends Engine {
 
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new ConcurrentHashMap<>();
 
-    public SearchEngine(EngineConfig config) {
+    public SearchEngine(EngineConfig config, ClosedShardService closedShardService) {
         super(config);
         assert config.isPromotableToPrimary() == false;
+        this.closedShardService = closedShardService;
 
         ElasticsearchDirectoryReader directoryReader = null;
         ElasticsearchReaderManager readerManager = null;
@@ -424,6 +427,9 @@ public class SearchEngine extends Engine {
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             try {
+                // Save any active reader information to the ClosedShardService BEFORE potentially closing the store. The ClosedShardService
+                // is hooked into store closure, so we don't want to race with it!
+                closedShardService.onShardClose(shardId, getAcquiredPrimaryTermAndGenerations());
                 IOUtils.close(this::failSegmentGenerationListeners, readerManager, store::decRef);
                 assert segmentGenerationListeners.isEmpty() : segmentGenerationListeners;
             } catch (Exception ex) {
@@ -855,4 +861,5 @@ public class SearchEngine extends Engine {
             this.files = Set.copyOf(files);
         }
     }
+
 }

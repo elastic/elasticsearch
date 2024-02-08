@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
@@ -107,6 +108,9 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * Stateless test utility class for creating and coordinating IndexEngine and SearchEngine engines.
+ */
 public abstract class AbstractEngineTestCase extends ESTestCase {
 
     private Map<String, ThreadPool> threadPools;
@@ -269,7 +273,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected SearchEngine newSearchEngineFromIndexEngine(final EngineConfig searchConfig) {
-        return new SearchEngine(searchConfig) {
+        return new SearchEngine(searchConfig, new ClosedShardService()) {
             @Override
             public void close() throws IOException {
                 try {
@@ -338,7 +342,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             false
         );
-        return new SearchEngine(searchConfig) {
+        return new SearchEngine(searchConfig, new ClosedShardService()) {
             @Override
             public void close() throws IOException {
                 try {

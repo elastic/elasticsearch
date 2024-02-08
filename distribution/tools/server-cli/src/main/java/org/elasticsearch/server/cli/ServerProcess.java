@@ -67,14 +67,7 @@ public class ServerProcess {
         stderrPump.drain();
         stdoutPump.drain();
         try {
-            IOUtils.close(
-                jvmProcess.getOutputStream(),
-                jvmProcess.getInputStream(),
-                jvmProcess.getErrorStream(),
-                // check for any IO failures while draining pumps
-                stderrPump::checkForIoFailure,
-                stdoutPump::checkForIoFailure
-            );
+            IOUtils.close(jvmProcess.getOutputStream(), jvmProcess.getInputStream(), jvmProcess.getErrorStream(), stderrPump, stdoutPump);
         } finally {
             detached = true;
         }
@@ -83,10 +76,12 @@ public class ServerProcess {
     /**
      * Waits for the subprocess to exit.
      */
-    public int waitFor() {
+    public int waitFor() throws IOException {
         stderrPump.drain();
         stdoutPump.drain();
-        return nonInterruptible(jvmProcess::waitFor);
+        Integer exitCode = nonInterruptible(jvmProcess::waitFor);
+        IOUtils.close(stderrPump, stdoutPump);
+        return exitCode;
     }
 
     /**
@@ -97,7 +92,7 @@ public class ServerProcess {
      *
      * <p> Note that if {@link #detach()} has been called, this method is a no-op.
      */
-    public synchronized void stop() {
+    public synchronized void stop() throws IOException {
         if (detached) {
             return;
         }

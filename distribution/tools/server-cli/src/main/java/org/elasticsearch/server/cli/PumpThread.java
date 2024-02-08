@@ -12,6 +12,7 @@ import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cli.Terminal;
 
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -26,7 +27,7 @@ import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
 /**
  * A thread which reads stdout or stderr of the jvm process and writes it to this process' respective stdout or stderr.
  */
-class PumpThread extends Thread {
+class PumpThread extends Thread implements Closeable {
     final BufferedReader reader;
     final PrintWriter writer;
 
@@ -41,6 +42,7 @@ class PumpThread extends Thread {
 
     void checkForIoFailure() throws IOException {
         IOException failure = ioFailure;
+        ioFailure = null;
         if (failure != null) {
             throw failure;
         }
@@ -55,6 +57,12 @@ class PumpThread extends Thread {
 
     void processLine(String line) {
         writer.println(line);
+    }
+
+    @Override
+    public void close() throws IOException {
+        assert isAlive() == false : "Pump thread must be drained first";
+        checkForIoFailure();
     }
 
     @Override

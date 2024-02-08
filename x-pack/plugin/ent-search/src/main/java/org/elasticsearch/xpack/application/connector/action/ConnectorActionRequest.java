@@ -15,6 +15,10 @@ import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 
 import java.io.IOException;
 
+/**
+ * Abstract base class for action requests targeting the connectors index. Implements {@link org.elasticsearch.action.IndicesRequest}
+ * to ensure index-level privilege support. This class defines the connectors index as the target for all derived action requests.
+ */
 public abstract class ConnectorActionRequest extends ActionRequest implements IndicesRequest {
 
     public ConnectorActionRequest() {

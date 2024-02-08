@@ -115,4 +115,14 @@ public class FieldAliasMapperTests extends MapperServiceTestCase {
             exception.getMessage()
         );
     }
+
+    public void testEquals() {
+        FieldAliasMapper mapper = new FieldAliasMapper("simple", "name", "path");
+        assertEquals(mapper, mapper);
+        assertNotEquals(mapper, null);
+        assertEquals(mapper, new FieldAliasMapper("simple", "name", "path"));
+        assertNotEquals(mapper, new FieldAliasMapper("simple2", "name", "path"));
+        assertNotEquals(mapper, new FieldAliasMapper("simple", "name2", "path"));
+        assertNotEquals(mapper, new FieldAliasMapper("simple", "name", "path2"));
+    }
 }

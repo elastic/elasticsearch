@@ -182,23 +182,12 @@ public class ES87TSDBDocValuesEncoder {
      * Optimizes for encoding sorted fields where we expect a block to mostly either be the same value
      * or to make a transition from one value to a second one.
      * <p>
-     * Encodes blocks in the following format:
+     * The header is a vlong where the number of trailing ones defines the encoding strategy:
      * <ul>
-     *     <li>byte 0: 1/2 bits header+6/7 bits data</li>
-     *     <li>byte 1..n: data</li>
-     * </ul>
-     * The header (first 1-3 bits) describes how the data is encoded:
-     * <ul>
-     *     <li><code>?0</code>: block has a single value (vlong), 2nd bit already contains data</li>
-     *     <li>
-     *         <code>01</code>: block has two runs, data contains value 1 (vlong), run-length (vint) of value 1,
-     *         and delta from first to second value (zlong)
-     *     </li>
-     *     <li>
-     *         <code>111</code>: block contains cyclic data, data contains cycle length (vlong),
-     *         and the values until the cycle repeats (encoded as vlongs)
-     *     </li>
-     *     <li><code>011</code>: block is bit-packed</li>
+     *   <li>0: single run</li>
+     *   <li>1: two runs</li>
+     *   <li>2: cycle</li>
+     *   <li>7: bit-packed</li>
      * </ul>
      */
     void encodeOrdinals(long[] in, DataOutput out, int bitsPerOrd) throws IOException {
@@ -241,10 +230,10 @@ public class ES87TSDBDocValuesEncoder {
         }
         if (numRuns == 1 && bitsPerOrd < 63) {
             long value = in[0];
-            // set first bit to 0 to indicate the block has a single run
+            // set first bit to 0 (0 trailing bits) to indicate the block has a single run
             out.writeVLong(value << 1);
         } else if (numRuns == 2 && bitsPerOrd < 62) {
-            // set first two bits to 01 to indicate the block has two runs
+            // set 1 trailing bit to indicate the block has two runs
             out.writeVLong((in[0] << 2) | 0b01);
             int firstRunLen = in.length;
             for (int i = 1; i < in.length; ++i) {
@@ -256,15 +245,15 @@ public class ES87TSDBDocValuesEncoder {
             out.writeVInt(firstRunLen);
             out.writeZLong(in[in.length - 1] - in[0]);
         } else if (cyclic) {
-            // set first three bits to 111 to indicate the block cycles through the same values
-            long headerAndCycleLength = ((long) cycleLength << 3) | 0b111;
+            // set 2 trailing bits to indicate the block cycles through the same values
+            long headerAndCycleLength = ((long) cycleLength << 4) | 0b011;
             out.writeVLong(headerAndCycleLength);
             for (int i = 0; i < cycleLength; i++) {
                 out.writeVLong(in[i]);
             }
         } else {
-            // set first two bits to 11 to indicate the block is bit-packed
-            out.writeVLong(0b11);
+            // set 7 trailing bits to indicate the block is bit-packed
+            out.writeVLong(0b1111111);
             forUtil.encode(in, bitsPerOrd, out);
         }
     }
@@ -273,27 +262,28 @@ public class ES87TSDBDocValuesEncoder {
         assert out.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE : out.length;
 
         long v1 = in.readVLong();
-        if ((v1 & 0b1L) == 0) {
-            // first bit is 0 -> single run
+        int encoding = Long.numberOfTrailingZeros(~v1);
+        if (encoding == 0) {
+            // single run
             Arrays.fill(out, v1 >>> 1);
-        } else if ((v1 & 0b11L) == 0b01) {
-            // first two bits are 01 -> two runs
+        } else if (encoding == 1) {
+            // two runs
             v1 = v1 >>> 2;
             int runLen = in.readVInt();
             long v2 = v1 + in.readZLong();
             Arrays.fill(out, 0, runLen, v1);
             Arrays.fill(out, runLen, out.length, v2);
-        } else if ((v1 & 0b111L) == 0b111L) {
-            // first three bits are 111 -> cycle
-            int cycleLength = (int) v1 >>> 3;
+        } else if (encoding == 2) {
+            // cycle encoding
+            int cycleLength = (int) v1 >>> 4;
             for (int i = 0; i < cycleLength; i++) {
                 out[i] = in.readVLong();
             }
             for (int i = 0; i < out.length; i++) {
                 out[i] = out[i % cycleLength];
             }
-        } else {
-            // first three bits are 011 -> bit-packed
+        } else if (encoding == 7) {
+            // bit-packed
             forUtil.decode(bitsPerOrd, in, out);
         }
     }

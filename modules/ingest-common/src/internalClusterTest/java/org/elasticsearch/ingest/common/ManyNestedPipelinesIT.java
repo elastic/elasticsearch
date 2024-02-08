@@ -10,14 +10,15 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulateDocumentResult;
 import org.elasticsearch.action.ingest.SimulateDocumentVerboseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.elasticsearch.action.ingest.SimulateProcessorResult;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -54,10 +55,10 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
 
     public void testIngestManyPipelines() {
         String index = "index";
-        DocWriteResponse response = prepareIndex(index).setSource(Map.of("foo", "baz")).setPipeline("pipeline_0").get();
+        DocWriteResponse response = prepareIndex(index).setSource(Map.of("foo", "bar")).setPipeline("pipeline_0").get();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
         GetResponse getREsponse = client().prepareGet(index, response.getId()).get();
-        assertThat(getREsponse.getSource().get("foo"), equalTo("bar"));
+        assertThat(getREsponse.getSource().get("foo"), equalTo("baz"));
     }
 
     public void testSimulateManyPipelines() throws IOException {
@@ -66,6 +67,8 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
         assertThat(results.get(0), instanceOf(SimulateDocumentBaseResult.class));
         SimulateDocumentBaseResult result = (SimulateDocumentBaseResult) results.get(0);
         assertNull(result.getFailure());
+        IngestDocument resultDoc = result.getIngestDocument();
+        assertThat(resultDoc.getFieldValue("foo", String.class), equalTo("baz"));
     }
 
     public void testSimulateVerboseManyPipelines() throws IOException {
@@ -74,7 +77,10 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
         assertThat(results.get(0), instanceOf(SimulateDocumentVerboseResult.class));
         SimulateDocumentVerboseResult result = (SimulateDocumentVerboseResult) results.get(0);
         assertThat(result.getProcessorResults().size(), equalTo(manyPipelinesCount));
-        assertNull(result.getProcessorResults().get(0).getFailure());
+        List<SimulateProcessorResult> simulateProcessorResults = result.getProcessorResults();
+        SimulateProcessorResult lastResult = simulateProcessorResults.get(simulateProcessorResults.size() - 1);
+        IngestDocument resultDoc = lastResult.getIngestDocument();
+        assertThat(resultDoc.getFieldValue("foo", String.class), equalTo("baz"));
     }
 
     private List<SimulateDocumentResult> executeSimulate(boolean verbose) throws IOException {
@@ -131,7 +137,7 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
                     {
                        "set": {
                           "field": "foo",
-                          "value": "bar"
+                          "value": "baz"
                        }
                     }
                 ]

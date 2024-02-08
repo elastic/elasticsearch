@@ -525,8 +525,6 @@ public final class NodeEnvironment implements Closeable {
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
 
-            // TODO[wrb]: can we just use toReleaseVersion() ?
-            // String bestDowngradeVersion = getBestDowngradeVersion(metadata.previousIndexVersionCheckpoint().toReleaseVersion());
             throw new IllegalStateException(
                 "Cannot start this node because it holds metadata for indices with version ["
                     + metadata.oldestIndexVersion().toReleaseVersion().split("-")[0]
@@ -1502,32 +1500,4 @@ public final class NodeEnvironment implements Closeable {
             }
         }
     }
-
-    /**
-     * Get a useful version string to direct a user's downgrade operation
-     *
-     * <p>If a user is trying to install 8.0 but has incompatible indices, the user should
-     * downgrade to 7.17.x. We return 7.17.0, unless the user is trying to upgrade from
-     * a 7.17.x release, in which case we return the last installed version.
-     * @return Version to downgrade to
-     */
-    // visible for testing
-    static String getBestDowngradeVersion(String previousNodeVersion) {
-        // this method should only be called in the context of an upgrade to 8.x
-        @UpdateForV9
-        Pattern pattern = Pattern.compile("^7\\.(\\d+)\\.\\d+(-\\d+\\.\\d+\\.\\d+)?$");
-        Matcher matcher = pattern.matcher(previousNodeVersion);
-        if (matcher.matches()) {
-            try {
-                int minorVersion = Integer.parseInt(matcher.group(1));
-                if (minorVersion >= 17) {
-                    return previousNodeVersion;
-                }
-            } catch (NumberFormatException e) {
-                // continue and return default
-            }
-        }
-        return "7.17.0";
-    }
-
 }

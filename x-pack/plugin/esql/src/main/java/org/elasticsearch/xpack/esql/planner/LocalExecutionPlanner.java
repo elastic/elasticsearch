@@ -524,6 +524,7 @@ public class LocalExecutionPlanner {
                 channelSet = new Layout.ChannelSet(new HashSet<>(), input.type());
                 channelSet.nameIds().add(ne.id());
                 layout.append(channelSet);
+                inputChannelToOutputIds.put(input.channel(), channelSet);
             } else {
                 channelSet.nameIds().add(ne.id());
             }

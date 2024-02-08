@@ -6,9 +6,7 @@
  */
 package org.elasticsearch.xpack.security.action.role;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
@@ -19,29 +17,38 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
-import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.elasticsearch.xpack.security.operator.RoleDescriptorRequestValidator;
+import org.elasticsearch.xpack.security.operator.RoleDescriptorRequestValidatorFactory;
 
 public class TransportPutRoleAction extends HandledTransportAction<PutRoleRequest, PutRoleResponse> {
-
     private final NativeRolesStore rolesStore;
-    private final NamedXContentRegistry xContentRegistry;
+    private final RoleDescriptorRequestValidator roleDescriptorRequestValidator;
 
     @Inject
     public TransportPutRoleAction(
         ActionFilters actionFilters,
         NativeRolesStore rolesStore,
         TransportService transportService,
-        NamedXContentRegistry xContentRegistry
+        RoleDescriptorRequestValidator roleDescriptorRequestValidator
     ) {
         super(PutRoleAction.NAME, transportService, actionFilters, PutRoleRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.rolesStore = rolesStore;
-        this.xContentRegistry = xContentRegistry;
+        this.roleDescriptorRequestValidator = roleDescriptorRequestValidator;
+    }
+
+    public TransportPutRoleAction(
+        ActionFilters actionFilters,
+        NativeRolesStore rolesStore,
+        TransportService transportService,
+        NamedXContentRegistry xContentRegistry
+    ) {
+        this(actionFilters, rolesStore, transportService, new RoleDescriptorRequestValidatorFactory.DefaultValidator(xContentRegistry));
     }
 
     @Override
     protected void doExecute(Task task, final PutRoleRequest request, final ActionListener<PutRoleResponse> listener) {
-        final Exception validationException = validateRequest(request);
+        final Exception validationException = roleDescriptorRequestValidator.validate(request.roleDescriptor());
         if (validationException != null) {
             listener.onFailure(validationException);
         } else {
@@ -56,16 +63,4 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
         }
     }
 
-    private Exception validateRequest(final PutRoleRequest request) {
-        ActionRequestValidationException validationException = request.validate();
-        if (validationException != null) {
-            return validationException;
-        }
-        try {
-            DLSRoleQueryValidator.validateQueryField(request.roleDescriptor().getIndicesPrivileges(), xContentRegistry);
-        } catch (ElasticsearchException | IllegalArgumentException e) {
-            return e;
-        }
-        return null;
-    }
 }

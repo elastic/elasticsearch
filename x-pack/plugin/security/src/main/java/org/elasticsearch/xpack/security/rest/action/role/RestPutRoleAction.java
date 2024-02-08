@@ -17,8 +17,10 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
+import org.elasticsearch.xpack.security.operator.RoleRequestBuilderFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,11 +31,21 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest endpoint to add a Role to the security index
  */
-@ServerlessScope(Scope.INTERNAL)
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
-    public RestPutRoleAction(Settings settings, XPackLicenseState licenseState) {
+    private final RoleRequestBuilderFactory builderFactory;
+    private final SecurityContext securityContext;
+
+    public RestPutRoleAction(
+        Settings settings,
+        XPackLicenseState licenseState,
+        SecurityContext securityContext,
+        RoleRequestBuilderFactory builderFactory
+    ) {
         super(settings, licenseState);
+        this.securityContext = securityContext;
+        this.builderFactory = builderFactory;
     }
 
     @Override
@@ -51,11 +63,9 @@ public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutRoleRequestBuilder requestBuilder = new PutRoleRequestBuilder(client).source(
-            request.param("name"),
-            request.requiredContent(),
-            request.getXContentType()
-        ).setRefreshPolicy(request.param("refresh"));
+        PutRoleRequestBuilder requestBuilder = builderFactory.putRoleRequestBuilder(securityContext, client)
+            .source(request.param("name"), request.requiredContent(), request.getXContentType())
+            .setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {

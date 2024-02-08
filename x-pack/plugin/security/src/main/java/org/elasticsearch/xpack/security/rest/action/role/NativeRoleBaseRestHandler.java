@@ -17,7 +17,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
-abstract class NativeRoleBaseRestHandler extends SecurityBaseRestHandler {
+public abstract class NativeRoleBaseRestHandler extends SecurityBaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(NativeRoleBaseRestHandler.class);
 

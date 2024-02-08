@@ -43,10 +43,10 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
         Expression left,
         Expression right,
         OperationSymbol op,
-        ArithmeticEvaluator ints,
-        ArithmeticEvaluator longs,
-        ArithmeticEvaluator ulongs,
-        ArithmeticEvaluator doubles,
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles,
         DatetimeArithmeticEvaluator datetimes
     ) {
         super(source, left, right, op, ints, longs, ulongs, doubles);

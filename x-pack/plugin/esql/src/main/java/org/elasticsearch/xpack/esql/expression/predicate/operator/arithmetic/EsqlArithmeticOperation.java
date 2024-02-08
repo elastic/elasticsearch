@@ -71,14 +71,15 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
     }
 
     /** Arithmetic (quad) function. */
-    interface ArithmeticEvaluator {
+    @FunctionalInterface
+    public interface BinaryEvaluator {
         ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory lhs, ExpressionEvaluator.Factory rhs);
     }
 
-    private final ArithmeticEvaluator ints;
-    private final ArithmeticEvaluator longs;
-    private final ArithmeticEvaluator ulongs;
-    private final ArithmeticEvaluator doubles;
+    private final BinaryEvaluator ints;
+    private final BinaryEvaluator longs;
+    private final BinaryEvaluator ulongs;
+    private final BinaryEvaluator doubles;
 
     private DataType dataType;
 
@@ -87,10 +88,10 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
         Expression left,
         Expression right,
         OperationSymbol op,
-        ArithmeticEvaluator ints,
-        ArithmeticEvaluator longs,
-        ArithmeticEvaluator ulongs,
-        ArithmeticEvaluator doubles
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles
     ) {
         super(source, left, right, op);
         this.ints = ints;
@@ -152,7 +153,7 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
             var lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
             var rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
 
-            ArithmeticEvaluator eval;
+            BinaryEvaluator eval;
             if (commonType == INTEGER) {
                 eval = ints;
             } else if (commonType == LONG) {

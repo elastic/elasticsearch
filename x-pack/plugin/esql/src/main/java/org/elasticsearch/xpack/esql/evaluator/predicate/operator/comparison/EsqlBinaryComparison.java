@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
 public abstract class EsqlBinaryComparison extends BinaryComparison implements EvaluatorMapper {
 
-    private final Map<DataType, BinaryEvaluator> evaluatorMap;
+    private final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
 
     protected EsqlBinaryComparison(
         Source source,
@@ -41,7 +41,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
                  create a symbol only version like we did for BinaryArithmeticOperation. Ideally, they could be the same class.
          */
         BinaryComparisonProcessor.BinaryComparisonOperation operation,
-        Map<DataType, BinaryEvaluator> evaluatorMap
+        Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
     ) {
         this(source, left, right, operation, null, evaluatorMap);
     }
@@ -53,7 +53,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         BinaryComparisonProcessor.BinaryComparisonOperation operation,
         // TODO: We are definitely not doing the right thing with this zoneId
         ZoneId zoneId,
-        Map<DataType, BinaryEvaluator> evaluatorMap
+        Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
     ) {
         super(source, left, right, operation, zoneId);
         this.evaluatorMap = evaluatorMap;
@@ -122,16 +122,6 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
             return TypeResolution.TYPE_RESOLVED;
         }
         return new TypeResolution(formatIncompatibleTypesMessage());
-    }
-
-    // NOCOMMIT: This is the same as EsqlArithmeticOperation#ArithmeticEvaluator, and they should be refactored to the same place
-    @FunctionalInterface
-    interface BinaryEvaluator {
-        EvalOperator.ExpressionEvaluator.Factory apply(
-            Source source,
-            EvalOperator.ExpressionEvaluator.Factory lhs,
-            EvalOperator.ExpressionEvaluator.Factory rhs
-        );
     }
 
     public String formatIncompatibleTypesMessage() {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
@@ -26,7 +27,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 
 public class LessThan extends EsqlBinaryComparison implements Negatable<BinaryComparison> {
 
-    private static final Map<DataType, BinaryEvaluator> evaluatorMap = Map.ofEntries(
+    private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
         Map.entry(DataTypes.INTEGER, LessThanIntsEvaluator.Factory::new),
         Map.entry(DataTypes.DOUBLE, LessThanDoublesEvaluator.Factory::new),
         Map.entry(DataTypes.LONG, LessThanLongsEvaluator.Factory::new),

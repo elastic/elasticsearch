@@ -1909,7 +1909,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             PipelineGraphStructureException.class,
             PipelineGraphStructureException::new,
             177,
-            TransportVersions.SEARCH_TIMEOUT_EXCEPTION_ADDED
+            TransportVersions.PIPELINE_GRAPH_STRUCTURE_EXCEPTION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

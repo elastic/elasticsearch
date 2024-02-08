@@ -281,7 +281,7 @@ public abstract class Terminal {
     }
 
     public Terminal asJson() {
-        return new SystemTerminal(true);
+        throw new UnsupportedOperationException("Terminal doesn't support JSON output");
     }
 
     private static class ConsoleTerminal extends Terminal {
@@ -350,7 +350,7 @@ public abstract class Terminal {
 
         @Override
         public Terminal asJson() {
-            return useJsonOutput ? this : super.asJson();
+            return useJsonOutput ? this : new SystemTerminal(true);
         }
 
         private static PrintWriter printWriter(OutputStream out, boolean useJsonOutput) {

@@ -86,8 +86,7 @@ final class FieldTypeLookup {
             String fieldName = fieldType.name();
             String inferenceModel = fieldType.getInferenceModel();
             if (inferenceModel == null) {
-                // TODO: Should we log when this happens?
-                continue;
+                throw new IllegalStateException("Field [" + fieldName + "] does not define an inference model");
             }
 
             Map<String, List<String>> targetToSourceFieldMap = fieldsForModels.computeIfAbsent(inferenceModel, v -> new HashMap<>());

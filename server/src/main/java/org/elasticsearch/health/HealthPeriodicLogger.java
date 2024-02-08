@@ -302,12 +302,16 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
         }
     }
 
-    // default visibility for testing purposes
-    void tryToLogHealth() {
+    // default visibility and returns true if the semaphore was acquired, used only for testing
+    boolean tryToLogHealth() {
         try {
             // We only try to run this because we do not want to pile up the executions.
+            logger.info("---------------- Going to run {}", currentlyRunning.availablePermits());
             if (currentlyRunning.tryAcquire(0, TimeUnit.SECONDS)) {
-                RunOnce release = new RunOnce(currentlyRunning::release);
+                RunOnce release = new RunOnce(() -> {
+                    logger.info("Releasing");
+                    currentlyRunning.release();
+                });
                 try {
                     ActionListener<List<HealthIndicatorResult>> listenerWithRelease = ActionListener.runAfter(resultsListener, release);
                     this.healthService.getHealth(this.client, null, false, 0, listenerWithRelease);
@@ -317,10 +321,13 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
                     // that it will not release it again because this can only be run once.
                     release.run();
                 }
+                return true;
             }
+            logger.info("---------------- Skipped because {}", currentlyRunning.availablePermits());
         } catch (InterruptedException e) {
             logger.debug("Periodic health logger run was interrupted.", e);
         }
+        return false;
     }
 
     // default visibility for testing purposes

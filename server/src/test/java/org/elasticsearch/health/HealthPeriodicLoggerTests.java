@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -372,12 +373,16 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     public void testTryToLogHealthConcurrencyControlWithResults() throws Exception {
         AtomicInteger getHealthCalled = new AtomicInteger(0);
 
+        CountDownLatch waitForSecondRun = new CountDownLatch(1);
+        CountDownLatch waitForRelease = new CountDownLatch(1);
         HealthService testHealthService = this.getMockedHealthService();
         doAnswer(invocation -> {
             // get and call the results listener provided to getHealth
             ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
-            listener.onResponse(getTestIndicatorResults());
             getHealthCalled.incrementAndGet();
+            waitForSecondRun.await();
+            listener.onResponse(getTestIndicatorResults());
+            waitForRelease.countDown();
             return null;
         }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
 
@@ -390,12 +395,19 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         // run it once, verify getHealth is called
         {
-            spyHealthPeriodicLogger.triggered(event);
+            Thread logHealthThread = new Thread(() -> spyHealthPeriodicLogger.triggered(event));
+            logHealthThread.start();
+            // We wait to verify that the triggered even is in progress, then we block, so it will rename in progress
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
+            // We try to log again while it's in progress, we expect this run to be skipped
+            assertFalse(spyHealthPeriodicLogger.tryToLogHealth());
+            // Unblock the first execution
+            waitForSecondRun.countDown();
         }
 
         // run it again, verify getHealth is called, because we are calling the results listener
         {
+            waitForRelease.await();
             spyHealthPeriodicLogger.triggered(event);
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(2)));
         }

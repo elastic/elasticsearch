@@ -261,7 +261,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsNative', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsNativeDarwinAarch64', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -282,7 +282,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libs project(':server')
     // this is a special circumstance of a jar that is not a dependency of server, but needs to be in the module path
     libs project(':libs:elasticsearch-preallocate')
-    libsNative project(':libs:elasticsearch-vec:native')
+    libsNativeDarwinAarch64 project(path: ':libs:elasticsearch-vec', configuration: 'darwinAarch64')
 
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsCliLauncher project(':distribution:tools:cli-launcher')
@@ -336,9 +336,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libNativeFiles = { platform ->
       copySpec {
         if (platform == 'darwin-aarch64') {
-          into('darwin-aarch64') {
-            from(configurations.libsNative)
-          }
+          from(configurations.libsNativeDarwinAarch64)
         }
         // else linux-aarch64 ...
       }

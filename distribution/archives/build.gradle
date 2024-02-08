@@ -16,6 +16,9 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
     into("elasticsearch-${version}") {
       into('lib') {
         with libFiles
+        into("${platform}-${architecture}") {
+          with libNativeFiles("${platform}-${architecture}")
+        }
       }
       //        if ("aarch64".equals(architecture)) {
 //          if ("darwin".equals(platform)) {
@@ -28,9 +31,6 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 //            }
 //          }
 //        }
-      into("lib/${platform}-${architecture}") {
-        with libNativeFiles("${platform}-${architecture}")
-      }
       into('config') {
         dirMode 0750
         fileMode 0660

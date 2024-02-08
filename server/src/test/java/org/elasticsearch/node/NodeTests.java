@@ -8,6 +8,7 @@
 package org.elasticsearch.node;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
@@ -303,6 +304,7 @@ public class NodeTests extends ESTestCase {
     }
 
     public void testCloseOnLeakedIndexReaderReference() throws Exception {
+        assumeFalse("AwaitsFix https://github.com/elastic/elasticsearch/issues/105236", Constants.MAC_OS_X);
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
@@ -318,6 +320,7 @@ public class NodeTests extends ESTestCase {
     }
 
     public void testCloseOnLeakedStoreReference() throws Exception {
+        assumeFalse("AwaitsFix https://github.com/elastic/elasticsearch/issues/105236", Constants.MAC_OS_X);
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);

@@ -253,6 +253,14 @@ public class ServiceUtils {
         }
     }
 
+    public static String mustBeAPositiveNumberErrorMessage(String settingName, int value) {
+        if (value <= 0) {
+            return "Invalid value [" + value + "]. [" + settingName + "] must be a positive integer";
+        } else {
+            throw new IllegalArgumentException("Value [" + value + "] is not a positive integer");
+        }
+    }
+
     /**
      * Functional interface for creating an enum from a string.
      * @param <E>

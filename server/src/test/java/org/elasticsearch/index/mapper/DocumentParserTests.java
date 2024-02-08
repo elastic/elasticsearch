@@ -2580,7 +2580,12 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertArrayEquals(new String[] { "LongField <foo.bar.baz:1>", "LongField <foo.bar.baz:2>" }, fieldStrings);
 
         // merge without going through toXContent and reparsing, otherwise the potential leaf path issue gets fixed on its own
-        Mapping newMapping = MapperService.mergeMappings(mapperService.documentMapper(), mapping, MapperService.MergeReason.MAPPING_UPDATE);
+        Mapping newMapping = MapperService.mergeMappings(
+            mapperService.documentMapper(),
+            mapping,
+            MapperService.MergeReason.MAPPING_UPDATE,
+            mapperService.getIndexSettings()
+        );
         DocumentMapper newDocMapper = new DocumentMapper(
             mapperService.documentParser(),
             newMapping,

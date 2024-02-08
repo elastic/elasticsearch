@@ -121,11 +121,7 @@ public class NodeMetadataTests extends ESTestCase {
     }
 
     public void testDoesNotUpgradeFutureVersion() {
-        NodeMetadata nodeMetadata = NodeMetadata.create(
-            randomAlphaOfLength(10),
-            tooNewIndexVersion(),
-            IndexVersion.current()
-        );
+        NodeMetadata nodeMetadata = NodeMetadata.create(randomAlphaOfLength(10), tooNewIndexVersion(), IndexVersion.current());
         final IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
             nodeMetadata::upgradeToCurrentVersion
@@ -141,8 +137,7 @@ public class NodeMetadataTests extends ESTestCase {
             IllegalStateException.class,
             () -> NodeMetadata.create(
                 randomAlphaOfLength(10),
-                // TODO[wrb]: clumsy, fix it
-                IndexVersion.fromId(tooOldVersion().id()),
+                tooOldIndexVersion(),
                 IndexVersion.current()
             ).upgradeToCurrentVersion()
         );
@@ -165,8 +160,7 @@ public class NodeMetadataTests extends ESTestCase {
         final String nodeId = randomAlphaOfLength(10);
         final IndexVersion nodeVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_17_0, IndexVersions.V_8_0_0);
 
-        final NodeMetadata nodeMetadata = NodeMetadata.create(nodeId, nodeVersion, IndexVersion.current())
-            .upgradeToCurrentVersion();
+        final NodeMetadata nodeMetadata = NodeMetadata.create(nodeId, nodeVersion, IndexVersion.current()).upgradeToCurrentVersion();
         assertThat(nodeMetadata.indexVersionCheckpoint(), equalTo(IndexVersion.current()));
         assertThat(nodeMetadata.previousIndexVersionCheckpoint(), equalTo(nodeVersion));
     }
@@ -181,5 +175,9 @@ public class NodeMetadataTests extends ESTestCase {
 
     public static Version tooOldVersion() {
         return Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
+    }
+
+    public static IndexVersion tooOldIndexVersion() {
+        return IndexVersion.fromId(between(1, IndexVersions.V_7_17_0.id() - 1));
     }
 }

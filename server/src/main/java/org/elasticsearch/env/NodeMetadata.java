@@ -67,6 +67,10 @@ public final class NodeMetadata {
         return new NodeMetadata(nodeId, indexVersionCheckpoint, oldestIndexVersion);
     }
 
+    public static NodeMetadata create(final String nodeId, final int indexVersion, final IndexVersion oldestIndexVersion) {
+        return new NodeMetadata(nodeId, idToIndexVersionCheckpoint(indexVersion), oldestIndexVersion);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -104,42 +108,6 @@ public final class NodeMetadata {
 
     public IndexVersion indexVersionCheckpoint() {
         return this.indexVersionCheckpoint;
-    }
-
-    /**
-     * Determine an index version checkpoint from a version ID
-     *
-     * <p>IndexVersion IDs diverged from Version IDs in 8.11.0. The 8.11 and 8.12 lines will
-     * write Version IDs in their node metadata, so we have to convert those IDs to specific
-     * IndexVersions. In 8.10 and earlier, IndexVersion and Version IDs are aligned. In 8.13 and
-     * later, NodeMetadata should write an IndexVersion to disk as a checkpoint.
-     *
-     * @param versionId
-     * @return
-     */
-    static IndexVersion idToIndexVersionCheckpoint(int versionId) {
-        // case -- ids match
-        Version version = Version.fromId(versionId);
-        if (version.before(Version.V_8_11_0)) {
-            return IndexVersion.fromId(version.id());
-        }
-
-        // case 2: version ID that's diverged from indexVersion ID
-        // I think this is just the 8.11 and 8.12 lines
-        if (version.between(Version.V_8_11_0, Version.V_8_12_0)) {
-            return IndexVersions.UPGRADE_LUCENE_9_8;
-        }
-        if (version.equals(Version.V_8_12_0)) {
-            return IndexVersions.ES_VERSION_8_12;
-        }
-        if (version.between(Version.V_8_12_1, Version.V_8_13_0)) {
-            return IndexVersions.ES_VERSION_8_12_1;
-        }
-        if (version.equals(Version.CURRENT)) {
-            return IndexVersion.current();
-        }
-        // case 3: indexVersion ID from new code
-        return IndexVersion.fromId(version.id());
     }
 
     /**
@@ -267,6 +235,42 @@ public final class NodeMetadata {
         public NodeMetadata fromXContent(XContentParser parser) throws IOException {
             return objectParser.apply(parser, null).build();
         }
+    }
+
+    /**
+     * Determine an index version checkpoint from a version ID
+     *
+     * <p>IndexVersion IDs diverged from Version IDs in 8.11.0. The 8.11 and 8.12 lines will
+     * write Version IDs in their node metadata, so we have to convert those IDs to specific
+     * IndexVersions. In 8.10 and earlier, IndexVersion and Version IDs are aligned. In 8.13 and
+     * later, NodeMetadata should write an IndexVersion to disk as a checkpoint.
+     *
+     * @param versionId a version ID as defined in {@link Version} and {@link IndexVersion}
+     * @return IndexVersion
+     */
+    private static IndexVersion idToIndexVersionCheckpoint(int versionId) {
+        // case -- ids match
+        Version version = Version.fromId(versionId);
+        if (version.before(Version.V_8_11_0)) {
+            return IndexVersion.fromId(version.id());
+        }
+
+        // case 2: version ID that's diverged from indexVersion ID
+        // I think this is just the 8.11 and 8.12 lines
+        if (version.between(Version.V_8_11_0, Version.V_8_12_0)) {
+            return IndexVersions.UPGRADE_LUCENE_9_8;
+        }
+        if (version.equals(Version.V_8_12_0)) {
+            return IndexVersions.ES_VERSION_8_12;
+        }
+        if (version.between(Version.V_8_12_1, Version.V_8_13_0)) {
+            return IndexVersions.ES_VERSION_8_12_1;
+        }
+        if (version.equals(Version.CURRENT)) {
+            return IndexVersion.current();
+        }
+        // case 3: indexVersion ID from new code
+        return IndexVersion.fromId(version.id());
     }
 
     public static final MetadataStateFormat<NodeMetadata> FORMAT = new NodeMetadataStateFormat(false);

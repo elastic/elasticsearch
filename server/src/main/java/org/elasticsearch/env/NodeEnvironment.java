@@ -41,6 +41,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -524,6 +525,7 @@ public final class NodeEnvironment implements Closeable {
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
 
+            // TODO[wrb]: can we just use toReleaseVersion() ?
             String bestDowngradeVersion = getBestDowngradeVersion(metadata.previousIndexVersionCheckpoint().toReleaseVersion());
             throw new IllegalStateException(
                 "Cannot start this node because it holds metadata for indices with version ["
@@ -1512,7 +1514,7 @@ public final class NodeEnvironment implements Closeable {
     // visible for testing
     static String getBestDowngradeVersion(String previousNodeVersion) {
         // this method should only be called in the context of an upgrade to 8.x
-        assert Build.current().version().startsWith("9.") == false;
+        @UpdateForV9
         Pattern pattern = Pattern.compile("^7\\.(\\d+)\\.\\d+(-\\d+\\.\\d+\\.\\d+)?$");
         Matcher matcher = pattern.matcher(previousNodeVersion);
         if (matcher.matches()) {

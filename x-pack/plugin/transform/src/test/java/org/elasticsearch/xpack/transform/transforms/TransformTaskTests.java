@@ -547,7 +547,10 @@ public class TransformTaskTests extends ESTestCase {
             TransformConfigTests.randomTransformConfigWithoutHeaders(transformId),
             MockTransformAuditor.createMockAuditor()
         );
+        var indexer = mock(ClientTransformIndexer.class);
+        transformTask.initializeIndexer(indexer);
         transformTask.triggered(new TransformScheduler.Event("not-" + transformId, randomNonNegativeLong(), randomNonNegativeLong()));
+        verifyNoInteractions(indexer);
     }
 
     public void testTriggeredIsNoOpWhenIndexerIsUninitialized() {

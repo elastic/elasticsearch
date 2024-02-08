@@ -41,7 +41,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -129,7 +130,8 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
     // default visibility for testing purposes
     volatile boolean isHealthNode = false;
 
-    private final AtomicBoolean currentlyRunning = new AtomicBoolean(false);
+    // This semaphore is used to ensure only one schedule is currently running and to wait for this run to finish before closing
+    private final Semaphore currentlyRunning = new Semaphore(1, true);
 
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private volatile TimeValue pollInterval;
@@ -280,9 +282,16 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
     @Override
     protected void doClose() throws IOException {
         logger.debug("Periodic health logger is closing.");
-        SchedulerEngine engine = scheduler.get();
-        if (engine != null) {
-            engine.stop();
+        try {
+            currentlyRunning.acquire();
+        } catch (InterruptedException e) {
+            logger.warn("Error while waiting for the last run of the periodic health logger to finish.", e);
+        } finally {
+            currentlyRunning.release();
+            SchedulerEngine engine = scheduler.get();
+            if (engine != null) {
+                engine.stop();
+            }
         }
     }
 
@@ -295,17 +304,22 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
 
     // default visibility for testing purposes
     void tryToLogHealth() {
-        if (this.currentlyRunning.compareAndExchange(false, true) == false) {
-            RunOnce release = new RunOnce(() -> currentlyRunning.set(false));
-            try {
-                ActionListener<List<HealthIndicatorResult>> listenerWithRelease = ActionListener.runAfter(resultsListener, release);
-                this.healthService.getHealth(this.client, null, false, 0, listenerWithRelease);
-            } catch (Exception e) {
-                logger.warn(() -> "The health periodic logger encountered an error.", e);
-                // In case of an exception before the listener was wired, we can release the flag here, and we feel safe
-                // that it will not release it again because this can only be run once.
-                release.run();
+        try {
+            // We only try to run this because we do not want to pile up the executions.
+            if (currentlyRunning.tryAcquire(0, TimeUnit.SECONDS)) {
+                RunOnce release = new RunOnce(currentlyRunning::release);
+                try {
+                    ActionListener<List<HealthIndicatorResult>> listenerWithRelease = ActionListener.runAfter(resultsListener, release);
+                    this.healthService.getHealth(this.client, null, false, 0, listenerWithRelease);
+                } catch (Exception e) {
+                    logger.warn(() -> "The health periodic logger encountered an error.", e);
+                    // In case of an exception before the listener was wired, we can release the flag here, and we feel safe
+                    // that it will not release it again because this can only be run once.
+                    release.run();
+                }
             }
+        } catch (InterruptedException e) {
+            logger.debug("Periodic health logger run was interrupted.", e);
         }
     }
 

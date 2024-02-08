@@ -41,7 +41,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -602,13 +601,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 allOf(
                     containsString("Cannot start this node"),
                     containsString("it holds metadata for indices with version [" + oldIndexVersion.toReleaseVersion().split("-")[0] + "]"),
-                    containsString(
-                        "Revert this node to version ["
-                            + (previousNodeVersion.onOrAfter(IndexVersions.V_8_0_0)
-                                ? IndexVersions.V_7_17_0.toReleaseVersion()
-                                : previousNodeVersion.toReleaseVersion())
-                            + "]"
-                    )
+                    containsString("Revert this node to version [" + previousNodeVersion.toReleaseVersion() + "]")
                 )
             );
 

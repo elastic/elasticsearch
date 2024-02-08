@@ -40,7 +40,7 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
         }
         repos.mavenCentral();
         repos.maven(r -> {
-            r.setUrl("https://storage.googleapis.com/elasticsearch-third-party-libs/maven");
+            r.setUrl("https://artifactory.elastic.dev/artifactory/elasticsearch-zstd");
             r.metadataSources(MavenArtifactRepository.MetadataSources::artifact);
         });
 

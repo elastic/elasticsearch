@@ -12,8 +12,13 @@ if [ $(docker buildx inspect --bootstrap | grep -c 'Platforms:.*linux/arm64') -n
   exit 1;
 fi
 
+if [ -z "$ARTIFACTORY_API_KEY" ]; then
+  echo 'Error: The ARTIFACTORY_API_KEY environment variable must be set.'
+  exit 1;
+fi
+
 VERSION="$1"
-GCS_BUCKET="${GCS_BUCKET:-elasticsearch-third-party-libs}"
+ARTIFACTORY_REPOSITORY="${ARTIFACTORY_REPOSITORY:-https://artifactory.elastic.dev/artifactory/elasticsearch-zstd/}"
 TEMP=$(mktemp -d)
 
 fetch_homebrew_artifact() {
@@ -84,7 +89,7 @@ echo 'Building Windows jar...'
 WINDOWS_X86_JAR=$(build_windows_jar)
 
 upload_artifact() {
-  gcloud storage cp $1 gs://$GCS_BUCKET/maven/org/elasticsearch/zstd/$VERSION/
+  curl -sS -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/zstd/${VERSION}/$(basename $1)" | jq -r '.downloadUri'
 }
 
 echo 'Uploading artifacts...'

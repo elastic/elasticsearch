@@ -43,7 +43,7 @@ class FieldCapabilitiesFetcher {
     private final boolean includeEmptyFields;
     private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
     private static final boolean enableFieldHasValue = Booleans.parseBoolean(
-        System.getProperty("es.field_has_value", Boolean.TRUE.toString())
+        System.getProperty("es.field_caps_empty_fields_filter", Boolean.TRUE.toString())
     );
 
     FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeEmptyFields) {

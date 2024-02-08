@@ -226,8 +226,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Engine.IndexCommitListener indexCommitListener;
     private FieldInfos fieldInfos;
     // sys prop to disable the field has value feature, defaults to true (enabled) if set to false (disabled) the
-    // field caps always returns empty fields ignoring the value of the query param `include_empty_fields`.
-    private final boolean enableFieldHasValue = Booleans.parseBoolean(System.getProperty("es.field_has_value", Boolean.TRUE.toString()));
+    // field caps always returns empty fields ignoring the value of the query param `field_caps_empty_fields_filter`.
+    private final boolean enableFieldHasValue = Booleans.parseBoolean(
+        System.getProperty("es.field_caps_empty_fields_filter", Boolean.TRUE.toString())
+    );
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;

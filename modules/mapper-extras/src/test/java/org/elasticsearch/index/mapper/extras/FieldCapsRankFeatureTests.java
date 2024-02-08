@@ -44,10 +44,13 @@ public class FieldCapsRankFeatureTests extends ESIntegTestCase {
     }
 
     public void testRankFeatureInIndex() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX).setFields("*").setincludeEmptyFields(false).get();
+        assertFalse(response.get().containsKey("fooRank"));
+        assertFalse(response.get().containsKey("barRank"));
         prepareIndex(INDEX).setSource("fooRank", 8).setSource("barRank", 8).get();
         refresh(INDEX);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX).setFields("*").setincludeEmptyFields(false).get();
+        response = client().prepareFieldCaps(INDEX).setFields("*").setincludeEmptyFields(false).get();
         assertEquals(1, response.getIndices().length);
         assertEquals(response.getIndices()[0], INDEX);
         assertThat(response.get(), Matchers.hasKey("fooRank"));
@@ -81,7 +84,7 @@ public class FieldCapsRankFeatureTests extends ESIntegTestCase {
         );
     }
 
-    public void testAllRankFeatureReturnedIfOneIsPresent() throws Exception {
+    public void testAllRankFeatureReturnedIfOneIsPresent() {
         prepareIndex(INDEX).setSource("fooRank", 8).get();
         refresh(INDEX);
 

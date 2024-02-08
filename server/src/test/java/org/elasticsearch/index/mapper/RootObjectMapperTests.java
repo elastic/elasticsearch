@@ -387,7 +387,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         }));
         assertThat(mapperService.mappingLookup().getMapper("dim"), instanceOf(FieldAliasMapper.class));
         assertThat(mapperService.mappingLookup().getMapper("resource.attributes.dim"), instanceOf(KeywordFieldMapper.class));
-        assertThat(mapperService.mappingLookup().getMapper("another.dim"), instanceOf(FieldAliasMapper.class));
+        assertThat(mapperService.mappingLookup().objectMappers().get("another").getMapper("dim"), instanceOf(FieldAliasMapper.class));
         assertThat(mapperService.mappingLookup().getMapper("attributes.another.dim"), instanceOf(KeywordFieldMapper.class));
     }
 

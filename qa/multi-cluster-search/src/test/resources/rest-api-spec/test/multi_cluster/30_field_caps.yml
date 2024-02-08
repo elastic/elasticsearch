@@ -65,7 +65,6 @@
       field_caps:
         index: 'my_remote_cluster:some_index_that_doesnt_exist'
         fields: [number]
-
   - match: { error.type: "index_not_found_exception" }
   - match: { error.reason: "no such index [some_index_that_doesnt_exist]" }
 

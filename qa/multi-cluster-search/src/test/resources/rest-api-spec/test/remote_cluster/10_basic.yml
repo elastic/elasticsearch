@@ -82,7 +82,6 @@
                       nested2:
                         type: keyword
                         doc_values: false
-
   - do:
         index:
           index:  field_caps_index_1

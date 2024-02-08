@@ -262,12 +262,12 @@ public class ES87TSDBDocValuesEncoder {
 
         long v1 = in.readVLong();
         int encoding = Long.numberOfTrailingZeros(~v1);
+        v1 >>>= encoding + 1;
         if (encoding == 0) {
             // single run
-            Arrays.fill(out, v1 >>> 1);
+            Arrays.fill(out, v1);
         } else if (encoding == 1) {
             // two runs
-            v1 = v1 >>> 2;
             int runLen = in.readVInt();
             long v2 = v1 + in.readZLong();
             Arrays.fill(out, 0, runLen, v1);
@@ -277,7 +277,7 @@ public class ES87TSDBDocValuesEncoder {
             forUtil.decode(bitsPerOrd, in, out);
         } else if (encoding == 3) {
             // cycle encoding
-            int cycleLength = (int) v1 >>> 4;
+            int cycleLength = (int) v1;
             for (int i = 0; i < cycleLength; i++) {
                 out[i] = in.readVLong();
             }

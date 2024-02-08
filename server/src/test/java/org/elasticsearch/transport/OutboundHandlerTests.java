@@ -37,6 +37,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -322,40 +323,13 @@ public class OutboundHandlerTests extends ESTestCase {
     }
 
     public void testFailToSendResponse() {
-        ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
+        TransportVersion version = TransportVersionUtils.randomVersion();
         String action = randomAlphaOfLength(10);
         long requestId = randomLongBetween(0, 300);
-        String value = "message";
-        threadContext.putHeader("header", "header_value");
-        AtomicLong reservedBytes = new AtomicLong();
-        TestResponse response = new TestResponse(value) {
-            final AbstractRefCounted refs = AbstractRefCounted.of(() -> reservedBytes.set(0));
-
+        var response = new ReleasbleTestResponse(randomAlphaOfLength(10)) {
             @Override
             public void writeTo(StreamOutput out) {
-                reservedBytes.set(randomIntBetween(1, 1000));
                 throw new CircuitBreakingException("simulated", CircuitBreaker.Durability.TRANSIENT);
-            }
-
-            @Override
-            public void incRef() {
-                refs.incRef();
-            }
-
-            @Override
-            public boolean tryIncRef() {
-                return refs.tryIncRef();
-            }
-
-            @Override
-            public boolean decRef() {
-                return refs.decRef();
-            }
-
-            @Override
-            public boolean hasReferences() {
-                return refs.hasReferences();
             }
         };
 
@@ -384,8 +358,6 @@ public class OutboundHandlerTests extends ESTestCase {
         Compression.Scheme compress = randomFrom(compressionScheme, null);
         try {
             handler.sendResponse(version, channel, requestId, action, response, compress, false, ResponseStatsConsumer.NONE);
-        } catch (Exception e) {
-            fail("must not happen");
         } finally {
             response.decRef();
         }
@@ -399,7 +371,50 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(action, actionRef.get());
         assertEquals(response, responseRef.get());
         assertThat(exceptionRef.get().getMessage(), equalTo("simulated"));
-        assertThat(reservedBytes.get(), equalTo(0L));
+        assertTrue(response.released.get());
+    }
+
+    public void testFailToSendHandshakeResponse() {
+        TransportVersion version = TransportVersionUtils.randomVersion();
+        String action = randomAlphaOfLength(10);
+        long requestId = randomLongBetween(0, 300);
+        var response = new ReleasbleTestResponse(randomAlphaOfLength(10)) {
+            @Override
+            public void writeTo(StreamOutput out) {
+                throw new CircuitBreakingException("simulated", CircuitBreaker.Durability.TRANSIENT);
+            }
+        };
+
+        AtomicLong requestIdRef = new AtomicLong();
+        AtomicReference<String> actionRef = new AtomicReference<>();
+        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, TransportResponse response) {
+                assertThat(requestIdRef.get(), equalTo(0L));
+                requestIdRef.set(requestId);
+                assertNull(actionRef.get());
+                actionRef.set(action);
+                assertNull(responseRef.get());
+                responseRef.set(response);
+            }
+
+            @Override
+            public void onResponseSent(long requestId, String action, Exception error) {
+                throw new AssertionError("failing to send a handshake response should not send failure");
+            }
+        });
+        Compression.Scheme compress = randomFrom(compressionScheme, null);
+        try {
+            handler.sendResponse(version, channel, requestId, action, response, compress, true, ResponseStatsConsumer.NONE);
+        } finally {
+            response.decRef();
+        }
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
+        assertEquals(response, responseRef.get());
+        assertTrue(response.released.get());
+        assertFalse(channel.isOpen());
     }
 
     /**
@@ -437,6 +452,35 @@ public class OutboundHandlerTests extends ESTestCase {
         } finally {
             Loggers.removeAppender(outboundHandlerLogger, mockAppender);
             mockAppender.stop();
+        }
+    }
+
+    static class ReleasbleTestResponse extends TestResponse {
+        final AtomicBoolean released = new AtomicBoolean();
+        final AbstractRefCounted refs = AbstractRefCounted.of(() -> assertTrue(released.compareAndSet(false, true)));
+
+        ReleasbleTestResponse(String value) {
+            super(value);
+        }
+
+        @Override
+        public void incRef() {
+            refs.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refs.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refs.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refs.hasReferences();
         }
     }
 }

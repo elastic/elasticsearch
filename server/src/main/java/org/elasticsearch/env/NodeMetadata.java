@@ -25,7 +25,8 @@ import java.io.OutputStream;
 import java.util.Objects;
 
 /**
- * Metadata associated with this node: its persistent node ID and its version.
+ * Metadata associated with this node: its persistent node ID, the most recent IndexVersion it was aware of,
+ * and version of the oldest index it stores.
  * The metadata is persisted in the data folder of this node and is reused across restarts.
  */
 public final class NodeMetadata {
@@ -105,6 +106,17 @@ public final class NodeMetadata {
         return this.indexVersionCheckpoint;
     }
 
+    /**
+     * Determine an index version checkpoint from a version ID
+     *
+     * <p>IndexVersion IDs diverged from Version IDs in 8.11.0. The 8.11 and 8.12 lines will
+     * write Version IDs in their node metadata, so we have to convert those IDs to specific
+     * IndexVersions. In 8.10 and earlier, IndexVersion and Version IDs are aligned. In 8.13 and
+     * later, NodeMetadata should write an IndexVersion to disk as a checkpoint.
+     *
+     * @param versionId
+     * @return
+     */
     static IndexVersion idToIndexVersionCheckpoint(int versionId) {
         // case -- ids match
         Version version = Version.fromId(versionId);
@@ -131,11 +143,11 @@ public final class NodeMetadata {
     }
 
     /**
-     * // TODO[wrb] update comment
      * When a node starts we read the existing node metadata from disk (see NodeEnvironment@loadNodeMetadata), store a reference to the
-     * node version that we read from there in {@code previousNodeVersion} and then proceed to upgrade the version to
+     * index version checkpoint that we read from there in {@code previousIndexVersionCheckpoint} and then proceed to upgrade the version to
      * the current version of the node ({@link NodeMetadata#upgradeToCurrentVersion()} before storing the node metadata again on disk.
-     * In doing so, {@code previousNodeVersion} refers to the previously last known version that this node was started on.
+     * In doing so, {@code previousIndexVersionCheckpoint} refers to the previously last known version that this node was started on.
+     * Because different releases may share index versions, we can only use index versions as checkpoints.
      */
     public IndexVersion previousIndexVersionCheckpoint() {
         return this.previousIndexVersionCheckpoint;
@@ -145,7 +157,6 @@ public final class NodeMetadata {
         return oldestIndexVersion;
     }
 
-    // TODO[wrb] remove poison pill
     public void verifyUpgradeToCurrentVersion() {
         assert (indexVersionCheckpoint.equals(IndexVersions.ZERO) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
             : "version is required in the node metadata from v9 onwards";
@@ -192,8 +203,7 @@ public final class NodeMetadata {
             this.nodeId = nodeId;
         }
 
-        // TODO[wrb] rename
-        public void setNodeVersionId(int nodeVersionId) {
+        public void setIndexVersionCheckpoint(int nodeVersionId) {
             this.indexVersionCheckpoint = idToIndexVersionCheckpoint(nodeVersionId);
         }
 
@@ -235,7 +245,7 @@ public final class NodeMetadata {
             super("node-");
             objectParser = new ObjectParser<>("node_meta_data", ignoreUnknownFields, Builder::new);
             objectParser.declareString(Builder::setNodeId, new ParseField(NODE_ID_KEY));
-            objectParser.declareInt(Builder::setNodeVersionId, new ParseField(NODE_VERSION_KEY));
+            objectParser.declareInt(Builder::setIndexVersionCheckpoint, new ParseField(NODE_VERSION_KEY));
             objectParser.declareInt(Builder::setOldestIndexVersion, new ParseField(OLDEST_INDEX_VERSION_KEY));
         }
 

@@ -1,5 +1,5 @@
 pr: 105311
-summary: Fix bug in `rule_query` that resulted in errors when performing text_ex…
+summary: Fix bug in `rule_query` that resulted in errors when performing text_expansion queries
 area: Application
 type: bug
 issues: []

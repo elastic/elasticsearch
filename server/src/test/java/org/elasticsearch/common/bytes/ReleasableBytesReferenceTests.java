@@ -48,9 +48,7 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
             delegate = ref;
         } else if (paged.equals(type)) {
             ByteArray byteArray = bigarrays.newByteArray(content.length);
-            for (int i = 0; i < content.length; i++) {
-                byteArray.set(i, content[i]);
-            }
+            byteArray.set(0, content, 0, content.length);
             assertThat(byteArray.size(), Matchers.equalTo((long) content.length));
             BytesReference ref = BytesReference.fromByteArray(byteArray, content.length);
             assertThat(ref.length(), Matchers.equalTo(content.length));
@@ -62,10 +60,7 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
                 int remaining = content.length - i;
                 int sliceLength = randomIntBetween(1, remaining);
                 ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(sliceLength, bigarrays);
-                int offset = content.length - remaining;
-                for (int j = 0; j < sliceLength; j++) {
-                    out.writeByte(content[offset + j]);
-                }
+                out.writeBytes(content, content.length - remaining, sliceLength);
                 assertThat(sliceLength, equalTo(out.size()));
                 referenceList.add(out.bytes());
                 i += sliceLength;

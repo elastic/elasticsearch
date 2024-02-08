@@ -20,7 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
-import org.elasticsearch.xpack.security.operator.RoleRequestBuilderFactory;
+import org.elasticsearch.xpack.security.operator.PutRoleRequestBuilderFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,14 +34,14 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
-    private final RoleRequestBuilderFactory builderFactory;
+    private final PutRoleRequestBuilderFactory builderFactory;
     private final SecurityContext securityContext;
 
     public RestPutRoleAction(
         Settings settings,
         XPackLicenseState licenseState,
         SecurityContext securityContext,
-        RoleRequestBuilderFactory builderFactory
+        PutRoleRequestBuilderFactory builderFactory
     ) {
         super(settings, licenseState);
         this.securityContext = securityContext;
@@ -63,9 +63,10 @@ public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutRoleRequestBuilder requestBuilder = builderFactory.putRoleRequestBuilder(securityContext, client)
+        PutRoleRequestBuilder requestBuilder = builderFactory.create(securityContext, client)
             .source(request.param("name"), request.requiredContent(), request.getXContentType())
             .setRefreshPolicy(request.param("refresh"));
+        // Could also validate here...
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {

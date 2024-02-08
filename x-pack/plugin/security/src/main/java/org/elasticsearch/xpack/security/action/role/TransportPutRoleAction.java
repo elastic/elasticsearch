@@ -18,23 +18,22 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.security.operator.RoleDescriptorRequestValidator;
-import org.elasticsearch.xpack.security.operator.RoleDescriptorRequestValidatorFactory;
+import org.elasticsearch.xpack.security.operator.RoleDescriptorValidatorFactory;
 
 public class TransportPutRoleAction extends HandledTransportAction<PutRoleRequest, PutRoleResponse> {
     private final NativeRolesStore rolesStore;
-    private final RoleDescriptorRequestValidator roleDescriptorRequestValidator;
+    private final RoleDescriptorValidatorFactory.RoleDescriptorValidator roleDescriptorValidator;
 
     @Inject
     public TransportPutRoleAction(
         ActionFilters actionFilters,
         NativeRolesStore rolesStore,
         TransportService transportService,
-        RoleDescriptorRequestValidator roleDescriptorRequestValidator
+        RoleDescriptorValidatorFactory.RoleDescriptorValidator roleDescriptorValidator
     ) {
         super(PutRoleAction.NAME, transportService, actionFilters, PutRoleRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.rolesStore = rolesStore;
-        this.roleDescriptorRequestValidator = roleDescriptorRequestValidator;
+        this.roleDescriptorValidator = roleDescriptorValidator;
     }
 
     public TransportPutRoleAction(
@@ -43,12 +42,12 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
         TransportService transportService,
         NamedXContentRegistry xContentRegistry
     ) {
-        this(actionFilters, rolesStore, transportService, new RoleDescriptorRequestValidatorFactory.DefaultValidator(xContentRegistry));
+        this(actionFilters, rolesStore, transportService, new RoleDescriptorValidatorFactory.RoleDescriptorValidator(xContentRegistry));
     }
 
     @Override
     protected void doExecute(Task task, final PutRoleRequest request, final ActionListener<PutRoleResponse> listener) {
-        final Exception validationException = roleDescriptorRequestValidator.validate(request.roleDescriptor());
+        final Exception validationException = roleDescriptorValidator.validate(request.roleDescriptor());
         if (validationException != null) {
             listener.onFailure(validationException);
         } else {

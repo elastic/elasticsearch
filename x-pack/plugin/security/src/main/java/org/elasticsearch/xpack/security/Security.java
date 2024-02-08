@@ -307,9 +307,8 @@ import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
-import org.elasticsearch.xpack.security.operator.RoleDescriptorRequestValidator;
-import org.elasticsearch.xpack.security.operator.RoleDescriptorRequestValidatorFactory;
-import org.elasticsearch.xpack.security.operator.RoleRequestBuilderFactory;
+import org.elasticsearch.xpack.security.operator.PutRoleRequestBuilderFactory;
+import org.elasticsearch.xpack.security.operator.RoleDescriptorValidatorFactory;
 import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
@@ -562,8 +561,8 @@ public class Security extends Plugin
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
-    private final SetOnce<RoleDescriptorRequestValidatorFactory> roleDescriptorRequestValidatorFactory = new SetOnce<>();
-    private final SetOnce<RoleRequestBuilderFactory> roleRequestBuilderFactory = new SetOnce<>();
+    private final SetOnce<RoleDescriptorValidatorFactory> roleDescriptorRequestValidatorFactory = new SetOnce<>();
+    private final SetOnce<PutRoleRequestBuilderFactory> roleRequestBuilderFactory = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
     private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
@@ -1004,8 +1003,8 @@ public class Security extends Plugin
         components.add(authzService);
         components.add(
             new PluginComponentBinding<>(
-                RoleDescriptorRequestValidator.class,
-                roleDescriptorRequestValidatorFactory.get().validator(fileRolesStore::exists, xContentRegistry, securityContext.get())
+                RoleDescriptorValidatorFactory.RoleDescriptorValidator.class,
+                roleDescriptorRequestValidatorFactory.get().create(xContentRegistry, securityContext.get(), fileRolesStore::exists)
             )
         );
 
@@ -2054,11 +2053,11 @@ public class Security extends Plugin
             );
         }
 
-        List<RoleDescriptorRequestValidatorFactory> validatorFactories = loader.loadExtensions(RoleDescriptorRequestValidatorFactory.class);
+        List<RoleDescriptorValidatorFactory> validatorFactories = loader.loadExtensions(RoleDescriptorValidatorFactory.class);
         if (validatorFactories.size() > 1) {
-            throw new IllegalStateException(RoleDescriptorRequestValidatorFactory.class + " may not have multiple implementations");
+            throw new IllegalStateException(RoleDescriptorValidatorFactory.class + " may not have multiple implementations");
         } else if (validatorFactories.size() == 1) {
-            RoleDescriptorRequestValidatorFactory validatorFactory = validatorFactories.get(0);
+            RoleDescriptorValidatorFactory validatorFactory = validatorFactories.get(0);
             this.roleDescriptorRequestValidatorFactory.set(validatorFactory);
             logger.info(
                 "Loaded implementation [{}] for interface RoleDescriptorRequestValidatorFactory",
@@ -2066,19 +2065,19 @@ public class Security extends Plugin
             );
         } else {
             logger.info("Using default implementation for interface RoleDescriptorRequestValidatorFactory");
-            this.roleDescriptorRequestValidatorFactory.set(new RoleDescriptorRequestValidatorFactory.Default());
+            this.roleDescriptorRequestValidatorFactory.set(new RoleDescriptorValidatorFactory.Default());
         }
 
-        List<RoleRequestBuilderFactory> builderFactories = loader.loadExtensions(RoleRequestBuilderFactory.class);
+        List<PutRoleRequestBuilderFactory> builderFactories = loader.loadExtensions(PutRoleRequestBuilderFactory.class);
         if (builderFactories.size() > 1) {
-            throw new IllegalStateException(RoleRequestBuilderFactory.class + " may not have multiple implementations");
+            throw new IllegalStateException(PutRoleRequestBuilderFactory.class + " may not have multiple implementations");
         } else if (builderFactories.size() == 1) {
-            RoleRequestBuilderFactory builderFactory = builderFactories.get(0);
+            PutRoleRequestBuilderFactory builderFactory = builderFactories.get(0);
             this.roleRequestBuilderFactory.set(builderFactory);
             logger.info("Loaded implementation [{}] for interface RoleRequestBuilderFactory", builderFactory.getClass().getCanonicalName());
         } else {
             logger.info("Using default implementation for interface RoleRequestBuilderFactory");
-            this.roleRequestBuilderFactory.set(new RoleRequestBuilderFactory.Default());
+            this.roleRequestBuilderFactory.set(new PutRoleRequestBuilderFactory.Default());
         }
     }
 

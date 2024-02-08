@@ -11,15 +11,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 
-public interface RoleRequestBuilderFactory {
+public interface PutRoleRequestBuilderFactory {
+    PutRoleRequestBuilder create(SecurityContext securityContext, Client client);
 
-    PutRoleRequestBuilder putRoleRequestBuilder(SecurityContext securityContext, Client client);
-
-    class Default implements RoleRequestBuilderFactory {
+    class Default implements PutRoleRequestBuilderFactory {
         @Override
-        public PutRoleRequestBuilder putRoleRequestBuilder(SecurityContext securityContext, Client client) {
+        public PutRoleRequestBuilder create(SecurityContext securityContext, Client client) {
             return new PutRoleRequestBuilder(client);
         }
     }
-
 }

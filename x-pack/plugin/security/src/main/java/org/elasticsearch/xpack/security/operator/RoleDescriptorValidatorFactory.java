@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
@@ -21,45 +22,45 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-// TODO this is gnarly
-public interface RoleDescriptorRequestValidatorFactory {
+public interface RoleDescriptorValidatorFactory {
 
-    RoleDescriptorRequestValidator validator(
-        Predicate<String> reservedRoleNameChecker,
+    RoleDescriptorValidator create(
         NamedXContentRegistry xContentRegistry,
-        SecurityContext securityContext
+        SecurityContext securityContext,
+        Predicate<String> reservedRoleNameChecker
     );
 
-    class Default implements RoleDescriptorRequestValidatorFactory {
+    class Default implements RoleDescriptorValidatorFactory {
         @Override
-        public RoleDescriptorRequestValidator validator(
-            Predicate<String> reservedRoleNameChecker,
+        public RoleDescriptorValidator create(
             NamedXContentRegistry xContentRegistry,
-            SecurityContext securityContext
+            SecurityContext securityContext,
+            Predicate<String> reservedRoleNameChecker
         ) {
-            return new DefaultValidator(xContentRegistry);
+            return new RoleDescriptorValidator(xContentRegistry);
         }
     }
 
-    class DefaultValidator implements RoleDescriptorRequestValidator {
-        private final NamedXContentRegistry xContentRegistry;
+    class RoleDescriptorValidator {
+        protected final NamedXContentRegistry xContentRegistry;
 
-        public DefaultValidator(NamedXContentRegistry xContentRegistry) {
+        public RoleDescriptorValidator(NamedXContentRegistry xContentRegistry) {
             this.xContentRegistry = xContentRegistry;
         }
 
-        @Override
-        public Exception validate(RoleDescriptor roleDescriptor) {
+        public final RuntimeException validate(RoleDescriptor roleDescriptor) {
+            return validate(roleDescriptor, true);
+        }
+
+        public RuntimeException validate(RoleDescriptor roleDescriptor, boolean validateRoleName) {
             ActionRequestValidationException validationException = null;
-            // TODO doesn't apply to API keys
-            Validation.Error error = NativeRealmValidationUtil.validateRoleName(roleDescriptor.getName(), false);
-            if (error != null) {
-                validationException = addValidationError(error.toString(), validationException);
+            if (validateRoleName) {
+                Validation.Error error = NativeRealmValidationUtil.validateRoleName(roleDescriptor.getName(), false);
+                if (error != null) {
+                    validationException = addValidationError(error.toString(), validationException);
+                }
             }
-            validationException = org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator.validate(
-                roleDescriptor,
-                validationException
-            );
+            validationException = RoleDescriptorRequestValidator.validate(roleDescriptor, validationException);
             if (validationException != null) {
                 return validationException;
             }

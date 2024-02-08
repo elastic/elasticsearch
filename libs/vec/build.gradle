@@ -71,3 +71,11 @@ tasks.register("generateExtractedHeaders", Exec).configure {
     "${genHeader}"
   ]
 }
+
+configurations {
+  darwinAarch64
+}
+
+artifacts {
+  darwinAarch64(new File(projectDir, "platform/darwin-aarch64"))
+}

@@ -58,7 +58,8 @@ public enum OS {
         }
 
         public T supply() {
-            Set<OS> missingOS = EnumSet.complementOf(EnumSet.copyOf(conditions.keySet()));
+            Set<OS> missingOS = EnumSet.allOf(OS.class);
+            missingOS.removeAll(conditions.keySet());
             if (missingOS.isEmpty() == false) {
                 throw new IllegalArgumentException("No condition specified for " + missingOS);
             }

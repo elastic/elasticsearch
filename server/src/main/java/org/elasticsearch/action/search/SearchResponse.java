@@ -60,6 +60,10 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class SearchResponse extends ActionResponse implements ChunkedToXContentObject {
 
+    // for cross-cluster scenarios where cluster names are shown in API responses, use this string
+    // rather than empty string (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) we use internally
+    public static final String LOCAL_CLUSTER_NAME_REPRESENTATION = "(local)";
+
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
     private static final ParseField TOOK = new ParseField("took");
@@ -1202,7 +1206,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             String name = clusterAlias;
             if (clusterAlias.equals("")) {
-                name = "(local)";
+                name = LOCAL_CLUSTER_NAME_REPRESENTATION;
             }
             builder.startObject(name);
             {
@@ -1243,7 +1247,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
             String clusterName = clusterAlias;
-            if (clusterAlias.equals("(local)")) {
+            if (clusterAlias.equals(LOCAL_CLUSTER_NAME_REPRESENTATION)) {
                 clusterName = "";
             }
             String indexExpression = null;

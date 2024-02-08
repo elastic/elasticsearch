@@ -221,11 +221,11 @@ public final class EsqlTestUtils {
             }
             withFields = " WITH " + String.join(",", fields);
         }
-        String enrich = "ENRICH";
+        String enrich = "ENRICH ";
         if (mode != Enrich.Mode.ANY || randomBoolean()) {
-            enrich += " [ccq.mode: " + mode + "] ";
+            enrich += " _" + mode + ":";
         }
-        enrich += " " + name;
+        enrich += name;
         enrich += onField;
         enrich += withFields;
         List<String> all = new ArrayList<>(before);

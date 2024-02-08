@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
@@ -56,7 +57,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -321,9 +321,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
         return p -> {
-            String policyName = ctx.policyName.getText();
             var source = source(ctx);
-            Mode mode = enrichMode(ctx.setting());
+            Tuple<Mode, String> tuple = parsePolicyName(ctx.policyName);
+            Mode mode = tuple.v1();
+            String policyNameString = tuple.v2();
 
             NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
             if (matchField.name().contains("*")) {
@@ -335,7 +336,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 source,
                 p,
                 mode,
-                new Literal(source(ctx.policyName), policyName, DataTypes.KEYWORD),
+                new Literal(source(ctx.policyName), policyNameString, DataTypes.KEYWORD),
                 matchField,
                 null,
                 Map.of(),
@@ -344,34 +345,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         };
     }
 
-    private Mode enrichMode(List<EsqlBaseParser.SettingContext> setting) {
-        if (setting == null || setting.isEmpty()) {
-            return null;
-        }
-        var s = setting.get(0);
-        var source = source(s);
-        if (setting.size() > 1) {
-            throw new ParsingException(source, "Only one setting allowed for now in ENRICH");
-        }
-        String mode = "ccq.mode";
+    private static Tuple<Mode, String> parsePolicyName(Token policyToken) {
+        String stringValue = policyToken.getText();
+        int index = stringValue.indexOf(":");
+        Mode mode = null;
+        if (index >= 0) {
+            String modeValue = stringValue.substring(0, index);
 
-        var nameText = s.name.getText();
-        if (mode.equals(nameText.toLowerCase(Locale.ROOT)) == false) {
-            throw new ParsingException(source(s.name), "Unsupported setting [{}], expected [{}]", nameText, mode);
+            if (modeValue.startsWith("_")) {
+                mode = Mode.from(modeValue.substring(1));
+            }
+
+            if (mode == null) {
+                throw new ParsingException(
+                    source(policyToken),
+                    "Unrecognized value [{}], ENRICH policy qualifier needs to be one of {}",
+                    modeValue,
+                    Arrays.stream(Mode.values()).map(s -> "_" + s).toList()
+                );
+            }
+        } else {
+            mode = Mode.ANY;
         }
 
-        var valueText = s.value.getText();
-        Enrich.Mode m = Enrich.Mode.from(valueText);
-        if (m == null) {
-            throw new ParsingException(
-                source(s.value),
-                "Unrecognized value [{}], ENRICH [{}] needs to be one of {}",
-                valueText,
-                nameText,
-                Enrich.Mode.values()
-            );
-        }
-        return m;
+        String policyName = index < 0 ? stringValue : stringValue.substring(index + 1);
+        return new Tuple<>(mode, policyName);
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

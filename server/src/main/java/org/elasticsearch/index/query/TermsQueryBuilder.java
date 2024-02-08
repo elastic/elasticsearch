@@ -20,11 +20,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -419,15 +421,25 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     @SuppressWarnings("rawtypes")
     public static final class BinaryValues extends AbstractCollection implements Writeable {
 
-        private final BytesReference valueRef;
-        private final int size;
+        @Nullable
+        private BytesReference valueRef;
+
+        private final boolean convert;
+
+        private final Collection<?> values;
 
         private BinaryValues(StreamInput in) throws IOException {
-            this(in.readBytesReference());
+            this.valueRef = null;
+            this.convert = false;
+            int ignored = in.readVInt();
+            int ignored2 = in.readByte();
+            assert ignored2 == StreamOutput.GENERIC_LIST_HEADER;
+            values = in.readCollectionAsImmutableList(StreamInput::readGenericValue);
         }
 
         private BinaryValues(Collection<?> values, boolean convert) {
-            this(serialize(values, convert));
+            this.convert = convert;
+            this.values = values;
         }
 
         private static BytesReference serialize(Collection<?> values, boolean convert) {
@@ -446,15 +458,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 return output.bytes();
             } catch (IOException e) {
                 throw new UncheckedIOException("failed to serialize TermsQueryBuilder", e);
-            }
-        }
-
-        private BinaryValues(BytesReference bytesRef) {
-            this.valueRef = bytesRef;
-            try (StreamInput in = valueRef.streamInput()) {
-                size = consumerHeadersAndGetListSize(in);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
             }
         }
 
@@ -490,64 +493,45 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
         @Override
         public int size() {
-            return size;
+            return values.size();
         }
 
         @Override
-        public Iterator iterator() {
-            return new Iterator<>() {
-                private final StreamInput in;
-                private int pos = 0;
-
-                {
-                    try {
-                        in = valueRef.streamInput();
-                        consumerHeadersAndGetListSize(in);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("failed to deserialize TermsQueryBuilder", e);
-                    }
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return pos < size;
-                }
-
-                @Override
-                public Object next() {
-                    try {
-                        pos++;
-                        return in.readGenericValue();
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("failed to deserialize TermsQueryBuilder", e);
-                    }
-                }
-            };
+        public Iterator<?> iterator() {
+            var iter = values.iterator();
+            return convert ? Iterators.map(iter, AbstractQueryBuilder::maybeConvertToBytesRef) : iter;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytesReference(valueRef);
+            out.writeBytesReference(asBytes());
+        }
+
+        private BytesReference asBytes() {
+            var ref = valueRef;
+            if (ref == null) {
+                ref = serialize(values, convert);
+                valueRef = ref;
+            }
+            return ref;
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            BinaryValues that = (BinaryValues) o;
-            return Objects.equals(valueRef, that.valueRef);
+            return Iterators.equals(iterator(), ((BinaryValues) o).iterator(), Objects::equals);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(valueRef);
+            int hash = 1;
+            for (Object o : this) {
+                hash = 31 * hash + o.hashCode();
+            }
+            return hash;
         }
 
-        private static int consumerHeadersAndGetListSize(StreamInput in) throws IOException {
-            byte genericSign = in.readByte();
-            assert genericSign == StreamOutput.GENERIC_LIST_HEADER;
-            return in.readVInt();
-        }
     }
 
     @Override

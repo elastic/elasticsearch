@@ -15,18 +15,22 @@ import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class FetchIgnoredMetadataPhase implements FetchSubPhase {
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
+        StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
+        if (storedFieldsContext == null || storedFieldsContext.fetchFields() == false) {
+            return null;
+        }
         return new FetchSubPhaseProcessor() {
 
             SortedSetDocValues ignoredFields = null;
@@ -45,15 +49,13 @@ public class FetchIgnoredMetadataPhase implements FetchSubPhase {
                         values.add(ignoredFields.lookupOrd(ordIndex).utf8ToString());
                         ordIndex = ignoredFields.nextOrd();
                     }
-                    final Map<String, DocumentField> metadataFields = new HashMap<>();
                     final DocumentField ignoredField = new DocumentField(
                         IgnoredFieldMapper.NAME,
                         values,
                         Collections.emptyList(),
                         Collections.emptyList()
                     );
-                    metadataFields.put(IgnoredFieldMapper.NAME, ignoredField);
-                    hitContext.hit().addDocumentFields(Collections.emptyMap(), metadataFields);
+                    hitContext.hit().addDocumentFields(Collections.emptyMap(), Map.of(IgnoredFieldMapper.NAME, ignoredField));
                 }
             }
 

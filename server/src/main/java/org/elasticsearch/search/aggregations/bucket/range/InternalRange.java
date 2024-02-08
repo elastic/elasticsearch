@@ -10,9 +10,11 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
+import org.elasticsearch.search.aggregations.AggregatorsReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -324,19 +326,19 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         reduceContext.consumeBucketsAndMaybeBreak(ranges.size());
-        @SuppressWarnings("rawtypes")
-        List<B>[] rangeList = new List[ranges.size()];
-        for (int i = 0; i < rangeList.length; ++i) {
-            rangeList[i] = new ArrayList<>();
+        final long[] docCount = new long[ranges.size()];
+        final AggregatorsReducer[] rangeReducers = new AggregatorsReducer[ranges.size()];
+        for (int i = 0; i < rangeReducers.length; i++) {
+            rangeReducers[i] = new AggregatorsReducer(reduceContext, size);
         }
         return new AggregatorReducer() {
             @Override
             public void accept(InternalAggregation aggregation) {
                 @SuppressWarnings("unchecked")
-                InternalRange<B, R> ranges = (InternalRange<B, R>) aggregation;
-                int i = 0;
-                for (B range : ranges.ranges) {
-                    rangeList[i++].add(range);
+                final InternalRange<B, R> ranges = (InternalRange<B, R>) aggregation;
+                for (int i = 0; i < rangeReducers.length; ++i) {
+                    docCount[i] += ranges.ranges.get(i).getDocCount();
+                    rangeReducers[i].accept(ranges.ranges.get(i).getAggregations());
                 }
             }
 
@@ -344,9 +346,17 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             public InternalAggregation get() {
                 final List<B> reducedRanges = new ArrayList<>();
                 for (int i = 0; i < ranges.size(); ++i) {
-                    reducedRanges.add(reduceBucket(rangeList[i], reduceContext));
+                    final Bucket proto = getBuckets().get(i);
+                    reducedRanges.add(
+                        getFactory().createBucket(proto.key, proto.from, proto.to, docCount[i], rangeReducers[i].get(), keyed, format)
+                    );
                 }
                 return getFactory().create(name, reducedRanges, format, keyed, getMetadata());
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(rangeReducers);
             }
         };
     }
@@ -373,18 +383,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             keyed,
             getMetadata()
         );
-    }
-
-    private B reduceBucket(List<B> buckets, AggregationReduceContext context) {
-        assert buckets.isEmpty() == false;
-        long docCount = 0;
-        for (Bucket bucket : buckets) {
-            docCount += bucket.docCount;
-        }
-        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        Bucket prototype = buckets.get(0);
-        return getFactory().createBucket(prototype.key, prototype.from, prototype.to, docCount, aggs, keyed, format);
     }
 
     @Override

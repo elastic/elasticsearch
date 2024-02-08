@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 /*
- * This test is meant to make sure that we can handle ingesting a document with a reaonsably large number of nested pipeline processors.
+ * This test is meant to make sure that we can handle ingesting a document with a reasonably large number of nested pipeline processors.
  */
 public class ManyNestedPipelinesIT extends ESIntegTestCase {
     private static final int manyPipelinesCount = 20;

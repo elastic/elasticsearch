@@ -216,21 +216,19 @@ public class OpenAiService extends SenderService {
     }
 
     private OpenAiEmbeddingsModel updateModelWithEmbeddingDetails(OpenAiEmbeddingsModel model, int embeddingSize) {
-        if (model.getServiceSettings().dimensionsSetByUser() && model.getServiceSettings().dimensions() != null) {
-            if (model.getServiceSettings().dimensions() != embeddingSize) {
-                throw new ElasticsearchStatusException(
-                    Strings.format(
-                        "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
-                            + "Please recreate the [%s] configuration with the correct dimensions",
-                        embeddingSize,
-                        model.getServiceSettings().dimensions(),
-                        model.getConfigurations().getInferenceEntityId()
-                    ),
-                    RestStatus.BAD_REQUEST
-                );
-            }
-
-            return model;
+        if (model.getServiceSettings().dimensionsSetByUser()
+            && model.getServiceSettings().dimensions() != null
+            && model.getServiceSettings().dimensions() != embeddingSize) {
+            throw new ElasticsearchStatusException(
+                Strings.format(
+                    "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
+                        + "Please recreate the [%s] configuration with the correct dimensions",
+                    embeddingSize,
+                    model.getServiceSettings().dimensions(),
+                    model.getConfigurations().getInferenceEntityId()
+                ),
+                RestStatus.BAD_REQUEST
+            );
         }
 
         OpenAiEmbeddingsServiceSettings serviceSettings = new OpenAiEmbeddingsServiceSettings(
@@ -239,7 +237,7 @@ public class OpenAiService extends SenderService {
             SimilarityMeasure.DOT_PRODUCT,
             embeddingSize,
             model.getServiceSettings().maxInputTokens(),
-            false
+            model.getServiceSettings().dimensionsSetByUser()
         );
 
         return new OpenAiEmbeddingsModel(model, serviceSettings);

@@ -107,6 +107,7 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
         String apiKey,
         String modelName,
         @Nullable String user,
+        @Nullable SimilarityMeasure similarityMeasure,
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
         boolean dimensionsSetByUser
@@ -115,7 +116,7 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
-            new OpenAiEmbeddingsServiceSettings(url, org, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, dimensionsSetByUser),
+            new OpenAiEmbeddingsServiceSettings(url, org, similarityMeasure, dimensions, tokenLimit, dimensionsSetByUser),
             new OpenAiEmbeddingsTaskSettings(modelName, user),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );

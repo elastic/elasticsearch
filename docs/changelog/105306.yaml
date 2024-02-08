@@ -1,0 +1,5 @@
+pr: 105306
+summary: Fix race in HTTP response shutdown handling
+area: Network
+type: bug
+issues: []

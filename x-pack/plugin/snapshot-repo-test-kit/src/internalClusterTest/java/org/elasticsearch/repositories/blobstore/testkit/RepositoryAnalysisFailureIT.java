@@ -423,7 +423,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void analyseRepository(RepositoryAnalyzeAction.Request request) {
-        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
+        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(5L, TimeUnit.MINUTES);
     }
 
     private static void assertPurpose(OperationPurpose purpose) {

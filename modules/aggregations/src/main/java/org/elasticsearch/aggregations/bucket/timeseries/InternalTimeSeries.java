@@ -254,8 +254,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
         return new InternalBucket(prototype.key, prototype.docCount, aggregations, prototype.keyed);
     }
 
-    @Override
-    protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
+    private InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         InternalTimeSeries.InternalBucket reduced = null;
         for (InternalTimeSeries.InternalBucket bucket : buckets) {
             if (reduced == null) {

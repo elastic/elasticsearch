@@ -133,6 +133,17 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
         };
     }
 
+    private B reduceBucket(List<B> buckets, AggregationReduceContext context) {
+        assert buckets.isEmpty() == false;
+        long docCount = 0;
+        for (B bucket : buckets) {
+            docCount += bucket.docCount;
+        }
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
+        return createBucket(docCount, aggs, buckets.get(0));
+    }
+
     @Override
     public A finalizeSampling(SamplingContext samplingContext) {
         return createWithFilter(

@@ -104,7 +104,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
             super(in);
             this.shards = in.readCollectionAsImmutableSet(ShardId::new);
             this.originalIndices = OriginalIndices.readOriginalIndices(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 this.timeout = in.readOptionalTimeValue();
             } else {
                 this.timeout = null;
@@ -121,7 +121,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
             super.writeTo(out);
             out.writeCollection(shards);
             OriginalIndices.writeOriginalIndices(originalIndices, out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeOptionalTimeValue(timeout);
             }
         }

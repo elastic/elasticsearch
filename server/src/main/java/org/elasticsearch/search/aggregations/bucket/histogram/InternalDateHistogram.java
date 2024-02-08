@@ -391,8 +391,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
      * Reduce a list of same-keyed buckets (from multiple shards) to a single bucket. This
      * requires all buckets to have the same key.
      */
-    @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
+    private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
         long docCount = 0;
         for (Bucket bucket : buckets) {

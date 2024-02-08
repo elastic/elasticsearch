@@ -17,7 +17,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -585,7 +584,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 );
             }
 
-            Version oldVersion = Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
+            IndexVersion oldVersionCheckpoint = IndexVersion.fromId(between(1, IndexVersions.V_7_17_0.id() - 1));
             IndexVersion oldIndexVersion = IndexVersion.fromId(between(1, IndexVersions.MINIMUM_COMPATIBLE.id() - 1));
             IndexVersion previousNodeVersion = IndexVersion.fromId(between(IndexVersions.V_7_17_0.id(), IndexVersion.current().id() - 1));
             overrideOldestIndexVersion(oldIndexVersion, previousNodeVersion, env.nodeDataPaths());
@@ -614,7 +613,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             checkForIndexCompatibility(logger, env.dataPaths());
 
             // Simulate empty old index version, attempting to upgrade before 7.17
-            removeOldestIndexVersion(oldVersion, env.nodeDataPaths());
+            removeOldestIndexVersion(oldVersionCheckpoint, env.nodeDataPaths());
 
             ex = expectThrows(
                 IllegalStateException.class,
@@ -622,13 +621,10 @@ public class NodeEnvironmentTests extends ESTestCase {
                 () -> checkForIndexCompatibility(logger, env.dataPaths())
             );
 
-            // TODO[wrb] replace range with "pre-7.x" or something
             assertThat(
                 ex.getMessage(),
                 allOf(
-                    startsWith(
-                        "cannot upgrade a node from version [" + IndexVersion.fromId(oldVersion.id()).toReleaseVersion() + "] directly"
-                    ),
+                    startsWith("cannot upgrade a node from version [" + oldVersionCheckpoint.toReleaseVersion() + "] directly"),
                     containsString("upgrade to version [" + Build.current().minWireCompatVersion())
                 )
             );
@@ -763,7 +759,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
-    private static void removeOldestIndexVersion(Version oldVersion, Path... dataPaths) throws IOException {
+    private static void removeOldestIndexVersion(IndexVersion oldVersionCheckpoint, Path... dataPaths) throws IOException {
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
@@ -778,7 +774,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                         )
                     ) {
                         final Map<String, String> commitData = new HashMap<>(userData);
-                        commitData.put(NODE_VERSION_KEY, Integer.toString(oldVersion.id));
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(oldVersionCheckpoint.id()));
                         commitData.remove(OLDEST_INDEX_VERSION_KEY);
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();

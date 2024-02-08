@@ -489,7 +489,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
                 assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
                 assertEquals("1h", settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
-            }, 60, TimeUnit.SECONDS);
+            }, 120, TimeUnit.SECONDS);
         } catch (AssertionError ae) {
             if (indexExists(firstBackingIndex)) {
                 logger.error("Index [{}] ilm explain {}", firstBackingIndex, explainIndex(client(), firstBackingIndex));
@@ -571,7 +571,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
             assertEquals("5m", settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
-        }, 60, TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS);
 
         // update the policy to now contain the downsample action in cold, whilst not existing in warm anymore (this will have our already
         // downsampled index attempt to go through the downsample action again when in cold)

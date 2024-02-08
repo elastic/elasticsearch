@@ -63,6 +63,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
+import static org.elasticsearch.jdk.ModuleQualifiedExportsService.addExportsService;
+import static org.elasticsearch.jdk.ModuleQualifiedExportsService.exposeQualifiedExportsAndOpens;
 
 public class PluginsService implements ReportingService<PluginsAndModules> {
 
@@ -98,17 +100,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PluginsService.class);
 
-    private static final Map<String, List<ModuleQualifiedExportsService>> exportsServices;
-
-    static {
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>();
-        var loader = ServiceLoader.load(ModuleQualifiedExportsService.class, PluginsService.class.getClassLoader());
-        for (var exportsService : loader) {
-            addExportsService(qualifiedExports, exportsService, exportsService.getClass().getModule().getName());
-        }
-        exportsServices = Map.copyOf(qualifiedExports);
-    }
-
     private final Settings settings;
     private final Path configPath;
 
@@ -134,7 +125,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         this.settings = settings;
         this.configPath = configPath;
 
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(exportsServices);
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
         addServerExportsService(qualifiedExports);
 
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
@@ -798,26 +789,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private static void ensureEntryPointAccessible(Controller controller, Module pluginModule, String className) {
         if (className != null) {
             controller.addOpens(pluginModule, toPackageName(className), serverModule);
-        }
-    }
-
-    /**
-     * Adds qualified exports and opens declared in other upstream modules to the target module.
-     * This is required since qualified statements targeting yet-to-be-created modules, i.e. plugins,
-     * are silently dropped when the boot layer is created.
-     */
-    private static void exposeQualifiedExportsAndOpens(Module target, Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
-        qualifiedExports.getOrDefault(target.getName(), List.of()).forEach(exportService -> exportService.addExportsAndOpens(target));
-    }
-
-    private static void addExportsService(
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports,
-        ModuleQualifiedExportsService exportsService,
-        String moduleName
-    ) {
-        for (String targetName : exportsService.getTargets()) {
-            logger.debug("Registered qualified export from module " + moduleName + " to " + targetName);
-            qualifiedExports.computeIfAbsent(targetName, k -> new ArrayList<>()).add(exportsService);
         }
     }
 

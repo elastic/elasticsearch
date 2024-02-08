@@ -122,6 +122,7 @@ public record NodeMetadata(
         return oldestIndexVersion;
     }
 
+    @UpdateForV9
     public void verifyUpgradeToCurrentVersion() {
         assert (indexVersionCheckpoint.equals(IndexVersions.ZERO) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
             : "version is required in the node metadata from v9 onwards";

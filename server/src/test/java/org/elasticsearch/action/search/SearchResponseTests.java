@@ -299,7 +299,7 @@ public class SearchResponseTests extends ESTestCase {
             mutated = originalBytes;
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), mutated)) {
-            SearchResponse parsed = SearchResponse.fromXContent(parser);
+            SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
             try {
                 assertToXContentEquivalent(
                     originalBytes,
@@ -336,7 +336,7 @@ public class SearchResponseTests extends ESTestCase {
             response.decRef();
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
-            SearchResponse parsed = SearchResponse.fromXContent(parser);
+            SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
             try {
                 for (int i = 0; i < parsed.getShardFailures().length; i++) {
                     ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];

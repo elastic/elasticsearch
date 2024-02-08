@@ -69,7 +69,7 @@ public class RankEvalResponseTests extends ESTestCase {
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), EvalQueryQuality.METRIC_SCORE_FIELD);
         PARSER.declareNamedObjects(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c, n) -> EvalQueryQuality.fromXContent(p, n),
+            (p, c, n) -> EvalQueryQualityTests.parseInstance(p, n),
             new ParseField("details")
         );
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> {

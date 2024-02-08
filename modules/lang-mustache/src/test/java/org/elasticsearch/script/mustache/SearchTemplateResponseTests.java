@@ -63,7 +63,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
                     contentType
                 )
             ) {
-                searchTemplateResponse.setResponse(SearchResponse.fromXContent(searchResponseParser));
+                searchTemplateResponse.setResponse(SearchResponseUtils.parseSearchResponse(searchResponseParser));
             }
         }
         return searchTemplateResponse;

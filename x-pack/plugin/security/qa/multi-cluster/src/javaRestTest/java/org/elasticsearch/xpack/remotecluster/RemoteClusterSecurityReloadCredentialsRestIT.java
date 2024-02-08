@@ -16,6 +16,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -212,7 +213,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
             )
         );
         assertOK(response);
-        final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+        final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
         try {
             final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
                 .map(SearchHit::getIndex)

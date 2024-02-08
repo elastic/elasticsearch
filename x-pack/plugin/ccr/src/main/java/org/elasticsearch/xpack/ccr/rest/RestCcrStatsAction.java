@@ -38,6 +38,7 @@ public class RestCcrStatsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         final CcrStatsAction.Request request = new CcrStatsAction.Request();
+        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.execute(
             CcrStatsAction.INSTANCE,
             request,

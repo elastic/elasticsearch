@@ -33,6 +33,7 @@ public class RestGetAutoFollowPatternAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         Request request = new Request();
         request.setName(restRequest.param("name"));
+        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

@@ -53,6 +53,14 @@ following task.
 `<follower_index>`::
   (Required, string) The name of the follower index.
 
+[[ccr-post-pause-follow-query-params]]
+==== {api-query-parms-title}
+
+`master_timeout`::
+(Optional, <<time-units, time units>>) Specifies the period of time to wait for
+a connection to the master node. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+
 [[ccr-post-pause-follow-examples]]
 ==== {api-examples-title}
 

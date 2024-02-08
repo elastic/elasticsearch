@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.verification.VerificationMode;
 
 import java.time.Clock;
 import java.util.Collections;
@@ -58,14 +59,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransformTaskTests extends ESTestCase {
@@ -447,6 +452,117 @@ public class TransformTaskTests extends ESTestCase {
 
         transformTask.applyNewAuthState(null);
         assertThat(transformTask.getContext().getAuthState(), is(nullValue()));
+    }
+
+    private TransformTask createTransformTask(TransformConfig transformConfig, MockTransformAuditor auditor) {
+        var threadPool = mock(ThreadPool.class);
+
+        var transformState = new TransformState(
+            TransformTaskState.STARTED,
+            IndexerState.STARTED,
+            null,
+            0L,
+            "because",
+            null,
+            null,
+            false,
+            null
+        );
+
+        return new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            createTransformTaskParams(transformConfig.getId()),
+            transformState,
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY),
+            auditor,
+            threadPool,
+            Collections.emptyMap()
+        );
+    }
+
+    public void testInitializeIndexerWhenAlreadyInitialized() {
+        var transformTask = createTransformTask(
+            TransformConfigTests.randomTransformConfigWithoutHeaders(),
+            MockTransformAuditor.createMockAuditor()
+        );
+        transformTask.initializeIndexer(mock(ClientTransformIndexerBuilder.class));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> transformTask.initializeIndexer(mock(ClientTransformIndexerBuilder.class))
+        );
+        assertThat(e.getMessage(), containsString("The object cannot be set twice!"));
+    }
+
+    public void testTriggeredIsNoOpWhenTransformIdMismatch() {
+        var transformId = randomAlphaOfLengthBetween(1, 10);
+        var transformTask = createTransformTask(
+            TransformConfigTests.randomTransformConfigWithoutHeaders(transformId),
+            MockTransformAuditor.createMockAuditor()
+        );
+        var indexer = mock(ClientTransformIndexer.class);
+        transformTask.initializeIndexer(indexer);
+        transformTask.triggered(new TransformScheduler.Event("not-" + transformId, randomNonNegativeLong(), randomNonNegativeLong()));
+        verifyNoInteractions(indexer);
+    }
+
+    public void testTriggeredIsNoOpWhenIndexerIsUninitialized() {
+        var transformId = randomAlphaOfLengthBetween(1, 10);
+        var transformTask = createTransformTask(
+            TransformConfigTests.randomTransformConfigWithoutHeaders(transformId),
+            MockTransformAuditor.createMockAuditor()
+        );
+        transformTask.triggered(new TransformScheduler.Event(transformId, randomNonNegativeLong(), randomNonNegativeLong()));
+    }
+
+    public void testTriggeredIsNoOpWhenStateIsWrong() {
+        testTriggered(TransformTaskState.STOPPED, IndexerState.INDEXING, never());
+        testTriggered(TransformTaskState.STOPPED, IndexerState.STOPPING, never());
+        testTriggered(TransformTaskState.STOPPED, IndexerState.STOPPED, never());
+        testTriggered(TransformTaskState.STOPPED, IndexerState.ABORTING, never());
+        testTriggered(TransformTaskState.STOPPED, IndexerState.STARTED, never());
+        testTriggered(TransformTaskState.FAILED, IndexerState.INDEXING, never());
+        testTriggered(TransformTaskState.FAILED, IndexerState.STOPPING, never());
+        testTriggered(TransformTaskState.FAILED, IndexerState.STOPPED, never());
+        testTriggered(TransformTaskState.FAILED, IndexerState.ABORTING, never());
+        testTriggered(TransformTaskState.FAILED, IndexerState.STARTED, never());
+        testTriggered(TransformTaskState.STARTED, IndexerState.INDEXING, never());
+        testTriggered(TransformTaskState.STARTED, IndexerState.STOPPING, never());
+        testTriggered(TransformTaskState.STARTED, IndexerState.STOPPED, never());
+        testTriggered(TransformTaskState.STARTED, IndexerState.ABORTING, never());
+    }
+
+    public void testTriggeredActuallyTriggersIndexer() {
+        testTriggered(TransformTaskState.STARTED, IndexerState.STARTED, times(1));
+    }
+
+    private void testTriggered(TransformTaskState taskState, IndexerState indexerState, VerificationMode indexerVerificationMode) {
+        String transformId = randomAlphaOfLengthBetween(1, 10);
+        TransformState transformState = new TransformState(taskState, indexerState, null, 0L, "because", null, null, false, null);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransformAuditor auditor = mock(TransformAuditor.class);
+        TransformTask transformTask = new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            createTransformTaskParams(transformId),
+            transformState,
+            new TransformScheduler(mock(Clock.class), threadPool, Settings.EMPTY),
+            auditor,
+            threadPool,
+            Collections.emptyMap()
+        );
+
+        ClientTransformIndexer indexer = mock(ClientTransformIndexer.class);
+        when(indexer.getState()).thenReturn(indexerState);
+        transformTask.initializeIndexer(indexer);
+        transformTask.triggered(new TransformScheduler.Event(transformId, randomNonNegativeLong(), randomNonNegativeLong()));
+
+        verify(indexer, indexerVerificationMode).maybeTriggerAsyncJob(anyLong());
+        verifyNoInteractions(auditor, threadPool);
     }
 
     private static TransformTaskParams createTransformTaskParams(String transformId) {

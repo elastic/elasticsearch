@@ -19,7 +19,6 @@ import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.nio.channels.ClosedChannelException;
 
 public class Netty4HttpChannel implements HttpChannel {
 

@@ -441,7 +441,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         request.setJsonEntity("{\"a\": 3}");
         assertEquals(201, client().performRequest(request).getStatusLine().getStatusCode());
 
-        var query = fromIndex() + "* [metadata _index, _version, _id] | sort _version";
+        var query = fromIndex() + "* metadata _index, _version, _id | sort _version";
         Map<String, Object> result = runEsql(new RequestObjectBuilder().query(query));
         var columns = List.of(
             Map.of("name", "a", "type", "long"),

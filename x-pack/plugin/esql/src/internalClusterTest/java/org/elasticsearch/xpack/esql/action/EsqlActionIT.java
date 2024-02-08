@@ -1222,7 +1222,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testLoadId() {
-        try (EsqlQueryResponse results = run("from test [metadata _id] | keep _id | sort _id ")) {
+        try (EsqlQueryResponse results = run("from test metadata _id | keep _id | sort _id ")) {
             assertThat(results.columns(), equalTo(List.of(new ColumnInfo("_id", "keyword"))));
             ListMatcher values = matchesList();
             for (int i = 10; i < 50; i++) {
@@ -1427,7 +1427,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         assertEmptyIndexQueries(from);
 
-        try (EsqlQueryResponse resp = run(from + "[METADATA _source] | EVAL x = 123")) {
+        try (EsqlQueryResponse resp = run(from + "METADATA _source | EVAL x = 123")) {
             assertFalse(resp.values().hasNext());
             assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("_source", "_source"), new ColumnInfo("x", "integer"))));
         }
@@ -1455,7 +1455,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         assertEmptyIndexQueries(from);
 
-        try (EsqlQueryResponse resp = run(from + "[METADATA _source] | EVAL x = 123")) {
+        try (EsqlQueryResponse resp = run(from + "METADATA _source | EVAL x = 123")) {
             assertFalse(resp.values().hasNext());
             assertThat(
                 resp.columns(),
@@ -1470,7 +1470,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     private void assertEmptyIndexQueries(String from) {
-        try (EsqlQueryResponse resp = run(from + "[METADATA _source] | KEEP _source | LIMIT 1")) {
+        try (EsqlQueryResponse resp = run(from + "METADATA _source | KEEP _source | LIMIT 1")) {
             assertFalse(resp.values().hasNext());
             assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("_source", "_source"))));
         }

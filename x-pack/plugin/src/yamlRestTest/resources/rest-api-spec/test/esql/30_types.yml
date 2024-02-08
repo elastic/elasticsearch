@@ -621,6 +621,9 @@ version:
 
 ---
 id:
+  - skip:
+      version: " - 8.12.99"
+      reason: "_source is available in 8.13+"
   - do:
       indices.create:
         index: test
@@ -643,7 +646,7 @@ id:
         - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
-          query: 'from test [metadata _id] | keep _id, kw'
+          query: 'from test metadata _id | keep _id, kw'
   - match: { columns.0.name: _id }
   - match: { columns.0.type: keyword }
   - length: { values: 1 }
@@ -683,8 +686,8 @@ unsigned_long:
 ---
 _source:
   - skip:
-      version: " - 8.11.99"
-      reason: "_source is available in 8.12+"
+      version: " - 8.12.99"
+      reason: "_source is available in 8.13+"
 
   - do:
       bulk:
@@ -697,7 +700,7 @@ _source:
   - do:
       esql.query:
         body:
-          query: 'FROM test [METADATA _source] | KEEP _source | LIMIT 1'
+          query: 'FROM test METADATA _source | KEEP _source | LIMIT 1'
   - match: { columns.0.name: _source }
   - match: { columns.0.type: _source }
   - length: { values: 1 }
@@ -711,8 +714,8 @@ _source:
 ---
 _source keep all:
   - skip:
-      version: " - 8.11.99"
-      reason: "_source is available in 8.12+"
+      version: " - 8.12.99"
+      reason: "_source is available in 8.13+"
 
   - do:
       indices.create:
@@ -732,7 +735,7 @@ _source keep all:
   - do:
       esql.query:
         body:
-          query: 'FROM test [METADATA _source] | LIMIT 1'
+          query: 'FROM test METADATA _source | LIMIT 1'
   - match: { columns.0.name: _source }
   - match: { columns.0.type: _source }
   - length: { values: 1 }
@@ -746,8 +749,8 @@ _source keep all:
 ---
 _source disabled:
   - skip:
-      version: " - 8.11.99"
-      reason: "_source is available in 8.12+"
+      version: " - 8.12.99"
+      reason: "_source is available in 8.13+"
 
   - do:
       indices.create:
@@ -768,7 +771,7 @@ _source disabled:
   - do:
       esql.query:
         body:
-          query: 'FROM test [METADATA _source] | KEEP _source | LIMIT 1'
+          query: 'FROM test METADATA _source | KEEP _source | LIMIT 1'
   - match: { columns.0.name: _source }
   - match: { columns.0.type: _source }
   - length: { values: 1 }

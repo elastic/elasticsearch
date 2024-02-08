@@ -454,15 +454,6 @@ public class TransformTaskTests extends ESTestCase {
         assertThat(transformTask.getContext().getAuthState(), is(nullValue()));
     }
 
-    public void testDeriveBasicCheckpointingInfoWithNoIndexer() {
-        var transformTask = createTransformTask(
-            TransformConfigTests.randomTransformConfigWithoutHeaders(),
-            MockTransformAuditor.createMockAuditor()
-        );
-        var checkpointingInfo = transformTask.deriveBasicCheckpointingInfo();
-        assertThat(checkpointingInfo, sameInstance(TransformCheckpointingInfo.EMPTY));
-    }
-
     private TransformTask createTransformTask(TransformConfig transformConfig, MockTransformAuditor auditor) {
         var threadPool = mock(ThreadPool.class);
 
@@ -485,38 +476,11 @@ public class TransformTaskTests extends ESTestCase {
             TaskId.EMPTY_TASK_ID,
             createTransformTaskParams(transformConfig.getId()),
             transformState,
-            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY),
             auditor,
             threadPool,
             Collections.emptyMap()
         );
-    }
-
-    public void testDeriveBasicCheckpointingInfoWithIndexer() {
-        var lastCheckpoint = mock(TransformCheckpoint.class);
-        when(lastCheckpoint.getCheckpoint()).thenReturn(5L);
-        var nextCheckpoint = mock(TransformCheckpoint.class);
-        when(nextCheckpoint.getCheckpoint()).thenReturn(6L);
-        var position = mock(TransformIndexerPosition.class);
-        var progress = mock(TransformProgress.class);
-
-        var transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
-        var auditor = MockTransformAuditor.createMockAuditor();
-        var transformTask = createTransformTask(transformConfig, auditor);
-
-        transformTask.initializeIndexer(
-            indexerBuilder(transformConfig, transformServices(Clock.systemUTC(), auditor, threadPool)).setLastCheckpoint(lastCheckpoint)
-                .setNextCheckpoint(nextCheckpoint)
-                .setInitialPosition(position)
-                .setProgress(progress)
-        );
-
-        var checkpointingInfo = transformTask.deriveBasicCheckpointingInfo();
-        assertThat(checkpointingInfo, not(sameInstance(TransformCheckpointingInfo.EMPTY)));
-        assertThat(checkpointingInfo.getLast().getCheckpoint(), equalTo(5L));
-        assertThat(checkpointingInfo.getNext().getCheckpoint(), equalTo(6L));
-        assertThat(checkpointingInfo.getNext().getPosition(), sameInstance(position));
-        assertThat(checkpointingInfo.getNext().getCheckpointProgress(), sameInstance(progress));
     }
 
     public void testInitializeIndexerWhenAlreadyInitialized() {
@@ -586,7 +550,7 @@ public class TransformTaskTests extends ESTestCase {
             TaskId.EMPTY_TASK_ID,
             createTransformTaskParams(transformId),
             transformState,
-            new TransformScheduler(mock(Clock.class), threadPool, Settings.EMPTY, TimeValue.ZERO),
+            new TransformScheduler(mock(Clock.class), threadPool, Settings.EMPTY),
             auditor,
             threadPool,
             Collections.emptyMap()

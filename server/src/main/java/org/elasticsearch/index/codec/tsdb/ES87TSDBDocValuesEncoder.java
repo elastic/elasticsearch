@@ -186,8 +186,8 @@ public class ES87TSDBDocValuesEncoder {
      * <ul>
      *   <li>0: single run</li>
      *   <li>1: two runs</li>
-     *   <li>2: cycle</li>
-     *   <li>7: bit-packed</li>
+     *   <li>2: bit-packed</li>
+     *   <li>3: cycle</li>
      * </ul>
      */
     void encodeOrdinals(long[] in, DataOutput out, int bitsPerOrd) throws IOException {
@@ -244,15 +244,15 @@ public class ES87TSDBDocValuesEncoder {
             out.writeVInt(firstRunLen);
             out.writeZLong(in[in.length - 1] - in[0]);
         } else if (cyclic) {
-            // set 2 trailing bits to indicate the block cycles through the same values
-            long headerAndCycleLength = ((long) cycleLength << 4) | 0b011;
+            // set 3 trailing bits to indicate the block cycles through the same values
+            long headerAndCycleLength = ((long) cycleLength << 4) | 0b0111;
             out.writeVLong(headerAndCycleLength);
             for (int i = 0; i < cycleLength; i++) {
                 out.writeVLong(in[i]);
             }
         } else {
-            // set 7 trailing bits to indicate the block is bit-packed
-            out.writeVLong(0b1111111);
+            // set 2 trailing bits to indicate the block is bit-packed
+            out.writeVLong(0b11);
             forUtil.encode(in, bitsPerOrd, out);
         }
     }
@@ -273,6 +273,9 @@ public class ES87TSDBDocValuesEncoder {
             Arrays.fill(out, 0, runLen, v1);
             Arrays.fill(out, runLen, out.length, v2);
         } else if (encoding == 2) {
+            // bit-packed
+            forUtil.decode(bitsPerOrd, in, out);
+        } else if (encoding == 3) {
             // cycle encoding
             int cycleLength = (int) v1 >>> 4;
             for (int i = 0; i < cycleLength; i++) {
@@ -284,9 +287,6 @@ public class ES87TSDBDocValuesEncoder {
                 System.arraycopy(out, 0, out, length, copyLength);
                 length += copyLength;
             }
-        } else if (encoding == 7) {
-            // bit-packed
-            forUtil.decode(bitsPerOrd, in, out);
         }
     }
 

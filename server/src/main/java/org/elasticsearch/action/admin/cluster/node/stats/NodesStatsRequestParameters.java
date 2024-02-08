@@ -34,7 +34,7 @@ public class NodesStatsRequestParameters implements Writeable {
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
         requestedMetrics.addAll(in.readStringCollectionAsList());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_SHARDS_STATS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             includeShardsStats = in.readBoolean();
         } else {
             includeShardsStats = true;
@@ -45,7 +45,7 @@ public class NodesStatsRequestParameters implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         indices.writeTo(out);
         out.writeStringCollection(requestedMetrics);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_SHARDS_STATS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(includeShardsStats);
         }
     }

@@ -577,7 +577,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * Creates a new {@link IndexService} for the given metadata.
      *
      * @param indexMetadata          the index metadata to create the index for
-     * @param builtInListeners       a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with the
+     * @param builtInListeners       a list of built-in lifecycle {@link IndexEventListener} that should be used alongside with the
      *                               per-index listeners
      * @throws ResourceAlreadyExistsException if the index already exists.
      */

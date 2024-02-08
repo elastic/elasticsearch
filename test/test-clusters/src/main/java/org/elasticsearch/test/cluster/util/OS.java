@@ -8,10 +8,10 @@
 
 package org.elasticsearch.test.cluster.util;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -36,7 +36,7 @@ public enum OS {
 
     public static class Conditional<T> {
 
-        private final Map<OS, Supplier<? extends T>> conditions = new HashMap<>();
+        private final Map<OS, Supplier<? extends T>> conditions = new EnumMap<>(OS.class);
 
         public Conditional<T> onWindows(Supplier<? extends T> supplier) {
             conditions.put(WINDOWS, supplier);
@@ -60,7 +60,7 @@ public enum OS {
         }
 
         T supply() {
-            HashSet<OS> missingOS = new HashSet<>(Arrays.asList(OS.values()));
+            Set<OS> missingOS = EnumSet.allOf(OS.class);
             missingOS.removeAll(conditions.keySet());
             if (missingOS.isEmpty() == false) {
                 throw new IllegalArgumentException("No condition specified for " + missingOS);

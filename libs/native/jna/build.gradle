@@ -1,0 +1,31 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.java'
+
+base {
+  archivesName = "native-access-jna"
+}
+
+dependencies {
+  compileOnly project(':libs:elasticsearch-core')
+  compileOnly project(':libs:elasticsearch-native')
+  // TODO: this will become an implementation dep onces jna is removed from server
+  compileOnly "net.java.dev.jna:jna:${versions.jna}"
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-native'
+  }
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+// not published, so no need for javadoc
+tasks.named("javadoc").configure { enabled = false }

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 /**
  * Result of the {@link TermsAggregator} when the field is some kind of whole number like a integer, long, or a date.
@@ -199,34 +201,50 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        boolean unsignedLongFormat = false;
-        boolean rawFormat = false;
-        for (InternalAggregation agg : aggregations) {
-            if (agg instanceof DoubleTerms) {
-                return agg.reduce(aggregations, reduceContext);
-            }
-            if (agg instanceof LongTerms) {
-                if (((LongTerms) agg).format == DocValueFormat.RAW) {
-                    rawFormat = true;
-                } else if (((LongTerms) agg).format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
-                    unsignedLongFormat = true;
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        final Predicate<DocValueFormat> needsPromoting;
+        if (format == DocValueFormat.RAW) {
+            needsPromoting = docFormat -> docFormat == DocValueFormat.UNSIGNED_LONG_SHIFTED;
+        } else if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+            needsPromoting = docFormat -> docFormat == DocValueFormat.RAW;
+        } else {
+            needsPromoting = docFormat -> false;
+        }
+        return new AggregatorReducer() {
+
+            final List<InternalAggregation> aggregations = new ArrayList<>(size);
+            boolean isPromotedToDouble = false;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                if (aggregation instanceof DoubleTerms doubleTerms) {
+                    if (isPromotedToDouble == false) {
+                        promoteToDouble(aggregations);
+                        isPromotedToDouble = true;
+                    }
+                    aggregations.add(doubleTerms);
+                } else if (aggregation instanceof LongTerms longTerms) {
+                    if (isPromotedToDouble || needsPromoting.test(longTerms.format)) {
+                        if (isPromotedToDouble == false) {
+                            promoteToDouble(aggregations);
+                            isPromotedToDouble = true;
+                        }
+                        aggregations.add(LongTerms.convertLongTermsToDouble(longTerms, format));
+                    } else {
+                        aggregations.add(aggregation);
+                    }
                 }
             }
-        }
-        if (rawFormat && unsignedLongFormat) { // if we have mixed formats, convert results to double format
-            List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
-            for (InternalAggregation agg : aggregations) {
-                if (agg instanceof LongTerms) {
-                    DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, format);
-                    newAggs.add(dTerms);
-                } else {
-                    newAggs.add(agg);
-                }
+
+            private void promoteToDouble(List<InternalAggregation> aggregations) {
+                aggregations.replaceAll(aggregation -> LongTerms.convertLongTermsToDouble((LongTerms) aggregation, format));
             }
-            return newAggs.get(0).reduce(newAggs, reduceContext);
-        }
-        return super.reduce(aggregations, reduceContext);
+
+            @Override
+            public InternalAggregation get() {
+                return ((AbstractInternalTerms<?, ?>) aggregations.get(0)).doReduce(aggregations, reduceContext);
+            }
+        };
     }
 
     @Override
@@ -237,7 +255,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     /**
      * Converts a {@link LongTerms} into a {@link DoubleTerms}, returning the value of the specified long terms as doubles.
      */
-    static DoubleTerms convertLongTermsToDouble(LongTerms longTerms, DocValueFormat decimalFormat) {
+    public static DoubleTerms convertLongTermsToDouble(LongTerms longTerms, DocValueFormat decimalFormat) {
         List<LongTerms.Bucket> buckets = longTerms.getBuckets();
         List<DoubleTerms.Bucket> newBuckets = new ArrayList<>();
         for (Terms.Bucket bucket : buckets) {

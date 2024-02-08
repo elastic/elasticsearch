@@ -37,8 +37,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -69,7 +69,6 @@ import org.opensaml.saml.saml2.core.NameID;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -116,8 +115,9 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
             .build();
 
+        final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final ThreadContext threadContext = new ThreadContext(settings);
-        final ThreadPool threadPool = mock(ThreadPool.class);
+        final ThreadPool threadPool = transportService.getThreadPool();
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         AuthenticationTestHelper.builder()
             .user(new User("kibana"))
@@ -219,15 +219,6 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             clusterService
         );
 
-        final TransportService transportService = new TransportService(
-            Settings.EMPTY,
-            mock(Transport.class),
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> null,
-            null,
-            Collections.emptySet()
-        );
         final Realms realms = mock(Realms.class);
         action = new TransportSamlLogoutAction(transportService, mock(ActionFilters.class), realms, tokenService);
 

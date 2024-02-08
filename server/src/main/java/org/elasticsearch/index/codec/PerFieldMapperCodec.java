@@ -23,6 +23,7 @@ import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -123,6 +124,9 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
                 return true;
             }
             if (mappingLookup.getMapper(field) instanceof TimeSeriesIdFieldMapper) {
+                return true;
+            }
+            if (mappingLookup.getMapper(field) instanceof IpFieldMapper) {
                 return true;
             }
         }

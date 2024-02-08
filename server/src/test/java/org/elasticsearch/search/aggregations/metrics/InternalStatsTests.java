@@ -124,9 +124,8 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             min = Math.min(min, value);
             aggregations.add(new InternalStats("dummy1", 1, value, value, value, null, null));
         }
-        InternalStats internalStats = new InternalStats("dummy2", 0, 0.0, 2.0, 0.0, null, null);
-        InternalStats reduced = internalStats.reduce(aggregations, null);
-        assertEquals("dummy2", reduced.getName());
+        InternalStats reduced = (InternalStats) InternalAggregationTestCase.reduce(aggregations, null);
+        assertEquals("dummy1", reduced.getName());
         assertEquals(values.length, reduced.getCount());
         assertEquals(expectedSum, reduced.getSum(), delta);
         assertEquals(expectedAvg, reduced.getAvg(), delta);

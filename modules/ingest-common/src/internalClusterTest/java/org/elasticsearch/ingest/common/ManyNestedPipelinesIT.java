@@ -9,6 +9,8 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulateDocumentResult;
 import org.elasticsearch.action.ingest.SimulateDocumentVerboseResult;
@@ -51,8 +53,11 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
     }
 
     public void testIngestManyPipelines() {
-        DocWriteResponse response = prepareIndex("foo").setSource(Map.of("foo", "bar")).setPipeline("pipeline_0").get();
+        String index = "index";
+        DocWriteResponse response = prepareIndex(index).setSource(Map.of("foo", "baz")).setPipeline("pipeline_0").get();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+        GetResponse getREsponse = client().prepareGet(index, response.getId()).get();
+        assertThat(getREsponse.getSource().get("foo"), equalTo("bar"));
     }
 
     public void testSimulateManyPipelines() throws IOException {

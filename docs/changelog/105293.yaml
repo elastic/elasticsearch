@@ -1,0 +1,6 @@
+pr: 105293
+summary: Fix leaked HTTP response sent after close
+area: Network
+type: bug
+issues:
+ - 104651

@@ -1,5 +1,5 @@
 pr: 105273
-summary: "Revert \"Revert \"x-pack/plugin/core: make automatic rollovers lazy\"\""
+summary: "x-pack/plugin/core: make automatic rollovers lazy"
 area: Data streams
 type: enhancement
 issues:

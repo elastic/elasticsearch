@@ -1,5 +1,5 @@
 pr: 105168
-summary: Propagate ?master_timeout query parameter from ccr put follow api
+summary: Add ?master_timeout query parameter to ccr apis
 area: CCR
 type: bug
 issues: []

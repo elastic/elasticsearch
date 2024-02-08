@@ -4,7 +4,6 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(xpackModule('async-search'))
   javaRestTestImplementation project(':test:framework')
-  javaRestTestImplementation project(":client:rest-high-level")
 }
 
 tasks.named("javaRestTest").configure {

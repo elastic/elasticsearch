@@ -580,32 +580,32 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testMetadataFieldOnOtherSources() {
+        expectError("row a = 1 metadata _index", "line 1:20: extraneous input '_index' expecting <EOF>");
+        expectError("show functions metadata _index", "line 1:16: token recognition error at: 'm'");
         expectError(
-            "row a = 1 [metadata _index]",
-            "1:11: mismatched input '[' expecting {<EOF>, '|', 'and', ',', 'or', '+', '-', '*', '/', '%'}"
+            "explain [from foo] metadata _index",
+            "line 1:20: mismatched input 'metadata' expecting {'|', ',', OPENING_BRACKET, ']', 'metadata'}"
         );
-        expectError("show functions [metadata _index]", "line 1:16: token recognition error at: '['");
-        expectError("explain [from foo] [metadata _index]", "line 1:20: mismatched input '[' expecting {'|', ',', OPENING_BRACKET, ']'}");
     }
 
     public void testMetadataFieldMultipleDeclarations() {
-        expectError("from test [metadata _index, _version, _index]", "1:40: metadata field [_index] already declared [@1:21]");
+        expectError("from test metadata _index, _version, _index", "1:39: metadata field [_index] already declared [@1:20]");
     }
 
     public void testMetadataFieldUnsupportedPrimitiveType() {
-        expectError("from test [metadata _tier]", "line 1:22: unsupported metadata field [_tier]");
+        expectError("from test metadata _tier", "line 1:21: unsupported metadata field [_tier]");
     }
 
     public void testMetadataFieldUnsupportedCustomType() {
-        expectError("from test [metadata _feature]", "line 1:22: unsupported metadata field [_feature]");
+        expectError("from test metadata _feature", "line 1:21: unsupported metadata field [_feature]");
     }
 
     public void testMetadataFieldNotFoundNonExistent() {
-        expectError("from test [metadata _doesnot_compute]", "line 1:22: unsupported metadata field [_doesnot_compute]");
+        expectError("from test metadata _doesnot_compute", "line 1:21: unsupported metadata field [_doesnot_compute]");
     }
 
     public void testMetadataFieldNotFoundNormalField() {
-        expectError("from test [metadata emp_no]", "line 1:22: unsupported metadata field [emp_no]");
+        expectError("from test metadata emp_no", "line 1:21: unsupported metadata field [emp_no]");
     }
 
     public void testDissectPattern() {
@@ -716,7 +716,7 @@ public class StatementParserTests extends ESTestCase {
                 Map.of(),
                 List.of()
             ),
-            processingCommand("enrich [ccq.mode :" + mode.name() + "] countries ON country_code")
+            processingCommand("enrich _" + mode.name() + ":countries ON country_code")
         );
 
         expectError("from a | enrich countries on foo* ", "Using wildcards (*) in ENRICH WITH projections is not allowed [foo*]");
@@ -730,8 +730,8 @@ public class StatementParserTests extends ESTestCase {
             "Using wildcards (*) in ENRICH WITH projections is not allowed [x*]"
         );
         expectError(
-            "from a | enrich [ccq.mode : typo] countries on foo",
-            "line 1:30: Unrecognized value [typo], ENRICH [ccq.mode] needs to be one of [ANY, COORDINATOR, REMOTE]"
+            "from a | enrich typo:countries on foo",
+            "line 1:18: Unrecognized value [typo], ENRICH policy qualifier needs to be one of [_ANY, _COORDINATOR, _REMOTE]"
         );
     }
 

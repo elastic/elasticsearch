@@ -260,12 +260,59 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         doTestOrdinals(arr, 113);
     }
 
+    public void testEncodeOrdinalsBitPack3Bits() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.fill(arr, 4);
+        for (int i = 0; i < 4; i++) {
+            arr[i] = i;
+        }
+        doTestOrdinals(arr, 49);
+    }
+
+    public void testEncodeOrdinalsCycle2() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.setAll(arr, i -> i % 2);
+        doTestOrdinals(arr, 3);
+    }
+
+    public void testEncodeOrdinalsCycle3() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.setAll(arr, i -> i % 3);
+        doTestOrdinals(arr, 4);
+    }
+
+    public void testEncodeOrdinalsLongCycle() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.setAll(arr, i -> i % 32);
+        doTestOrdinals(arr, 34);
+    }
+
+    public void testEncodeOrdinalsCycleTooLong() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.setAll(arr, i -> i % 33);
+        // the cycle is too long and the vales are bit-packed
+        doTestOrdinals(arr, 97);
+    }
+
+    public void testEncodeOrdinalsAlmostCycle() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.setAll(arr, i -> i % 3);
+        arr[arr.length - 1] = 4;
+        doTestOrdinals(arr, 49);
+    }
+
+    public void testEncodeOrdinalsDifferentCycles() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.setAll(arr, i -> i > 64 ? i % 4 : i % 3);
+        doTestOrdinals(arr, 33);
+    }
+
     private void doTestOrdinals(long[] arr, long expectedNumBytes) throws IOException {
         long maxOrd = 0;
         for (long ord : arr) {
             maxOrd = Math.max(maxOrd, ord);
         }
-        final int bitsPerOrd = PackedInts.bitsRequired(maxOrd - 1);
+        final int bitsPerOrd = PackedInts.bitsRequired(maxOrd);
         final long[] expected = arr.clone();
         try (Directory dir = newDirectory()) {
             try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {

@@ -444,11 +444,12 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 return;
             }
 
-            // ignore trigger if indexer is running or completely stopped
+            // ignore trigger if indexer is running, stopping, stopped or aborting
             IndexerState indexerState = getIndexer().getState();
             if (IndexerState.INDEXING.equals(indexerState)
                 || IndexerState.STOPPING.equals(indexerState)
-                || IndexerState.STOPPED.equals(indexerState)) {
+                || IndexerState.STOPPED.equals(indexerState)
+                || IndexerState.ABORTING.equals(indexerState)) {
                 logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getTransformId(), indexerState);
                 return;
             }
@@ -575,7 +576,12 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     void initializeIndexer(ClientTransformIndexerBuilder indexerBuilder) {
-        indexer.set(indexerBuilder.build(getThreadPool(), context));
+        initializeIndexer(indexerBuilder.build(getThreadPool(), context));
+    }
+
+    /** Visible for testing. */
+    void initializeIndexer(ClientTransformIndexer indexer) {
+        this.indexer.set(indexer);
     }
 
     ThreadPool getThreadPool() {

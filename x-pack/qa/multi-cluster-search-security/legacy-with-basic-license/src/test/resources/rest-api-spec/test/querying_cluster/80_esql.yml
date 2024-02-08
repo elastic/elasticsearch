@@ -87,8 +87,12 @@ teardown:
 
 ---
 "Index data and search on the mixed cluster":
+  - skip:
+      features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "Line 1:21: Square brackets '[]' need to be removed in FROM METADATA declaration"
       headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       esql.query:
         body:
@@ -111,6 +115,8 @@ teardown:
   - match: {values.4.1: "tablet" }
 
   - do:
+      allowed_warnings:
+        - "Line 1:21: Square brackets '[]' need to be removed in FROM METADATA declaration"
       headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       esql.query:
         body:

@@ -8,14 +8,19 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.apache.lucene.index.FieldInfos;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IndexShard;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Predicate;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
 
@@ -41,7 +46,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             new String[] { "-nested" },
             Strings.EMPTY_ARRAY,
-            f -> true
+            f -> true,
+            getMockIndexShard(),
+            true
         );
 
         assertNotNull(response.get("field1"));
@@ -67,7 +74,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 s -> true,
                 new String[] { "+metadata" },
                 Strings.EMPTY_ARRAY,
-                f -> true
+                f -> true,
+                getMockIndexShard(),
+                true
             );
             assertNotNull(response.get("_index"));
             assertNull(response.get("field1"));
@@ -78,7 +87,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 s -> true,
                 new String[] { "-metadata" },
                 Strings.EMPTY_ARRAY,
-                f -> true
+                f -> true,
+                getMockIndexShard(),
+                true
             );
             assertNull(response.get("_index"));
             assertNotNull(response.get("field1"));
@@ -109,7 +120,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             new String[] { "-multifield" },
             Strings.EMPTY_ARRAY,
-            f -> true
+            f -> true,
+            getMockIndexShard(),
+            true
         );
         assertNotNull(response.get("field1"));
         assertNull(response.get("field1.keyword"));
@@ -138,7 +151,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             new String[] { "-parent" },
             Strings.EMPTY_ARRAY,
-            f -> true
+            f -> true,
+            getMockIndexShard(),
+            true
         );
         assertNotNull(response.get("parent.field1"));
         assertNotNull(response.get("parent.field2"));
@@ -164,7 +179,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 s -> true,
                 Strings.EMPTY_ARRAY,
                 Strings.EMPTY_ARRAY,
-                securityFilter
+                securityFilter,
+                getMockIndexShard(),
+                true
             );
 
             assertNotNull(response.get("permitted1"));
@@ -178,7 +195,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 s -> true,
                 new String[] { "-metadata" },
                 Strings.EMPTY_ARRAY,
-                securityFilter
+                securityFilter,
+                getMockIndexShard(),
+                true
             );
 
             assertNotNull(response.get("permitted1"));
@@ -204,11 +223,20 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             Strings.EMPTY_ARRAY,
             new String[] { "text", "keyword" },
-            f -> true
+            f -> true,
+            getMockIndexShard(),
+            true
         );
         assertNotNull(response.get("field1"));
         assertNull(response.get("field2"));
         assertNotNull(response.get("field3"));
         assertNull(response.get("_index"));
     }
+
+    private IndexShard getMockIndexShard() {
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.getFieldInfos()).thenReturn(FieldInfos.EMPTY);
+        return indexShard;
+    }
+
 }

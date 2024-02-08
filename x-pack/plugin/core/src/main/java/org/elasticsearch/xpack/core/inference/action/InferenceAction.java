@@ -57,7 +57,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), TASK_SETTINGS);
         }
 
-        public static Request parseRequest(String inferenceEntityId, String taskType, XContentParser parser) {
+        public static Request parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) {
             Request.Builder builder = PARSER.apply(parser, null);
             builder.setInferenceEntityId(inferenceEntityId);
             builder.setTaskType(taskType);
@@ -90,7 +90,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super(in);
             this.taskType = TaskType.fromStream(in);
             this.inferenceEntityId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 this.input = in.readStringCollectionAsList();
             } else {
                 this.input = List.of(in.readString());
@@ -143,7 +143,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super.writeTo(out);
             taskType.writeTo(out);
             out.writeString(inferenceEntityId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeStringCollection(input);
             } else {
                 out.writeString(input.get(0));
@@ -197,13 +197,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
-            public Builder setTaskType(String taskTypeStr) {
-                try {
-                    TaskType taskType = TaskType.fromString(taskTypeStr);
-                    this.taskType = Objects.requireNonNull(taskType);
-                } catch (IllegalArgumentException e) {
-                    throw new ElasticsearchStatusException("Unknown task_type [{}]", RestStatus.BAD_REQUEST, taskTypeStr);
-                }
+            public Builder setTaskType(TaskType taskType) {
+                this.taskType = taskType;
                 return this;
             }
 
@@ -238,12 +233,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_RESULTS_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 results = in.readNamedWriteable(InferenceServiceResults.class);
-            } else if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
-                // This could be List<InferenceResults> aka List<TextEmbeddingResults> from ml plugin for
-                // hugging face elser and elser or the legacy format for openai
-                results = transformToServiceResults(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             } else {
                 // It should only be InferenceResults aka TextEmbeddingResults from ml plugin for
                 // hugging face elser and elser
@@ -304,11 +295,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_RESULTS_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeNamedWriteable(results);
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
-                // This includes the legacy openai response format of List<TextEmbedding> and hugging face elser and elser
-                out.writeNamedWriteableCollection(results.transformToLegacyFormat());
             } else {
                 out.writeNamedWriteable(results.transformToLegacyFormat().get(0));
             }

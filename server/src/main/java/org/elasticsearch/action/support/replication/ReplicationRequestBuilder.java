@@ -23,7 +23,6 @@ public abstract class ReplicationRequestBuilder<
         Response> {
     private String index;
     private TimeValue timeout;
-    private String timeoutString;
     private ActiveShardCount waitForActiveShards;
 
     protected ReplicationRequestBuilder(ElasticsearchClient client, ActionType<Response> action) {
@@ -44,7 +43,7 @@ public abstract class ReplicationRequestBuilder<
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setTimeout(String timeout) {
-        this.timeoutString = timeout;
+        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return (RequestBuilder) this;
     }
 
@@ -84,17 +83,9 @@ public abstract class ReplicationRequestBuilder<
         if (timeout != null) {
             request.timeout(timeout);
         }
-        if (timeoutString != null) {
-            request.timeout(timeoutString);
-        }
         if (waitForActiveShards != null) {
             request.waitForActiveShards(waitForActiveShards);
         }
     }
 
-    protected void validate() throws IllegalStateException {
-        if (timeout != null && timeoutString != null) {
-            throw new IllegalStateException("Must use only one setTimeout method");
-        }
-    }
 }

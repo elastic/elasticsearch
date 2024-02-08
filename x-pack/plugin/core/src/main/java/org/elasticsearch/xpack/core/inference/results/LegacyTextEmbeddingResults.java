@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  * }
  *
  * Legacy text embedding results represents what was returned prior to the
- * {@link org.elasticsearch.TransportVersions#INFERENCE_SERVICE_RESULTS_ADDED} version.
+ * {@link org.elasticsearch.TransportVersions#V_8_12_0} version.
  * @deprecated use {@link TextEmbeddingResults} instead
  */
 @Deprecated

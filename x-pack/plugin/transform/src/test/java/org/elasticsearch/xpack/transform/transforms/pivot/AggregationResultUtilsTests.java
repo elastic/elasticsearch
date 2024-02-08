@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -41,13 +42,18 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils.BucketKeyExtractor;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -75,7 +81,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
         @Override
         public List<String> getValuesAsStrings(String name) {
-            return List.of(values.get(name).toString());
+            return List.of(values.get(name));
         }
 
         @Override
@@ -84,7 +90,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
             throw new UnsupportedOperationException();
         }
 
@@ -134,7 +140,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
             throw new UnsupportedOperationException();
         }
 
@@ -184,7 +190,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             asMap(targetField, "ID2", aggName, 28.99),
             asMap(targetField, "ID3", aggName, null)
         );
-        Map<String, String> fieldTypeMap = asStringMap(targetField, "keyword", aggName, "double");
+        Map<String, String> fieldTypeMap = Map.of(targetField, "keyword", aggName, "double");
         executeTest(groupBy, aggregationBuilders, List.of(), input, fieldTypeMap, expected, 11);
     }
 
@@ -207,7 +213,6 @@ public class AggregationResultUtilsTests extends ESTestCase {
             }""", targetField, targetField2));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
-        String aggTypedName = "avg#" + aggName;
         List<AggregationBuilder> aggregationBuilders = List.of(AggregationBuilders.avg(aggName));
 
         InternalComposite input = createComposite(
@@ -241,7 +246,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             asMap(targetField, "ID2", targetField2, "ID1_2", aggName, 28.99),
             asMap(targetField, "ID3", targetField2, "ID2_2", aggName, null)
         );
-        Map<String, String> fieldTypeMap = asStringMap(aggName, "double", targetField, "keyword", targetField2, "keyword");
+        Map<String, String> fieldTypeMap = Map.of(aggName, "double", targetField, "keyword", targetField2, "keyword");
         executeTest(groupBy, aggregationBuilders, List.of(), input, fieldTypeMap, expected, 6);
     }
 
@@ -288,7 +293,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             asMap(targetField, "ID2", aggName, 28.99, aggName2, 222.33),
             asMap(targetField, "ID3", aggName, 12.55, aggName2, null)
         );
-        Map<String, String> fieldTypeMap = asStringMap(targetField, "keyword", aggName, "double", aggName2, "double");
+        Map<String, String> fieldTypeMap = Map.of(targetField, "keyword", aggName, "double", aggName2, "double");
         executeTest(groupBy, aggregationBuilders, List.of(), input, fieldTypeMap, expected, 200);
     }
 
@@ -353,7 +358,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             asMap(targetField, "ID2", targetField2, "ID1_2", aggName, 28.99, aggName2, "-2.44F"),
             asMap(targetField, "ID3", targetField2, "ID2_2", aggName, 12.55, aggName2, null)
         );
-        Map<String, String> fieldTypeMap = asStringMap(
+        Map<String, String> fieldTypeMap = Map.of(
             aggName,
             "double",
             aggName2,
@@ -419,7 +424,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             asMap(targetField, "ID2", targetField2, "ID1_2", aggName, asMap("field", 2.13)),
             asMap(targetField, "ID3", targetField2, "ID2_2", aggName, null)
         );
-        Map<String, String> fieldTypeMap = asStringMap(targetField, "keyword", targetField2, "keyword");
+        Map<String, String> fieldTypeMap = Map.of(targetField, "keyword", targetField2, "keyword");
         executeTest(groupBy, aggregationBuilders, List.of(), input, fieldTypeMap, expected, 6);
     }
 
@@ -488,7 +493,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             asMap(targetField, "ID2", targetField2, "ID1_2", aggName, 2.13, pipelineAggName, 2.13),
             asMap(targetField, "ID3", targetField2, "ID2_2", aggName, 12.0, pipelineAggName, null)
         );
-        Map<String, String> fieldTypeMap = asStringMap(targetField, "keyword", targetField2, "keyword", aggName, "double");
+        Map<String, String> fieldTypeMap = Map.of(targetField, "keyword", targetField2, "keyword", aggName, "double");
         executeTest(groupBy, aggregationBuilders, pipelineAggregationBuilders, input, fieldTypeMap, expected, 10);
     }
 
@@ -566,7 +571,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         TransformIndexerStats stats = new TransformIndexerStats();
         TransformProgress progress = new TransformProgress();
 
-        Map<String, String> fieldTypeMap = asStringMap(aggName, "double", targetField, "keyword", targetField2, "keyword");
+        Map<String, String> fieldTypeMap = Map.of(aggName, "double", targetField, "keyword", targetField2, "keyword");
 
         List<Map<String, Object>> resultFirstRun = runExtraction(
             groupBy,
@@ -680,24 +685,21 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     public void testMultiValueAggExtractor() {
         Aggregation agg = new TestMultiValueAggregation("mv_metric", Map.of("ip", "192.168.1.1"));
-
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, Map.of("mv_metric.ip", "ip"), ""),
             equalTo(Map.of("ip", "192.168.1.1"))
         );
 
         agg = new TestMultiValueAggregation("mv_metric", Map.of("top_answer", "fortytwo"));
-
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, Map.of("mv_metric.written_answer", "written_answer"), ""),
             equalTo(Map.of("top_answer", "fortytwo"))
         );
 
-        agg = new TestMultiValueAggregation("mv_metric", Map.of("ip", "192.168.1.1", "top_answer", "fortytwo"));
-
+        agg = new TestMultiValueAggregation("mv_metric", asOrderedMap("ip", "192.168.1.1", "top_answer", "fortytwo"));
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, Map.of("mv_metric.top_answer", "keyword", "mv_metric.ip", "ip"), ""),
-            equalTo(Map.of("top_answer", "fortytwo", "ip", "192.168.1.1"))
+            hasEqualEntriesInOrder(asOrderedMap("ip", "192.168.1.1", "top_answer", "fortytwo"))
         );
     }
 
@@ -715,22 +717,19 @@ public class AggregationResultUtilsTests extends ESTestCase {
             AggregationResultUtils.getExtractor(agg).value(agg, Map.of("mv_metric.exact_answer", "long"), ""),
             equalTo(Map.of("exact_answer", 42L))
         );
-
         agg = new TestNumericMultiValueAggregation(
             "mv_metric",
-            Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Double.valueOf(42.0))
+            asOrderedMap("approx_answer", Double.valueOf(42.2), "exact_answer", Double.valueOf(42.0))
         );
-
         assertThat(
             AggregationResultUtils.getExtractor(agg)
                 .value(agg, Map.of("mv_metric.approx_answer", "double", "mv_metric.exact_answer", "long"), ""),
-            equalTo(Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42)))
+            hasEqualEntriesInOrder(asOrderedMap("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42)))
         );
-
         assertThat(
             AggregationResultUtils.getExtractor(agg)
                 .value(agg, Map.of("filter.mv_metric.approx_answer", "double", "filter.mv_metric.exact_answer", "long"), "filter"),
-            equalTo(Map.of("approx_answer", 42.2, "exact_answer", Long.valueOf(42)))
+            hasEqualEntriesInOrder(asOrderedMap("approx_answer", 42.2, "exact_answer", Long.valueOf(42)))
         );
     }
 
@@ -791,13 +790,13 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
         String type = "point";
         for (int i = 0; i < numberOfRuns; i++) {
-            Map<String, Object> expectedObject = new HashMap<>();
-            expectedObject.put("type", type);
             double lat = randomDoubleBetween(-90.0, 90.0, false);
             double lon = randomDoubleBetween(-180.0, 180.0, false);
-            expectedObject.put("coordinates", List.of(lon, lat));
             agg = createGeoBounds(new GeoPoint(lat, lon), new GeoPoint(lat, lon));
-            assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), ""), equalTo(expectedObject));
+            assertThat(
+                AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), ""),
+                hasEqualEntriesInOrder(asOrderedMap("type", type, "coordinates", List.of(lon, lat)))
+            );
         }
 
         type = "linestring";
@@ -895,13 +894,16 @@ public class AggregationResultUtilsTests extends ESTestCase {
         );
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), ""),
-            equalTo(asMap("1", 0.0, "50", 22.2, "99", 43.3, "99_5", 100.3))
+            hasEqualEntriesInOrder(asOrderedMap("1", 0.0, "50", 22.2, "99", 43.3, "99_5", 100.3))
         );
     }
 
     public void testPercentilesAggExtractorNaN() {
         Aggregation agg = createPercentilesAgg("p_agg", List.of(new Percentile(1, Double.NaN), new Percentile(50, Double.NaN)));
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), ""), equalTo(asMap("1", null, "50", null)));
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), ""),
+            hasEqualEntriesInOrder(asOrderedMap("1", null, "50", null))
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -928,8 +930,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
         );
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), ""),
-            equalTo(
-                asMap(
+            hasEqualEntriesInOrder(
+                asOrderedMap(
                     "*-10_5",
                     10L,
                     "10_5-19_5",
@@ -949,6 +951,56 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    private static <T> Matcher<T> hasEqualEntriesInOrder(Map<String, Object> expected) {
+        return new BaseMatcher<T>() {
+            @Override
+            public boolean matches(Object o) {
+                if (o instanceof Map) {
+                    return matches((Map<?, ?>) o);
+                }
+                return false;
+            }
+
+            public boolean matches(Map<?, ?> o) {
+                var expectedEntries = expected.entrySet().iterator();
+                var actualEntries = o.entrySet().iterator();
+                while (expectedEntries.hasNext() && actualEntries.hasNext()) {
+                    var expectedEntry = expectedEntries.next();
+                    var actualEntry = actualEntries.next();
+                    assertThat(
+                        "Entry is out of order. Expected order: "
+                            + mapToString(expected, expectedEntry)
+                            + ", Actual order: "
+                            + mapToString(o, actualEntry),
+                        actualEntry,
+                        equalTo(expectedEntry)
+                    );
+                }
+                return expectedEntries.hasNext() == false && actualEntries.hasNext() == false;
+            }
+
+            private String mapToString(Map<?, ?> map, Object node) {
+                return map.entrySet().stream().map(entry -> {
+                    var entryAsString = entry.getKey() + "=" + entry.getValue();
+                    if (node == entry) {
+                        return "<<" + entryAsString + ">>";
+                    }
+                    return entryAsString;
+                }).collect(Collectors.joining(", ", "{", "}"));
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText(
+                    expected.entrySet()
+                        .stream()
+                        .map(entry -> entry.getKey() + "=" + entry.getValue())
+                        .collect(Collectors.joining(", ", "{", "}"))
+                );
+            }
+        };
     }
 
     public static InternalSingleBucketAggregation createSingleBucketAgg(
@@ -982,8 +1034,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
             createSingleMetricAgg("sub2", 33.33, "thirty_three")
         );
         assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, asStringMap("sba2.sub1", "long", "sba2.sub2", "float"), ""),
-            equalTo(asMap("sub1", 100L, "sub2", 33.33))
+            AggregationResultUtils.getExtractor(agg).value(agg, Map.of("sba2.sub1", "long", "sba2.sub2", "float"), ""),
+            hasEqualEntriesInOrder(asOrderedMap("sub1", 100L, "sub2", 33.33))
         );
 
         agg = createSingleBucketAgg(
@@ -994,8 +1046,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
             createSingleBucketAgg("sub3", 42L)
         );
         assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, asStringMap("sba3.sub1", "long", "sba3.sub2", "double"), ""),
-            equalTo(asMap("sub1", 100L, "sub2", 33.33, "sub3", 42L))
+            AggregationResultUtils.getExtractor(agg).value(agg, Map.of("sba3.sub1", "long", "sba3.sub2", "double"), ""),
+            hasEqualEntriesInOrder(asOrderedMap("sub1", 100L, "sub2", 33.33, "sub3", 42L))
         );
 
         agg = createSingleBucketAgg(
@@ -1007,8 +1059,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
         );
         assertThat(
             AggregationResultUtils.getExtractor(agg)
-                .value(agg, asStringMap("sba4.sub3.subsub1", "double", "sba4.sub2", "float", "sba4.sub1", "long"), ""),
-            equalTo(asMap("sub1", 100L, "sub2", 33.33, "sub3", asMap("subsub1", 11.1)))
+                .value(agg, Map.of("sba4.sub3.subsub1", "double", "sba4.sub2", "float", "sba4.sub1", "long"), ""),
+            hasEqualEntriesInOrder(asOrderedMap("sub1", 100L, "sub2", 33.33, "sub3", asMap("subsub1", 11.1)))
         );
     }
 
@@ -1094,22 +1146,27 @@ public class AggregationResultUtilsTests extends ESTestCase {
     }
 
     static Map<String, Object> asMap(Object... fields) {
+        return asMap(HashMap::new, fields);
+    }
+
+    static Map<String, Object> asOrderedMap(Object... fields) {
+        return asMap(LinkedHashMap::new, fields);
+    }
+
+    static Map<String, Object> asMap(Supplier<Map<String, Object>> mapFactory, Object... fields) {
         assert fields.length % 2 == 0;
-        final Map<String, Object> map = new HashMap<>();
+        var map = mapFactory.get();
         for (int i = 0; i < fields.length; i += 2) {
-            String field = (String) fields[i];
+            var field = (String) fields[i];
             map.put(field, fields[i + 1]);
         }
         return map;
     }
 
-    static Map<String, String> asStringMap(String... strings) {
-        assert strings.length % 2 == 0;
-        final Map<String, String> map = new HashMap<>();
-        for (int i = 0; i < strings.length; i += 2) {
-            String field = strings[i];
-            map.put(field, strings[i + 1]);
-        }
+    static <K, V> Map<K, V> asOrderedMap(K k1, V v1, K k2, V v2) {
+        var map = new LinkedHashMap<K, V>();
+        map.put(k1, v1);
+        map.put(k2, v2);
         return map;
     }
 }

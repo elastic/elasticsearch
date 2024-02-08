@@ -98,7 +98,9 @@ public class BulkShardRequestInferenceProvider {
 
                     @Override
                     public void onFailure(Exception e) {
-                        // Do nothing - let it fail afterwards when model is retrieved
+                        // Failure on loading a model should not prevent the rest from being loaded and used.
+                        // When the model is actually retrieved via the inference ID in the inference process, it will fail
+                        // and the user will get the details on the inference failure.
                     }
                 };
 

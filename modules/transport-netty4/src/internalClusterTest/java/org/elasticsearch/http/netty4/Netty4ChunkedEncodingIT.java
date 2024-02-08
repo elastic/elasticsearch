@@ -140,7 +140,7 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
         };
     }
 
-    private static RefCounted refs = null;
+    private static volatile RefCounted refs = null;
 
     public static class YieldsChunksPlugin extends Plugin implements ActionPlugin {
         static final String CHUNKS_ROUTE = "/_test/yields_chunks";
@@ -242,7 +242,8 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
         }
 
         private static void sendChunksResponse(RestChannel channel, Iterator<BytesReference> chunkIterator) {
-            if (refs.tryIncRef()) {
+            final var localRefs = refs; // single volatile read
+            if (localRefs != null && localRefs.tryIncRef()) {
                 channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
                     @Override
                     public boolean isDone() {
@@ -251,15 +252,15 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
 
                     @Override
                     public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
-                        refs.mustIncRef();
-                        return new ReleasableBytesReference(chunkIterator.next(), refs::decRef);
+                        localRefs.mustIncRef();
+                        return new ReleasableBytesReference(chunkIterator.next(), localRefs::decRef);
                     }
 
                     @Override
                     public String getResponseContentTypeString() {
                         return TEXT_CONTENT_TYPE;
                     }
-                }, refs::decRef));
+                }, localRefs::decRef));
             } else {
                 try {
                     channel.sendResponse(new RestResponse(channel, new TaskCancelledException("task cancelled")));

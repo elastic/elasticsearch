@@ -115,7 +115,7 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
     }
 
     private static List<String> getLinuxExclusionList() {
-        File exclusionsFile = new File(DOCKER_ON_LINUX_EXCLUSIONS_FILE);
+        File exclusionsFile = new File(System.getProperty("workspace.dir"), DOCKER_ON_LINUX_EXCLUSIONS_FILE);
         if (exclusionsFile.exists()) {
             try {
                 return Files.readAllLines(exclusionsFile.toPath())

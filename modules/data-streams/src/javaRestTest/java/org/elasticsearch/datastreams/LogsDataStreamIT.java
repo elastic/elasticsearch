@@ -19,9 +19,11 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
@@ -758,8 +760,9 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             }
             """);
         assertEquals(1, results.size());
-        assertFalse(((List<String>) ((Map<String, ?>) results.get(0)).get("_ignored")).isEmpty());
-
+        List<String> ignored = (List<String>) ((Map<String, ?>) results.get(0)).get("_ignored");
+        assertThat(ignored, not(empty()));
+        assertThat(ignored.stream().filter(i -> i.startsWith("field") == false).toList(), empty());
     }
 
     static void waitForLogs(RestClient client) throws Exception {

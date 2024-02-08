@@ -37,12 +37,22 @@ spotless {
 }
 
 tasks.withType(Test) {
-  systemProperty "java.library.path", file("native/build/libs/vec/shared") // TODO: build in os/arch dir
+  var os = org.gradle.internal.os.OperatingSystem.current()
+  if (os.toString().contains("aarch64")) {
+    var nativePrefix = os.getNativePrefix()
+    if (nativePrefix == "darwin")
+      nativePrefix = "darwin-aarch64"
+    systemProperty "java.library.path", file("platform/${nativePrefix}")
+  }
 }
 
 // TODO: --enable-native-access= both for test/ALL_UNNAMED, and in the es launcher
 
 tasks.named('forbiddenApisMain21').configure {
+  enabled = false
+}
+
+tasks.withType(Javadoc) {
   enabled = false
 }
 

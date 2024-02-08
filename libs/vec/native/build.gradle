@@ -7,8 +7,7 @@
  */
 apply plugin: 'c'
 
-import org.gradle.internal.os.OperatingSystem
-OperatingSystem os = OperatingSystem.current();
+var os = org.gradle.internal.os.OperatingSystem.current()
 
 // This task is deliberately not depended upon. Run it manually if you
 // modify the native code,
@@ -18,6 +17,8 @@ OperatingSystem os = OperatingSystem.current();
 //
 // Look at the disassemble:
 //  objdump --disassemble-symbols=_dot8s libs/vec/native/build/libs/vec/shared/libvec.dylib
+
+// gcc -shared -fpic -o libvec.so -I src/vec/headers/ src/vec/c/vec.c -O3
 
 tasks.register("buildNativeLibrary") {
   dependsOn tasks.named("copyLib")

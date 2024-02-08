@@ -682,7 +682,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
          */
         IngestService ingestService = createIngestService();
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
-        int pipelineCount = randomFrom(2, 20);
+        int pipelineCount = randomIntBetween(2, 20);
         for (int i = 0; i < pipelineCount - 1; i++) {
             String pipelineId = "pipeline" + i;
             String nextPipelineId = "pipeline" + (i + 1);

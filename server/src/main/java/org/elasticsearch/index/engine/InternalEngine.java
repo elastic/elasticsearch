@@ -138,7 +138,7 @@ public class InternalEngine extends Engine {
     private final ExternalReaderManager externalReaderManager;
     private final ElasticsearchReaderManager internalReaderManager;
 
-    protected final ReentrantLock flushLock = new ReentrantLock();
+    private final ReentrantLock flushLock = new ReentrantLock();
     private final ReentrantLock optimizeLock = new ReentrantLock();
 
     // A uid (in the form of BytesRef) to the version map
@@ -2237,7 +2237,6 @@ public class InternalEngine extends Engine {
                 flushListener.afterFlush(generation, commitLocation);
             } else {
                 generation = lastCommittedSegmentInfos.getGeneration();
-                onReusedFlush(generation);
             }
         } catch (FlushFailedEngineException ex) {
             maybeFailEngine("flush", ex);
@@ -2260,6 +2259,10 @@ public class InternalEngine extends Engine {
         }
 
         waitForCommitDurability(generation, listener.map(v -> new FlushResult(true, generation)));
+    }
+
+    protected final boolean isFlushLockIsHeldByCurrentThread() {
+        return flushLock.isHeldByCurrentThread();
     }
 
     protected boolean hasUncommittedChanges() {
@@ -2288,8 +2291,6 @@ public class InternalEngine extends Engine {
             store.decRef();
         }
     }
-
-    protected void onReusedFlush(long generation) {}
 
     protected void afterFlush(long generation) {}
 

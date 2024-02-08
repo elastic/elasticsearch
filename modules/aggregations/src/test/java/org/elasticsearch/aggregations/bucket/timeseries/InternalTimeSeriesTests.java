@@ -19,6 +19,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -141,7 +142,7 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
             PipelineAggregator.PipelineTree.EMPTY
         );
 
-        InternalTimeSeries result = (InternalTimeSeries) first.reduce(List.of(first, second, third), context);
+        InternalTimeSeries result = (InternalTimeSeries) InternalAggregationTestCase.reduce(List.of(first, second, third), context);
         assertThat(result.getBuckets().get(0).key.utf8ToString(), equalTo("1"));
         assertThat(result.getBuckets().get(0).getDocCount(), equalTo(5L));
         assertThat(result.getBuckets().get(1).key.utf8ToString(), equalTo("10"));

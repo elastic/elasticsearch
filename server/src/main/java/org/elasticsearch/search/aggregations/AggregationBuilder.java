@@ -121,20 +121,20 @@ public abstract class AggregationBuilder
     protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata);
 
     /**
-     * Creates a deep copy of {@param orig} by recursively invoking {@code #shallowCopy} on the sub aggregations.
-     * Each copied agg is passed throw the {@param visitor} function that can modify the resulting copy.
+     * Creates a deep copy of {@param original} by recursively invoking {@code #shallowCopy} on the sub aggregations.
+     * Each copied agg is passed through the {@param visitor} function that returns a possibly modified "copy".
      */
-    public static AggregationBuilder copy(AggregationBuilder orig, Function<AggregationBuilder, AggregationBuilder> visitor) {
+    public static AggregationBuilder deepCopy(AggregationBuilder original, Function<AggregationBuilder, AggregationBuilder> visitor) {
         AggregatorFactories.Builder subAggregations = new AggregatorFactories.Builder();
         // recursively copy sub aggs first
-        for (AggregationBuilder subAggregation : orig.getSubAggregations()) {
-            subAggregations.addAggregator(copy(subAggregation, visitor));
+        for (AggregationBuilder subAggregation : original.getSubAggregations()) {
+            subAggregations.addAggregator(deepCopy(subAggregation, visitor));
         }
         // pipeline aggs do not themselves contain sub aggs, and don't have a copy method, hence are simply copied by reference
-        for (PipelineAggregationBuilder subPipelineAggregation : orig.getPipelineAggregations()) {
+        for (PipelineAggregationBuilder subPipelineAggregation : original.getPipelineAggregations()) {
             subAggregations.addPipelineAggregator(subPipelineAggregation);
         }
-        return visitor.apply(orig.shallowCopy(subAggregations, orig.getMetadata()));
+        return visitor.apply(original.shallowCopy(subAggregations, original.getMetadata()));
     }
 
     @Override

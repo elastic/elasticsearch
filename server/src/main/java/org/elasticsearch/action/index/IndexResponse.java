@@ -41,7 +41,7 @@ public class IndexResponse extends DocWriteResponse {
 
     public IndexResponse(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
         } else {
             executedPipelines = null;
@@ -50,7 +50,7 @@ public class IndexResponse extends DocWriteResponse {
 
     public IndexResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
         } else {
             executedPipelines = null;
@@ -89,7 +89,7 @@ public class IndexResponse extends DocWriteResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
     }
@@ -97,7 +97,7 @@ public class IndexResponse extends DocWriteResponse {
     @Override
     public void writeThin(StreamOutput out) throws IOException {
         super.writeThin(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
     }

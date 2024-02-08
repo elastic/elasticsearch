@@ -52,7 +52,7 @@ public class ApiKeyAggregationsBuilder {
     }
 
     private static AggregationBuilder translateAggsFields(AggregationBuilder aggsBuilder, Consumer<String> fieldNameVisitor) {
-        return AggregationBuilder.copy(aggsBuilder, copiedAggsBuilder -> {
+        return AggregationBuilder.deepCopy(aggsBuilder, copiedAggsBuilder -> {
             // Most of these can be supported without much hassle, but they're not useful for the identified use cases so far
             for (PipelineAggregationBuilder pipelineAggregator : copiedAggsBuilder.getPipelineAggregations()) {
                 throw new IllegalArgumentException("Unsupported pipeline aggregation of type [" + pipelineAggregator.getType() + "]");

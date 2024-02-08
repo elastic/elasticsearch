@@ -719,7 +719,6 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/pull/1407")
     public void testIgnoreDynamicBeyondLimit() throws Exception {
         Request request = new Request("POST", "/_component_template/logs@custom");
         request.setJsonEntity("""

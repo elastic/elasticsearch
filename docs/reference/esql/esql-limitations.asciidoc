@@ -32,7 +32,7 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 * `long`
 * `null`
 * `text`
-* `unsigned_long`
+* experimental:[] `unsigned_long`
 * `version`
 * Spatial types
 ** `geo_point`

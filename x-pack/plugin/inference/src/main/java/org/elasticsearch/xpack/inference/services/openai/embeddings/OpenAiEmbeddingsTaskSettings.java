@@ -117,7 +117,7 @@ public record OpenAiEmbeddingsTaskSettings(String modelId, @Nullable String user
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_OPENAI_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override

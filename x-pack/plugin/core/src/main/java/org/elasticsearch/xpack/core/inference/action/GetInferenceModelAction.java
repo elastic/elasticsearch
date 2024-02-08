@@ -87,7 +87,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_GET_MULTIPLE_MODELS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 models = in.readCollectionAsList(ModelConfigurations::new);
             } else {
                 models = new ArrayList<>();
@@ -101,7 +101,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_GET_MULTIPLE_MODELS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeCollection(models);
             } else {
                 models.get(0).writeTo(out);

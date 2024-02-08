@@ -141,7 +141,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
     public OpenAiEmbeddingsServiceSettings(StreamInput in) throws IOException {
         uri = createOptionalUri(in.readOptionalString());
         organizationId = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             similarity = in.readOptionalEnum(SimilarityMeasure.class);
             dimensions = in.readOptionalVInt();
             maxInputTokens = in.readOptionalVInt();
@@ -237,7 +237,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_OPENAI_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override
@@ -245,7 +245,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
         out.writeOptionalString(organizationId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalEnum(similarity);
             out.writeOptionalVInt(dimensions);
             out.writeOptionalVInt(maxInputTokens);

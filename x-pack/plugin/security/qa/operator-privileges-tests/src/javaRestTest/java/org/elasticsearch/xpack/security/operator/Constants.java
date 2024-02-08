@@ -503,6 +503,7 @@ public class Constants {
         "indices:admin/refresh[s]",
         "indices:admin/reload_analyzers",
         "indices:admin/resize",
+        "indices:admin/resolve/cluster",
         "indices:admin/resolve/index",
         "indices:admin/rollover",
         "indices:admin/seq_no/add_retention_lease",

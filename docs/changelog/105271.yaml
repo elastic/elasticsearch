@@ -1,0 +1,5 @@
+pr: 105271
+summary: Efficiently encode multi-valued dimensions
+area: TSDB
+type: enhancement
+issues: []

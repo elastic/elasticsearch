@@ -36,7 +36,7 @@ public record HealthInfo(
     public HealthInfo(StreamInput input) throws IOException {
         this(
             input.readMap(DiskHealthInfo::new),
-            input.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS)
+            input.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)
                 ? input.readOptionalWriteable(DataStreamLifecycleHealthInfo::new)
                 : null,
             input.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)
@@ -48,7 +48,7 @@ public record HealthInfo(
     @Override
     public void writeTo(StreamOutput output) throws IOException {
         output.writeMap(diskInfoByNode, StreamOutput::writeWriteable);
-        if (output.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS)) {
+        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             output.writeOptionalWriteable(dslHealthInfo);
         }
         if (output.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)) {

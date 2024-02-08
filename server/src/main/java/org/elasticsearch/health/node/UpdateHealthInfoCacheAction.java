@@ -46,11 +46,16 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         @Nullable
         private final RepositoriesHealthInfo repositoriesHealthInfo;
 
-        public Request(String nodeId, DiskHealthInfo diskHealthInfo, RepositoriesHealthInfo repositoriesHealthInfo) {
+        public Request(
+            String nodeId,
+            DiskHealthInfo diskHealthInfo,
+            DataStreamLifecycleHealthInfo dslHealthInfo,
+            RepositoriesHealthInfo repositoriesHealthInfo
+        ) {
             this.nodeId = nodeId;
             this.diskHealthInfo = diskHealthInfo;
+            this.dslHealthInfo = dslHealthInfo;
             this.repositoriesHealthInfo = repositoriesHealthInfo;
-            this.dslHealthInfo = null;
         }
 
         public Request(String nodeId, DataStreamLifecycleHealthInfo dslHealthInfo) {
@@ -63,7 +68,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
                 this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
                 this.repositoriesHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)
@@ -105,7 +110,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeOptionalWriteable(diskHealthInfo);
                 out.writeOptionalWriteable(dslHealthInfo);
                 if (out.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_REPOS)) {
@@ -179,7 +184,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             }
 
             public Request build() {
-                return new Request(nodeId, diskHealthInfo, repositoriesHealthInfo);
+                return new Request(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo);
             }
         }
     }

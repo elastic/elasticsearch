@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.analytics.ttest;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 
-import java.util.stream.Stream;
+import java.util.Map;
 
 /**
  * Base class for t-test aggregation state
@@ -17,5 +19,5 @@ import java.util.stream.Stream;
 public interface TTestState extends NamedWriteable {
     double getValue();
 
-    TTestState reduce(Stream<TTestState> states);
+    AggregatorReducer getReducer(String name, DocValueFormat format, Map<String, Object> metadata);
 }

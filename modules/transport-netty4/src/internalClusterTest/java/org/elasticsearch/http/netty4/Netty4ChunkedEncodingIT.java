@@ -11,6 +11,8 @@ package org.elasticsearch.http.netty4;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -27,6 +29,9 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -38,6 +43,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -45,12 +51,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestResponse.TEXT_CONTENT_TYPE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
 
@@ -79,22 +88,64 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
     }
 
     private static void getAndCheckBodyContents(String route, String expectedBody) throws IOException {
-        final var response = getRestClient().performRequest(new Request("GET", route));
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        assertThat(response.getEntity().getContentType().toString(), containsString(TEXT_CONTENT_TYPE));
-        if (Strings.hasLength(expectedBody)) {
-            assertTrue(response.getEntity().isChunked());
-        } // else we might have no chunks to send which doesn't need chunked-encoding
-        final String body;
-        try (var reader = new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)) {
-            body = Streams.copyToString(reader);
+        try (var ignored = withResourceTracker()) {
+            final var response = getRestClient().performRequest(new Request("GET", route));
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            assertThat(response.getEntity().getContentType().toString(), containsString(TEXT_CONTENT_TYPE));
+            if (Strings.hasLength(expectedBody)) {
+                assertTrue(response.getEntity().isChunked());
+            } // else we might have no chunks to send which doesn't need chunked-encoding
+            final String body;
+            try (var reader = new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)) {
+                body = Streams.copyToString(reader);
+            }
+            assertEquals(expectedBody, body);
         }
-        assertEquals(expectedBody, body);
     }
+
+    public void testClientCancellation() {
+        try (var ignored = withResourceTracker()) {
+            final var cancellable = getRestClient().performRequestAsync(
+                new Request("GET", YieldsChunksPlugin.INFINITE_ROUTE),
+                new ResponseListener() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        fail("should not complete");
+                    }
+
+                    @Override
+                    public void onFailure(Exception exception) {
+                        assertThat(exception, instanceOf(CancellationException.class));
+                    }
+                }
+            );
+            if (randomBoolean()) {
+                safeSleep(scaledRandomIntBetween(10, 500));
+            }
+            cancellable.cancel();
+        }
+    }
+
+    private static Releasable withResourceTracker() {
+        assertNull(refs);
+        final var latch = new CountDownLatch(1);
+        refs = AbstractRefCounted.of(latch::countDown);
+        return () -> {
+            refs.decRef();
+            try {
+                safeAwait(latch);
+            } finally {
+                refs = null;
+            }
+        };
+    }
+
+    private static volatile RefCounted refs = null;
 
     public static class YieldsChunksPlugin extends Plugin implements ActionPlugin {
         static final String CHUNKS_ROUTE = "/_test/yields_chunks";
         static final String EMPTY_ROUTE = "/_test/yields_only_empty_chunks";
+        static final String INFINITE_ROUTE = "/_test/yields_infinite_chunks";
 
         private static Iterator<BytesReference> emptyChunks() {
             return Iterators.forRange(0, between(0, 2), i -> BytesArray.EMPTY);
@@ -112,66 +163,111 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
             Supplier<DiscoveryNodes> nodesInCluster,
             Predicate<NodeFeature> clusterSupportsFeature
         ) {
-            return List.of(new BaseRestHandler() {
-                @Override
-                public String getName() {
-                    return CHUNKS_ROUTE;
-                }
+            return List.of(
+                // 3 nonempty chunks, with some random empty chunks in between
+                new BaseRestHandler() {
+                    @Override
+                    public String getName() {
+                        return CHUNKS_ROUTE;
+                    }
 
-                @Override
-                public List<Route> routes() {
-                    return List.of(new Route(GET, CHUNKS_ROUTE));
-                }
+                    @Override
+                    public List<Route> routes() {
+                        return List.of(new Route(GET, CHUNKS_ROUTE));
+                    }
 
-                @Override
-                protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-                    return channel -> sendChunksResponse(
-                        channel,
-                        Iterators.concat(
-                            emptyChunks(),
-                            Iterators.flatMap(
-                                Iterators.forRange(0, 3, i -> "chunk-" + i + '\n'),
-                                chunk -> Iterators.concat(Iterators.single(new BytesArray(chunk)), emptyChunks())
+                    @Override
+                    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                        return channel -> sendChunksResponse(
+                            channel,
+                            Iterators.concat(
+                                emptyChunks(),
+                                Iterators.flatMap(
+                                    Iterators.forRange(0, 3, i -> "chunk-" + i + '\n'),
+                                    chunk -> Iterators.concat(Iterators.single(new BytesArray(chunk)), emptyChunks())
+                                )
                             )
-                        )
-                    );
-                }
-            }, new BaseRestHandler() {
-                @Override
-                public String getName() {
-                    return EMPTY_ROUTE;
-                }
+                        );
+                    }
+                },
 
-                @Override
-                public List<Route> routes() {
-                    return List.of(new Route(GET, EMPTY_ROUTE));
-                }
+                // only a few random empty chunks
+                new BaseRestHandler() {
+                    @Override
+                    public String getName() {
+                        return EMPTY_ROUTE;
+                    }
 
-                @Override
-                protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-                    return channel -> sendChunksResponse(channel, emptyChunks());
+                    @Override
+                    public List<Route> routes() {
+                        return List.of(new Route(GET, EMPTY_ROUTE));
+                    }
+
+                    @Override
+                    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                        return channel -> sendChunksResponse(channel, emptyChunks());
+                    }
+                },
+
+                // keeps on emitting chunks until cancelled
+                new BaseRestHandler() {
+                    @Override
+                    public String getName() {
+                        return INFINITE_ROUTE;
+                    }
+
+                    @Override
+                    public List<Route> routes() {
+                        return List.of(new Route(GET, INFINITE_ROUTE));
+                    }
+
+                    @Override
+                    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                        return channel -> sendChunksResponse(channel, new Iterator<>() {
+                            private static final BytesReference CHUNK = new BytesArray("CHUNK\n");
+
+                            @Override
+                            public boolean hasNext() {
+                                return true;
+                            }
+
+                            @Override
+                            public BytesReference next() {
+                                return CHUNK;
+                            }
+                        });
+                    }
                 }
-            });
+            );
         }
 
         private static void sendChunksResponse(RestChannel channel, Iterator<BytesReference> chunkIterator) {
-            channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
-                @Override
-                public boolean isDone() {
-                    return chunkIterator.hasNext() == false;
-                }
+            final var localRefs = refs; // single volatile read
+            if (localRefs != null && localRefs.tryIncRef()) {
+                channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
+                    @Override
+                    public boolean isDone() {
+                        return chunkIterator.hasNext() == false;
+                    }
 
-                @Override
-                public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
-                    final var page = recycler.obtain(); // just to ensure nothing is leaked
-                    return new ReleasableBytesReference(chunkIterator.next(), page);
-                }
+                    @Override
+                    public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
+                        localRefs.mustIncRef();
+                        return new ReleasableBytesReference(chunkIterator.next(), localRefs::decRef);
+                    }
 
-                @Override
-                public String getResponseContentTypeString() {
-                    return TEXT_CONTENT_TYPE;
+                    @Override
+                    public String getResponseContentTypeString() {
+                        return TEXT_CONTENT_TYPE;
+                    }
+                }, localRefs::decRef));
+            } else {
+                try {
+                    channel.sendResponse(new RestResponse(channel, new TaskCancelledException("task cancelled")));
+                } catch (IOException e) {
+                    fail(e);
                 }
-            }, null));
+            }
         }
     }
 }

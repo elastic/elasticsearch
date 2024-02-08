@@ -110,7 +110,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -139,7 +138,7 @@ public class InternalEngine extends Engine {
     private final ExternalReaderManager externalReaderManager;
     private final ElasticsearchReaderManager internalReaderManager;
 
-    private final Lock flushLock = new ReentrantLock();
+    protected final ReentrantLock flushLock = new ReentrantLock();
     private final ReentrantLock optimizeLock = new ReentrantLock();
 
     // A uid (in the form of BytesRef) to the version map
@@ -2252,6 +2251,8 @@ public class InternalEngine extends Engine {
             logger.trace("released flush lock");
         }
 
+        afterFlush(generation);
+
         // We don't have to do this here; we do it defensively to make sure that even if wall clock time is misbehaving
         // (e.g., moves backwards) we will at least still sometimes prune deleted tombstones:
         if (engineConfig.isEnableGcDeletes()) {
@@ -2289,6 +2290,8 @@ public class InternalEngine extends Engine {
     }
 
     protected void onReusedFlush(long generation) {}
+
+    protected void afterFlush(long generation) {}
 
     @Override
     public void rollTranslogGeneration() throws EngineException {

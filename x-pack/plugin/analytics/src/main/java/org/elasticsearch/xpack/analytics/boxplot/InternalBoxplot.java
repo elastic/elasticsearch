@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
@@ -20,7 +21,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -290,16 +290,24 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     }
 
     @Override
-    public InternalBoxplot reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        TDigestState merged = null;
-        for (InternalAggregation aggregation : aggregations) {
-            final InternalBoxplot percentiles = (InternalBoxplot) aggregation;
-            if (merged == null) {
-                merged = TDigestState.createUsingParamsFrom(percentiles.state);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            TDigestState merged = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                final InternalBoxplot percentiles = (InternalBoxplot) aggregation;
+                if (merged == null) {
+                    merged = TDigestState.createUsingParamsFrom(percentiles.state);
+                }
+                merged.add(percentiles.state);
             }
-            merged.add(percentiles.state);
-        }
-        return new InternalBoxplot(name, merged, format, metadata);
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalBoxplot(name, merged, format, metadata);
+            }
+        };
     }
 
     @Override

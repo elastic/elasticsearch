@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.ReferenceDocs;

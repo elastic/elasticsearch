@@ -1227,15 +1227,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.GetResult get(Engine.Get get) {
-        return innerGet(get, false);
+        return innerGet(get, false, this::wrapSearcher);
+    }
+
+    /**
+     * Invokes the consumer with a {@link MultiEngineGet} that can perform multiple engine gets without wrapping searchers multiple times.
+     * Callers must not pass the provided {@link MultiEngineGet} to other threads.
+     */
+    public void mget(Consumer<MultiEngineGet> mgetter) {
+        final MultiEngineGet mget = new MultiEngineGet(this::wrapSearcher) {
+            @Override
+            public GetResult get(Engine.Get get) {
+                return innerGet(get, false, this::wrapSearchSearchWithCache);
+            }
+        };
+        try {
+            mgetter.accept(mget);
+        } finally {
+            mget.releaseCachedSearcher();
+        }
     }
 
     public Engine.GetResult getFromTranslog(Engine.Get get) {
         assert get.realtime();
-        return innerGet(get, true);
+        return innerGet(get, true, this::wrapSearcher);
     }
 
-    private Engine.GetResult innerGet(Engine.Get get, boolean translogOnly) {
+    private Engine.GetResult innerGet(Engine.Get get, boolean translogOnly, Function<Engine.Searcher, Engine.Searcher> searcherWrapper) {
         readAllowed();
         MappingLookup mappingLookup = mapperService.mappingLookup();
         if (mappingLookup.hasMappings() == false) {
@@ -1245,9 +1263,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IllegalStateException("get operations not allowed on a legacy index");
         }
         if (translogOnly) {
-            return getEngine().getFromTranslog(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
+            return getEngine().getFromTranslog(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
         }
-        return getEngine().get(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
+        return getEngine().get(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
     }
 
     /**

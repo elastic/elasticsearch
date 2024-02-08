@@ -8,6 +8,7 @@
 
 package org.elasticsearch.datastreams;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -22,7 +23,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -62,21 +62,21 @@ public class LazyRolloverDataStreamIT extends ESRestTestCase {
         if (super.restClientSettings().keySet().contains(ThreadContext.PREFIX + ".Authorization")) {
             return super.restClientSettings();
         } else {
-            // Note: This user is assigned the role "manage_data_stream_lifecycle". That role is defined in roles.yml.
-            String token = basicAuthHeaderValue("test_simple_user", new SecureString(PASSWORD.toCharArray()));
+            // Note: We use the admin user because the other one is too unprivileged, so it breaks the initialization of the test
+            String token = basicAuthHeaderValue("test_admin", new SecureString(PASSWORD.toCharArray()));
             return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
         }
     }
 
-    @Override
-    protected Settings restAdminSettings() {
-        String authKey = ThreadContext.PREFIX + ".Authorization";
-        String token = basicAuthHeaderValue("test_admin", new SecureString(PASSWORD.toCharArray()));
-        return Settings.builder().put(authKey, token).build();
+    private Settings simpleUserRestClientSettings() {
+        // Note: This user is assigned the role "not_privileged". That role is defined in roles.yml.
+        String token = basicAuthHeaderValue("test_simple_user", new SecureString(PASSWORD.toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Before
-    public void setUpDataStreamAsAdmin() throws IOException {
+    public void setUp() throws Exception {
+        super.setUp();
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/lazy-ds-template");
         putComposableIndexTemplateRequest.setJsonEntity("""
             {
@@ -90,136 +90,152 @@ public class LazyRolloverDataStreamIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLazyRollover() throws Exception {
-        Request createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc?refresh=true");
-        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
-        assertOK(client().performRequest(createDocRequest));
+        try (var simpleUserClient = buildClient(simpleUserRestClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
+            Request createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc");
+            createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
+            assertOK(simpleUserClient.performRequest(createDocRequest));
+            refresh(DATA_STREAM_NAME);
 
-        {
-            ResponseException responseError = expectThrows(
-                ResponseException.class,
-                () -> client().performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_rollover?lazy"))
-            );
-            assertThat(responseError.getResponse().getStatusLine().getStatusCode(), is(403));
-            assertThat(
-                responseError.getMessage(),
-                containsString("action [indices:admin/rollover] is unauthorized for user [test_simple_user]")
-            );
-        }
-        final Response rolloverResponse = adminClient().performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_rollover?lazy"));
-        Map<String, Object> rolloverResponseMap = entityAsMap(rolloverResponse);
-        assertThat((String) rolloverResponseMap.get("old_index"), startsWith(".ds-lazy-ds-"));
-        assertThat((String) rolloverResponseMap.get("old_index"), endsWith("-000001"));
-        assertThat((String) rolloverResponseMap.get("new_index"), startsWith(".ds-lazy-ds-"));
-        assertThat((String) rolloverResponseMap.get("new_index"), endsWith("-000002"));
-        assertThat(rolloverResponseMap.get("lazy"), equalTo(true));
-        assertThat(rolloverResponseMap.get("dry_run"), equalTo(false));
-        assertThat(rolloverResponseMap.get("acknowledged"), equalTo(true));
-        assertThat(rolloverResponseMap.get("rolled_over"), equalTo(false));
-        assertThat(rolloverResponseMap.get("conditions"), equalTo(Map.of()));
+            {
+                ResponseException responseError = expectThrows(
+                    ResponseException.class,
+                    () -> simpleUserClient.performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_rollover?lazy"))
+                );
+                assertThat(responseError.getResponse().getStatusLine().getStatusCode(), is(403));
+                assertThat(
+                    responseError.getMessage(),
+                    containsString("action [indices:admin/rollover] is unauthorized for user [test_simple_user]")
+                );
+            }
+            final Response rolloverResponse = adminClient().performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_rollover?lazy"));
+            Map<String, Object> rolloverResponseMap = entityAsMap(rolloverResponse);
+            assertThat((String) rolloverResponseMap.get("old_index"), startsWith(".ds-lazy-ds-"));
+            assertThat((String) rolloverResponseMap.get("old_index"), endsWith("-000001"));
+            assertThat((String) rolloverResponseMap.get("new_index"), startsWith(".ds-lazy-ds-"));
+            assertThat((String) rolloverResponseMap.get("new_index"), endsWith("-000002"));
+            assertThat(rolloverResponseMap.get("lazy"), equalTo(true));
+            assertThat(rolloverResponseMap.get("dry_run"), equalTo(false));
+            assertThat(rolloverResponseMap.get("acknowledged"), equalTo(true));
+            assertThat(rolloverResponseMap.get("rolled_over"), equalTo(false));
+            assertThat(rolloverResponseMap.get("conditions"), equalTo(Map.of()));
 
-        {
-            final Response dataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
-            List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
-            assertThat(dataStreams.size(), is(1));
-            Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
-            assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
-            assertThat(dataStream.get("rollover_on_write"), is(true));
-            assertThat(((List<Object>) dataStream.get("indices")).size(), is(1));
-        }
+            {
+                final Response dataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
+                List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
+                assertThat(dataStreams.size(), is(1));
+                Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
+                assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
+                assertThat(dataStream.get("rollover_on_write"), is(true));
+                assertThat(((List<Object>) dataStream.get("indices")).size(), is(1));
+            }
 
-        createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc?refresh=true");
-        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-23\", \"a\": 2 }");
-        assertOK(client().performRequest(createDocRequest));
+            createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc");
+            createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-23\", \"a\": 2 }");
+            assertOK(simpleUserClient.performRequest(createDocRequest));
+            refresh(DATA_STREAM_NAME);
 
-        {
-            final Response dataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
-            List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
-            assertThat(dataStreams.size(), is(1));
-            Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
-            assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
-            assertThat(dataStream.get("rollover_on_write"), is(false));
-            assertThat(((List<Object>) dataStream.get("indices")).size(), is(2));
+            {
+                final Response dataStreamResponse = simpleUserClient.performRequest(
+                    new Request("GET", "/_data_stream/" + DATA_STREAM_NAME)
+                );
+                List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
+                assertThat(dataStreams.size(), is(1));
+                Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
+                assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
+                assertThat(dataStream.get("rollover_on_write"), is(false));
+                assertThat(((List<Object>) dataStream.get("indices")).size(), is(2));
+            }
         }
     }
 
     @SuppressWarnings("unchecked")
     public void testLazyRolloverFailsIndexing() throws Exception {
-        Request createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc?refresh=true");
-        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
-        assertOK(client().performRequest(createDocRequest));
+        try (var simpleUserClient = buildClient(simpleUserRestClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
+            Request createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc");
+            createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
+            assertOK(simpleUserClient.performRequest(createDocRequest));
+            refresh(DATA_STREAM_NAME);
 
-        Request updateClusterSettingsRequest = new Request("PUT", "_cluster/settings");
-        updateClusterSettingsRequest.setJsonEntity("""
+            Request updateClusterSettingsRequest = new Request("PUT", "_cluster/settings");
+            updateClusterSettingsRequest.setJsonEntity("""
+                {
+                  "persistent": {
+                    "cluster.max_shards_per_node": 1
+                  }
+                }""");
+            assertAcknowledged(adminClient().performRequest(updateClusterSettingsRequest));
+
+            final Response rolloverResponse = adminClient().performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_rollover?lazy"));
+            Map<String, Object> rolloverResponseMap = entityAsMap(rolloverResponse);
+            assertThat((String) rolloverResponseMap.get("old_index"), startsWith(".ds-lazy-ds-"));
+            assertThat((String) rolloverResponseMap.get("old_index"), endsWith("-000001"));
+            assertThat((String) rolloverResponseMap.get("new_index"), startsWith(".ds-lazy-ds-"));
+            assertThat((String) rolloverResponseMap.get("new_index"), endsWith("-000002"));
+            assertThat(rolloverResponseMap.get("lazy"), equalTo(true));
+            assertThat(rolloverResponseMap.get("dry_run"), equalTo(false));
+            assertThat(rolloverResponseMap.get("acknowledged"), equalTo(true));
+            assertThat(rolloverResponseMap.get("rolled_over"), equalTo(false));
+            assertThat(rolloverResponseMap.get("conditions"), equalTo(Map.of()));
+
             {
-              "persistent": {
-                "cluster.max_shards_per_node": 1
-              }
-            }""");
-        assertAcknowledged(adminClient().performRequest(updateClusterSettingsRequest));
+                final Response dataStreamResponse = simpleUserClient.performRequest(
+                    new Request("GET", "/_data_stream/" + DATA_STREAM_NAME)
+                );
+                List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
+                assertThat(dataStreams.size(), is(1));
+                Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
+                assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
+                assertThat(dataStream.get("rollover_on_write"), is(true));
+                assertThat(((List<Object>) dataStream.get("indices")).size(), is(1));
+            }
 
-        final Response rolloverResponse = adminClient().performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_rollover?lazy"));
-        Map<String, Object> rolloverResponseMap = entityAsMap(rolloverResponse);
-        assertThat((String) rolloverResponseMap.get("old_index"), startsWith(".ds-lazy-ds-"));
-        assertThat((String) rolloverResponseMap.get("old_index"), endsWith("-000001"));
-        assertThat((String) rolloverResponseMap.get("new_index"), startsWith(".ds-lazy-ds-"));
-        assertThat((String) rolloverResponseMap.get("new_index"), endsWith("-000002"));
-        assertThat(rolloverResponseMap.get("lazy"), equalTo(true));
-        assertThat(rolloverResponseMap.get("dry_run"), equalTo(false));
-        assertThat(rolloverResponseMap.get("acknowledged"), equalTo(true));
-        assertThat(rolloverResponseMap.get("rolled_over"), equalTo(false));
-        assertThat(rolloverResponseMap.get("conditions"), equalTo(Map.of()));
+            try {
+                createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc");
+                createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-23\", \"a\": 2 }");
+                simpleUserClient.performRequest(createDocRequest);
+                fail("Indexing should have failed.");
+            } catch (ResponseException responseException) {
+                assertThat(responseException.getMessage(), containsString("this action would add [2] shards"));
+            }
 
-        {
-            final Response dataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
-            List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
-            assertThat(dataStreams.size(), is(1));
-            Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
-            assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
-            assertThat(dataStream.get("rollover_on_write"), is(true));
-            assertThat(((List<Object>) dataStream.get("indices")).size(), is(1));
-        }
-
-        try {
-            createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc?refresh=true");
+            updateClusterSettingsRequest = new Request("PUT", "_cluster/settings");
+            updateClusterSettingsRequest.setJsonEntity("""
+                {
+                  "persistent": {
+                    "cluster.max_shards_per_node": null
+                  }
+                }""");
+            assertAcknowledged(adminClient().performRequest(updateClusterSettingsRequest));
+            createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc");
             createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-23\", \"a\": 2 }");
-            client().performRequest(createDocRequest);
-            fail("Indexing should have failed.");
-        } catch (ResponseException responseException) {
-            assertThat(responseException.getMessage(), containsString("this action would add [2] shards"));
-        }
-
-        updateClusterSettingsRequest = new Request("PUT", "_cluster/settings");
-        updateClusterSettingsRequest.setJsonEntity("""
+            assertOK(simpleUserClient.performRequest(createDocRequest));
+            refresh(DATA_STREAM_NAME);
             {
-              "persistent": {
-                "cluster.max_shards_per_node": null
-              }
-            }""");
-        assertAcknowledged(adminClient().performRequest(updateClusterSettingsRequest));
-        createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc?refresh=true");
-        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-23\", \"a\": 2 }");
-        assertOK(client().performRequest(createDocRequest));
-        {
-            final Response dataStreamResponse = client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
-            List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
-            assertThat(dataStreams.size(), is(1));
-            Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
-            assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
-            assertThat(dataStream.get("rollover_on_write"), is(false));
-            assertThat(((List<Object>) dataStream.get("indices")).size(), is(2));
+                final Response dataStreamResponse = simpleUserClient.performRequest(
+                    new Request("GET", "/_data_stream/" + DATA_STREAM_NAME)
+                );
+                List<Object> dataStreams = (List<Object>) entityAsMap(dataStreamResponse).get("data_streams");
+                assertThat(dataStreams.size(), is(1));
+                Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
+                assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
+                assertThat(dataStream.get("rollover_on_write"), is(false));
+                assertThat(((List<Object>) dataStream.get("indices")).size(), is(2));
+            }
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testLazyRolloverWithConditions() throws Exception {
-        Request createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc?refresh=true");
-        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
-        assertOK(client().performRequest(createDocRequest));
+        try (var simpleUserClient = buildClient(simpleUserRestClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
+            Request createDocRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_doc");
+            createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
+            assertOK(simpleUserClient.performRequest(createDocRequest));
+            refresh(DATA_STREAM_NAME);
 
-        Request rolloverRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_rollover?lazy");
-        rolloverRequest.setJsonEntity("{\"conditions\": {\"max_docs\": 1}}");
-        ResponseException responseError = expectThrows(ResponseException.class, () -> adminClient().performRequest(rolloverRequest));
-        assertThat(responseError.getResponse().getStatusLine().getStatusCode(), is(400));
-        assertThat(responseError.getMessage(), containsString("only without any conditions"));
+            Request rolloverRequest = new Request("POST", "/" + DATA_STREAM_NAME + "/_rollover?lazy");
+            rolloverRequest.setJsonEntity("{\"conditions\": {\"max_docs\": 1}}");
+            ResponseException responseError = expectThrows(ResponseException.class, () -> adminClient().performRequest(rolloverRequest));
+            assertThat(responseError.getResponse().getStatusLine().getStatusCode(), is(400));
+            assertThat(responseError.getMessage(), containsString("only without any conditions"));
+        }
     }
 }

@@ -347,8 +347,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         return reducedBuckets;
     }
 
-    @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
+    private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
         long docCount = 0;
         for (Bucket bucket : buckets) {

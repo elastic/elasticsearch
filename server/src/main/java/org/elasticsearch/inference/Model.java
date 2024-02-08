@@ -56,10 +56,6 @@ public class Model {
         return configurations;
     }
 
-    public ModelConfigurations getFilteredConfigurations() {
-        return ModelConfigurations.withoutHiddenFields(configurations);
-    }
-
     /**
      * Returns the model's sensitive configurations (e.g. api key).
      *

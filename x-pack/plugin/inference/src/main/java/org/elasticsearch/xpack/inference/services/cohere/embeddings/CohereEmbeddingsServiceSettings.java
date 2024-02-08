@@ -88,7 +88,7 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
     }
 
     @Override
-    public ToXContentObject toFilteredXContentObject() {
+    public ToXContentObject getFilteredXContentObject() {
         return this;
     }
 

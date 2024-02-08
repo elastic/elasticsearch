@@ -114,7 +114,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             builder.startArray("models");
             for (var model : models) {
                 if (model != null) {
-                    model.toXContent(builder, params);
+                    model.toFilteredXContent(builder, params);
                 }
             }
             builder.endArray();

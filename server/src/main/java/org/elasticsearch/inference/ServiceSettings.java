@@ -14,7 +14,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteable {
 
     /**
-     * Returns a {@link ToXContentObject} that writes only the exposed fields. Any hidden fields will not be written.
+     * Returns a {@link ToXContentObject} that only writes the exposed fields. Any hidden fields are not written.
      */
-    ToXContentObject toFilteredXContentObject();
+    ToXContentObject getFilteredXContentObject();
 }

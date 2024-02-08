@@ -216,7 +216,7 @@ public class OpenAiService extends SenderService {
     }
 
     private OpenAiEmbeddingsModel updateModelWithEmbeddingDetails(OpenAiEmbeddingsModel model, int embeddingSize) {
-        if (model.getServiceSettings().wereDimensionsSetByUser() && model.getServiceSettings().dimensions() != null) {
+        if (model.getServiceSettings().dimensionsSetByUser() && model.getServiceSettings().dimensions() != null) {
             if (model.getServiceSettings().dimensions() != embeddingSize) {
                 throw new ElasticsearchStatusException(
                     Strings.format(

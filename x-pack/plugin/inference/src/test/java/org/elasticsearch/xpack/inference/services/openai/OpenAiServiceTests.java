@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
+import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -57,6 +58,7 @@ import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenA
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -284,7 +286,7 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org"),
+                getServiceSettingsMap("url", "org", 100, false),
                 getTaskSettingsMap("model", "user"),
                 getSecretSettingsMap("secret")
             );
@@ -345,7 +347,7 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(null, null),
+                getServiceSettingsMap(null, null, null, true),
                 getTaskSettingsMap("model", null),
                 getSecretSettingsMap("secret")
             );
@@ -376,7 +378,7 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org"),
+                getServiceSettingsMap("url", "org", null, true),
                 getTaskSettingsMap("model", "user"),
                 getSecretSettingsMap("secret")
             );
@@ -411,7 +413,7 @@ public class OpenAiServiceTests extends ESTestCase {
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org"),
+                getServiceSettingsMap("url", "org", null, true),
                 getTaskSettingsMap("model", "user"),
                 secretSettingsMap
             );
@@ -442,7 +444,7 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org"),
+                getServiceSettingsMap("url", "org", null, true),
                 getTaskSettingsMap("model", "user"),
                 getSecretSettingsMap("secret")
             );
@@ -473,7 +475,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var serviceSettingsMap = getServiceSettingsMap("url", "org");
+            var serviceSettingsMap = getServiceSettingsMap("url", "org", null, true);
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
@@ -511,7 +513,7 @@ public class OpenAiServiceTests extends ESTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org"),
+                getServiceSettingsMap("url", "org", null, true),
                 taskSettingsMap,
                 getSecretSettingsMap("secret")
             );
@@ -541,7 +543,10 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org"), getTaskSettingsMap("model", "user"));
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("url", "org", null, true),
+                getTaskSettingsMap("model", "user")
+            );
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
@@ -584,7 +589,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(null, null), getTaskSettingsMap("model", null));
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(null, null, null, true), getTaskSettingsMap("model", null));
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
@@ -606,7 +611,10 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org"), getTaskSettingsMap("model", "user"));
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("url", "org", null, true),
+                getTaskSettingsMap("model", "user")
+            );
             persistedConfig.config().put("extra_key", "value");
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
@@ -629,7 +637,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var serviceSettingsMap = getServiceSettingsMap("url", "org");
+            var serviceSettingsMap = getServiceSettingsMap("url", "org", null, true);
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap("model", "user"));
@@ -657,7 +665,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var taskSettingsMap = getTaskSettingsMap("model", "user");
             taskSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org"), taskSettingsMap);
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org", null, true), taskSettingsMap);
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
@@ -774,12 +782,155 @@ public class OpenAiServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 1);
+            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 100);
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
             service.checkModelConfig(model, listener);
 
             var result = listener.actionGet(TIMEOUT);
-            assertThat(result, is(OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 1, 2)));
+            assertThat(result, is(OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 100, 2)));
+
+            assertThat(webServer.requests(), hasSize(1));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user")));
+        }
+    }
+
+    public void testCheckModelConfig_ThrowsIfEmbeddingSizeDoesNotMatchValueSetByUser() throws IOException {
+        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+
+        try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+
+            String responseJson = """
+                {
+                  "object": "list",
+                  "data": [
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              0.0123,
+                              -0.0123
+                          ]
+                      }
+                  ],
+                  "model": "text-embedding-ada-002-v2",
+                  "usage": {
+                      "prompt_tokens": 8,
+                      "total_tokens": 8
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 100, 3, true);
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "The retrieved embeddings size [2] does not match the size specified in the settings [3]. "
+                        + "Please re-add the [id] configuration with the correct dimensions"
+                )
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(
+                requestMap,
+                Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user", "dimensions", 3))
+            );
+        }
+    }
+
+    public void testCheckModelConfig_ReturnsSameModelReferenceIfDimensionsSetByUser_AndTheyMatchReturnedSize() throws IOException {
+        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+
+        try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+
+            String responseJson = """
+                {
+                  "object": "list",
+                  "data": [
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              0.0123,
+                              -0.0123
+                          ]
+                      }
+                  ],
+                  "model": "text-embedding-ada-002-v2",
+                  "usage": {
+                      "prompt_tokens": 8,
+                      "total_tokens": 8
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 100, 2, true);
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+
+            var returnedModel = listener.actionGet(TIMEOUT);
+            assertThat(model, sameInstance(returnedModel));
+
+            assertThat(webServer.requests(), hasSize(1));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(
+                requestMap,
+                Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user", "dimensions", 2))
+            );
+        }
+    }
+
+    public void testCheckModelConfig_ReturnsNewModelReference_AndDoesNotSendDimensionsField_WhenNotSetByUser() throws IOException {
+        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+
+        try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+
+            String responseJson = """
+                {
+                  "object": "list",
+                  "data": [
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              0.0123,
+                              -0.0123
+                          ]
+                      }
+                  ],
+                  "model": "text-embedding-ada-002-v2",
+                  "usage": {
+                      "prompt_tokens": 8,
+                      "total_tokens": 8
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 100, 100, false);
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+
+            var returnedModel = listener.actionGet(TIMEOUT);
+            assertThat(
+                returnedModel,
+                is(OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 100, 2, false))
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user")));
         }
     }
 

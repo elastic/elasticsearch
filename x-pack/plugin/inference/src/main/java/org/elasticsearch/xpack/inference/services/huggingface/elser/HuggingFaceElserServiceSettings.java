@@ -64,7 +64,7 @@ public record HuggingFaceElserServiceSettings(URI uri, Integer maxInputTokens) i
     }
 
     @Override
-    public ToXContentObject toFilteredXContentObject() {
+    public ToXContentObject getFilteredXContentObject() {
         return null;
     }
 

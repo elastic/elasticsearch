@@ -44,7 +44,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
     public static final String NAME = "openai_service_settings";
 
     public static final String ORGANIZATION = "organization_id";
-    static final String WERE_DIMENSIONS_SET_BY_USER = "were_dimensions_set_by_user";
+    static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
 
     public static OpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, OpenAiParseContext context) {
         return switch (context) {
@@ -53,38 +53,35 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         };
     }
 
-    public static OpenAiEmbeddingsServiceSettings fromPersistentMap(Map<String, Object> map) {
+    private static OpenAiEmbeddingsServiceSettings fromPersistentMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
         var commonFields = fromMap(map, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        if (dims == null) {
-            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS));
-        }
 
-        Boolean dimensionsSetByUser = removeAsType(map, WERE_DIMENSIONS_SET_BY_USER, Boolean.class);
+        Boolean dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
         if (dimensionsSetByUser == null) {
-            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS));
+            validationException.addValidationError(
+                ServiceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+            );
         }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new OpenAiEmbeddingsServiceSettings(commonFields, dims, Boolean.TRUE.equals(dimensionsSetByUser));
+        return new OpenAiEmbeddingsServiceSettings(commonFields, Boolean.TRUE.equals(dimensionsSetByUser));
     }
 
-    public static OpenAiEmbeddingsServiceSettings fromRequestMap(Map<String, Object> map) {
+    private static OpenAiEmbeddingsServiceSettings fromRequestMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
         var commonFields = fromMap(map, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new OpenAiEmbeddingsServiceSettings(commonFields, dims, dims != null);
+        return new OpenAiEmbeddingsServiceSettings(commonFields, commonFields.dimensions != null);
     }
 
     private static CommonFields fromMap(Map<String, Object> map, ValidationException validationException) {
@@ -93,16 +90,18 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         String organizationId = extractOptionalString(map, ORGANIZATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        return new CommonFields(uri, organizationId, similarity, maxInputTokens);
+        return new CommonFields(uri, organizationId, similarity, maxInputTokens, dims);
     }
 
     private record CommonFields(
         @Nullable URI uri,
         @Nullable String organizationId,
         @Nullable SimilarityMeasure similarity,
-        @Nullable Integer maxInputTokens
+        @Nullable Integer maxInputTokens,
+        @Nullable Integer dimensions
     ) {}
 
     private final URI uri;
@@ -110,7 +109,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
-    private final Boolean wereDimensionsSetByUser;
+    private final Boolean dimensionsSetByUser;
 
     public OpenAiEmbeddingsServiceSettings(
         @Nullable URI uri,
@@ -118,14 +117,14 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
-        Boolean wereDimensionsSetByUser
+        Boolean dimensionsSetByUser
     ) {
         this.uri = uri;
         this.organizationId = organizationId;
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
-        this.wereDimensionsSetByUser = Objects.requireNonNull(wereDimensionsSetByUser);
+        this.dimensionsSetByUser = Objects.requireNonNull(dimensionsSetByUser);
     }
 
     public OpenAiEmbeddingsServiceSettings(
@@ -134,13 +133,9 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
-        Boolean wereDimensionsSetByUser
+        Boolean dimensionsSetByUser
     ) {
-        this(createOptionalUri(uri), organizationId, similarity, dimensions, maxInputTokens, wereDimensionsSetByUser);
-    }
-
-    private OpenAiEmbeddingsServiceSettings(CommonFields fields, @Nullable Integer dimensions, Boolean wereDimensionsSetByUser) {
-        this(fields.uri, fields.organizationId, fields.similarity, dimensions, fields.maxInputTokens, wereDimensionsSetByUser);
+        this(createOptionalUri(uri), organizationId, similarity, dimensions, maxInputTokens, dimensionsSetByUser);
     }
 
     public OpenAiEmbeddingsServiceSettings(StreamInput in) throws IOException {
@@ -157,10 +152,14 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         }
 
         if (in.getTransportVersion().onOrAfter(TransportVersions.ML_DIMENSIONS_SET_BY_USER_ADDED)) {
-            wereDimensionsSetByUser = in.readBoolean();
+            dimensionsSetByUser = in.readBoolean();
         } else {
-            wereDimensionsSetByUser = false;
+            dimensionsSetByUser = false;
         }
+    }
+
+    private OpenAiEmbeddingsServiceSettings(CommonFields fields, Boolean dimensionsSetByUser) {
+        this(fields.uri, fields.organizationId, fields.similarity, fields.dimensions, fields.maxInputTokens, dimensionsSetByUser);
     }
 
     public URI uri() {
@@ -179,8 +178,8 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         return dimensions;
     }
 
-    public Boolean wereDimensionsSetByUser() {
-        return wereDimensionsSetByUser;
+    public Boolean dimensionsSetByUser() {
+        return dimensionsSetByUser;
     }
 
     public Integer maxInputTokens() {
@@ -198,8 +197,8 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
         toXContentFragmentOfExposedFields(builder, params);
 
-        if (wereDimensionsSetByUser != null) {
-            builder.field(WERE_DIMENSIONS_SET_BY_USER, wereDimensionsSetByUser);
+        if (dimensionsSetByUser != null) {
+            builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
         }
 
         builder.endObject();
@@ -225,7 +224,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
     }
 
     @Override
-    public ToXContentObject toFilteredXContentObject() {
+    public ToXContentObject getFilteredXContentObject() {
         return (builder, params) -> {
             builder.startObject();
 
@@ -253,7 +252,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         }
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.ML_DIMENSIONS_SET_BY_USER_ADDED)) {
-            out.writeBoolean(wereDimensionsSetByUser);
+            out.writeBoolean(dimensionsSetByUser);
         }
     }
 
@@ -267,11 +266,11 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
-            && Objects.equals(wereDimensionsSetByUser, that.wereDimensionsSetByUser);
+            && Objects.equals(dimensionsSetByUser, that.dimensionsSetByUser);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, organizationId, similarity, dimensions, maxInputTokens, wereDimensionsSetByUser);
+        return Objects.hash(uri, organizationId, similarity, dimensions, maxInputTokens, dimensionsSetByUser);
     }
 }

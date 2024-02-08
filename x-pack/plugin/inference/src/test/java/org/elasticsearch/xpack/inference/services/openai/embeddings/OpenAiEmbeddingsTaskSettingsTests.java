@@ -15,6 +15,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiParseContext;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
@@ -41,7 +42,10 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testFromMap_MissingModel_ThrowException() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")), true)
+            () -> OpenAiEmbeddingsTaskSettings.fromMap(
+                new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")),
+                OpenAiParseContext.REQUEST
+            )
         );
 
         MatcherAssert.assertThat(
@@ -58,7 +62,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testFromMap_CreatesWithModelAndUser() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
-            false
+            OpenAiParseContext.PERSISTENT
         );
 
         MatcherAssert.assertThat(taskSettings.modelId(), is("model"));
@@ -68,7 +72,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testFromMap_CreatesWithModelId() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL_ID, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
-            false
+            OpenAiParseContext.PERSISTENT
         );
 
         MatcherAssert.assertThat(taskSettings.modelId(), is("model"));
@@ -87,7 +91,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
                     "user"
                 )
             ),
-            false
+            OpenAiParseContext.PERSISTENT
         );
 
         MatcherAssert.assertThat(taskSettings.modelId(), is("model"));
@@ -97,7 +101,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testFromMap_MissingUser_DoesNotThrowException() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model")),
-            false
+            OpenAiParseContext.PERSISTENT
         );
 
         MatcherAssert.assertThat(taskSettings.modelId(), is("model"));
@@ -107,7 +111,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
-            false
+            OpenAiParseContext.PERSISTENT
         );
 
         var overriddenTaskSettings = OpenAiEmbeddingsTaskSettings.of(taskSettings, OpenAiEmbeddingsRequestTaskSettings.EMPTY_SETTINGS);
@@ -117,7 +121,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testOverrideWith_UsesOverriddenSettings() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
-            false
+            OpenAiParseContext.PERSISTENT
         );
 
         var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(
@@ -131,7 +135,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testOverrideWith_UsesOverriddenSettings_UsesModel2_FromModelIdField() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
-            false
+            OpenAiParseContext.PERSISTENT
         );
 
         var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(
@@ -154,7 +158,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testOverrideWith_UsesOnlyNonNullModelSetting() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.OLD_MODEL_ID_FIELD, "model", OpenAiEmbeddingsTaskSettings.USER, "user")),
-            false
+            OpenAiParseContext.PERSISTENT
         );
 
         var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(

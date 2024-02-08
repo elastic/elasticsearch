@@ -201,6 +201,11 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         return aggregation.sortValue(Optional.ofNullable(head.key()).orElse(head.metric()));
     }
 
+    /**
+     * Equivalent to {@link #topLevelReduce(List, AggregationReduceContext)} but it takes a list of
+     * {@link DelayableWriteable}. The object will be expanded once via {@link DelayableWriteable#expand()}
+     * but it is the responsibility of the caller to release those releasables.
+     */
     public static InternalAggregations topLevelReduceDelayable(
         List<DelayableWriteable<InternalAggregations>> delayableAggregations,
         AggregationReduceContext context

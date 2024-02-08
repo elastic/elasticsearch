@@ -221,7 +221,7 @@ public class OpenAiService extends SenderService {
                 throw new ElasticsearchStatusException(
                     Strings.format(
                         "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
-                            + "Please re-add the [%s] configuration with the correct dimensions",
+                            + "Please recreate the [%s] configuration with the correct dimensions",
                         embeddingSize,
                         model.getServiceSettings().dimensions(),
                         model.getConfigurations().getInferenceEntityId()

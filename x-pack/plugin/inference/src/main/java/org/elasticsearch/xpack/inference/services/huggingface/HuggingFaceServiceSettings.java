@@ -171,5 +171,4 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
     public int hashCode() {
         return Objects.hash(uri, similarity, dimensions, maxInputTokens);
     }
-
 }

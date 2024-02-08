@@ -832,7 +832,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 exception.getMessage(),
                 is(
                     "The retrieved embeddings size [2] does not match the size specified in the settings [3]. "
-                        + "Please re-add the [id] configuration with the correct dimensions"
+                        + "Please recreate the [id] configuration with the correct dimensions"
                 )
             );
 

@@ -11,19 +11,28 @@ package org.elasticsearch.nativeaccess;
 import java.nio.file.Path;
 import java.util.OptionalLong;
 
+/**
+ * Provides access to native functionality needed by Elastisearch.
+ */
 public interface NativeAccess {
+
+    /**
+     * Get the one and only instance of {@link NativeAccess} which is specific to the running platform and JVM.
+     */
     static NativeAccess instance() {
         return NativeAccessHolder.INSTANCE;
     }
 
+    /**
+     * Determine whether this JVM is running as the root user.
+     *
+     * @return true if running as root, or false if unsure
+     */
     boolean definitelyRunningAsRoot();
 
     void tryLockMemory();
 
     boolean isMemoryLocked();
-
-    /*public abstract void tryInstallSystemCallFilter(Path tmpFile);
-    public abstract boolean isSystemCallFilterInstalled();*/
 
     void tryInitMaxNumberOfThreads();
 

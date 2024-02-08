@@ -8,7 +8,7 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-public interface MacCLibrary {
+public non-sealed interface MacCLibrary extends NativeLibrary {
 
     interface ErrorReference {}
 

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.nativeaccess.jna;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
@@ -20,28 +18,10 @@ import org.elasticsearch.nativeaccess.lib.SystemdLibrary;
 import java.util.Map;
 
 public class JnaNativeLibraryProvider extends NativeLibraryProvider {
-    private static final Logger logger = LogManager.getLogger(JnaNativeLibraryProvider.class);
-
-    // marker to determine if the JNA class files are available to the JVM
-    static final boolean JNA_AVAILABLE;
-
-    static {
-        boolean success = false;
-        try {
-            // load one of the main JNA classes to see if the classes are available. this does not ensure that all native
-            // libraries are available, only the ones necessary by JNA to function
-            Class.forName("com.sun.jna.Native");
-            success = true;
-        } catch (ClassNotFoundException e) {
-            logger.warn("JNA not found. native methods will be disabled.", e);
-        } catch (UnsatisfiedLinkError e) {
-            logger.warn("unable to load JNA native support library, native methods will be disabled.", e);
-        }
-        JNA_AVAILABLE = success;
-    }
 
     public JnaNativeLibraryProvider() {
         super(
+            "jna",
             Map.of(
                 PosixCLibrary.class,
                 JnaPosixCLibrary::new,

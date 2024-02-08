@@ -15,7 +15,7 @@ import java.util.function.IntConsumer;
 /**
  * Windows kernel methods.
  */
-public interface Kernel32Library {
+public non-sealed interface Kernel32Library extends NativeLibrary {
 
     interface Handle {}
 

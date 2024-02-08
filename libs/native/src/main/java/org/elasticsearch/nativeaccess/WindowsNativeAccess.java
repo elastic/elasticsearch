@@ -44,6 +44,7 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     private final Kernel32Library kernel;
 
     WindowsNativeAccess(NativeLibraryProvider libraryProvider) {
+        super("Windows");
         kernel = libraryProvider.getLibrary(Kernel32Library.class);
     }
 

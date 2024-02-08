@@ -8,7 +8,7 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-public interface LinuxCLibrary {
+public non-sealed interface LinuxCLibrary extends NativeLibrary {
 
     interface statx {
         long stx_blocks();

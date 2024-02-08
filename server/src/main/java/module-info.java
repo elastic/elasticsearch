@@ -20,11 +20,11 @@ module org.elasticsearch.server {
 
     requires org.elasticsearch.cli;
     requires org.elasticsearch.base;
+    requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
     requires org.elasticsearch.pluginclassloader;
     requires org.elasticsearch.securesm;
-    requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.plugin;

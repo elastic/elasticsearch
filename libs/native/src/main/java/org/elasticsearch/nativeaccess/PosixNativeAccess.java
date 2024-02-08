@@ -30,6 +30,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     protected final PosixCLibrary libc;
 
     PosixNativeAccess(
+        String name,
         NativeLibraryProvider libraryProvider,
         int RLIMIT_MEMLOCK,
         long RLIMIT_INFINITY,
@@ -38,6 +39,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         int STAT_ST_SIZE_OFFSET,
         int O_CREAT
     ) {
+        super(name);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
         this.RLIMIT_MEMLOCK = RLIMIT_MEMLOCK;
         this.RLIMIT_INFINITY = RLIMIT_INFINITY;

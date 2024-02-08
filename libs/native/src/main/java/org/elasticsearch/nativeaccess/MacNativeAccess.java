@@ -39,7 +39,7 @@ class MacNativeAccess extends PosixNativeAccess {
     private final MacCLibrary macLibc;
 
     MacNativeAccess(NativeLibraryProvider libraryProvider) {
-        super(libraryProvider, 6, 9223372036854775807L, 5, 144, 96, 512);
+        super("MacOS", libraryProvider, 6, 9223372036854775807L, 5, 144, 96, 512);
         this.macLibc = libraryProvider.getLibrary(MacCLibrary.class);
     }
 

@@ -8,14 +8,14 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-
 import java.nio.file.Path;
 import java.util.OptionalLong;
 
 class NoopNativeAccess extends AbstractNativeAccess {
-    private static final Logger logger = LogManager.getLogger(NativeAccess.class);
+
+    NoopNativeAccess() {
+        super("noop");
+    }
 
     @Override
     public boolean definitelyRunningAsRoot() {

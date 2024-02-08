@@ -19,25 +19,27 @@ class NativeAccessHolder {
     static final NativeAccess INSTANCE;
 
     static {
-        var libraryProvider = NativeLibraryProvider.getInstance();
-        logger.info("Using native provider: " + libraryProvider.getClass().getSimpleName());
+        var libProvider = NativeLibraryProvider.instance();
         var os = System.getProperty("os.name");
-        NativeAccess inst = null;
+
+        AbstractNativeAccess inst = null;
         try {
             if (os.startsWith("Linux")) {
-                inst = new LinuxNativeAccess(libraryProvider);
+                inst = new LinuxNativeAccess(libProvider);
             } else if (os.startsWith("Mac OS")) {
-                inst = new MacNativeAccess(libraryProvider);
+                inst = new MacNativeAccess(libProvider);
             } else if (os.startsWith("Windows")) {
-                inst = new WindowsNativeAccess(libraryProvider);
+                inst = new WindowsNativeAccess(libProvider);
             } else {
-                logger.warn("Unsupported OS " + os + ". Native methods will be disabled.");
+                logger.warn("Unsupported OS [" + os + "]. Native methods will be disabled.");
             }
         } catch (LinkageError e) {
             logger.warn("Unable to load native provider. Native methods will be disabled.", e);
         }
         if (inst == null) {
             inst = new NoopNativeAccess();
+        } else {
+            logger.info("Using [" + libProvider.getName() + "] native provider and native methods for [" + inst.getName() + "]");
         }
         INSTANCE = inst;
     }

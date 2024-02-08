@@ -276,7 +276,6 @@ class Elasticsearch {
         final Logger logger = LogManager.getLogger(Elasticsearch.class);
 
         var nativeAccess = NativeAccess.instance();
-        logger.info("Native access: " + nativeAccess.getClass().getSimpleName());
 
         // check if the user is running as root, and bail
         if (nativeAccess.definitelyRunningAsRoot()) {

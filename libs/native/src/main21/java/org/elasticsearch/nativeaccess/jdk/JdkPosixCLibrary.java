@@ -36,8 +36,8 @@ class JdkPosixCLibrary implements PosixCLibrary {
     static final Linker.Option CAPTURE_ERRNO_OPTION = Linker.Option.captureCallState("errno");
     private static final VarHandle errno$vh = CAPTURE_ERRNO_LAYOUT.varHandle(groupElement("errno"));
 
+    private static final MethodHandle geteuid$mh = downcallHandle("geteuid", FunctionDescriptor.of(JAVA_INT));
     private static final MethodHandle strerror$mh;
-    private static final MethodHandle geteuid$mh;
     private static final MethodHandle mlockall$mh;
     private static final MethodHandle getrlimit$mh;
     private static final MethodHandle setrlimit$mh;
@@ -50,7 +50,6 @@ class JdkPosixCLibrary implements PosixCLibrary {
         errnoState = arena.allocate(CAPTURE_ERRNO_LAYOUT);
 
         strerror$mh = downcallHandle("strerror", FunctionDescriptor.of(ADDRESS, JAVA_INT));
-        geteuid$mh = downcallHandle("geteuid", FunctionDescriptor.of(JAVA_INT));
         mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
         var rlimitDesc = FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS);
         getrlimit$mh = downcallHandleWithErrno("getrlimit", rlimitDesc);

@@ -109,13 +109,13 @@ class JnaPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
-    public int mlockall(int flags) {
-        return functions.mlockall(flags);
+    public int geteuid() {
+        return functions.geteuid();
     }
 
     @Override
-    public int geteuid() {
-        return functions.geteuid();
+    public int mlockall(int flags) {
+        return functions.mlockall(flags);
     }
 
     @Override

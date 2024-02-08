@@ -8,6 +8,5 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-public non-sealed interface SystemdLibrary extends NativeLibrary {
-    int sd_notify(int unset_environment, String state);
-}
+/** A marker interface for libraries that can be loaded by {@link org.elasticsearch.nativeaccess.lib.NativeLibraryProvider} */
+public sealed interface NativeLibrary permits PosixCLibrary, LinuxCLibrary, MacCLibrary, Kernel32Library, SystemdLibrary {}

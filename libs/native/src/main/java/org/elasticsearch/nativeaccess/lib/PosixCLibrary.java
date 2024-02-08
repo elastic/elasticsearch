@@ -8,11 +8,20 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-public interface PosixCLibrary {
+/**
+ * Provides access to methods in libc.so available on POSIX systems.
+ */
+public non-sealed interface PosixCLibrary extends NativeLibrary {
+
+    /**
+     * Gets the effective userid of the current process.
+     *
+     * @return the effective user id
+     * @see <a href="https://pubs.opengroup.org/onlinepubs/9699919799/functions/geteuid.html">geteuid</a>
+     */
+    int geteuid();
 
     int mlockall(int flags);
-
-    int geteuid();
 
     /** corresponds to struct rlimit */
     interface RLimit {

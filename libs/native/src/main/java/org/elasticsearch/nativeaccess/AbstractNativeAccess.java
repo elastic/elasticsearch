@@ -15,6 +15,8 @@ abstract class AbstractNativeAccess implements NativeAccess {
 
     protected static final Logger logger = LogManager.getLogger(NativeAccess.class);
 
+    private final String name;
+
     protected boolean memoryLocked = false;
     protected long maxVirtualMemorySize = Long.MIN_VALUE;
     protected long maxFileSize = Long.MIN_VALUE;
@@ -22,6 +24,14 @@ abstract class AbstractNativeAccess implements NativeAccess {
     // the user ID that owns the running Elasticsearch process
     protected long maxNumberOfThreads = -1;
     protected ExecSandboxState execSandboxState = ExecSandboxState.NONE;
+
+    protected AbstractNativeAccess(String name) {
+        this.name = name;
+    }
+
+    String getName() {
+        return name;
+    }
 
     @Override
     public boolean isMemoryLocked() {

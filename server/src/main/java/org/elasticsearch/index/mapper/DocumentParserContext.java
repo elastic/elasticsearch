@@ -335,7 +335,7 @@ public abstract class DocumentParserContext {
         if (mappingLookup.getMapper(mapper.name()) == null
             && mappingLookup.objectMappers().containsKey(mapper.name()) == false
             && dynamicMappers.containsKey(mapper.name()) == false) {
-            int mapperSize = mapper.mapperSize();
+            int mapperSize = mapper.getTotalFieldsCount();
             int additionalFieldsToAdd = getNewFieldsSize() + mapperSize;
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {

@@ -21,6 +21,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
@@ -46,6 +47,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -1229,6 +1231,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source == null) {
             return;
         }
+        validateSearchSource(source, context.scrollContext() != null);
         SearchShardTarget shardTarget = context.shardTarget();
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         context.from(source.from());
@@ -1270,11 +1273,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         context.trackScores(source.trackScores());
-        if (source.trackTotalHitsUpTo() != null
-            && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
-            && context.scrollContext() != null) {
-            throw new SearchException(shardTarget, "disabling [track_total_hits] is not allowed in a scroll context");
-        }
         if (source.trackTotalHitsUpTo() != null) {
             context.trackTotalHitsUpTo(source.trackTotalHitsUpTo());
         }
@@ -1402,44 +1400,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.groupStats(source.stats());
         }
         if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
-            if (context.scrollContext() != null) {
-                throw new SearchException(shardTarget, "`search_after` cannot be used in a scroll context.");
-            }
-            if (context.from() > 0) {
-                throw new SearchException(shardTarget, "`from` parameter must be set to 0 when `search_after` is used.");
-            }
-
             String collapseField = source.collapse() != null ? source.collapse().getField() : null;
             FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter(), collapseField);
             context.searchAfter(fieldDoc);
         }
 
         if (source.slice() != null) {
-            if (source.pointInTimeBuilder() == null && context.scrollContext() == null) {
-                throw new SearchException(shardTarget, "[slice] can only be used with [scroll] or [point-in-time] requests");
-            }
             context.sliceBuilder(source.slice());
         }
 
         if (source.storedFields() != null) {
-            if (source.storedFields().fetchFields() == false) {
-                if (context.sourceRequested()) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled if [_source] is requested");
-                }
-                if (context.fetchFieldsContext() != null) {
-                    throw new SearchException(shardTarget, "[stored_fields] cannot be disabled when using the [fields] option");
-                }
-            }
             context.storedFieldsContext(source.storedFields());
         }
 
         if (source.collapse() != null) {
-            if (context.scrollContext() != null) {
-                throw new SearchException(shardTarget, "cannot use `collapse` in a scroll context");
-            }
-            if (context.rescore() != null && context.rescore().isEmpty() == false) {
-                throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `rescore`");
-            }
             final CollapseContext collapseContext = source.collapse().build(searchExecutionContext);
             context.collapse(collapseContext);
         }
@@ -1450,6 +1424,52 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 queries.add(subSearchSourceBuilder.toSearchQuery(context.getSearchExecutionContext()));
             }
             context.rankShardContext(source.rankBuilder().buildRankShardContext(queries, context.from()));
+        }
+    }
+
+    /**
+     * Validates the incoming search request on the data node. These checks have been moved to the coordinating node.
+     * Validation is still performed on the data nodes to ensure that in a mixed cluster scenario, when the coordinating node is on an older
+     * version that does not yet perform validation, the shards make up for that.
+     * This method can be entirely removed in the next major version, when all nodes perform the validation when coordinating a search.
+     *
+     * @see SearchRequest#validate()
+     */
+    @UpdateForV9
+    private static void validateSearchSource(SearchSourceBuilder source, boolean hasScroll) {
+        if (source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE && hasScroll) {
+            throw new IllegalArgumentException("disabling [track_total_hits] is not allowed in a scroll context");
+        }
+        if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
+            if (hasScroll) {
+                throw new IllegalArgumentException("`search_after` cannot be used in a scroll context.");
+            }
+            if (source.from() > 0) {
+                throw new IllegalArgumentException("`from` parameter must be set to 0 when `search_after` is used.");
+            }
+        }
+        if (source.collapse() != null) {
+            if (hasScroll) {
+                throw new IllegalArgumentException("cannot use `collapse` in a scroll context");
+            }
+            if (source.rescores() != null && source.rescores().isEmpty() == false) {
+                throw new IllegalArgumentException("cannot use `collapse` in conjunction with `rescore`");
+            }
+        }
+        if (source.slice() != null) {
+            if (source.pointInTimeBuilder() == null && (hasScroll == false)) {
+                throw new IllegalArgumentException("[slice] can only be used with [scroll] or [point-in-time] requests");
+            }
+        }
+        if (source.storedFields() != null) {
+            if (source.storedFields().fetchFields() == false) {
+                if (source.fetchSource() != null && source.fetchSource().fetchSource()) {
+                    throw new IllegalArgumentException("[stored_fields] cannot be disabled if [_source] is requested");
+                }
+                if (source.fetchFields() != null) {
+                    throw new IllegalArgumentException("[stored_fields] cannot be disabled when using the [fields] option");
+                }
+            }
         }
     }
 

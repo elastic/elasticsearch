@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
@@ -21,7 +20,6 @@ import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -140,23 +138,17 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     @Override
     public abstract List<B> getBuckets();
 
-    @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        throw new UnsupportedOperationException();
-    }
-
     abstract B createBucket(long docCount, InternalAggregations aggs, B prototype);
 
     @Override
     protected B reduceBucket(List<B> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
+        assert buckets.isEmpty() == false;
         long docCount = 0;
-        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
         for (B bucket : buckets) {
             docCount += bucket.docCount;
-            aggregationsList.add(bucket.aggregations);
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         return createBucket(docCount, aggs, buckets.get(0));
     }
 

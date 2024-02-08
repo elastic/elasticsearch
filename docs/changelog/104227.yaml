@@ -1,0 +1,6 @@
+pr: 104227
+summary: Avoid wrapping searchers multiple times in mget
+area: CRUD
+type: enhancement
+issues:
+ - 85069

@@ -534,11 +534,18 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private ConnectorIndexService.ConnectorResult awaitListConnector(int from, int size) throws Exception {
+    private ConnectorIndexService.ConnectorResult awaitListConnector(
+        int from,
+        int size,
+        List<String> indexNames,
+        List<String> names,
+        List<String> serviceTypes,
+        String searchQuery
+    ) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<ConnectorIndexService.ConnectorResult> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.listConnectors(from, size, new ActionListener<>() {
+        connectorIndexService.listConnectors(from, size, indexNames, names, serviceTypes, searchQuery, new ActionListener<>() {
             @Override
             public void onResponse(ConnectorIndexService.ConnectorResult result) {
                 resp.set(result);

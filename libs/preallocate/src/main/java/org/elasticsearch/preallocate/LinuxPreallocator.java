@@ -13,22 +13,21 @@ import com.sun.jna.Platform;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
-final class LinuxPreallocator implements Preallocator {
+final class LinuxPreallocator extends AbstractPosixPreallocator {
+
+    LinuxPreallocator() {
+        super(new PosixConstants(144, 48, 64));
+    }
 
     @Override
     public boolean useNative() {
-        return Natives.NATIVES_AVAILABLE;
+        return Natives.NATIVES_AVAILABLE && super.useNative();
     }
 
     @Override
     public int preallocate(final int fd, final long currentSize, final long fileSize) {
         final int rc = Natives.fallocate(fd, 0, currentSize, fileSize - currentSize);
         return rc == 0 ? 0 : Native.getLastError();
-    }
-
-    @Override
-    public String error(int errno) {
-        return Natives.strerror(errno);
     }
 
     private static class Natives {
@@ -47,9 +46,6 @@ final class LinuxPreallocator implements Preallocator {
         }
 
         static native int fallocate(int fd, int mode, long offset, long length);
-
-        static native String strerror(int errno);
-
     }
 
 }

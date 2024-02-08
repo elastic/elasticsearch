@@ -8,6 +8,10 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
+
 /**
  * This Elastic-internal API bridge class exposes package-private components of Ingest
  * in a way that can be consumed by Logstash's Elastic Integration Filter without
@@ -32,5 +36,13 @@ public class LogstashInternalBridge {
      */
     public static void resetReroute(final IngestDocument ingestDocument) {
         ingestDocument.resetReroute();
+    }
+
+    /**
+     * @param settings
+     * @return a new {@link ThreadPool} with a noop {@link MeterRegistry}
+     */
+    public static ThreadPool createThreadPool(final Settings settings) {
+        return new ThreadPool(settings, MeterRegistry.NOOP);
     }
 }

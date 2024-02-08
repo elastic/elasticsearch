@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
@@ -30,12 +29,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class NodeMetadataTests extends ESTestCase {
-    // (Index)VersionUtils.randomVersion() only returns known versions, which are necessarily no later than (Index)Version.CURRENT;
+    // IndexVersionUtils.randomVersion() only returns known versions, which are necessarily no later than (Index)Version.CURRENT;
     // however we want to also consider our behaviour with all versions, so occasionally pick up a truly random version.
-    private Version randomVersion() {
-        return rarely() ? Version.fromId(randomInt()) : VersionUtils.randomVersion(random());
-    }
-
     private IndexVersion randomIndexVersion() {
         return rarely() ? IndexVersion.fromId(randomInt()) : IndexVersionUtils.randomVersion(random());
     }

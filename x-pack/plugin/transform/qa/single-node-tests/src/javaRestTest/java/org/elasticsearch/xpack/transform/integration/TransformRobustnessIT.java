@@ -9,17 +9,23 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class TransformRobustnessIT extends TransformRestTestCase {
 
@@ -68,32 +74,32 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertEquals(1, getTransforms(null).size());
+        assertThat(getTransforms(null), hasSize(1));
         // there shouldn't be a task yet
-        assertEquals(0, getNumberOfTransformTasks());
+        assertThat(getTransformTasks(), is(empty()));
         startAndWaitForContinuousTransform(transformId, transformIndex, null);
         assertTrue(indexExists(transformIndex));
 
         // a task exists
-        assertEquals(1, getNumberOfTransformTasks());
+        assertThat(getTransformTasks(), hasSize(1));
         // get and check some users
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_0", 3.776978417);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_5", 3.72);
         assertNotNull(getTransformState(transformId));
 
-        assertEquals(1, getTransforms(null).size());
+        assertThat(getTransforms(null), hasSize(1));
 
         // delete the transform index
         beEvilAndDeleteTheTransformIndex();
         // transform is gone
-        assertEquals(0, getTransforms(List.of(Map.of("type", "dangling_task", "reason", DANGLING_TASK_ERROR_MESSAGE))).size());
+        assertThat(getTransforms(List.of(Map.of("type", "dangling_task", "reason", DANGLING_TASK_ERROR_MESSAGE))), is(empty()));
         // but the task is still there
-        assertEquals(1, getNumberOfTransformTasks());
+        assertThat(getTransformTasks(), hasSize(1));
 
         Request stopTransformRequest = new Request("POST", TransformField.REST_BASE_PATH_TRANSFORMS + transformId + "/_stop");
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(stopTransformRequest));
 
-        assertEquals(409, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(409)));
         assertThat(
             e.getMessage(),
             containsString("Detected transforms with no config [" + transformId + "]. Use force to stop/delete them.")
@@ -107,7 +113,7 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
         // the task is gone
-        assertEquals(0, getNumberOfTransformTasks());
+        assertThat(getTransformTasks(), is(empty()));
 
         // delete the transform because the task might have written a state doc, cleanup fails if the index isn't empty
         deleteTransform(transformId);
@@ -125,7 +131,7 @@ public class TransformRobustnessIT extends TransformRestTestCase {
                 // Wait until the transform finishes
                 startAndWaitForTransform(transformId, destIndex);
                 // After the transform finishes, there should be no transform task left
-                assertEquals(0, getNumberOfTransformTasks());
+                assertThat(getTransformTasks(), is(empty()));
                 // Delete the transform
                 deleteTransform(transformId);
             } catch (AssertionError | Exception e) {
@@ -134,24 +140,94 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         }
     }
 
+    public void testRecoveryFromCancelledTransformTask() throws Exception {
+        String indexName = "continuous_reviews";
+        createReviewsIndex(indexName);
+        String transformId = "simple_continuous_pivot";
+        String transformIndex = "pivot_reviews_continuous";
+        final Request createTransformRequest = new Request("PUT", TransformField.REST_BASE_PATH_TRANSFORMS + transformId);
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "timestamp",
+                  "delay": "1s"
+                }
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", indexName, transformIndex);
+        createTransformRequest.setJsonEntity(config);
+        assertAcknowledged(client().performRequest(createTransformRequest));
+
+        assertThat(getTransforms(null), hasSize(1));
+
+        // Verify that there are no transform tasks yet.
+        assertThat(getTransformTasks(), is(empty()));
+
+//        startAndWaitForContinuousTransform(transformId, transformIndex, null);
+        startTransform(transformId);
+
+        // Verify that the transform task exists.
+        List<String> tasks = getTransformTasks();
+        assertThat(tasks, hasSize(1));
+
+        // Cancel the task.
+        beEvilAndCancelTheTransformTask(tasks.get(0));
+
+        // Wait until the transform is stopped.
+        assertBusy(() -> {
+            Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformId);
+            // wait until the transform is stopped
+            assertEquals("Stats were: " + transformStatsAsMap, "stopped", XContentMapValues.extractValue("state", transformStatsAsMap));
+        }, 30, TimeUnit.SECONDS);
+
+        // Verify that there is no transform task left.
+        assertThat(getTransformTasks(), is(empty()));
+    }
+
     @SuppressWarnings("unchecked")
-    private int getNumberOfTransformTasks() throws IOException {
+    private List<String> getTransformTasks() throws IOException {
         final Request tasksRequest = new Request("GET", "/_tasks");
         tasksRequest.addParameter("actions", TransformField.TASK_NAME + "*");
         Map<String, Object> tasksResponse = entityAsMap(client().performRequest(tasksRequest));
 
+        logger.warn("tasks response = {}", tasksResponse);
+
         Map<String, Object> nodes = (Map<String, Object>) tasksResponse.get("nodes");
         if (nodes == null) {
-            return 0;
+            return List.of();
         }
 
-        int foundTasks = 0;
+        List<String> foundTasks = new ArrayList<>();
         for (Entry<String, Object> node : nodes.entrySet()) {
             Map<String, Object> nodeInfo = (Map<String, Object>) node.getValue();
             Map<String, Object> tasks = (Map<String, Object>) nodeInfo.get("tasks");
-            foundTasks += tasks != null ? tasks.size() : 0;
+            if (tasks != null) {
+                foundTasks.addAll(tasks.keySet());
+            }
         }
-
         return foundTasks;
     }
 
@@ -166,5 +242,13 @@ public class TransformRobustnessIT extends TransformRestTestCase {
             )
         );
         adminClient().performRequest(deleteRequest);
+    }
+
+    private void beEvilAndCancelTheTransformTask(String taskId) throws IOException {
+        final Request cancelTaskRequest = new Request("POST", "/_tasks/" + taskId + "/_cancel");
+        Map<String, Object> cancelTaskResponse = entityAsMap(client().performRequest(cancelTaskRequest));
+
+        logger.warn("cancel task response = {}", cancelTaskResponse);
+
     }
 }

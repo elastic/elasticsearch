@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
-import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.PipelineGraphStructureException;
 import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;

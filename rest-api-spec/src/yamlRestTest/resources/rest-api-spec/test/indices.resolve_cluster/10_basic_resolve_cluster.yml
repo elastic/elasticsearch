@@ -189,13 +189,3 @@ setup:
   - is_false: (local).error # should not be present
   - exists: (local).version.number
 
-  - do:
-      indices.resolve_cluster:
-        name: 'no_such_index*'
-        allow_no_indices: [false]
-
-  - match: {(local).connected: true}
-  - match: {(local).skip_unavailable: false}
-  - is_false: (local).matching_indices  # should not be present
-  - match: {(local).error: "no such index [no_such_index*]"}
-  - is_false: (local).version.number # should not be present

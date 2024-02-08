@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.HandlingTimeTracker;
@@ -322,14 +323,14 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals("header_value", header.getHeaders().v1().get("header"));
     }
 
-    public void testFailToSendResponse() {
-        TransportVersion version = TransportVersionUtils.randomVersion();
+    public void testSendErrorAfterFailToSendResponse() throws Exception {
+        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
         String action = randomAlphaOfLength(10);
         long requestId = randomLongBetween(0, 300);
         var response = new ReleasbleTestResponse(randomAlphaOfLength(10)) {
             @Override
             public void writeTo(StreamOutput out) {
-                throw new CircuitBreakingException("simulated", CircuitBreaker.Durability.TRANSIENT);
+                throw new CircuitBreakingException("simulated cbe", CircuitBreaker.Durability.TRANSIENT);
             }
         };
 
@@ -340,6 +341,7 @@ public class OutboundHandlerTests extends ESTestCase {
         handler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action, TransportResponse response) {
+                assertNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(0L));
                 requestIdRef.set(requestId);
                 assertNull(actionRef.get());
@@ -350,6 +352,7 @@ public class OutboundHandlerTests extends ESTestCase {
 
             @Override
             public void onResponseSent(long requestId, String action, Exception error) {
+                assertNotNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(requestId));
                 assertThat(actionRef.get(), equalTo(action));
                 exceptionRef.set(error);
@@ -370,8 +373,73 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(requestId, requestIdRef.get());
         assertEquals(action, actionRef.get());
         assertEquals(response, responseRef.get());
-        assertThat(exceptionRef.get().getMessage(), equalTo("simulated"));
+        assertThat(exceptionRef.get().getMessage(), equalTo("simulated cbe"));
         assertTrue(response.released.get());
+        BytesReference reference = channel.getMessageCaptor().get();
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        try (StreamInput input = message.get().v2().streamInput()) {
+            RemoteTransportException rme = input.readException();
+            assertThat(rme.getCause(), instanceOf(CircuitBreakingException.class));
+            assertThat(rme.getCause().getMessage(), equalTo("simulated cbe"));
+        }
+        assertTrue(channel.isOpen());
+    }
+
+    public void testFailToSendResponseThenFailToSendError() {
+        channel.close();
+        channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address()) {
+            @Override
+            public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+                throw new IllegalStateException("pipe broken");
+            }
+        };
+        TransportVersion version = TransportVersionUtils.randomVersion();
+        String action = randomAlphaOfLength(10);
+        long requestId = randomLongBetween(0, 300);
+        AtomicLong requestIdRef = new AtomicLong();
+        AtomicReference<String> actionRef = new AtomicReference<>();
+        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, TransportResponse response) {
+                assertNull(channel.getMessageCaptor().get());
+                assertThat(requestIdRef.get(), equalTo(0L));
+                requestIdRef.set(requestId);
+                assertNull(actionRef.get());
+                actionRef.set(action);
+                assertNull(responseRef.get());
+                responseRef.set(response);
+            }
+
+            @Override
+            public void onResponseSent(long requestId, String action, Exception error) {
+                assertNull(channel.getMessageCaptor().get());
+                assertThat(requestIdRef.get(), equalTo(requestId));
+                assertThat(actionRef.get(), equalTo(action));
+                exceptionRef.set(error);
+            }
+        });
+        Compression.Scheme compress = randomFrom(compressionScheme, null);
+        var response = new ReleasbleTestResponse(randomAlphaOfLength(10)) {
+            @Override
+            public void writeTo(StreamOutput out) {
+                throw new CircuitBreakingException("simulated cbe", CircuitBreaker.Durability.TRANSIENT);
+            }
+        };
+        try {
+            handler.sendResponse(version, channel, requestId, action, response, compress, false, ResponseStatsConsumer.NONE);
+        } finally {
+            response.decRef();
+        }
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
+        assertEquals(response, responseRef.get());
+        assertThat(exceptionRef.get().getMessage(), equalTo("simulated cbe"));
+        assertTrue(response.released.get());
+        assertNull(channel.getMessageCaptor().get());
+        assertNull(channel.getListenerCaptor().get());
+        assertFalse(channel.isOpen());
     }
 
     public void testFailToSendHandshakeResponse() {
@@ -391,6 +459,7 @@ public class OutboundHandlerTests extends ESTestCase {
         handler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action, TransportResponse response) {
+                assertNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(0L));
                 requestIdRef.set(requestId);
                 assertNull(actionRef.get());
@@ -410,11 +479,55 @@ public class OutboundHandlerTests extends ESTestCase {
         } finally {
             response.decRef();
         }
+        assertNull(channel.getMessageCaptor().get());
+        assertNull(channel.getListenerCaptor().get());
         assertEquals(requestId, requestIdRef.get());
         assertEquals(action, actionRef.get());
         assertEquals(response, responseRef.get());
         assertTrue(response.released.get());
         assertFalse(channel.isOpen());
+    }
+
+    public void testFailToSendErrorResponse() {
+        channel.close();
+        channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address()) {
+            @Override
+            public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+                throw new IllegalStateException("pipe broken");
+            }
+        };
+        TransportVersion version = TransportVersionUtils.randomVersion();
+        String action = randomAlphaOfLength(10);
+        long requestId = randomLongBetween(0, 300);
+
+        AtomicLong requestIdRef = new AtomicLong();
+        AtomicReference<String> actionRef = new AtomicReference<>();
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, TransportResponse response) {
+                throw new AssertionError("onResponseSent should be not be called");
+            }
+
+            @Override
+            public void onResponseSent(long requestId, String action, Exception error) {
+                assertNull(channel.getMessageCaptor().get());
+                assertThat(requestIdRef.get(), equalTo(0L));
+                requestIdRef.set(requestId);
+                assertNull(actionRef.get());
+                actionRef.set(action);
+                assertNull(exceptionRef.get());
+                exceptionRef.set(error);
+            }
+        });
+        IOException exception = new IOException("file doesn't exist");
+        handler.sendErrorResponse(version, channel, requestId, action, ResponseStatsConsumer.NONE, exception);
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
+        assertEquals(exception, exceptionRef.get());
+        assertFalse(channel.isOpen());
+        assertNull(channel.getMessageCaptor().get());
+        assertNull(channel.getListenerCaptor().get());
     }
 
     /**

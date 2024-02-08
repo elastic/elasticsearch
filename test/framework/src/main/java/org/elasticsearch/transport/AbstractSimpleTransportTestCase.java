@@ -2677,11 +2677,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+                        channel.sendResponse(e);
                     }
 
                     @Override
@@ -2749,11 +2745,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+                        channel.sendResponse(e);
                     }
 
                     @Override
@@ -2866,11 +2858,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+                        channel.sendResponse(e);
                     }
 
                     @Override

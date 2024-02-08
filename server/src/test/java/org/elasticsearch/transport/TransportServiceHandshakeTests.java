@@ -38,7 +38,6 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -457,7 +456,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                     }
 
                     @Override
-                    public void sendResponse(Exception exception) throws IOException {
+                    public void sendResponse(Exception exception) {
                         channel.sendResponse(exception);
 
                     }

@@ -12,8 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Releasable;
 
-import java.io.IOException;
-
 public final class TcpTransportChannel implements TransportChannel {
 
     private final OutboundHandler outboundHandler;
@@ -72,7 +70,7 @@ public final class TcpTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(Exception exception) throws IOException {
+    public void sendResponse(Exception exception) {
         try {
             outboundHandler.sendErrorResponse(version, channel, requestId, action, responseStatsConsumer, exception);
         } finally {

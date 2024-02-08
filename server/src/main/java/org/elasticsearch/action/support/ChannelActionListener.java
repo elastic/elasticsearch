@@ -28,16 +28,26 @@ public final class ChannelActionListener<Response extends TransportResponse> imp
 
     @Override
     public void onResponse(Response response) {
-        ActionListener.run(this, l -> l.channel.sendResponse(response));
+        try {
+            channel.sendResponse(response);
+        } catch (RuntimeException e) {
+            final String message = format("channel [%s] threw exceptions on sendResponse", channel);
+            assert false : new AssertionError(message, e);
+            logger.warn(() -> message, e);
+            throw e;
+        }
     }
 
     @Override
     public void onFailure(Exception e) {
         try {
             channel.sendResponse(e);
-        } catch (Exception sendException) {
+        } catch (RuntimeException sendException) {
             sendException.addSuppressed(e);
-            logger.warn(() -> format("Failed to send error response on channel [%s]", channel), sendException);
+            final String message = format("channel [%s] threw exceptions on sendResponse", channel);
+            assert false : new AssertionError(message, sendException);
+            logger.warn(() -> message, sendException);
+            throw sendException;
         }
     }
 

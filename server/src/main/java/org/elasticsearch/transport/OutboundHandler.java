@@ -156,13 +156,7 @@ final class OutboundHandler {
                 channel.close();
                 return;
             }
-            try {
-                sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
-            } catch (Exception inner) {
-                inner.addSuppressed(ex);
-                logger.warn(() -> format("Failed to send error response on channel [%s], closing channel", channel), inner);
-                channel.close();
-            }
+            sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
         }
     }
 
@@ -176,11 +170,17 @@ final class OutboundHandler {
         final String action,
         final ResponseStatsConsumer responseStatsConsumer,
         final Exception error
-    ) throws IOException {
+    ) {
         TransportVersion version = TransportVersion.min(this.version, transportVersion);
         RemoteTransportException tx = new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId, false, null);
-        sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
+        try {
+            sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
+        } catch (Exception inner) {
+            inner.addSuppressed(error);
+            logger.warn(() -> format("Failed to send error response on channel [%s], closing channel", channel), inner);
+            channel.close();
+        }
     }
 
     private void sendMessage(

@@ -530,7 +530,7 @@ public class TransportActionProxyTests extends ESTestCase {
         }
 
         @Override
-        public void sendResponse(Exception exception) throws IOException {
+        public void sendResponse(Exception exception) {
             in.sendResponse(exception);
         }
 

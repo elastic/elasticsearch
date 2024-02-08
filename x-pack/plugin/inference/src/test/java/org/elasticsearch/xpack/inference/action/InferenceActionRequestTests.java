@@ -51,7 +51,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, singleInputRequest)) {
-            var request = InferenceAction.Request.parseRequest("model_id", "sparse_embedding", parser);
+            var request = InferenceAction.Request.parseRequest("model_id", TaskType.SPARSE_EMBEDDING, parser);
             assertThat(request.getInput(), contains("single text input"));
         }
 
@@ -61,7 +61,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, multiInputRequest)) {
-            var request = InferenceAction.Request.parseRequest("model_id", "sparse_embedding", parser);
+            var request = InferenceAction.Request.parseRequest("model_id", TaskType.ANY, parser);
             assertThat(request.getInput(), contains("an array", "of", "inputs"));
         }
     }
@@ -73,7 +73,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, singleInputRequest)) {
-            var request = InferenceAction.Request.parseRequest("model_id", "sparse_embedding", parser);
+            var request = InferenceAction.Request.parseRequest("model_id", TaskType.SPARSE_EMBEDDING, parser);
             assertThat(request.getInputType(), is(InputType.UNSPECIFIED));
         }
     }
@@ -142,7 +142,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
     @Override
     protected InferenceAction.Request mutateInstanceForVersion(InferenceAction.Request instance, TransportVersion version) {
-        if (version.before(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+        if (version.before(TransportVersions.V_8_12_0)) {
             return new InferenceAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId(),

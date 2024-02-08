@@ -60,7 +60,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
@@ -275,9 +274,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitKeepCommand(EsqlBaseParser.KeepCommandContext ctx) {
-        if (ctx.PROJECT() != null) {
-            addWarning("PROJECT command is no longer supported, please use KEEP instead");
-        }
         var identifiers = ctx.qualifiedNamePattern();
         List<NamedExpression> projections = new ArrayList<>(identifiers.size());
         boolean hasSeenStar = false;

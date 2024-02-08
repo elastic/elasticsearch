@@ -37,7 +37,19 @@ public interface RoleDescriptorValidatorFactory {
             SecurityContext securityContext,
             Predicate<String> reservedRoleNameChecker
         ) {
-            return new RoleDescriptorValidator(xContentRegistry);
+            return new Noop(xContentRegistry);
+        }
+    }
+
+    class Noop extends RoleDescriptorValidator {
+
+        public Noop(NamedXContentRegistry xContentRegistry) {
+            super(xContentRegistry);
+        }
+
+        @Override
+        public RuntimeException validate(RoleDescriptor roleDescriptor, boolean validateRoleName) {
+            return null;
         }
     }
 

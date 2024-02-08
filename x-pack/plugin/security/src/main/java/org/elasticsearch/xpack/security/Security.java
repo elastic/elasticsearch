@@ -71,7 +71,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -562,7 +561,8 @@ public class Security extends Plugin
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
     private final SetOnce<RoleDescriptorValidatorFactory> roleDescriptorRequestValidatorFactory = new SetOnce<>();
-    private final SetOnce<PutRoleRequestBuilderFactory> roleRequestBuilderFactory = new SetOnce<>();
+    private final SetOnce<RoleDescriptorValidatorFactory.RoleDescriptorValidator> roleDescriptorValidator = new SetOnce<>();
+    private final SetOnce<PutRoleRequestBuilderFactory> putRoleRequestBuilderFactory = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
     private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
@@ -1001,11 +1001,8 @@ public class Security extends Plugin
         components.add(reservedRolesStore); // used by roles actions
         components.add(allRolesStore); // for SecurityInfoTransportAction and clear roles cache
         components.add(authzService);
-        components.add(
-            new PluginComponentBinding<>(
-                RoleDescriptorValidatorFactory.RoleDescriptorValidator.class,
-                roleDescriptorRequestValidatorFactory.get().create(xContentRegistry, securityContext.get(), fileRolesStore::exists)
-            )
+        roleDescriptorValidator.set(
+            roleDescriptorRequestValidatorFactory.get().create(xContentRegistry, securityContext.get(), fileRolesStore::exists)
         );
 
         final SecondaryAuthenticator secondaryAuthenticator = new SecondaryAuthenticator(
@@ -1434,7 +1431,13 @@ public class Security extends Plugin
             new RestPutUserAction(settings, getLicenseState()),
             new RestDeleteUserAction(settings, getLicenseState()),
             new RestGetRolesAction(settings, getLicenseState()),
-            new RestPutRoleAction(settings, getLicenseState(), securityContext.get(), roleRequestBuilderFactory.get()),
+            new RestPutRoleAction(
+                settings,
+                getLicenseState(),
+                securityContext.get(),
+                putRoleRequestBuilderFactory.get(),
+                roleDescriptorValidator.get()
+            ),
             new RestDeleteRoleAction(settings, getLicenseState()),
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
             new RestSetEnabledAction(settings, getLicenseState()),
@@ -2073,11 +2076,11 @@ public class Security extends Plugin
             throw new IllegalStateException(PutRoleRequestBuilderFactory.class + " may not have multiple implementations");
         } else if (builderFactories.size() == 1) {
             PutRoleRequestBuilderFactory builderFactory = builderFactories.get(0);
-            this.roleRequestBuilderFactory.set(builderFactory);
+            this.putRoleRequestBuilderFactory.set(builderFactory);
             logger.info("Loaded implementation [{}] for interface RoleRequestBuilderFactory", builderFactory.getClass().getCanonicalName());
         } else {
             logger.info("Using default implementation for interface RoleRequestBuilderFactory");
-            this.roleRequestBuilderFactory.set(new PutRoleRequestBuilderFactory.Default());
+            this.putRoleRequestBuilderFactory.set(new PutRoleRequestBuilderFactory.Default());
         }
     }
 

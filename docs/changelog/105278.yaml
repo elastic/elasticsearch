@@ -1,0 +1,6 @@
+pr: 105278
+summary: Reduce `InternalSingleBucketAggregation` and `InternalRange` in a streaming
+  fashion
+area: Aggregations
+type: enhancement
+issues: []

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -198,31 +199,38 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        List<List<InternalBucket>> bucketsList = null;
-        for (InternalAggregation aggregation : aggregations) {
-            InternalFilters filters = (InternalFilters) aggregation;
-            if (bucketsList == null) {
-                bucketsList = new ArrayList<>(filters.buckets.size());
-                for (InternalBucket bucket : filters.buckets) {
-                    List<InternalBucket> sameRangeList = new ArrayList<>(aggregations.size());
-                    sameRangeList.add(bucket);
-                    bucketsList.add(sameRangeList);
-                }
-            } else {
-                int i = 0;
-                for (InternalBucket bucket : filters.buckets) {
-                    bucketsList.get(i++).add(bucket);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            List<List<InternalBucket>> bucketsList = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalFilters filters = (InternalFilters) aggregation;
+                if (bucketsList == null) {
+                    bucketsList = new ArrayList<>(filters.buckets.size());
+                    for (InternalBucket bucket : filters.buckets) {
+                        List<InternalBucket> sameRangeList = new ArrayList<>(size);
+                        sameRangeList.add(bucket);
+                        bucketsList.add(sameRangeList);
+                    }
+                } else {
+                    int i = 0;
+                    for (InternalBucket bucket : filters.buckets) {
+                        bucketsList.get(i++).add(bucket);
+                    }
                 }
             }
-        }
 
-        reduceContext.consumeBucketsAndMaybeBreak(bucketsList.size());
-        InternalFilters reduced = new InternalFilters(name, new ArrayList<>(bucketsList.size()), keyed, keyedBucket, getMetadata());
-        for (List<InternalBucket> sameRangeList : bucketsList) {
-            reduced.buckets.add(reduceBucket(sameRangeList, reduceContext));
-        }
-        return reduced;
+            @Override
+            public InternalAggregation get() {
+                reduceContext.consumeBucketsAndMaybeBreak(bucketsList.size());
+                InternalFilters reduced = new InternalFilters(name, new ArrayList<>(bucketsList.size()), keyed, keyedBucket, getMetadata());
+                for (List<InternalBucket> sameRangeList : bucketsList) {
+                    reduced.buckets.add(reduceBucket(sameRangeList, reduceContext));
+                }
+                return reduced;
+            }
+        };
     }
 
     @Override
@@ -236,8 +244,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         );
     }
 
-    @Override
-    protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
+    private InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
         InternalBucket reduced = null;
         for (InternalBucket bucket : buckets) {

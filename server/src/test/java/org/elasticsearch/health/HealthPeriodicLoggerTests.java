@@ -416,14 +416,23 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     public void testTryToLogHealthConcurrencyControl() throws Exception {
         AtomicInteger getHealthCalled = new AtomicInteger(0);
 
+        CountDownLatch waitForSecondRun = new CountDownLatch(1);
+        CountDownLatch waitForRelease = new CountDownLatch(1);
+
         HealthService testHealthService = this.getMockedHealthService();
         doAnswer(invocation -> {
-            // get but do not call the provided listener
+            // get but do not call the provided listener immediately
             ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
             assertNotNull(listener);
 
             // note that we received the getHealth call
             getHealthCalled.incrementAndGet();
+
+            // wait for the next run that should be skipped
+            waitForSecondRun.await();
+            // we can continue now
+            listener.onResponse(getTestIndicatorResults());
+            waitForRelease.countDown();
             return null;
         }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
 
@@ -434,18 +443,25 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
-        // call it once, and verify that getHealth is called
+        // call it and verify that getHealth is called
         {
-            spyHealthPeriodicLogger.triggered(event);
+            Thread logHealthThread = new Thread(() -> spyHealthPeriodicLogger.triggered(event));
+            logHealthThread.start();
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
         }
 
-        // trigger it again, and verify that getHealth is not called
-        // it's not called because the results listener was never called by getHealth
-        // this is simulating a double invocation of getHealth, due perhaps to a lengthy getHealth call
+        // run it again, verify that it's skipped because the other one is in progress
         {
+            assertFalse(spyHealthPeriodicLogger.tryToLogHealth());
+            // Unblock the first execution
+            waitForSecondRun.countDown();
+        }
+
+        // run it again, verify getHealth is called, because we are calling the results listener
+        {
+            waitForRelease.await();
             spyHealthPeriodicLogger.triggered(event);
-            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
+            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(2)));
         }
     }
 

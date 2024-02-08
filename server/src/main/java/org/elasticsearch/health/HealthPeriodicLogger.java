@@ -306,12 +306,8 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
     boolean tryToLogHealth() {
         try {
             // We only try to run this because we do not want to pile up the executions.
-            logger.info("---------------- Going to run {}", currentlyRunning.availablePermits());
             if (currentlyRunning.tryAcquire(0, TimeUnit.SECONDS)) {
-                RunOnce release = new RunOnce(() -> {
-                    logger.info("Releasing");
-                    currentlyRunning.release();
-                });
+                RunOnce release = new RunOnce(currentlyRunning::release);
                 try {
                     ActionListener<List<HealthIndicatorResult>> listenerWithRelease = ActionListener.runAfter(resultsListener, release);
                     this.healthService.getHealth(this.client, null, false, 0, listenerWithRelease);
@@ -322,8 +318,9 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
                     release.run();
                 }
                 return true;
+            } else {
+                logger.debug("Skipping this run because it's already in progress.");
             }
-            logger.info("---------------- Skipped because {}", currentlyRunning.availablePermits());
         } catch (InterruptedException e) {
             logger.debug("Periodic health logger run was interrupted.", e);
         }

@@ -40,9 +40,7 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
         String type = randomFrom(composite, paged, array);
         if (array.equals(type)) {
             final BytesStreamOutput out = new BytesStreamOutput(content.length);
-            for (int i = 0; i < content.length; i++) {
-                out.writeByte(content[i]);
-            }
+            out.writeBytes(content, 0, content.length);
             assertThat(content.length, equalTo(out.size()));
             BytesArray ref = new BytesArray(out.bytes().toBytesRef().bytes, 0, content.length);
             assertThat(content.length, equalTo(ref.length()));

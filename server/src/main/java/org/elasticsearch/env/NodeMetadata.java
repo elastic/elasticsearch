@@ -29,21 +29,18 @@ import java.util.Objects;
  * and version of the oldest index it stores.
  * The metadata is persisted in the data folder of this node and is reused across restarts.
  */
-public final class NodeMetadata {
+public record NodeMetadata(
+    String nodeId,
+    IndexVersion indexVersionCheckpoint,
+    IndexVersion previousIndexVersionCheckpoint,
+    IndexVersion oldestIndexVersion
+) {
 
     static final String NODE_ID_KEY = "node_id";
     static final String NODE_VERSION_KEY = "node_version";
     static final String OLDEST_INDEX_VERSION_KEY = "oldest_index_version";
 
-    private final String nodeId;
-
-    private final IndexVersion indexVersionCheckpoint;
-
-    private final IndexVersion previousIndexVersionCheckpoint;
-
-    private final IndexVersion oldestIndexVersion;
-
-    private NodeMetadata(
+    public NodeMetadata(
         final String nodeId,
         final IndexVersion indexVersionCheckpoint,
         final IndexVersion previousIndexVersionCheckpoint,

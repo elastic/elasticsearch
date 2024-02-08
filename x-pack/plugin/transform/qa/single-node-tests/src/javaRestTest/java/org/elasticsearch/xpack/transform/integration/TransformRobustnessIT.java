@@ -39,38 +39,7 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         String transformId = "simple_continuous_pivot";
         String transformIndex = "pivot_reviews_continuous";
         final Request createTransformRequest = new Request("PUT", TransformField.REST_BASE_PATH_TRANSFORMS + transformId);
-        String config = Strings.format("""
-            {
-              "source": {
-                "index": "%s"
-              },
-              "dest": {
-                "index": "%s"
-              },
-              "frequency": "1s",
-              "sync": {
-                "time": {
-                  "field": "timestamp",
-                  "delay": "1s"
-                }
-              },
-              "pivot": {
-                "group_by": {
-                  "reviewer": {
-                    "terms": {
-                      "field": "user_id"
-                    }
-                  }
-                },
-                "aggregations": {
-                  "avg_rating": {
-                    "avg": {
-                      "field": "stars"
-                    }
-                  }
-                }
-              }
-            }""", indexName, transformIndex);
+        String config = Strings.format(indexName, transformIndex);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -140,68 +109,42 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         }
     }
 
-    public void testRecoveryFromCancelledTransformTask() throws Exception {
-        String indexName = "continuous_reviews";
-        createReviewsIndex(indexName);
-        String transformId = "simple_continuous_pivot";
-        String transformIndex = "pivot_reviews_continuous";
-        final Request createTransformRequest = new Request("PUT", TransformField.REST_BASE_PATH_TRANSFORMS + transformId);
-        String config = Strings.format("""
-            {
-              "source": {
-                "index": "%s"
-              },
-              "dest": {
-                "index": "%s"
-              },
-              "frequency": "1s",
-              "sync": {
-                "time": {
-                  "field": "timestamp",
-                  "delay": "1s"
-                }
-              },
-              "pivot": {
-                "group_by": {
-                  "reviewer": {
-                    "terms": {
-                      "field": "user_id"
-                    }
-                  }
-                },
-                "aggregations": {
-                  "avg_rating": {
-                    "avg": {
-                      "field": "stars"
-                    }
-                  }
-                }
-              }
-            }""", indexName, transformIndex);
-        createTransformRequest.setJsonEntity(config);
-        assertAcknowledged(client().performRequest(createTransformRequest));
+    public void testCancellingTransformTask() throws Exception {
+        createReviewsIndex();
+        String transformId = "cancelling_transform_task";
+        String transformIndex = transformId + "-dest";
 
+        // Create the transform.
+        Request createTransformRequest = new Request("PUT", TransformField.REST_BASE_PATH_TRANSFORMS + transformId);
+        createTransformRequest.setJsonEntity(createConfig(REVIEWS_INDEX_NAME, transformIndex));
+        assertAcknowledged(client().performRequest(createTransformRequest));
         assertThat(getTransforms(null), hasSize(1));
 
         // Verify that there are no transform tasks yet.
         assertThat(getTransformTasks(), is(empty()));
 
-//        startAndWaitForContinuousTransform(transformId, transformIndex, null);
+        // Start the transform.
         startTransform(transformId);
 
-        // Verify that the transform task exists.
+        // Verify that the transform task already exists.
         List<String> tasks = getTransformTasks();
         assertThat(tasks, hasSize(1));
 
-        // Cancel the task.
-        beEvilAndCancelTheTransformTask(tasks.get(0));
+        // Sleep for a few seconds so that we cover the task being cancelled at various stages.
+        Thread.sleep(randomLongBetween(0, 5_000));
+
+        // Cancel the transform task.
+        Request cancelTaskRequest = new Request("POST", "/_tasks/" + tasks.get(0) + "/_cancel");
+        assertOK(client().performRequest(cancelTaskRequest));
 
         // Wait until the transform is stopped.
         assertBusy(() -> {
             Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformId);
-            // wait until the transform is stopped
             assertEquals("Stats were: " + transformStatsAsMap, "stopped", XContentMapValues.extractValue("state", transformStatsAsMap));
         }, 30, TimeUnit.SECONDS);
+
+        // Verify that the transform is still present.
+        assertThat(getTransforms(null), hasSize(1));
 
         // Verify that there is no transform task left.
         assertThat(getTransformTasks(), is(empty()));
@@ -212,8 +155,6 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         final Request tasksRequest = new Request("GET", "/_tasks");
         tasksRequest.addParameter("actions", TransformField.TASK_NAME + "*");
         Map<String, Object> tasksResponse = entityAsMap(client().performRequest(tasksRequest));
-
-        logger.warn("tasks response = {}", tasksResponse);
 
         Map<String, Object> nodes = (Map<String, Object>) tasksResponse.get("nodes");
         if (nodes == null) {
@@ -244,11 +185,38 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         adminClient().performRequest(deleteRequest);
     }
 
-    private void beEvilAndCancelTheTransformTask(String taskId) throws IOException {
-        final Request cancelTaskRequest = new Request("POST", "/_tasks/" + taskId + "/_cancel");
-        Map<String, Object> cancelTaskResponse = entityAsMap(client().performRequest(cancelTaskRequest));
-
-        logger.warn("cancel task response = {}", cancelTaskResponse);
-
+    private static String createConfig(String sourceIndex, String destIndex) {
+        return Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "timestamp",
+                  "delay": "1s"
+                }
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", sourceIndex, destIndex);
     }
 }

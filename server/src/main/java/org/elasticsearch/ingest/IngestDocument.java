@@ -1077,14 +1077,4 @@ public final class IngestDocument {
             throw new UnsupportedOperationException();
         }
     }
-
-    /**
-     * This exception is thrown when there is something wrong with the structure of the graph of pipelines to be applied to a document.
-     * For example, this is thrown when there are cycles in the graph.
-     */
-    public static final class PipelineGraphStructureException extends IllegalStateException {
-        public PipelineGraphStructureException(String message) {
-            super(message);
-        }
-    }
 }

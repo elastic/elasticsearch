@@ -244,7 +244,7 @@ ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
 
 autoBucketMonth
 from employees
-| where hire_date >= TO_DATETIME("1985-01-01T00:00:00Z") and hire_date < TO_DATETIME("1986-01-01T00:00:00Z")
+| where hire_date >= TO_DATETIME("1985-01-01T00:00:00.000Z") and hire_date < TO_DATETIME("1986-01-01T00:00:00.000Z")
 | eval hd = auto_bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | sort hire_date
 | keep hire_date, hd;
@@ -265,7 +265,7 @@ hire_date:date           | hd:date
 
 autoBucketWeek
 from employees
-| where hire_date >= TO_DATETIME("1985-01-01T00:00:00Z") and hire_date < TO_DATETIME("1986-01-01T00:00:00Z")
+| where hire_date >= TO_DATETIME("1985-01-01T00:00:00.000Z") and hire_date < TO_DATETIME("1986-01-01T00:00:00.000Z")
 | eval hd = auto_bucket(hire_date, 55, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | sort hire_date
 | keep hire_date, hd;
@@ -307,7 +307,7 @@ emp_no:integer  | birth_date:date
 
 autoBucketYearInAgg#[skip:-8.12.99, reason:date type is supported in 8.13]
 FROM employees
-| WHERE hire_date >= TO_DATETIME("1999-01-01T00:00:00Z")
+| WHERE hire_date >= TO_DATETIME("1999-01-01T00:00:00.000Z")
 | EVAL bucket = AUTO_BUCKET(hire_date, 5, "1999-01-01T00:00:00Z", NOW())
 | STATS COUNT(*) by bucket
 | sort bucket;
@@ -318,7 +318,7 @@ COUNT(*):long            | bucket:date
 
 autoBucketYearInAggConstRefsString#[skip:-8.12.99, reason:date type is supported in 8.13]
 FROM employees
-| WHERE hire_date >= TO_DATETIME("1999-01-01T00:00:00Z")
+| WHERE hire_date >= TO_DATETIME("1999-01-01T00:00:00.000Z")
 | EVAL bucket_start = "1999-01-01T00:00:00Z"
 | EVAL bucket_end = NOW()
 | EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
@@ -331,7 +331,7 @@ COUNT(*):long            | bucket:date
 
 autoBucketYearInAggConstRefsConcat#[skip:-8.12.99, reason:date type is supported in 8.13]
 FROM employees
-| WHERE hire_date >= TO_DATETIME("1999-01-01T00:00:00Z")
+| WHERE hire_date >= TO_DATETIME("1999-01-01T00:00:00.000Z")
 | EVAL bucket_start = CONCAT("1999-01-01", "T", "00:00:00Z")
 | EVAL bucket_end = NOW()
 | EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
@@ -344,7 +344,7 @@ COUNT(*):long            | bucket:date
 
 autoBucketYearInAggConstRefsDate#[skip:-8.12.99, reason:date type is supported in 8.13]
 FROM employees
-| WHERE hire_date >= TO_DATETIME("1999-01-01T00:00:00Z")
+| WHERE hire_date >= TO_DATETIME("1999-01-01T00:00:00.000Z")
 | EVAL bucket_start = TO_DATETIME("1999-01-01T00:00:00.000Z")
 | EVAL bucket_end = NOW()
 | EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
@@ -358,7 +358,7 @@ COUNT(*):long            | bucket:date
 
 autoBucketYearInAggConstRefsRename#[skip:-8.12.99, reason:date type is supported in 8.13]
 FROM employees
-| WHERE hire_date >= TO_DATETIME("1999-01-01T00:00:00Z")
+| WHERE hire_date >= TO_DATETIME("1999-01-01T00:00:00.000Z")
 | EVAL bucket_start = "1999-01-01T00:00:00Z"
 | EVAL bucket_end = NOW()
 | RENAME bucket_end as be, bucket_start as bs
@@ -373,7 +373,7 @@ c:long            | AUTO_BUCKET(hire_date, 5, bs, be):date
 autoBucketMonthInAgg
 // tag::auto_bucket_in_agg[]
 FROM employees
-| WHERE hire_date >= TO_DATETIME("1985-01-01T00:00:00Z") AND hire_date < TO_DATETIME("1986-01-01T00:00:00Z")
+| WHERE hire_date >= TO_DATETIME("1985-01-01T00:00:00.000Z") AND hire_date < TO_DATETIME("1986-01-01T00:00:00.000Z")
 | EVAL bucket = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | STATS AVG(salary) BY bucket
 | SORT bucket
@@ -908,7 +908,7 @@ birth_date:datetime
 docsAutoBucketMonth
 //tag::docsAutoBucketMonth[]
 FROM employees
-| WHERE hire_date >= TO_DATETIME("1985-01-01T00:00:00Z") AND hire_date < TO_DATETIME("1986-01-01T00:00:00Z")
+| WHERE hire_date >= TO_DATETIME("1985-01-01T00:00:00.000Z") AND hire_date < TO_DATETIME("1986-01-01T00:00:00.000Z")
 | EVAL month = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | KEEP hire_date, month
 | SORT hire_date
@@ -934,7 +934,7 @@ FROM employees
 docsAutoBucketMonthlyHistogram
 //tag::docsAutoBucketMonthlyHistogram[]
 FROM employees
-| WHERE hire_date >= TO_DATETIME("1985-01-01T00:00:00Z") AND hire_date < TO_DATETIME("1986-01-01T00:00:00Z")
+| WHERE hire_date >= TO_DATETIME("1985-01-01T00:00:00.000Z") AND hire_date < TO_DATETIME("1986-01-01T00:00:00.000Z")
 | EVAL month = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | STATS hires_per_month = COUNT(*) BY month
 | SORT month
@@ -955,7 +955,7 @@ FROM employees
 docsAutoBucketWeeklyHistogram
 //tag::docsAutoBucketWeeklyHistogram[]
 FROM employees
-| WHERE hire_date >= TO_DATETIME("1985-01-01T00:00:00Z") AND hire_date < TO_DATETIME("1986-01-01T00:00:00Z")
+| WHERE hire_date >= TO_DATETIME("1985-01-01T00:00:00.000Z") AND hire_date < TO_DATETIME("1986-01-01T00:00:00.000Z")
 | EVAL week = AUTO_BUCKET(hire_date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | STATS hires_per_week = COUNT(*) BY week
 | SORT week

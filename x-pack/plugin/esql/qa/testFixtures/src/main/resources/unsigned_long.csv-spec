@@ -140,7 +140,7 @@ warning:Line 1:27: java.lang.IllegalArgumentException: single-value function enc
 
 autoBucket
 FROM ul_logs
-| WHERE @timestamp >= "2017-11-10T20:30:00Z" AND @timestamp < "2017-11-10T20:35:00Z"
+| WHERE @timestamp >= TO_DATETIME("2017-11-10T20:30:00.000Z") AND @timestamp < TO_DATETIME("2017-11-10T20:35:00.000Z")
 | EVAL bh = auto_bucket(bytes_in, 20, 5480608687137202404, 17764691215469285192)
 | SORT @timestamp
 | KEEP @timestamp, bytes_in, bh

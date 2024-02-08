@@ -291,8 +291,10 @@ emp_no:integer |salary_change.int:integer
 
 equalToOrEqualToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where salary_change.int == 1 or salary_change.int == 8 | keep emp_no, salary_change.int | sort emp_no;
-warning:Line 1:24: evaluation of [salary_change.int] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: evaluation of [salary_change.int == 1] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:50: evaluation of [salary_change.int == 8] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:50: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries are filtered out
 emp_no:integer |salary_change.int:integer
@@ -387,7 +389,7 @@ row a = [1, 2, 2, 3] | eval da = mv_dedupe(a);
 autoBucket
 // tag::auto_bucket[]
 FROM employees
-| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| WHERE hire_date >= TO_DATETIME("1985-01-01T00:00:00.000Z") AND hire_date < TO_DATETIME("1986-01-01T00:00:00.000Z")
 | EVAL bs = AUTO_BUCKET(salary, 20, 25324, 74999)
 | SORT hire_date, salary
 | KEEP hire_date, salary, bs

@@ -527,8 +527,11 @@ emp_no:integer |job_positions:keyword
 
 equalToOrEqualToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where job_positions == "Accountant" or job_positions == "Tech Lead" | keep emp_no, job_positions | sort emp_no;
-warning:Line 1:24: evaluation of [job_positions] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: evaluation of [job_positions == \"Accountant\"] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:57: evaluation of [job_positions == \"Tech Lead\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:57: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword

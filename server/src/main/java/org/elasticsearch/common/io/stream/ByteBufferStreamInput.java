@@ -11,6 +11,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 public class ByteBufferStreamInput extends StreamInput {
 
@@ -115,6 +116,23 @@ public class ByteBufferStreamInput extends StreamInput {
         }
         i |= ((long) b) << 63;
         return i;
+    }
+
+    @Override
+    public String readString() throws IOException {
+        final int chars = readArraySize();
+        if (buffer.hasArray()) {
+            // attempt reading bytes directly into a string to minimize copying
+            final byte[] bytes = buffer.array();
+            final int start = buffer.position() + buffer.arrayOffset();
+            final int limit = buffer.limit() + buffer.arrayOffset();
+            final int length = calculateByteLengthOfChars(bytes, chars, start, limit);
+            if (length >= 0) {
+                buffer.position(length + start - buffer.arrayOffset());
+                return new String(bytes, start, length, StandardCharsets.UTF_8);
+            }
+        }
+        return doReadString(chars);
     }
 
     @Override

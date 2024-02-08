@@ -93,50 +93,13 @@ class BytesReferenceStreamInput extends StreamInput {
             final byte[] bytes = slice.array();
             final int start = slice.position() + slice.arrayOffset();
             final int limit = slice.limit() + slice.arrayOffset();
-
-            if (limit - start < chars) {
-                return doReadString(chars); // not enough bytes to read at once
+            final int length = calculateByteLengthOfChars(bytes, chars, start, limit);
+            if (length >= 0) {
+                slice.position(length + start - slice.arrayOffset());
+                return new String(bytes, start, length, StandardCharsets.UTF_8);
             }
-
-            // calculate number of bytes matching the requested chars
-            int pos = start;
-            int remaining = chars;
-            while (remaining-- > 0 && pos < limit) {
-                int c = bytes[pos] & 0xff;
-                switch (c >> 4) {
-                    case 0, 1, 2, 3, 4, 5, 6, 7 -> pos++;
-                    case 12, 13 -> pos += 2;
-                    case 14 -> {
-                        if (maybeHighSurrogate(bytes, pos, limit)) {
-                            return doReadString(chars); // surrogate pairs are incorrectly encoded :/
-                        }
-                        pos += 3;
-                    }
-                    default -> throwOnBrokenChar(c);
-                }
-            }
-
-            if (remaining > 0 || pos >= limit) {
-                return doReadString(chars); // not enough bytes to read at once
-            }
-
-            slice.position(pos - slice.arrayOffset());
-            return new String(bytes, start, pos - start, StandardCharsets.UTF_8);
-        } else {
-            return super.doReadString(chars);
         }
-    }
-
-    private static boolean maybeHighSurrogate(byte[] bytes, int pos, int limit) {
-        if (pos + 2 >= limit) {
-            return true; // beyond limit, we can't tell
-        }
-        int c1 = bytes[pos] & 0xff;
-        int c2 = bytes[pos + 1] & 0xff;
-        int c3 = bytes[pos + 2] & 0xff;
-        int surrogateCandidate = ((c1 & 0x0F) << 12) | ((c2 & 0x3F) << 6) | (c3 & 0x3F);
-        // check if in the high surrogate range
-        return surrogateCandidate >= 0xD800 && surrogateCandidate <= 0xDBFF;
+        return doReadString(chars);
     }
 
     @Override

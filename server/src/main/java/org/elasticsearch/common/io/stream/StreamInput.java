@@ -437,7 +437,7 @@ public abstract class StreamInput extends InputStream {
         return doReadString(charCount);
     }
 
-    protected String doReadString(int charCount) throws IOException {
+    protected String doReadString(final int charCount) throws IOException {
         final char[] charBuffer = charCount > SMALL_STRING_LIMIT ? ensureLargeSpare(charCount) : smallSpare.get();
 
         int charsOffset = 0;
@@ -523,7 +523,45 @@ public abstract class StreamInput extends InputStream {
         return new String(charBuffer, 0, charCount);
     }
 
-    protected static void throwOnBrokenChar(int c) throws IOException {
+    protected static int calculateByteLengthOfChars(final byte[] bytes, final int chars, final int start, final int limit)
+        throws IOException {
+        if (limit - start < chars) {
+            return -1; // not enough bytes to read chars
+        }
+        // calculate number of bytes matching the requested chars
+        int pos = start;
+        int remaining = chars;
+        while (remaining-- > 0 && pos < limit) {
+            int c = bytes[pos] & 0xff;
+            switch (c >> 4) {
+                case 0, 1, 2, 3, 4, 5, 6, 7 -> pos++;
+                case 12, 13 -> pos += 2;
+                case 14 -> {
+                    // surrogate pairs are incorrectly encoded, these can't be directly read from bytes
+                    if (maybeHighSurrogate(bytes, pos, limit)) return -1;
+                    pos += 3;
+                }
+                default -> throwOnBrokenChar(c);
+            }
+        }
+        // not enough bytes to read all chars from array
+        if (remaining > 0 || pos >= limit) return -1;
+        return pos - start;
+    }
+
+    private static boolean maybeHighSurrogate(final byte[] bytes, final int pos, final int limit) {
+        if (pos + 2 >= limit) {
+            return true; // beyond limit, we can't tell
+        }
+        int c1 = bytes[pos] & 0xff;
+        int c2 = bytes[pos + 1] & 0xff;
+        int c3 = bytes[pos + 2] & 0xff;
+        int surrogateCandidate = ((c1 & 0x0F) << 12) | ((c2 & 0x3F) << 6) | (c3 & 0x3F);
+        // check if in the high surrogate range
+        return surrogateCandidate >= 0xD800 && surrogateCandidate <= 0xDBFF;
+    }
+
+    private static void throwOnBrokenChar(int c) throws IOException {
         throw new IOException("Invalid string; unexpected character: " + c + " hex: " + Integer.toHexString(c));
     }
 

@@ -23,6 +23,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -529,12 +530,12 @@ public final class SearchPhaseController {
      * @param bufferedAggs a list of pre-collected aggregations.
      * @param bufferedTopDocs a list of pre-collected top docs.
      * @param numReducePhases the number of non-final reduce phases applied to the query results.
-     * @see QuerySearchResult#consumeAggs()
+     * @see QuerySearchResult#getAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
     static ReducedQueryPhase reducedQueryPhase(
         Collection<? extends SearchPhaseResult> queryResults,
-        List<InternalAggregations> bufferedAggs,
+        List<DelayableWriteable<InternalAggregations>> bufferedAggs,
         List<TopDocs> bufferedTopDocs,
         TopDocsStats topDocsStats,
         int numReducePhases,
@@ -661,11 +662,11 @@ public final class SearchPhaseController {
     private static InternalAggregations reduceAggs(
         AggregationReduceContext.Builder aggReduceContextBuilder,
         boolean performFinalReduce,
-        List<InternalAggregations> toReduce
+        List<DelayableWriteable<InternalAggregations>> toReduce
     ) {
         return toReduce.isEmpty()
             ? null
-            : InternalAggregations.topLevelReduce(
+            : InternalAggregations.topLevelReduceDelayable(
                 toReduce,
                 performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
             );

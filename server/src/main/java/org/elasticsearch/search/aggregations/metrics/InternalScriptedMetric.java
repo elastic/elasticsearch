@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -69,36 +70,43 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        List<Object> aggregationObjects = new ArrayList<>();
-        for (InternalAggregation aggregation : aggregations) {
-            InternalScriptedMetric mapReduceAggregation = (InternalScriptedMetric) aggregation;
-            aggregationObjects.addAll(mapReduceAggregation.aggregations);
-        }
-        InternalScriptedMetric firstAggregation = ((InternalScriptedMetric) aggregations.get(0));
-        List<Object> aggregation;
-        if (firstAggregation.reduceScript != null && reduceContext.isFinalReduce()) {
-            Map<String, Object> params = new HashMap<>();
-            if (firstAggregation.reduceScript.getParams() != null) {
-                params.putAll(firstAggregation.reduceScript.getParams());
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+
+            final List<Object> aggregationObjects = new ArrayList<>();
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                aggregationObjects.addAll(((InternalScriptedMetric) aggregation).aggregationsList());
             }
 
-            ScriptedMetricAggContexts.ReduceScript.Factory factory = reduceContext.scriptService()
-                .compile(firstAggregation.reduceScript, ScriptedMetricAggContexts.ReduceScript.CONTEXT);
-            ScriptedMetricAggContexts.ReduceScript script = factory.newInstance(params, aggregationObjects);
+            @Override
+            public InternalAggregation get() {
+                List<Object> aggregation;
+                if (reduceScript != null && reduceContext.isFinalReduce()) {
+                    Map<String, Object> params = new HashMap<>();
+                    if (reduceScript.getParams() != null) {
+                        params.putAll(reduceScript.getParams());
+                    }
 
-            Object scriptResult = script.execute();
-            CollectionUtils.ensureNoSelfReferences(scriptResult, "reduce script");
+                    ScriptedMetricAggContexts.ReduceScript.Factory factory = reduceContext.scriptService()
+                        .compile(reduceScript, ScriptedMetricAggContexts.ReduceScript.CONTEXT);
+                    ScriptedMetricAggContexts.ReduceScript script = factory.newInstance(params, aggregationObjects);
 
-            aggregation = Collections.singletonList(scriptResult);
-        } else if (reduceContext.isFinalReduce()) {
-            aggregation = Collections.singletonList(aggregationObjects);
-        } else {
-            // if we are not an final reduce we have to maintain all the aggs from all the incoming one
-            // until we hit the final reduce phase.
-            aggregation = aggregationObjects;
-        }
-        return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.reduceScript, getMetadata());
+                    Object scriptResult = script.execute();
+                    CollectionUtils.ensureNoSelfReferences(scriptResult, "reduce script");
+
+                    aggregation = Collections.singletonList(scriptResult);
+                } else if (reduceContext.isFinalReduce()) {
+                    aggregation = Collections.singletonList(aggregationObjects);
+                } else {
+                    // if we are not an final reduce we have to maintain all the aggs from all the incoming one
+                    // until we hit the final reduce phase.
+                    aggregation = aggregationObjects;
+                }
+                return new InternalScriptedMetric(getName(), aggregation, reduceScript, getMetadata());
+            }
+        };
     }
 
     @Override

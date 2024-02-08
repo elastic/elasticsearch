@@ -13,11 +13,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -90,35 +92,45 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        List<InternalResetTrackingRate> toReduce = aggregations.stream()
-            .map(r -> (InternalResetTrackingRate) r)
-            .sorted(Comparator.comparingLong(o -> o.startTime))
-            .toList();
-        double resetComp = toReduce.get(0).resetCompensation;
-        double startValue = toReduce.get(0).startValue;
-        double endValue = toReduce.get(0).endValue;
-        final int endIndex = toReduce.size() - 1;
-        for (int i = 1; i < endIndex + 1; i++) {
-            InternalResetTrackingRate rate = toReduce.get(i);
-            assert rate.startTime >= toReduce.get(i - 1).endTime;
-            resetComp += rate.resetCompensation;
-            if (endValue > rate.startValue) {
-                resetComp += endValue;
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        final List<InternalResetTrackingRate> aggregations = new ArrayList<>(size);
+        return new AggregatorReducer() {
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                aggregations.add((InternalResetTrackingRate) aggregation);
             }
-            endValue = rate.endValue;
-        }
-        return new InternalResetTrackingRate(
-            name,
-            format,
-            metadata,
-            startValue,
-            endValue,
-            toReduce.get(0).startTime,
-            toReduce.get(endIndex).endTime,
-            resetComp,
-            toReduce.get(0).rateUnit
-        );
+
+            @Override
+            public InternalAggregation get() {
+                List<InternalResetTrackingRate> toReduce = aggregations.stream()
+                    .sorted(Comparator.comparingLong(o -> o.startTime))
+                    .toList();
+                double resetComp = toReduce.get(0).resetCompensation;
+                double startValue = toReduce.get(0).startValue;
+                double endValue = toReduce.get(0).endValue;
+                final int endIndex = toReduce.size() - 1;
+                for (int i = 1; i < endIndex + 1; i++) {
+                    InternalResetTrackingRate rate = toReduce.get(i);
+                    assert rate.startTime >= toReduce.get(i - 1).endTime;
+                    resetComp += rate.resetCompensation;
+                    if (endValue > rate.startValue) {
+                        resetComp += endValue;
+                    }
+                    endValue = rate.endValue;
+                }
+                return new InternalResetTrackingRate(
+                    name,
+                    format,
+                    metadata,
+                    startValue,
+                    endValue,
+                    toReduce.get(0).startTime,
+                    toReduce.get(endIndex).endTime,
+                    resetComp,
+                    toReduce.get(0).rateUnit
+                );
+            }
+        };
     }
 
     @Override

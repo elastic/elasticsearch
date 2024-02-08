@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationResponse;
@@ -53,6 +54,7 @@ public final class TransportSamlPrepareAuthenticationAction extends HandledTrans
         SamlPrepareAuthenticationRequest request,
         ActionListener<SamlPrepareAuthenticationResponse> listener
     ) {
+        assert Transports.assertNotTransportThread("SAML prepare authentication may involve slow IO/HTTP calls");
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL());
         if (realms.isEmpty()) {
             listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));

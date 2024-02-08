@@ -256,7 +256,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         }
     }
 
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         long sumDocCountError = 0;
         long[] otherDocCount = new long[] { 0 };
         A referenceTerms = null;

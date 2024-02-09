@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -17,9 +18,11 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 
@@ -38,6 +41,7 @@ import java.util.function.Function;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.entityToMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 import static org.hamcrest.Matchers.closeTo;
 
@@ -224,7 +228,11 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testIp() throws IOException {
-        new Test("ip").ignoreMalformed(randomBoolean()).test(NetworkAddress.format(randomIp(randomBoolean())));
+        ipTest().test(NetworkAddress.format(randomIp(randomBoolean())));
+    }
+
+    private Test ipTest() {
+        return new Test("ip").ignoreMalformed(randomBoolean());
     }
 
     public void testVersionField() throws IOException {
@@ -282,7 +290,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         assertMap(
             result,
             matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.raw", "keyword")))
-                .entry("values", List.of(List.of(value, value)))
+                .entry("values", List.of(matchesList().item(value).item(value)))
         );
     }
 
@@ -306,7 +314,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         assertMap(
             result,
             matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.int", "integer")))
-                .entry("values", List.of(List.of(Integer.toString(value), value)))
+                .entry("values", List.of(matchesList().item(Integer.toString(value)).item(value)))
         );
     }
 
@@ -334,654 +342,260 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         );
     }
 
-    // /*
-    // * "text_field": {
-    // * "type": "text",
-    // * "fields": {
-    // * "ip_subfield": {
-    // * "type": "ip",
-    // * "ignore_malformed": true/false
-    // * }
-    // * }
-    // * }
-    // */
-    // public void testTextFieldWithIpSubfield() throws IOException {
-    // String ip = "123.123.123.123";
-    // boolean ignoreMalformed = randomBoolean(); // ignore_malformed is true, thus test a non-IP value
-    // String actualValue = ip;
-    // String fieldName = "text_field";
-    // String subFieldName = "text_field.ip_subfield";
-    // String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
-    //
-    // Map<String, Map<String, Object>> subFieldsProps = null;
-    // if (ignoreMalformed) {
-    // subFieldsProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // // on purpose use a non-IP value instead of an IP and check for null when querying the field's value
-    // fieldProp.put("ignore_malformed", true);
-    // subFieldsProps.put(subFieldName, fieldProp);
-    // actualValue = "foo";
-    // }
-    //
-    // createIndexWithFieldTypeAndSubFields("text", null, getIndexProps(), subFieldsProps, "ip");
-    // index("{\"" + fieldName + "\":\"" + actualValue + "\"}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put(
-    // "columns",
-    // asList(
-    // columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
-    // columnInfo("plain", subFieldName, "ip", JDBCType.VARCHAR, Integer.MAX_VALUE)
-    // )
-    // );
-    // if (ignoreMalformed) {
-    // expected.put("rows", singletonList(asList(getExpectedValueFromSource("foo"), null)));
-    // } else {
-    // Object expectedValueFromSource = getExpectedValueFromSource(ip);
-    // expected.put("rows", singletonList(asList(expectedValueFromSource, expectedValueFromSource)));
-    // }
-    // assertResponse(expected, runSql(query));
-    // }
-    //
-    // /*
-    // * "integer_field": {
-    // * "type": "integer",
-    // * "ignore_malformed": true/false,
-    // * "fields": {
-    // * "keyword_subfield/text_subfield": {
-    // * "type": "keyword/text"
-    // * }
-    // * }
-    // * }
-    // */
-    // public void testNumberFieldWithTextOrKeywordSubfield() throws IOException {
-    // Integer number = randomInt();
-    // boolean ignoreMalformed = randomBoolean(); // ignore_malformed is true, thus test a non-number value
-    // boolean isKeyword = randomBoolean(); // text or keyword subfield
-    // Object actualValue = number;
-    // String fieldName = "integer_field";
-    // String subFieldName = "integer_field." + (isKeyword ? "keyword_subfield" : "text_subfield");
-    // String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
-    //
-    // Map<String, Map<String, Object>> fieldProps = null;
-    // if (ignoreMalformed) {
-    // fieldProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // // on purpose use a string instead of a number and check for null when querying the field's value
-    // fieldProp.put("ignore_malformed", true);
-    // fieldProps.put(fieldName, fieldProp);
-    // actualValue = "foo";
-    // }
-    //
-    // createIndexWithFieldTypeAndSubFields("integer", fieldProps, getIndexProps(), null, isKeyword ? "keyword" : "text");
-    // index("{\"" + fieldName + "\":\"" + actualValue + "\"}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put(
-    // "columns",
-    // asList(
-    // columnInfo("plain", fieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE),
-    // columnInfo("plain", subFieldName, isKeyword ? "keyword" : "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
-    // )
-    // );
-    // if (ignoreMalformed) {
-    // expected.put("rows", singletonList(asList(null, getExpectedValueFromSource("foo"))));
-    // } else {
-    // expected.put(
-    // "rows",
-    // singletonList(asList(getExpectedValueFromSource(number), getExpectedValueFromSource(String.valueOf(number))))
-    // );
-    // }
-    // assertResponse(expected, runSql(query));
-    // }
-    //
-    // /*
-    // * "ip_field": {
-    // * "type": "ip",
-    // * "ignore_malformed": true/false,
-    // * "fields": {
-    // * "keyword_subfield/text_subfield": {
-    // * "type": "keyword/text"
-    // * }
-    // * }
-    // * }
-    // */
-    // public void testIpFieldWithTextOrKeywordSubfield() throws IOException {
-    // String ip = "123.123.123.123";
-    // boolean ignoreMalformed = randomBoolean(); // ignore_malformed is true, thus test a non-number value
-    // boolean isKeyword = randomBoolean(); // text or keyword subfield
-    // String actualValue = ip;
-    // String fieldName = "ip_field";
-    // String subFieldName = "ip_field." + (isKeyword ? "keyword_subfield" : "text_subfield");
-    // String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
-    //
-    // Map<String, Map<String, Object>> fieldProps = null;
-    // if (ignoreMalformed) {
-    // fieldProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // // on purpose use a non-IP instead of an ip and check for null when querying the field's value
-    // fieldProp.put("ignore_malformed", true);
-    // fieldProps.put(fieldName, fieldProp);
-    // actualValue = "foo";
-    // }
-    //
-    // createIndexWithFieldTypeAndSubFields("ip", fieldProps, getIndexProps(), null, isKeyword ? "keyword" : "text");
-    // index("{\"" + fieldName + "\":\"" + actualValue + "\"}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put(
-    // "columns",
-    // asList(
-    // columnInfo("plain", fieldName, "ip", JDBCType.VARCHAR, Integer.MAX_VALUE),
-    // columnInfo("plain", subFieldName, isKeyword ? "keyword" : "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
-    // )
-    // );
-    // if (ignoreMalformed) {
-    // expected.put("rows", singletonList(asList(null, getExpectedValueFromSource("foo"))));
-    // } else {
-    // Object expectedValueFromSource = getExpectedValueFromSource(ip);
-    // expected.put("rows", singletonList(asList(expectedValueFromSource, expectedValueFromSource)));
-    // }
-    // assertResponse(expected, runSql(query));
-    // }
-    //
-    // /*
-    // * "integer_field": {
-    // * "type": "integer",
-    // * "ignore_malformed": true/false,
-    // * "fields": {
-    // * "byte_subfield": {
-    // * "type": "byte",
-    // * "ignore_malformed": true/false
-    // * }
-    // * }
-    // * }
-    // */
-    // public void testIntegerFieldWithByteSubfield() throws IOException {
-    // boolean isByte = randomBoolean();
-    // Integer number = isByte ? randomByte() : randomIntBetween(Byte.MAX_VALUE + 1, Integer.MAX_VALUE);
-    // boolean rootIgnoreMalformed = randomBoolean(); // root field ignore_malformed
-    // boolean subFieldIgnoreMalformed = randomBoolean(); // sub-field ignore_malformed
-    // String fieldName = "integer_field";
-    // String subFieldName = "integer_field.byte_subfield";
-    // String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
-    //
-    // Map<String, Map<String, Object>> fieldProps = null;
-    // if (rootIgnoreMalformed) {
-    // fieldProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // fieldProp.put("ignore_malformed", true);
-    // fieldProps.put(fieldName, fieldProp);
-    // }
-    // Map<String, Map<String, Object>> subFieldProps = null;
-    // if (subFieldIgnoreMalformed) {
-    // subFieldProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // fieldProp.put("ignore_malformed", true);
-    // subFieldProps.put(subFieldName, fieldProp);
-    // }
-    //
-    // createIndexWithFieldTypeAndSubFields("integer", fieldProps, getIndexProps(), subFieldProps, "byte");
-    // index("{\"" + fieldName + "\":" + number + "}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put(
-    // "columns",
-    // asList(
-    // columnInfo("plain", fieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE),
-    // columnInfo("plain", subFieldName, "byte", JDBCType.TINYINT, Integer.MAX_VALUE)
-    // )
-    // );
-    // if (isByte || subFieldIgnoreMalformed) {
-    // Object expectedValueFromSource = getExpectedValueFromSource(number);
-    // expected.put("rows", singletonList(asList(expectedValueFromSource, isByte ? expectedValueFromSource : null)));
-    // } else {
-    // expected.put("rows", Collections.emptyList());
-    // }
-    // assertResponse(expected, runSql(query));
-    // }
-    //
-    // /*
-    // * "byte_field": {
-    // * "type": "byte",
-    // * "ignore_malformed": true/false,
-    // * "fields": {
-    // * "integer_subfield": {
-    // * "type": "integer",
-    // * "ignore_malformed": true/false
-    // * }
-    // * }
-    // * }
-    // */
-    // public void testByteFieldWithIntegerSubfield() throws IOException {
-    // boolean isByte = randomBoolean();
-    // Integer number = isByte ? randomByte() : randomIntBetween(Byte.MAX_VALUE + 1, Integer.MAX_VALUE);
-    // boolean rootIgnoreMalformed = randomBoolean(); // root field ignore_malformed
-    // boolean subFieldIgnoreMalformed = randomBoolean(); // sub-field ignore_malformed
-    // String fieldName = "byte_field";
-    // String subFieldName = "byte_field.integer_subfield";
-    // String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
-    //
-    // Map<String, Map<String, Object>> fieldProps = null;
-    // if (rootIgnoreMalformed) {
-    // fieldProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // fieldProp.put("ignore_malformed", true);
-    // fieldProps.put(fieldName, fieldProp);
-    // }
-    // Map<String, Map<String, Object>> subFieldProps = null;
-    // if (subFieldIgnoreMalformed) {
-    // subFieldProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // fieldProp.put("ignore_malformed", true);
-    // subFieldProps.put(subFieldName, fieldProp);
-    // }
-    //
-    // createIndexWithFieldTypeAndSubFields("byte", fieldProps, getIndexProps(), subFieldProps, "integer");
-    // index("{\"" + fieldName + "\":" + number + "}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put(
-    // "columns",
-    // asList(
-    // columnInfo("plain", fieldName, "byte", JDBCType.TINYINT, Integer.MAX_VALUE),
-    // columnInfo("plain", subFieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE)
-    // )
-    // );
-    // if (isByte || rootIgnoreMalformed) {
-    // Object expectedValueFromSource = getExpectedValueFromSource(number);
-    // expected.put("rows", singletonList(asList(isByte ? expectedValueFromSource : null, expectedValueFromSource)));
-    // } else {
-    // expected.put("rows", Collections.emptyList());
-    // }
-    // assertResponse(expected, runSql(query));
-    // }
-    //
-    // public void testNestedFieldsHierarchyWithMultiNestedValues() throws IOException {
-    // Request request = new Request("PUT", "/test");
-    // request.setJsonEntity("""
-    // {
-    // "mappings": {
-    // "properties": {
-    // "h": {
-    // "type": "nested",
-    // "properties": {
-    // "i": {
-    // "type": "keyword"
-    // },
-    // "j": {
-    // "type": "keyword"
-    // },
-    // "f": {
-    // "type": "nested",
-    // "properties": {
-    // "o": {
-    // "type": "keyword"
-    // },
-    // "b": {
-    // "properties": {
-    // "a": {
-    // "type": "keyword"
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }""");
-    // client().performRequest(request);
-    // index(stripWhitespace("""
-    // {
-    // "h": [ { "i": "123", "j": "abc" }, { "i": "890", "j": "xyz" }, { "i": "567", "j": "klm" } ],
-    // "test": "foo"
-    // }"""));
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put(
-    // "columns",
-    // asList(
-    // columnInfo("plain", "h.i", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE),
-    // columnInfo("plain", "h.j", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE),
-    // columnInfo("plain", "test", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
-    // )
-    // );
-    // expected.put("rows", asList(asList("123", "abc", "foo"), asList("890", "xyz", "foo"), asList("567", "klm", "foo")));
-    // assertResponse(expected, runSql("SELECT h.i, h.j, test FROM test"));
-    // }
-    //
-    // public void testNestedFieldsHierarchyWithMissingValue() throws IOException {
-    // Request request = new Request("PUT", "/test");
-    // request.setJsonEntity("""
-    // {
-    // "mappings": {
-    // "properties": {
-    // "h": {
-    // "type": "nested",
-    // "properties": {
-    // "i": {
-    // "type": "keyword"
-    // },
-    // "f": {
-    // "type": "nested",
-    // "properties": {
-    // "o": {
-    // "type": "keyword"
-    // },
-    // "b": {
-    // "properties": {
-    // "a": {
-    // "type": "keyword"
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }""");
-    // client().performRequest(request);
-    // index(stripWhitespace("""
-    // {
-    // "h": [ { "f": { "b": { "a": "ABC" } } } ]
-    // }"""));
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put("columns", singletonList(columnInfo("plain", "h.f.o", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-    // expected.put("rows", singletonList(singletonList(null)));
-    // assertResponse(expected, runSql("SELECT h.f.o FROM test"));
-    //
-    // expected.put("columns", singletonList(columnInfo("plain", "h.i", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-    // assertResponse(expected, runSql("SELECT h.i FROM test"));
-    // }
-    //
-    // public void testNestedFieldsHierarchyExtractDeeplyNestedValue() throws IOException {
-    // Request request = new Request("PUT", "/test");
-    // request.setJsonEntity("""
-    // {
-    // "mappings": {
-    // "properties": {
-    // "h": {
-    // "type": "nested",
-    // "properties": {
-    // "i": {
-    // "type": "keyword"
-    // },
-    // "f": {
-    // "type": "nested",
-    // "properties": {
-    // "o": {
-    // "type": "keyword"
-    // },
-    // "b": {
-    // "properties": {
-    // "a": {
-    // "type": "keyword"
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }""");
-    // client().performRequest(request);
-    // index(stripWhitespace("""
-    // {
-    // "h": [ { "f": { "b": { "a": "ABC" } } } ]
-    // }"""));
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put("columns", singletonList(columnInfo("plain", "h.f.b.a", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-    // expected.put("rows", singletonList(singletonList("ABC")));
-    // assertResponse(expected, runSql("SELECT h.f.b.a FROM test"));
-    // }
-    //
-    // public void testNestedFieldsHierarchyWithArrayOfValues() throws IOException {
-    // Request request = new Request("PUT", "/test");
-    // request.setJsonEntity(stripWhitespace("""
-    // {
-    // "mappings": {
-    // "properties": {
-    // "h": {
-    // "type": "nested",
-    // "properties": {
-    // "i": {
-    // "type": "keyword"
-    // },
-    // "j": {
-    // "type": "keyword"
-    // },
-    // "f": {
-    // "type": "nested",
-    // "properties": {
-    // "o": {
-    // "type": "keyword"
-    // },
-    // "b": {
-    // "properties": {
-    // "a": {
-    // "type": "keyword"
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }
-    // }"""));
-    // client().performRequest(request);
-    // index(stripWhitespace("""
-    // {
-    // "h": [
-    // {
-    // "i": [ "123", "124", "125" ],
-    // "j": "abc"
-    // },
-    // {
-    // "i": "890",
-    // "j": "xyz"
-    // },
-    // {
-    // "i": "567",
-    // "j": "klm"
-    // }
-    // ],
-    // "test": "foo"
-    // }"""));
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // Map<String, Object> actual = new HashMap<>();
-    // expected.put(
-    // "columns",
-    // asList(
-    // columnInfo("plain", "h.i", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE),
-    // columnInfo("plain", "h.j", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE),
-    // columnInfo("plain", "test", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
-    // )
-    // );
-    // expected.put("rows", asList(asList("123", "abc", "foo"), asList("890", "xyz", "foo"), asList("567", "klm", "foo")));
-    // Request sqlRequest = new Request("POST", RestSqlTestCase.SQL_QUERY_REST_ENDPOINT);
-    // sqlRequest.addParameter("error_trace", "true");
-    // sqlRequest.addParameter("pretty", "true");
-    // sqlRequest.setEntity(
-    // new StringEntity(
-    // query("SELECT h.i, h.j, test FROM test").mode("plain").fieldMultiValueLeniency(true).toString(),
-    // ContentType.APPLICATION_JSON
-    // )
-    // );
-    // Response response = client().performRequest(sqlRequest);
-    // try (InputStream content = response.getEntity().getContent()) {
-    // actual = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
-    // }
-    // assertResponse(expected, actual);
-    // }
-    //
-    // /*
-    // * From a randomly created mapping using "object" field types and "nested" field types like the one below, we look at
-    // * extracting the values from the deepest "nested" field type.
-    // * The query to use for the mapping below would be "SELECT HETeC.fdeuk.oDwgT FROM test"
-    // * {
-    // * "mappings" : {
-    // * "properties" : {
-    // * "HETeC" : {
-    // * "type" : "nested",
-    // * "properties" : {
-    // * "iBtgB" : {
-    // * "type" : "keyword"
-    // * },
-    // * "fdeuk" : {
-    // * "type" : "nested",
-    // * "properties" : {
-    // * "oDwgT" : {
-    // * "type" : "keyword"
-    // * },
-    // * "biXlb" : {
-    // * "properties" : {
-    // * "AlkJR" : {
-    // * "type" : "keyword"
-    // * }
-    // * }
-    // * }
-    // * }
-    // * }
-    // * }
-    // * }
-    // * }
-    // * }
-    // * }
-    // */
-    // public void testNestedFieldsHierarchy() throws IOException {
-    // final int minDepth = 2;
-    // final int maxDepth = 6;
-    // final int depth = between(minDepth, maxDepth);
-    //
-    // Request request = new Request("PUT", "/test");
-    // XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
-    // List<Tuple<String, NestedFieldType>> path = new ArrayList<>(depth);
-    // StringBuilder bulkContent = new StringBuilder();
-    // Holder<String> randomValue = new Holder<>("");
-    // index.startObject("mappings");
-    // {
-    // index.startObject("properties");
-    // {
-    // addField(index, false, depth, path, bulkContent, randomValue);
-    // }
-    // index.endObject();
-    // }
-    // index.endObject();
-    // index.endObject();
-    //
-    // request.setJsonEntity(Strings.toString(index));
-    // client().performRequest(request);
-    // index("{" + bulkContent.toString() + "}");
-    //
-    // // the path ends with either a NESTED field or an OBJECT field (both having a leaf field as a sub-field)
-    // // if it's nested, we use this field
-    // // if it's object, we need to strip every field starting from the end until we reach a nested field
-    // int endOfPathIndex = path.size() - 2; // -1 because we skip the leaf field at the end and another -1 because it's 0-based
-    // while (path.get(endOfPathIndex--).v2() != NestedFieldType.NESTED) {
-    // } // find the first nested field starting from the end
-    //
-    // StringBuilder stringPath = new StringBuilder(path.get(0).v1()); // the path we will ask for in the sql query
-    // for (int i = 1; i <= endOfPathIndex + 2; i++) { // +2 because the index is now at the [index_of_a_nested_field]-1
-    // if (path.get(i).v2() != NestedFieldType.LEAF || i == endOfPathIndex + 2) {
-    // stringPath.append(".");
-    // stringPath.append(path.get(i).v1());
-    // }
-    // }
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put("columns", singletonList(columnInfo("plain", stringPath.toString(), "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-    // expected.put("rows", singletonList(singletonList(randomValue.get())));
-    // assertResponse(expected, runSql("SELECT " + stringPath.toString() + " FROM test"));
-    // }
-    //
-    // private enum NestedFieldType {
-    // NESTED,
-    // OBJECT,
-    // LEAF;
-    // }
-    //
-    // private static void addField(
-    // XContentBuilder index,
-    // boolean nestedFieldAdded,
-    // int remainingFields,
-    // List<Tuple<String, NestedFieldType>> path,
-    // StringBuilder bulkContent,
-    // Holder<String> randomValue
-    // ) throws IOException {
-    // String fieldName = randomAlphaOfLength(5);
-    // String leafFieldName = randomAlphaOfLength(5);
-    //
-    // // we need to make sure we add at least one nested field to the mapping, otherwise the test is not about nested fields
-    // if (shouldAddNestedField() || (nestedFieldAdded == false && remainingFields == 1)) {
-    // path.add(new Tuple<String, NestedFieldType>(fieldName, NestedFieldType.NESTED));
-    // path.add(new Tuple<String, NestedFieldType>(leafFieldName, NestedFieldType.LEAF));
-    // index.startObject(fieldName);
-    // {
-    // index.field("type", "nested");
-    // index.startObject("properties");
-    // {
-    // // A nested field always has a leaf field, even if not all nested fields in a path will have this value
-    // // indexed. We will index only the "leaf" field of the last nested field in the path, because this is the
-    // // one we will ask back from ES
-    // index.startObject(leafFieldName);
-    // {
-    // index.field("type", "keyword");
-    // }
-    // index.endObject();
-    // // from time to time set a null value instead of an actual value
-    // if (rarely()) {
-    // randomValue.set(null);
-    // bulkContent.append("\"" + fieldName + "\":{\"" + leafFieldName + "\":null");
-    // } else {
-    // randomValue.set(randomAlphaOfLength(10));
-    // bulkContent.append("\"" + fieldName + "\":{\"" + leafFieldName + "\":\"" + randomValue.get() + "\"");
-    // }
-    // if (remainingFields > 1) {
-    // bulkContent.append(",");
-    // addField(index, true, remainingFields - 1, path, bulkContent, randomValue);
-    // }
-    // bulkContent.append("}");
-    // }
-    // index.endObject();
-    // }
-    // index.endObject();
-    // } else {
-    // path.add(new Tuple<String, NestedFieldType>(fieldName, NestedFieldType.OBJECT));
-    // index.startObject(fieldName);
-    // index.startObject("properties");
-    // {
-    // bulkContent.append("\"" + fieldName + "\":{");
-    // // if this is the last field in the mapping and it's non-nested, add a keyword to it, otherwise the mapping
-    // // is incomplete and an error will be thrown at mapping creation time
-    // if (remainingFields == 1) {
-    // path.add(new Tuple<String, NestedFieldType>(leafFieldName, NestedFieldType.LEAF));
-    // index.startObject(leafFieldName);
-    // {
-    // index.field("type", "keyword");
-    // }
-    // index.endObject();
-    // bulkContent.append("\"" + leafFieldName + "\":\"" + randomAlphaOfLength(10) + "\"");
-    // } else {
-    // addField(index, nestedFieldAdded, remainingFields - 1, path, bulkContent, randomValue);
-    // }
-    // bulkContent.append("}");
-    // }
-    // index.endObject();
-    // index.endObject();
-    // }
-    // }
+    /**
+     * <pre>
+     * "text_field": {
+     *   "type": "text",
+     *   "fields": {
+     *     "ip": {
+     *       "type": "ip",
+     *       "ignore_malformed": true/false
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testTextFieldWithIpSubfield() throws IOException {
+        String value = NetworkAddress.format(randomIp(randomBoolean()));
+        Map<String, Object> result = textTest().sub("ip", ipTest()).roundTrip(value);
 
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.ip", "ip")))
+                .entry("values", List.of(matchesList().item(value).item(value)))
+        );
+    }
+
+    /**
+     * <pre>
+     * "text_field": {
+     *   "type": "text",
+     *   "fields": {
+     *     "ip": {
+     *       "type": "ip",
+     *       "ignore_malformed": true
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testTextFieldWithIpSubfieldMalformed() throws IOException {
+        String value = randomAlphaOfLength(10);
+        Map<String, Object> result = textTest().sourceMode(SourceMode.DEFAULT).sub("ip", ipTest().ignoreMalformed(true)).roundTrip(value);
+
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.ip", "ip")))
+                .entry("values", List.of(matchesList().item(value).item(null)))
+        );
+    }
+
+    /**
+     * <pre>
+     * "int_field": {
+     *   "type": "int",
+     *   "ignore_malformed": true/false,
+     *   "fields": {
+     *     "text": {
+     *       "type": "text/keyword"
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testIntFieldWithTextOrKeywordSubfield() throws IOException {
+        int value = randomInt();
+        boolean text = randomBoolean();
+        Map<String, Object> result = intTest().sub("str", text ? textTest() : keywordTest()).roundTrip(value);
+
+        assertMap(
+            result,
+            matchesMap().entry(
+                "columns",
+                List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.str", text ? "text" : "keyword"))
+            ).entry("values", List.of(matchesList().item(value).item(Integer.toString(value))))
+        );
+    }
+
+    /**
+     * <pre>
+     * "int_field": {
+     *   "type": "int",
+     *   "ignore_malformed": true,
+     *   "fields": {
+     *     "text": {
+     *       "type": "text/keyword"
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testIntFieldWithTextOrKeywordSubfieldMalformed() throws IOException {
+        String value = randomAlphaOfLength(5);
+        boolean text = randomBoolean();
+        Map<String, Object> result = intTest().forceIgnoreMalformed().sub("str", text ? textTest() : keywordTest()).roundTrip(value);
+
+        assertMap(
+            result,
+            matchesMap().entry(
+                "columns",
+                List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.str", text ? "text" : "keyword"))
+            ).entry("values", List.of(matchesList().item(null).item(value)))
+        );
+    }
+
+    /**
+     * <pre>
+     * "ip_field": {
+     *   "type": "ip",
+     *   "ignore_malformed": true/false,
+     *   "fields": {
+     *     "text": {
+     *       "type": "text/keyword"
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testIpFieldWithTextOrKeywordSubfield() throws IOException {
+        String value = NetworkAddress.format(randomIp(randomBoolean()));
+        boolean text = randomBoolean();
+        Map<String, Object> result = ipTest().sub("str", text ? textTest() : keywordTest()).roundTrip(value);
+
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("ip_field", "ip"), columnInfo("ip_field.str", text ? "text" : "keyword")))
+                .entry("values", List.of(matchesList().item(value).item(value)))
+        );
+    }
+
+    /**
+     * <pre>
+     * "ip_field": {
+     *   "type": "ip",
+     *   "ignore_malformed": true,
+     *   "fields": {
+     *     "text": {
+     *       "type": "text/keyword"
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testIpFieldWithTextOrKeywordSubfieldMalformed() throws IOException {
+        String value = randomAlphaOfLength(5);
+        boolean text = randomBoolean();
+        Map<String, Object> result = ipTest().forceIgnoreMalformed().sub("str", text ? textTest() : keywordTest()).roundTrip(value);
+
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("ip_field", "ip"), columnInfo("ip_field.str", text ? "text" : "keyword")))
+                .entry("values", List.of(matchesList().item(null).item(value)))
+        );
+    }
+
+    /**
+     * <pre>
+     * "int_field": {
+     *   "type": "ip",
+     *   "ignore_malformed": true/false,
+     *   "fields": {
+     *     "byte": {
+     *       "type": "byte",
+     *       "ignore_malformed": true/false
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testIntFieldWithByteSubfield() throws IOException {
+        byte value = randomByte();
+        Map<String, Object> result = intTest().sub("byte", byteTest()).roundTrip(value);
+
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.byte", "integer")))
+                .entry("values", List.of(matchesList().item((int) value).item((int) value)))
+        );
+    }
+
+    /**
+     * <pre>
+     * "int_field": {
+     *   "type": "integer",
+     *   "ignore_malformed": true/false,
+     *   "fields": {
+     *     "byte": {
+     *       "type": "byte",
+     *       "ignore_malformed": true
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testIntFieldWithByteSubfieldTooBig() throws IOException {
+        int value = randomValueOtherThanMany((Integer v) -> (Byte.MIN_VALUE <= v) && (v <= Byte.MAX_VALUE), ESTestCase::randomInt);
+        Map<String, Object> result = intTest().sourceMode(SourceMode.DEFAULT)
+            .sub("byte", byteTest().ignoreMalformed(true))
+            .roundTrip(value);
+
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.byte", "integer")))
+                .entry("values", List.of(matchesList().item(value).item(null)))
+        );
+    }
+
+    /**
+     * <pre>
+     * "byte_field": {
+     *   "type": "byte",
+     *   "ignore_malformed": true/false,
+     *   "fields": {
+     *     "int": {
+     *       "type": "int",
+     *       "ignore_malformed": true/false
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testByteFieldWithIntSubfield() throws IOException {
+        byte value = randomByte();
+        Map<String, Object> result = byteTest().sub("int", intTest()).roundTrip(value);
+
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("byte_field", "integer"), columnInfo("byte_field.int", "integer")))
+                .entry("values", List.of(matchesList().item((int) value).item((int) value)))
+        );
+    }
+
+    /**
+     * <pre>
+     * "byte_field": {
+     *   "type": "byte",
+     *   "ignore_malformed": true,
+     *   "fields": {
+     *     "int": {
+     *       "type": "int",
+     *       "ignore_malformed": true/false
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testByteFieldWithIntSubfieldTooBig() throws IOException {
+        int value = randomValueOtherThanMany((Integer v) -> (Byte.MIN_VALUE <= v) && (v <= Byte.MAX_VALUE), ESTestCase::randomInt);
+        Map<String, Object> result = byteTest().forceIgnoreMalformed().sub("int", intTest()).roundTrip(value);
+
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("byte_field", "integer"), columnInfo("byte_field.int", "integer")))
+                .entry("values", List.of(matchesList().item(null).item(value)))
+        );
+    }
+    
     private enum SourceMode {
         DEFAULT {
             @Override
@@ -1172,8 +786,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             createIndex();
 
             if (value == null) {
-                index("{}");
                 logger.info("indexing empty doc");
+                index("{}");
             } else {
                 logger.info("indexing {}::{}", value, value.getClass().getName());
                 index(Strings.toString(JsonXContent.contentBuilder().startObject().field(type + "_field", value).endObject()));
@@ -1310,7 +924,9 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                     """, doc));
             }
             request.setJsonEntity(bulk.toString());
-            client().performRequest(request);
+            Response response = client().performRequest(request);
+            Map<String, Object> result = entityToMap(response.getEntity(), XContentType.JSON);
+            assertMap(result, matchesMap().extraOk().entry("errors", false));
         }
 
         private Map<String, Object> fetchAll() throws IOException {

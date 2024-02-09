@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -74,57 +75,73 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        Map<Object, List<B>> buckets = new HashMap<>();
-        InternalRareTerms<A, B> referenceTerms = null;
-        SetBackedScalingCuckooFilter filter = null;
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final Map<Object, List<B>> buckets = new HashMap<>();
+            InternalRareTerms<A, B> referenceTerms = null;
+            SetBackedScalingCuckooFilter filter = null;
 
-        for (InternalAggregation aggregation : aggregations) {
-            // Unmapped rare terms don't have a cuckoo filter so we'll skip all this work
-            // and save some type casting headaches later.
-            if (aggregation.canLeadReduction() == false) {
-                continue;
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                // Unmapped rare terms don't have a cuckoo filter so we'll skip all this work
+                // and save some type casting headaches later.
+                if (aggregation.canLeadReduction() == false) {
+                    return;
+                }
+
+                @SuppressWarnings("unchecked")
+                InternalRareTerms<A, B> terms = (InternalRareTerms<A, B>) aggregation;
+                if (referenceTerms == null && aggregation.getClass().equals(UnmappedRareTerms.class) == false) {
+                    referenceTerms = terms;
+                }
+                if (referenceTerms != null
+                    && referenceTerms.getClass().equals(terms.getClass()) == false
+                    && terms.getClass().equals(UnmappedRareTerms.class) == false) {
+                    // control gets into this loop when the same field name against which the query is executed
+                    // is of different types in different indices.
+                    throw AggregationErrors.reduceTypeMismatch(referenceTerms.getName(), Optional.empty());
+                }
+                for (B bucket : terms.getBuckets()) {
+                    List<B> bucketList = buckets.computeIfAbsent(bucket.getKey(), k -> new ArrayList<>());
+                    bucketList.add(bucket);
+                }
+
+                SetBackedScalingCuckooFilter otherFilter = ((InternalMappedRareTerms) aggregation).getFilter();
+                if (filter == null) {
+                    filter = new SetBackedScalingCuckooFilter(otherFilter.getThreshold(), otherFilter.getRng(), otherFilter.getFpp());
+                }
+                filter.merge(otherFilter);
             }
 
-            @SuppressWarnings("unchecked")
-            InternalRareTerms<A, B> terms = (InternalRareTerms<A, B>) aggregation;
-            if (referenceTerms == null && aggregation.getClass().equals(UnmappedRareTerms.class) == false) {
-                referenceTerms = terms;
+            @Override
+            public InternalAggregation get() {
+                final List<B> rare = new ArrayList<>();
+                for (List<B> sameTermBuckets : buckets.values()) {
+                    final B b = reduceBucket(sameTermBuckets, reduceContext);
+                    if ((b.getDocCount() <= maxDocCount && containsTerm(filter, b) == false)) {
+                        rare.add(b);
+                        reduceContext.consumeBucketsAndMaybeBreak(1);
+                    } else if (b.getDocCount() > maxDocCount) {
+                        // this term has gone over threshold while merging, so add it to the filter.
+                        // Note this may happen during incremental reductions too
+                        addToFilter(filter, b);
+                    }
+                }
+                CollectionUtil.introSort(rare, order.comparator());
+                return createWithFilter(name, rare, filter);
             }
-            if (referenceTerms != null
-                && referenceTerms.getClass().equals(terms.getClass()) == false
-                && terms.getClass().equals(UnmappedRareTerms.class) == false) {
-                // control gets into this loop when the same field name against which the query is executed
-                // is of different types in different indices.
-                throw AggregationErrors.reduceTypeMismatch(referenceTerms.getName(), Optional.empty());
-            }
-            for (B bucket : terms.getBuckets()) {
-                List<B> bucketList = buckets.computeIfAbsent(bucket.getKey(), k -> new ArrayList<>());
-                bucketList.add(bucket);
-            }
+        };
+    }
 
-            SetBackedScalingCuckooFilter otherFilter = ((InternalMappedRareTerms) aggregation).getFilter();
-            if (filter == null) {
-                filter = new SetBackedScalingCuckooFilter(otherFilter.getThreshold(), otherFilter.getRng(), otherFilter.getFpp());
-            }
-            filter.merge(otherFilter);
-
+    private B reduceBucket(List<B> buckets, AggregationReduceContext context) {
+        assert buckets.isEmpty() == false;
+        long docCount = 0;
+        for (B bucket : buckets) {
+            docCount += bucket.docCount;
         }
-
-        final List<B> rare = new ArrayList<>();
-        for (List<B> sameTermBuckets : buckets.values()) {
-            final B b = reduceBucket(sameTermBuckets, reduceContext);
-            if ((b.getDocCount() <= maxDocCount && containsTerm(filter, b) == false)) {
-                rare.add(b);
-                reduceContext.consumeBucketsAndMaybeBreak(1);
-            } else if (b.getDocCount() > maxDocCount) {
-                // this term has gone over threshold while merging, so add it to the filter.
-                // Note this may happen during incremental reductions too
-                addToFilter(filter, b);
-            }
-        }
-        CollectionUtil.introSort(rare, order.comparator());
-        return createWithFilter(name, rare, filter);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
+        return createBucket(docCount, aggs, buckets.get(0));
     }
 
     @Override

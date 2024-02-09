@@ -107,13 +107,16 @@ setup:
 
 ---
 load everything:
+  - skip:
+      version: " - 8.12.99"
+      reason: "_source is available in 8.13+"
   - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test [metadata _id]'
+          query: 'from test metadata _id'
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -231,8 +234,8 @@ from index pattern explicit counter use:
 ---
 _source:
   - skip:
-      version: " - 8.11.99"
-      reason: "_source is available in 8.12+"
+      version: " - 8.12.99"
+      reason: "_source is available in 8.13+"
 
   - do:
       bulk:
@@ -245,7 +248,7 @@ _source:
   - do:
       esql.query:
         body:
-          query: 'FROM test [METADATA _source] | WHERE @timestamp == "2021-04-28T18:50:23.142Z" | KEEP _source | LIMIT 1'
+          query: 'FROM test METADATA _source | WHERE @timestamp == "2021-04-28T18:50:23.142Z" | KEEP _source | LIMIT 1'
   - match: { columns.0.name: _source }
   - match: { columns.0.type: _source }
   - length: { values: 1 }

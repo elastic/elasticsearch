@@ -198,6 +198,17 @@ The API returns the following result:
           },
           "children": [
             {
+              "type" : "FetchIgnoredMetadataPhase",
+              "description" : "",
+              "time_in_nanos" : 15194,
+              "breakdown" : {
+              "process_count" : 5,
+                "process" : 1831,
+                "next_reader" : 13363,
+                "next_reader_count" : 1
+              }
+            },
+            {
               "type": "FetchSourcePhase",
               "description": "",
               "time_in_nanos": 20443,
@@ -1043,6 +1054,17 @@ And here is the fetch profile:
             "stored_fields": ["_id", "_routing", "_source"]
           },
           "children": [
+            {
+              "type" : "FetchIgnoredMetadataPhase",
+              "description" : "",
+              "time_in_nanos" : 3531,
+              "breakdown" : {
+                "process_count" : 4,
+                "process" : 1150,
+                "next_reader" : 2381,
+                "next_reader_count" : 1
+              }
+            },
             {
               "type": "FetchSourcePhase",
               "description": "",

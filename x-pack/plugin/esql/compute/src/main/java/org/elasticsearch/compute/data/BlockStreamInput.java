@@ -41,7 +41,7 @@ public class BlockStreamInput extends NamedWriteableAwareStreamInput {
         this.blockFactory = blockFactory;
     }
 
-    BlockFactory blockFactory() {
+    public BlockFactory blockFactory() {
         return blockFactory;
     }
 

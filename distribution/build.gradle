@@ -635,7 +635,3 @@ tasks.named('resolveAllDependencies') {
   // We don't want to build all our distribution artifacts when priming our dependency cache
   configs = []
 }
-
-public enum Architecture {
-  FOO
-}

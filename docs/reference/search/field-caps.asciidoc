@@ -77,6 +77,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
   (Optional, Boolean) If `true`, unmapped fields that are mapped in one index but not in another are included in the response. Fields that don't have any mapping are never included.
   Defaults to `false`.
 
+`include_empty_fields`::
+  (Optional, Boolean) If `false`, fields that never had a value in any shards are not included in the response. Fields that are not empty are always included. This flag does not consider deletions and updates.  If a field was non-empty and all the documents containing that field were deleted or the field was removed by updates,  it will still be returned even if the flag is `false`.
+  Defaults to `true`.
+
 `filters`::
 (Optional, string) Comma-separated list of filters to apply to the response.
 +

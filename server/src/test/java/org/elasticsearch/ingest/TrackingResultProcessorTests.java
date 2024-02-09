@@ -718,7 +718,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertNotNull(document);
         // Make sure that the final processor was called exactly once on this document:
         assertThat(document.getFieldValue(countCallsProcessor.getCountFieldName(), Integer.class), equalTo(1));
-        // But it was called exactly one other time during the pipeline cycle check (to be enabled after a fix) :
+        // But it was called exactly one other time during the pipeline cycle check:
         assertThat(countCallsProcessor.getTotalCount(), equalTo(2));
         assertThat(resultList.size(), equalTo(pipelineCount + 1)); // one result per pipeline, plus the "count_calls" processor
         for (int i = 0; i < resultList.size() - 1; i++) {

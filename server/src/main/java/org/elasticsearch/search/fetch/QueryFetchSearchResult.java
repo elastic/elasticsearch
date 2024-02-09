@@ -41,10 +41,7 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     private QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
         this.queryResult = queryResult;
         this.fetchResult = fetchResult;
-        refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> {
-            queryResult.decRef();
-            fetchResult.decRef();
-        }));
+        refCounted = LeakTracker.wrap(AbstractRefCounted.plain());
     }
 
     @Override
@@ -99,7 +96,16 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        queryResult.decRef();
+        fetchResult.decRef();
     }
 
     @Override

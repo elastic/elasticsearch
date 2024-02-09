@@ -87,12 +87,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final Clusters clusters;
     private final long tookInMillis;
 
-    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
-        @Override
-        protected void closeInternal() {
-            hits.decRef();
-        }
-    });
+    private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.plain());
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -236,7 +231,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        if (refCounted.decRef()) {
+            hits.decRef();
+            return true;
+        }
+        return false;
     }
 
     @Override

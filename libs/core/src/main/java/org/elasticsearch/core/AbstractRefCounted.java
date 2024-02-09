@@ -125,4 +125,17 @@ public abstract class AbstractRefCounted implements RefCounted {
         };
     }
 
+    /**
+     * Constructs an {@link AbstractRefCounted} which does nothing when all references are released. It is the responsibility of the caller
+     * to run whatever release logic should be executed when {@link AbstractRefCounted#decRef()} returns true.
+     */
+    public static RefCounted plain() {
+        return new AbstractRefCounted() {
+            @Override
+            protected void closeInternal() {
+                // noop
+            }
+        };
+    }
+
 }

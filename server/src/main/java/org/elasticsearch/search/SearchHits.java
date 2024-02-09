@@ -76,16 +76,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
             sortFields,
             collapseField,
             collapseValues,
-            hits.length == 0 ? ALWAYS_REFERENCED : LeakTracker.wrap(new AbstractRefCounted() {
-                @Override
-                protected void closeInternal() {
-                    for (int i = 0; i < hits.length; i++) {
-                        assert hits[i] != null;
-                        hits[i].decRef();
-                        hits[i] = null;
-                    }
-                }
-            })
+            hits.length == 0 ? ALWAYS_REFERENCED : LeakTracker.wrap(AbstractRefCounted.plain())
         );
     }
 
@@ -249,7 +240,19 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        for (int i = 0; i < hits.length; i++) {
+            assert hits[i] != null;
+            hits[i].decRef();
+            hits[i] = null;
+        }
     }
 
     @Override

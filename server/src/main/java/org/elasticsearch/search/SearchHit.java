@@ -204,21 +204,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.innerHits = innerHits;
         this.documentFields = documentFields;
         this.metaFields = metaFields;
-        this.refCounted = refCounted == null ? LeakTracker.wrap(new AbstractRefCounted() {
-            @Override
-            protected void closeInternal() {
-                if (SearchHit.this.innerHits != null) {
-                    for (SearchHits h : SearchHit.this.innerHits.values()) {
-                        h.decRef();
-                    }
-                    SearchHit.this.innerHits = null;
-                }
-                if (SearchHit.this.source instanceof RefCounted r) {
-                    r.decRef();
-                }
-                SearchHit.this.source = null;
-            }
-        }) : ALWAYS_REFERENCED;
+        this.refCounted = refCounted == null ? LeakTracker.wrap(AbstractRefCounted.plain()) : ALWAYS_REFERENCED;
     }
 
     public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
@@ -726,7 +712,24 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        if (SearchHit.this.innerHits != null) {
+            for (SearchHits h : SearchHit.this.innerHits.values()) {
+                h.decRef();
+            }
+            SearchHit.this.innerHits = null;
+        }
+        if (SearchHit.this.source instanceof RefCounted r) {
+            r.decRef();
+        }
+        SearchHit.this.source = null;
     }
 
     @Override

@@ -103,7 +103,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         isNull = false;
         setShardSearchRequest(shardSearchRequest);
         this.toRelease = new ArrayList<>();
-        this.refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> Releasables.close(toRelease)));
+        this.refCounted = LeakTracker.wrap(AbstractRefCounted.plain());
     }
 
     private QuerySearchResult(boolean isNull) {
@@ -489,7 +489,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
     @Override
     public boolean decRef() {
         if (refCounted != null) {
-            return refCounted.decRef();
+            if (refCounted.decRef()) {
+                Releasables.close(toRelease);
+                return true;
+            }
+            return false;
         }
         return super.decRef();
     }

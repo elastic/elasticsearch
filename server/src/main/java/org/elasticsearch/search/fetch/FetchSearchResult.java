@@ -30,12 +30,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     private ProfileResult profileResult;
 
-    private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> {
-        if (hits != null) {
-            hits.decRef();
-            hits = null;
-        }
-    }));
+    private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.plain());
 
     public FetchSearchResult() {}
 
@@ -109,7 +104,18 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        if (hits != null) {
+            hits.decRef();
+            hits = null;
+        }
     }
 
     @Override

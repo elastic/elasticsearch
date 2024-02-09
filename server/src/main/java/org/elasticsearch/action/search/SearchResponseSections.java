@@ -71,12 +71,7 @@ public class SearchResponseSections implements RefCounted {
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
-        refCounted = hits.getHits().length > 0 ? LeakTracker.wrap(new AbstractRefCounted() {
-            @Override
-            protected void closeInternal() {
-                hits.decRef();
-            }
-        }) : ALWAYS_REFERENCED;
+        refCounted = hits.getHits().length > 0 ? LeakTracker.wrap(AbstractRefCounted.plain()) : ALWAYS_REFERENCED;
     }
 
     public final SearchHits hits() {
@@ -112,7 +107,11 @@ public class SearchResponseSections implements RefCounted {
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        if (refCounted.decRef()) {
+            hits.decRef();
+            return true;
+        }
+        return false;
     }
 
     @Override

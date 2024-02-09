@@ -142,19 +142,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     private final Item[] items;
     private final long tookInMillis;
 
-    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
-        @Override
-        protected void closeInternal() {
-            for (int i = 0; i < items.length; i++) {
-                Item item = items[i];
-                var r = item.response;
-                if (r != null) {
-                    r.decRef();
-                    items[i] = null;
-                }
-            }
-        }
-    });
+    private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.plain());
 
     public MultiSearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -183,7 +171,22 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        for (int i = 0; i < items.length; i++) {
+            Item item = items[i];
+            var r = item.response;
+            if (r != null) {
+                r.decRef();
+                items[i] = null;
+            }
+        }
     }
 
     @Override

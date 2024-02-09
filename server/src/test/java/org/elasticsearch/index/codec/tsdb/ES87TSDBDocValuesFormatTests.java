@@ -130,7 +130,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         RandomIndexWriter iwriter = new RandomIndexWriter(random(), directory);
         int numDocs = 1 + random().nextInt(100);
 
-        HashMap<Integer,BytesRef> writtenValues = new HashMap<>(numDocs);
+        HashMap<Integer, BytesRef> writtenValues = new HashMap<>(numDocs);
 
         // Small vocabulary ranges will be highly compressible
         int vocabRange = random().nextInt(Byte.MAX_VALUE);

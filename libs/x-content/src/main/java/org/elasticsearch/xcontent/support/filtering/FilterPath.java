@@ -167,9 +167,7 @@ public class FilterPath {
             }
 
             if (splitPosition > 0) {
-                String field = findEscapes
-                    ? filter.substring(0, splitPosition).replace("\\.", ".")
-                    : filter.substring(0, splitPosition);
+                String field = findEscapes ? filter.substring(0, splitPosition).replace("\\.", ".") : filter.substring(0, splitPosition);
                 BuildNode child = node.children.computeIfAbsent(field, f -> new BuildNode(false));
                 if (false == child.isFinalNode) {
                     insertNode(filter.substring(splitPosition + 1), child);

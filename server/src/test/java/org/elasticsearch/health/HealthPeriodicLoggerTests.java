@@ -44,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -111,7 +112,10 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             if (testHealthPeriodicLogger.lifecycleState() == Lifecycle.State.STARTED) {
                 testHealthPeriodicLogger.stop();
             }
-            testHealthPeriodicLogger.close();
+            if (testHealthPeriodicLogger.lifecycleState() == Lifecycle.State.INITIALIZED
+                || testHealthPeriodicLogger.lifecycleState() == Lifecycle.State.STOPPED) {
+                testHealthPeriodicLogger.close();
+            }
         }
         threadPool.shutdownNow();
     }
@@ -517,6 +521,99 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         }
     }
 
+    public void testClosingWhenRunInProgress() throws Exception {
+        // Check that closing will still happen even if the run doesn't finish
+        {
+            AtomicInteger getHealthCalled = new AtomicInteger(0);
+
+            HealthService testHealthService = this.getMockedHealthService();
+            doAnswer(invocation -> {
+                // get but do not call the provided listener immediately
+                ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+                assertNotNull(listener);
+
+                // note that we received the getHealth call
+                getHealthCalled.incrementAndGet();
+                return null;
+            }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+
+            HealthPeriodicLogger healthLoggerThatWillNotFinish = createAndInitHealthPeriodicLogger(
+                this.clusterService,
+                testHealthService,
+                true
+            );
+            healthLoggerThatWillNotFinish.clusterChanged(
+                new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE)
+            );
+            assertTrue("local node should be the health node", healthLoggerThatWillNotFinish.isHealthNode());
+            assertTrue("health logger should be enabled", healthLoggerThatWillNotFinish.enabled());
+
+            SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
+
+            // call it and verify that it's in progress
+            {
+                healthLoggerThatWillNotFinish.triggered(event);
+                assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
+            }
+            healthLoggerThatWillNotFinish.stop();
+            assertEquals(Lifecycle.State.STOPPED, healthLoggerThatWillNotFinish.lifecycleState());
+            // Close and wait out the timeout
+            healthLoggerThatWillNotFinish.close();
+            assertBusy(() -> assertEquals(Lifecycle.State.CLOSED, healthLoggerThatWillNotFinish.lifecycleState()), 5, TimeUnit.SECONDS);
+        }
+
+        // Ensure it will wait until it finishes before it closes
+        {
+            AtomicInteger getHealthCalled = new AtomicInteger(0);
+
+            CountDownLatch waitForCloseToBeTriggered = new CountDownLatch(1);
+            CountDownLatch waitForRelease = new CountDownLatch(1);
+
+            HealthService testHealthService = this.getMockedHealthService();
+            doAnswer(invocation -> {
+                // get but do not call the provided listener immediately
+                ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+                assertNotNull(listener);
+
+                // note that we received the getHealth call
+                getHealthCalled.incrementAndGet();
+
+                // wait for the close signal
+                waitForCloseToBeTriggered.await();
+                // we can continue now
+                listener.onResponse(getTestIndicatorResults());
+                waitForRelease.countDown();
+                return null;
+            }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+
+            testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true);
+            testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, ClusterState.EMPTY_STATE));
+            assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
+            assertTrue("health logger should be enabled", testHealthPeriodicLogger.enabled());
+
+            SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
+
+            // call it and verify that getHealth is called
+            {
+                Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
+                logHealthThread.start();
+                assertBusy(() -> assertTrue(testHealthPeriodicLogger.currentlyRunning()));
+            }
+
+            // stop and close it
+            {
+                testHealthPeriodicLogger.stop();
+                assertEquals(Lifecycle.State.STOPPED, testHealthPeriodicLogger.lifecycleState());
+                assertTrue(testHealthPeriodicLogger.currentlyRunning());
+                Thread closeHealthLogger = new Thread(() -> testHealthPeriodicLogger.close());
+                closeHealthLogger.start();
+                assertBusy(() -> assertTrue(testHealthPeriodicLogger.waitingToFinishCurrentRun()));
+                waitForCloseToBeTriggered.countDown();
+                assertBusy(() -> assertEquals(Lifecycle.State.CLOSED, testHealthPeriodicLogger.lifecycleState()));
+            }
+        }
+    }
+
     public void testLoggingHappens() {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
@@ -688,6 +785,12 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         assertEquals(0, logs.size());
         assertEquals(4, metrics.size());
+    }
+
+    private void verifyLoggerIsReadyToRun(HealthPeriodicLogger healthPeriodicLogger) {
+        assertTrue("local node should be the health node", testHealthPeriodicLogger.isHealthNode());
+        assertTrue("health logger should be enabled", testHealthPeriodicLogger.enabled());
+        assertEquals("health logger is started", Lifecycle.State.STARTED, testHealthPeriodicLogger.lifecycleState());
     }
 
     private List<HealthIndicatorResult> getTestIndicatorResults() {

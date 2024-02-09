@@ -282,11 +282,13 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
     protected void doClose() throws IOException {
         logger.debug("Periodic health logger is closing.");
         try {
-            currentlyRunning.acquire();
+            // The health API is expected to be a quick call, so we do not need a very long timeout
+            if (currentlyRunning.tryAcquire(2, TimeUnit.SECONDS)) {
+                currentlyRunning.release();
+            }
         } catch (InterruptedException e) {
             logger.warn("Error while waiting for the last run of the periodic health logger to finish.", e);
         } finally {
-            currentlyRunning.release();
             SchedulerEngine engine = scheduler.get();
             if (engine != null) {
                 engine.stop();
@@ -536,5 +538,15 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
     // Visible for testing
     boolean enabled() {
         return enabled;
+    }
+
+    // Visible for testing
+    boolean currentlyRunning() {
+        return currentlyRunning.availablePermits() == 0;
+    }
+
+    // Visible for testing
+    boolean waitingToFinishCurrentRun() {
+        return currentlyRunning.hasQueuedThreads();
     }
 }

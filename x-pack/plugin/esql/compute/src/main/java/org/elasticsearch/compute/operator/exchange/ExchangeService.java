@@ -254,11 +254,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 new ExchangeRequest(exchangeId, allSourcesFinished),
                 parentTask,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(
-                    listener,
-                    in -> new ExchangeResponse(new BlockStreamInput(in, blockFactory)),
-                    responseExecutor
-                )
+                new ActionListenerResponseHandler<>(listener, in -> {
+                    try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                        return new ExchangeResponse(bsi);
+                    }
+                }, responseExecutor)
             );
         }
     }

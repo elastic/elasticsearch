@@ -96,6 +96,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     ) throws Exception {
 
         var requestAsMap = requestToMap(request);
+        var resolvedTaskType = resolveTaskType(request.getTaskType(), (String) requestAsMap.remove(TaskType.NAME));
+
         String serviceName = (String) requestAsMap.remove(ModelConfigurations.SERVICE);
         if (serviceName == null) {
             listener.onFailure(new ElasticsearchStatusException("Model configuration is missing a service", RestStatus.BAD_REQUEST));
@@ -151,7 +153,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                     parseAndStoreModel(
                         service.get(),
                         request.getInferenceEntityId(),
-                        request.getTaskType(),
+                        resolvedTaskType,
                         requestAsMap,
                         // In Elastic cloud ml nodes run on Linux x86
                         Set.of("linux-x86_64"),
@@ -162,7 +164,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                     parseAndStoreModel(
                         service.get(),
                         request.getInferenceEntityId(),
-                        request.getTaskType(),
+                        resolvedTaskType,
                         requestAsMap,
                         architectures,
                         delegate
@@ -171,7 +173,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             }), client, threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME));
         } else {
             // Not an in cluster service, it does not care about the cluster platform
-            parseAndStoreModel(service.get(), request.getInferenceEntityId(), request.getTaskType(), requestAsMap, Set.of(), listener);
+            parseAndStoreModel(service.get(), request.getInferenceEntityId(), resolvedTaskType, requestAsMap, Set.of(), listener);
         }
     }
 
@@ -183,21 +185,28 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         Set<String> platformArchitectures,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
-        var model = service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures);
-
-        service.checkModelConfig(
-            model,
-            listener.delegateFailureAndWrap(
-                // model is valid good to persist then start
-                (delegate, verifiedModel) -> modelRegistry.storeModel(
-                    verifiedModel,
-                    delegate.delegateFailureAndWrap((l, r) -> startModel(service, verifiedModel, l))
+        ActionListener<Model> modelListener = listener.delegateFailureAndWrap((delegate, model) -> {
+            service.checkModelConfig(
+                model,
+                delegate.delegateFailureAndWrap(
+                    // model is valid, ok to persist then start
+                    (delegate2, verifiedModel) -> modelRegistry.storeModel(
+                        verifiedModel,
+                        delegate2.delegateFailureAndWrap((l, r) -> putAndStartModel(service, verifiedModel, l))
+                    )
                 )
-            )
-        );
+            );
+        });
+
+        service.parseRequestConfig(inferenceEntityId, taskType, config, platformArchitectures, modelListener);
+
     }
 
-    private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> finalListener) {
+    private static void putAndStartModel(
+        InferenceService service,
+        Model model,
+        ActionListener<PutInferenceModelAction.Response> finalListener
+    ) {
         SubscribableListener.<Boolean>newForked((listener1) -> { service.putModel(model, listener1); }).<
             PutInferenceModelAction.Response>andThen((listener2, modelDidPut) -> {
                 if (modelDidPut) {
@@ -234,5 +243,39 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         // use a heuristic to determine if in Elastic cloud.
         // One such heuristic is where USE_AUTO_MACHINE_MEMORY_PERCENT == true
         return settings.get(MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT);
+    }
+
+    /**
+     * task_type can be specified as either a URL parameter or in the
+     * request body. Resolve which to use or throw if the settings are
+     * inconsistent
+     * @param urlTaskType Taken from the URL parameter. ANY means not specified.
+     * @param bodyTaskType Taken from the request body. Maybe null
+     * @return The resolved task type
+     */
+    static TaskType resolveTaskType(TaskType urlTaskType, String bodyTaskType) {
+        if (bodyTaskType == null) {
+            if (urlTaskType == TaskType.ANY) {
+                throw new ElasticsearchStatusException("model is missing required setting [task_type]", RestStatus.BAD_REQUEST);
+            } else {
+                return urlTaskType;
+            }
+        }
+
+        TaskType parsedBodyTask = TaskType.fromStringOrStatusException(bodyTaskType);
+        if (parsedBodyTask == TaskType.ANY) {
+            throw new ElasticsearchStatusException("task_type [any] is not valid type for inference", RestStatus.BAD_REQUEST);
+        }
+
+        if (parsedBodyTask.isAnyOrSame(urlTaskType) == false) {
+            throw new ElasticsearchStatusException(
+                "Cannot resolve conflicting task_type parameter in the request URL [{}] and the request body [{}]",
+                RestStatus.BAD_REQUEST,
+                urlTaskType.toString(),
+                bodyTaskType
+            );
+        }
+
+        return parsedBodyTask;
     }
 }

@@ -153,7 +153,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         } else {
             this.ignoreMissingComponentTemplates = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.deprecated = in.readOptionalBoolean();
         } else {
             this.deprecated = null;
@@ -252,7 +252,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalBoolean(deprecated);
         }
     }

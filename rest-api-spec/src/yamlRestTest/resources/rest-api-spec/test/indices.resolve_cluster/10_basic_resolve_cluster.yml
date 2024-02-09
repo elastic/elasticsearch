@@ -1,0 +1,174 @@
+---
+setup:
+  - skip:
+      version: " - 8.12.99"
+      reason: "resolve cluster introduced in 8.13"
+      features: allowed_warnings
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          aliases:
+            my_alias1: {}
+            my_alias2: {}
+
+  - do:
+      indices.create:
+        index: index2
+
+  - do:
+      indices.close:
+        index: index2
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+
+---
+"Resolve cluster with indices and aliases":
+  - skip:
+      version: " - 8.12.99"
+      reason: "resolve cluster introduced in 8.13"
+
+  - do:
+      indices.resolve_cluster:
+        name: '*'
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: '*'
+        expand_wildcards: [closed]
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+    # still true because resolve_index/resolve_cluster does not check closed status of aliases
+  - match: {(local).matching_indices: true}
+  - exists: (local).version.number
+
+---
+"Resolve cluster with closed index":
+  - skip:
+      version: " - 8.12.99"
+      reason: "resolve cluster introduced in 8.13"
+
+  - do:
+      indices.resolve_cluster:
+        name: 'index2'
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: false}  # false since doing a search with this index pattern gives an error
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: 'index2*'
+        expand_wildcards: [open,closed]
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: false}
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: 'index2*'
+        expand_wildcards: [closed]
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: false}
+  - exists: (local).version.number
+
+---
+"Resolve cluster using alias":
+  - skip:
+      version: " - 8.12.99"
+      reason: "resolve cluster introduced in 8.13"
+
+  - do:
+      indices.resolve_cluster:
+        name: 'my_alias2'
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: 'my_ali*'
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - exists: (local).version.number
+
+---
+"Resolve cluster using alias and index that does not exist":
+  - skip:
+      version: " - 8.12.99"
+      reason: "resolve cluster introduced in 8.13"
+
+  - do:
+      indices.resolve_cluster:
+        name: 'my_alias2,doesnotexist*'
+        expand_wildcards: [all]
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: 'my_alias2,doesnotexist'
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - is_false: (local).matching_indices  # should not be present
+  - is_false: (local).version  # should not be present
+  - match: {(local).error: "no such index [doesnotexist]"}
+
+---
+"Test resolve cluster optional params are accepted":
+  - skip:
+      version: " - 8.12.99"
+      reason: "resolve cluster introduced in 8.13"
+
+  - do:
+      indices.resolve_cluster:
+        name: '*'
+        expand_wildcards: [all]
+        ignore_unavailable: [true]
+        ignore_throttled: [true]
+        allow_no_indices: [true]
+      allowed_warnings:
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - is_false: (local).error # should not be present
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: '*'
+        expand_wildcards: [open]
+        ignore_unavailable: [false]
+        ignore_throttled: [false]
+        allow_no_indices: [false]
+      allowed_warnings:
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - is_false: (local).error # should not be present
+  - exists: (local).version.number
+

@@ -54,7 +54,13 @@ public class OpenAiEmbeddingsRequest implements Request {
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
-                new OpenAiEmbeddingsRequestEntity(truncationResult.input(), model.getTaskSettings().model(), model.getTaskSettings().user())
+                new OpenAiEmbeddingsRequestEntity(
+                    truncationResult.input(),
+                    model.getTaskSettings().modelId(),
+                    model.getTaskSettings().user(),
+                    model.getServiceSettings().dimensions(),
+                    model.getServiceSettings().dimensionsSetByUser()
+                )
             ).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);

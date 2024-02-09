@@ -27,7 +27,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Deque;
 import java.util.List;
 
 /**
@@ -44,15 +47,14 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      */
     private final List<DocWriteRequest<?>> requests = new ArrayList<>();
     private final List<FramedData> framedData = new ArrayList<>();
-    private final List<ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse>> requestBuilders =
-        new ArrayList<>();
+    private final Deque<ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse>> requestBuilders =
+        new ArrayDeque<>();
     private ActiveShardCount waitForActiveShards;
     private TimeValue timeout;
-    private String timeoutString;
     private String globalPipeline;
     private String globalRouting;
     private WriteRequest.RefreshPolicy refreshPolicy;
-    private String refreshPolicyString;
+    private boolean requestPreviouslyCalled = false;
 
     public BulkRequestBuilder(ElasticsearchClient client, @Nullable String globalIndex) {
         super(client, BulkAction.INSTANCE);
@@ -166,7 +168,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final BulkRequestBuilder setTimeout(String timeout) {
-        this.timeoutString = timeout;
+        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return this;
     }
 
@@ -195,17 +197,25 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
 
     @Override
     public BulkRequestBuilder setRefreshPolicy(String refreshPolicy) {
-        this.refreshPolicyString = refreshPolicy;
+        this.refreshPolicy = WriteRequest.RefreshPolicy.parse(refreshPolicy);
         return this;
     }
 
     @Override
     public BulkRequest request() {
+        assert requestPreviouslyCalled == false : "Cannot call request() multiple times on the same BulkRequestBuilder object";
+        if (requestPreviouslyCalled) {
+            throw new IllegalStateException("Cannot call request() multiple times on the same BulkRequestBuilder object");
+        }
+        requestPreviouslyCalled = true;
         validate();
         BulkRequest request = new BulkRequest(globalIndex);
-        for (ActionRequestLazyBuilder<? extends DocWriteRequest<?>, ? extends DocWriteResponse> requestBuilder : requestBuilders) {
-            DocWriteRequest<?> childRequest = requestBuilder.request();
-            request.add(childRequest);
+        /*
+         * In the following loop we intentionally remove the builders from requestBuilders so that they can be garbage collected. This is
+         * so that we don't require double the memory of all of the inner requests, which could be really bad for a lage bulk request.
+         */
+        for (var builder = requestBuilders.pollFirst(); builder != null; builder = requestBuilders.pollFirst()) {
+            request.add(builder.request());
         }
         for (DocWriteRequest<?> childRequest : requests) {
             request.add(childRequest);
@@ -223,9 +233,6 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
         if (timeout != null) {
             request.timeout(timeout);
         }
-        if (timeoutString != null) {
-            request.timeout(timeoutString);
-        }
         if (globalPipeline != null) {
             request.pipeline(globalPipeline);
         }
@@ -235,30 +242,21 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
         if (refreshPolicy != null) {
             request.setRefreshPolicy(refreshPolicy);
         }
-        if (refreshPolicyString != null) {
-            request.setRefreshPolicy(refreshPolicyString);
-        }
         return request;
     }
 
     private void validate() {
-        if (countNonEmptyLists(requestBuilders, requests, framedData) > 1) {
+        if (countNonEmptyCollections(requestBuilders, requests, framedData) > 1) {
             throw new IllegalStateException(
                 "Must use only request builders, requests, or byte arrays within a single bulk request. Cannot mix and match"
             );
         }
-        if (timeout != null && timeoutString != null) {
-            throw new IllegalStateException("Must use only one setTimeout method");
-        }
-        if (refreshPolicy != null && refreshPolicyString != null) {
-            throw new IllegalStateException("Must use only one setRefreshPolicy method");
-        }
     }
 
-    private int countNonEmptyLists(List<?>... lists) {
+    private int countNonEmptyCollections(Collection<?>... collections) {
         int sum = 0;
-        for (List<?> list : lists) {
-            if (list.isEmpty() == false) {
+        for (Collection<?> collection : collections) {
+            if (collection.isEmpty() == false) {
                 sum++;
             }
         }

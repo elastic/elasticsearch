@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -222,6 +223,37 @@ public class Iterators {
                 }
             }
             return value;
+        }
+    }
+
+    public static <T, U> Iterator<U> zip(Iterator<? extends T> input, BiFunction<Integer, T, ? extends U> fn) {
+        return new ZipIterator<>(Objects.requireNonNull(input), Objects.requireNonNull(fn));
+    }
+
+    private static class ZipIterator<T, U> implements Iterator<U> {
+        private final Iterator<? extends T> input;
+        private final BiFunction<Integer, T, ? extends U> fn;
+
+        private int idx = 0;
+
+        public ZipIterator(Iterator<? extends T> input, BiFunction<Integer, T, ? extends U> fn) {
+            this.input = input;
+            this.fn = fn;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return input.hasNext();
+        }
+
+        @Override
+        public U next() {
+            return fn.apply(idx++, input.next());
+        }
+
+        @Override
+        public void forEachRemaining(Consumer<? super U> action) {
+            input.forEachRemaining(t -> action.accept(fn.apply(idx++, t)));
         }
     }
 

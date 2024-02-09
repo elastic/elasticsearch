@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -40,49 +41,68 @@ public class IgnoreFieldIT extends ESIntegTestCase {
 
     @Before
     public void createTestIndex() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject(NUMERIC_FIELD_NAME)
-            .field("type", "long")
-            .field("ignore_malformed", true)
-            .endObject()
-            .startObject(DATE_FIELD_NAME)
-            .field("type", "date")
-            .field("ignore_malformed", true)
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        assertAcked(indicesAdmin().prepareCreate(TEST_INDEX).setMapping(mapping));
-        indexTestDoc(NUMERIC_FIELD_NAME, CORRECT_FIELD_TYPE_DOC_ID, "42");
-        indexTestDoc(NUMERIC_FIELD_NAME, WRONG_FIELD_TYPE_DOC_ID, "forty-two");
+        CreateIndexResponse createIndexResponse = null;
+        try {
+            XContentBuilder mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject(NUMERIC_FIELD_NAME)
+                .field("type", "long")
+                .field("ignore_malformed", true)
+                .endObject()
+                .startObject(DATE_FIELD_NAME)
+                .field("type", "date")
+                .field("ignore_malformed", true)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            createIndexResponse = indicesAdmin().prepareCreate(TEST_INDEX).setMapping(mapping).get();
+            assertAcked(createIndexResponse);
+            indexTestDoc(NUMERIC_FIELD_NAME, CORRECT_FIELD_TYPE_DOC_ID, "42");
+            indexTestDoc(NUMERIC_FIELD_NAME, WRONG_FIELD_TYPE_DOC_ID, "forty-two");
+        } finally {
+            if (createIndexResponse != null) {
+                createIndexResponse.decRef();
+            }
+        }
     }
 
     public void testIgnoreFieldFetch() {
-        SearchResponse searchResponse = prepareSearch().setQuery(new IdsQueryBuilder().addIds(CORRECT_FIELD_TYPE_DOC_ID))
-            .addFetchField(NUMERIC_FIELD_NAME)
-            .get();
-        assertHitCount(searchResponse, 1);
-        SearchHit hit = searchResponse.getHits().getAt(0);
-        DocumentField numericField = hit.field(NUMERIC_FIELD_NAME);
-        assertNotNull(numericField);
-        assertEquals(42, (long) numericField.getValue());
-        DocumentField ignoredField = hit.field(IgnoredFieldMapper.NAME);
-        assertNull(ignoredField);
+        SearchResponse searchResponse1 = null;
+        SearchResponse searchResponse2 = null;
+        try {
+            searchResponse1 = prepareSearch().setQuery(new IdsQueryBuilder().addIds(CORRECT_FIELD_TYPE_DOC_ID))
+                .addFetchField(NUMERIC_FIELD_NAME)
+                .get();
+            assertHitCount(searchResponse1, 1);
+            SearchHit hit = searchResponse1.getHits().getAt(0);
+            DocumentField numericField = hit.field(NUMERIC_FIELD_NAME);
+            assertNotNull(numericField);
+            assertEquals(42, (long) numericField.getValue());
+            DocumentField ignoredField = hit.field(IgnoredFieldMapper.NAME);
+            assertNull(ignoredField);
 
-        searchResponse = prepareSearch().setQuery(new IdsQueryBuilder().addIds(WRONG_FIELD_TYPE_DOC_ID))
-            .addFetchField(NUMERIC_FIELD_NAME)
-            .get();
-        assertHitCount(searchResponse, 1);
-        hit = searchResponse.getHits().getAt(0);
-        numericField = hit.field(NUMERIC_FIELD_NAME);
-        assertNotNull(numericField);
-        assertEquals("forty-two", numericField.getIgnoredValues().get(0));
-        ignoredField = hit.field(IgnoredFieldMapper.NAME);
-        assertNotNull(ignoredField);
-        assertEquals(NUMERIC_FIELD_NAME, ignoredField.getValue());
+            searchResponse2 = prepareSearch().setQuery(new IdsQueryBuilder().addIds(WRONG_FIELD_TYPE_DOC_ID))
+                .addFetchField(NUMERIC_FIELD_NAME)
+                .get();
+            assertHitCount(searchResponse2, 1);
+            hit = searchResponse2.getHits().getAt(0);
+            numericField = hit.field(NUMERIC_FIELD_NAME);
+            assertNotNull(numericField);
+            assertEquals("forty-two", numericField.getIgnoredValues().get(0));
+            ignoredField = hit.field(IgnoredFieldMapper.NAME);
+            assertNotNull(ignoredField);
+            assertEquals(NUMERIC_FIELD_NAME, ignoredField.getValue());
+        } finally {
+            if (searchResponse1 != null) {
+                searchResponse1.decRef();
+            }
+            if (searchResponse2 != null) {
+                searchResponse2.decRef();
+            }
+        }
     }
 
     public void testExistsQuery() {
@@ -103,6 +123,7 @@ public class IgnoreFieldIT extends ESIntegTestCase {
 
     public void testIgnoreFieldAggregation() {
         SearchResponse avgSearch = null;
+        SearchResponse termsSearch = null;
         try {
             indexTestDoc(NUMERIC_FIELD_NAME, "correct-44", "44");
             avgSearch = prepareSearch(TEST_INDEX).setSize(0).addAggregation(avg("numeric-field-aggs").field(NUMERIC_FIELD_NAME)).get();
@@ -113,7 +134,7 @@ public class IgnoreFieldIT extends ESIntegTestCase {
 
             indexTestDoc(NUMERIC_FIELD_NAME, "wrong-44", "forty-four");
             indexTestDoc(DATE_FIELD_NAME, "wrong-date", "today");
-            SearchResponse termsSearch = prepareSearch(TEST_INDEX).setSize(0)
+            termsSearch = prepareSearch(TEST_INDEX).setSize(0)
                 .addAggregation(terms("ignored-field-aggs").field(IgnoredFieldMapper.NAME))
                 .get();
             assertTrue(termsSearch.hasAggregations());
@@ -130,15 +151,25 @@ public class IgnoreFieldIT extends ESIntegTestCase {
             if (avgSearch != null) {
                 avgSearch.decRef();
             }
+            if (termsSearch != null) {
+                termsSearch.decRef();
+            }
         }
     }
 
     private static void indexTestDoc(String testField, String docId, String testValue) {
-        DocWriteResponse docWriteResponse = client().prepareIndex(TEST_INDEX)
-            .setId(docId)
-            .setSource(testField, testValue)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        assertEquals(RestStatus.CREATED, docWriteResponse.status());
+        DocWriteResponse docWriteResponse = null;
+        try {
+            docWriteResponse = client().prepareIndex(TEST_INDEX)
+                .setId(docId)
+                .setSource(testField, testValue)
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+            assertEquals(RestStatus.CREATED, docWriteResponse.status());
+        } finally {
+            if (docWriteResponse != null) {
+                docWriteResponse.decRef();
+            }
+        }
     }
 }

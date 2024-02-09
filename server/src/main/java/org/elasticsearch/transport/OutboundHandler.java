@@ -149,7 +149,7 @@ final class OutboundHandler {
             });
         } catch (Exception ex) {
             if (isHandshake) {
-                logger.warn(
+                logger.error(
                     () -> format("Failed to send handshake response version [%s] received on [%s], closing channel", version, channel),
                     ex
                 );

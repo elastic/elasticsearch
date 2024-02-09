@@ -759,6 +759,20 @@ public final class SamlRealm extends Realm implements Releasable {
 
     }
 
+    @SuppressForbidden(reason = "uses java.io.File")
+    private static final class SamlFilesystemMetadataResolver extends FilesystemMetadataResolver {
+
+        SamlFilesystemMetadataResolver(final java.io.File metadata) throws ResolverException {
+            super(metadata);
+        }
+
+        @Override
+        protected byte[] fetchMetadata() throws ResolverException {
+            assert assertNotTransportThread("fetching SAML metadata from a file");
+            return super.fetchMetadata();
+        }
+    }
+
     @SuppressForbidden(reason = "uses toFile")
     private static Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> parseFileSystemMetadata(
         Logger logger,
@@ -769,13 +783,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
         final String entityId = require(config, IDP_ENTITY_ID);
         final Path path = config.env().configFile().resolve(metadataPath);
-        final FilesystemMetadataResolver resolver = new FilesystemMetadataResolver(path.toFile()) {
-            @Override
-            protected byte[] fetchMetadata() throws ResolverException {
-                assert assertNotTransportThread("fetching SAML metadata from a file");
-                return super.fetchMetadata();
-            }
-        };
+        final FilesystemMetadataResolver resolver = new SamlFilesystemMetadataResolver(path.toFile());
 
         for (var httpSetting : List.of(IDP_METADATA_HTTP_REFRESH, IDP_METADATA_HTTP_MIN_REFRESH, IDP_METADATA_HTTP_FAIL_ON_ERROR)) {
             if (config.hasSetting(httpSetting)) {

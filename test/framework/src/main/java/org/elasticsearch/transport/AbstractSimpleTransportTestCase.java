@@ -321,7 +321,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertThat("moshe", equalTo(request.message));
                 try {
                     channel.sendResponse(new StringMessageResponse("hello " + request.message));
-                } catch (IOException e) {
+                } catch (Exception e) {
                     logger.error("Unexpected failure", e);
                     fail(e.getMessage());
                 }
@@ -408,7 +408,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     StringMessageResponse response = new StringMessageResponse("pong");
                     threadPool.getThreadContext().putHeader("test.pong.user", "pong_user");
                     channel.sendResponse(response);
-                } catch (IOException e) {
+                } catch (Exception e) {
                     logger.error("Unexpected failure", e);
                     fail(e.getMessage());
                 }
@@ -467,7 +467,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             (request, channel, task) -> {
                 try {
                     channel.sendResponse(new StringMessageResponse(request.message));
-                } catch (IOException e) {
+                } catch (Exception e) {
                     exception.set(e);
                 }
             }
@@ -515,7 +515,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 } else {
                     channel.sendResponse(new ElasticsearchException("simulated"));
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 logger.error("Unexpected failure", e);
                 fail(e.getMessage());
             }
@@ -646,7 +646,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 (request, channel, task) -> {
                     try {
                         channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         logger.error("Unexpected failure", e);
                         fail(e.getMessage());
                     }
@@ -703,7 +703,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     assertThat("moshe", equalTo(request.message));
                     try {
                         channel.sendResponse(new StringMessageResponse("hello " + request.message));
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         logger.error("Unexpected failure", e);
                         fail(e.getMessage());
                     }
@@ -762,7 +762,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertThat(text, equalTo(request.message));
                 try {
                     channel.sendResponse(new StringMessageResponse(""));
-                } catch (IOException e) {
+                } catch (Exception e) {
                     logger.error("Unexpected failure", e);
                     fail(e.getMessage());
                 }
@@ -1161,7 +1161,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                     try {
                         channel.sendResponse(new StringMessageResponse("hello " + request.message));
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         logger.error("Unexpected failure", e);
                         fail(e.getMessage());
                     }
@@ -2677,11 +2677,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+                        channel.sendResponse(e);
                     }
 
                     @Override
@@ -2749,11 +2745,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+                        channel.sendResponse(e);
                     }
 
                     @Override
@@ -2866,11 +2858,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+                        channel.sendResponse(e);
                     }
 
                     @Override

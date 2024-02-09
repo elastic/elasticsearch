@@ -73,6 +73,13 @@ dependencies {
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
 
+  // zstd native implementation bundles
+  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:darwin-aarch64"
+  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:darwin-x86-64"
+  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:linux-aarch64"
+  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:linux-x86-64"
+  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:windows-x86-64"
+
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'
@@ -80,7 +87,6 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
-
 }
 
 spotless {

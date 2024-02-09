@@ -9,6 +9,7 @@
 
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
@@ -299,10 +300,18 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles =
+    libFiles = { platform, isTestDistro ->
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
-        from(configurations.libs)
+        from(configurations.libs) {
+          if (isTestDistro == false) {
+            // Remove native binary jars not-applicable to this distribution
+            def excludePlatforms = ['linux-x86-64', 'linux-aarch64', 'windows-x86-64', 'darwin-x86-64', 'darwin-aarch64'] - platform
+            excludePlatforms.each {
+              exclude "**/*-${it}.jar"
+            }
+          }
+        }
         into('java-version-checker') {
           from(configurations.libsVersionChecker)
         }
@@ -331,6 +340,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from(configurations.libsAnsiConsole)
         }
       }
+    }
 
     modulesFiles = { platform ->
       copySpec {
@@ -624,4 +634,8 @@ artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
 tasks.named('resolveAllDependencies') {
   // We don't want to build all our distribution artifacts when priming our dependency cache
   configs = []
+}
+
+public enum Architecture {
+  FOO
 }

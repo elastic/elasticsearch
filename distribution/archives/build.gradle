@@ -5,17 +5,13 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-
-import java.nio.file.Files
-import java.nio.file.Path
-
 apply plugin: 'elasticsearch.internal-distribution-archive-setup'
 
 CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, boolean isTestDistro) {
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
-        with libFiles
+        with libFiles("$platform-" + ((architecture == 'x64') ? 'x86-64' : architecture), isTestDistro)
       }
       into('config') {
         dirMode 0750

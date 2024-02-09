@@ -213,6 +213,9 @@ class S3BlobStore implements BlobStore {
 
         private boolean assertConsistencyBetweenHttpRequestAndOperation(Request<?> request, Operation operation) {
             switch (operation) {
+                case HEAD_OBJECT -> {
+                    return request.getHttpMethod().name().equals("HEAD");
+                }
                 case GET_OBJECT, LIST_OBJECTS -> {
                     return request.getHttpMethod().name().equals("GET");
                 }
@@ -421,6 +424,7 @@ class S3BlobStore implements BlobStore {
     }
 
     enum Operation {
+        HEAD_OBJECT("HeadObject"),
         GET_OBJECT("GetObject"),
         LIST_OBJECTS("ListObjects"),
         PUT_OBJECT("PutObject"),

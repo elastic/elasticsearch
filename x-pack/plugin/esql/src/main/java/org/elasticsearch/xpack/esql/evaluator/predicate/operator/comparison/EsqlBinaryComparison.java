@@ -131,7 +131,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
                 "first argument of [{}] is [unsigned_long] and second is [{}]. "
                     + "[unsigned_long] can only be operated on together with another [unsigned_long]",
                 sourceText(),
-                right().dataType().esType()
+                right().dataType().typeName()
             );
         }
         if (right().dataType().equals(UNSIGNED_LONG)) {
@@ -140,7 +140,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
                 "first argument of [{}] is [{}] and second is [unsigned_long]. "
                     + "[unsigned_long] can only be operated on together with another [unsigned_long]",
                 sourceText(),
-                left().dataType().esType()
+                left().dataType().typeName()
             );
         }
         return format(

@@ -43,6 +43,9 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<BinaryC
         Map.entry(DataTypes.VERSION, NotEqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataTypes.IP, NotEqualsKeywordsEvaluator.Factory::new)
     );
+    public NotEquals(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.NEQ, evaluatorMap);
+    }
     public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.NEQ, zoneId, evaluatorMap);
     }

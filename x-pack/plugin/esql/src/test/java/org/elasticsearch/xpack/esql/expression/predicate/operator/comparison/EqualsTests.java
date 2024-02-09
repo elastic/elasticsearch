@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -72,8 +73,8 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 "rhs",
                 Object::equals,
                 DataTypes.BOOLEAN,
-                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE)),
-                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE)),
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX),
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX),
                 List.of()
             )
         );
@@ -192,7 +193,6 @@ public class EqualsTests extends AbstractFunctionTestCase {
             )
         );
 
-
         return parameterSuppliersFromTypedData(
             errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), EqualsTests::errorMessageString)
         );
@@ -203,9 +203,27 @@ public class EqualsTests extends AbstractFunctionTestCase {
             return typeErrorMessage(includeOrdinal, validPerPosition, types);
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
-            return "[==] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
+            if (types.get(0).equals(DataTypes.UNSIGNED_LONG)) {
+                return "first argument of [] is [unsigned_long] and second is ["
+                    + types.get(1).typeName()
+                    + "]. [unsigned_long] can only be operated on together with another [unsigned_long]";
+
+            }
+            if (types.get(1).equals(DataTypes.UNSIGNED_LONG)) {
+                return "first argument of [] is ["
+                    + types.get(0).typeName()
+                    + "] and second is [unsigned_long]. [unsigned_long] can only be operated on together with another [unsigned_long]";
+            }
+            return "first argument of [] is ["
+                + (types.get(0).isNumeric() ? "numeric" : types.get(0).typeName())
+                + "] so second argument must also be ["
+                + (types.get(0).isNumeric() ? "numeric" : types.get(0).typeName())
+                + "] but was ["
+                + types.get(1).typeName()
+                + "]";
 
         }
+
     }
 
     @Override

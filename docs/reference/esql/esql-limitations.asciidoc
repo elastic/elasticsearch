@@ -75,6 +75,17 @@ all.
 
 [discrete]
 [[esql-limitations-full-text-search]]
+=== _source availability
+
+{esql} is not supported with configurations where the
+<<mapping-source-field,_source field>> is <<disable-source-field,disabled>>.
+
+experimental:[] {esql}'s support for <<synthetic-source,synthetic `_source`>>
+is currently experimental.
+
+
+[discrete]
+[[esql-limitations-full-text-search]]
 === Full-text search is not supported
 
 Because of <<esql-limitations-text-fields,the way {esql} treats `text` values>>,

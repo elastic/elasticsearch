@@ -427,7 +427,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // not yet flushed to lucene ie. it's part of this current maps object
         final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();
         final boolean isNotTrackedByArchive = versionValue.time < archive.getMinDeleteTimestamp();
-        return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps & isNotTrackedByArchive;
+        return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps && isNotTrackedByArchive;
     }
 
     /**

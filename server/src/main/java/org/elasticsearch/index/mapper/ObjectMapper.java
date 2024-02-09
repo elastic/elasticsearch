@@ -356,7 +356,7 @@ public class ObjectMapper extends Mapper {
         if (fieldName.isEmpty()) {
             throw new IllegalArgumentException("field name cannot be an empty string");
         }
-        if (fieldName.isBlank() & indexCreatedVersion.onOrAfter(IndexVersions.V_8_6_0)) {
+        if (fieldName.isBlank() && indexCreatedVersion.onOrAfter(IndexVersions.V_8_6_0)) {
             // blank field names were previously accepted in mappings, but not in documents.
             throw new IllegalArgumentException("field name cannot contain only whitespaces");
         }

@@ -244,7 +244,7 @@ public class MergingDigest extends AbstractTDigest {
         }
         if (unmergedWeight > 0) {
             // note that we run the merge in reverse every other merge to avoid left-to-right bias in merging
-            merge(tempMean, tempWeight, tempUsed, order, unmergedWeight, useAlternatingSort & mergeCount % 2 == 1, compression);
+            merge(tempMean, tempWeight, tempUsed, order, unmergedWeight, useAlternatingSort && mergeCount % 2 == 1, compression);
             mergeCount++;
             tempUsed = 0;
             unmergedWeight = 0;

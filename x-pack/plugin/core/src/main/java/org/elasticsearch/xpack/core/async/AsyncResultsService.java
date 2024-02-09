@@ -85,7 +85,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             }
             // EQL doesn't store initial or intermediate results so we only need to update expiration time in store for only in case of
             // async search
-            if (updateInitialResultsInStore & expirationTime > 0) {
+            if (updateInitialResultsInStore && expirationTime > 0) {
                 store.updateExpirationTime(
                     searchId.getDocId(),
                     expirationTime,

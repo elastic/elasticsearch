@@ -16,7 +16,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
@@ -71,7 +70,6 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
     }
 
     private void doExecuteForked(Task task, SamlLogoutRequest request, ActionListener<SamlLogoutResponse> listener) {
-        assert Transports.assertNotTransportThread("SAML logout may involve slow IO/HTTP calls");
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         invalidateRefreshToken(request.getRefreshToken(), ActionListener.wrap(ignore -> {
             try {

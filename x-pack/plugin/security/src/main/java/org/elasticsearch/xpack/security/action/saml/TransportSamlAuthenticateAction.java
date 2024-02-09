@@ -16,7 +16,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequest;
@@ -74,7 +73,6 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
     }
 
     private void doExecuteForked(Task task, SamlAuthenticateRequest request, ActionListener<SamlAuthenticateResponse> listener) {
-        assert Transports.assertNotTransportThread("SAML authentication may involve slow IO/HTTP calls");
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         final SamlToken saml = new SamlToken(request.getSaml(), request.getValidRequestIds(), request.getRealm());
         logger.trace("Attempting to authenticate SamlToken [{}]", saml);

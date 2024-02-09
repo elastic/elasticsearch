@@ -18,7 +18,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -80,7 +79,6 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
     }
 
     private void doExecuteForked(Task task, SamlInvalidateSessionRequest request, ActionListener<SamlInvalidateSessionResponse> listener) {
-        assert Transports.assertNotTransportThread("SAML invalidate session may involve slow IO/HTTP calls");
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL());
         if (realms.isEmpty()) {

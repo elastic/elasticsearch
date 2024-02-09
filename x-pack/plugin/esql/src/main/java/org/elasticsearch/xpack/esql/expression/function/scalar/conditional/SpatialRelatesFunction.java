@@ -16,6 +16,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -53,6 +54,8 @@ import static org.elasticsearch.xpack.ql.expression.Expressions.name;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 
 public abstract class SpatialRelatesFunction extends BinaryScalarFunction implements EvaluatorMapper {
@@ -77,7 +80,8 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         TypeResolution leftResolution = isSpatial(left(), sourceText(), FIRST);
         TypeResolution rightResolution = isSpatial(right(), sourceText(), SECOND);
         // Both are not spatial, then both could be string literals
-        if (leftResolution.unresolved() && rightResolution.unresolved()) {
+        if ((leftResolution.unresolved() || left().dataType().equals(NULL))
+            && (rightResolution.unresolved() || right().dataType().equals(NULL))) {
             TypeResolution resolution = bothAreStringTypes(left(), right(), sourceText());
             if (resolution.unresolved() == false) {
                 spatialDataType = CARTESIAN_SHAPE;
@@ -86,9 +90,11 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         }
         // Both are spatial, but one could be a literal spatial function
         if (leftResolution.resolved() && rightResolution.resolved()) {
-            if (left().foldable()) {
+            if (left().foldable() && right().foldable() == false || DataTypes.isNull(left().dataType())) {
+                // Left is literal, but right is not, check the left field's type against the right field
                 return resolveType(right(), left(), FIRST);
             } else {
+                // All other cases check the right against the left
                 return resolveType(left(), right(), SECOND);
             }
         }
@@ -121,7 +127,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
     ) {
         return isType(
             expression,
-            dt -> isString(dt) || EsqlDataTypes.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
+            dt -> dt == KEYWORD || EsqlDataTypes.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
             operationName,
             paramOrd,
             spatialDataType.esType(),
@@ -136,7 +142,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
     }
 
     public static TypeResolution bothAreStringTypes(Expression left, Expression right, String operationName) {
-        return DataTypes.isString(left.dataType()) && DataTypes.isString(right.dataType())
+        return atLeastOneKeywordAndNoNonNulls(left, right)
             ? TypeResolution.TYPE_RESOLVED
             : new TypeResolution(
                 format(
@@ -153,9 +159,25 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
             );
     }
 
+    private static boolean atLeastOneKeywordAndNoNonNulls(Expression... expressions) {
+        int countKeywords = 0;
+        int countNulls = 0;
+        for (Expression expression : expressions) {
+            if (expression.dataType() == KEYWORD) {
+                countKeywords++;
+            }
+            if (expression.dataType() == NULL) {
+                countNulls++;
+            }
+        }
+        return countKeywords > 0 && (countNulls + countKeywords == expressions.length);
+    }
+
     protected static Component2D asLuceneComponent2D(DataType spatialDataType, Expression expression) {
         Object result = expression.fold();
-        if (result instanceof BytesRef bytesRef) {
+        if (result instanceof String string) {
+            return asLuceneComponent2D(spatialDataType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(string));
+        } else if (result instanceof BytesRef bytesRef) {
             return asLuceneComponent2D(spatialDataType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString()));
         } else {
             throw new IllegalArgumentException("Invalid spatial constant string: " + result);
@@ -174,20 +196,26 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
 
     protected static GeometryDocValueReader asGeometryDocValueReader(DataType spatialDataType, Expression expression) throws IOException {
         Object result = expression.fold();
-        if (result instanceof BytesRef bytesRef) {
-            var geometry = SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString());
-            if (EsqlDataTypes.isSpatialGeo(spatialDataType)) {
-                return asGeometryDocValueReader(
-                    CoordinateEncoder.GEO,
-                    new GeoShapeIndexer(Orientation.CCW, "SpatialRelatesFunction"),
-                    geometry
-                );
-            } else {
-                return asGeometryDocValueReader(CoordinateEncoder.CARTESIAN, new CartesianShapeIndexer("SpatialRelatesFunction"), geometry);
-            }
+        if (result instanceof String string) {
+            return asGeometryDocValueReader(spatialDataType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(string));
+        } else if (result instanceof BytesRef bytesRef) {
+            return asGeometryDocValueReader(spatialDataType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString()));
         } else {
             throw new IllegalArgumentException("Invalid spatial constant string: " + result);
         }
+    }
+
+    protected static GeometryDocValueReader asGeometryDocValueReader(DataType spatialDataType, Geometry geometry) throws IOException {
+        if (EsqlDataTypes.isSpatialGeo(spatialDataType)) {
+            return asGeometryDocValueReader(
+                CoordinateEncoder.GEO,
+                new GeoShapeIndexer(Orientation.CCW, "SpatialRelatesFunction"),
+                geometry
+            );
+        } else {
+            return asGeometryDocValueReader(CoordinateEncoder.CARTESIAN, new CartesianShapeIndexer("SpatialRelatesFunction"), geometry);
+        }
+
     }
 
     protected static GeometryDocValueReader asGeometryDocValueReader(
@@ -197,7 +225,12 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
     ) throws IOException {
         GeometryDocValueReader reader = new GeometryDocValueReader();
         CentroidCalculator centroidCalculator = new CentroidCalculator();
-        centroidCalculator.add(geometry);
+        if (geometry instanceof Circle circle) {
+            // TODO: How should we deal with circles?
+            centroidCalculator.add(new Point(circle.getX(), circle.getY()));
+        } else {
+            centroidCalculator.add(geometry);
+        }
         reader.reset(GeometryDocValueWriter.write(shapeIndexer.indexShape(geometry), encoder, centroidCalculator));
         return reader;
     }
@@ -381,9 +414,9 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         }
 
         protected boolean geometryRelatesGeometry(BytesRef left, BytesRef right) throws IOException {
-            Geometry rightGeom = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(right);
+            Geometry rightGeom = fromBytesRef(right);
             if (rightGeom instanceof Point point) {
-                Geometry leftGeom = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(left);
+                Geometry leftGeom = fromBytesRef(left);
                 return pointRelatesGeometry(point, leftGeom);
             } else {
                 // Convert one of the geometries to a doc-values byte array, and then visit the other geometry as a Component2D
@@ -392,8 +425,17 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
             }
         }
 
+        protected Geometry fromBytesRef(BytesRef bytesRef) {
+            try {
+                return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
+            } catch (IllegalArgumentException e) {
+                // TODO: would be better to not rely on exceptions to tell the difference between WKB and WKT
+                return SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString());
+            }
+        }
+
         protected boolean geometryRelatesGeometry(BytesRef left, Component2D rightComponent2D) throws IOException {
-            Geometry leftGeom = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(left);
+            Geometry leftGeom = fromBytesRef(left);
             if (leftGeom instanceof Point point) {
                 return geometryRelatesPoint(rightComponent2D, point);
             } else {

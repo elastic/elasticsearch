@@ -36,13 +36,13 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 
 public class SpatialIntersects extends SpatialRelatesFunction {
-    private static final SpatialRelations GEO = new SpatialRelations(
+    protected static final SpatialRelations GEO = new SpatialRelations(
         ShapeField.QueryRelation.INTERSECTS,
         SpatialCoordinateTypes.GEO,
         CoordinateEncoder.GEO,
         new GeoShapeIndexer(Orientation.CCW, "ST_Intersects")
     );
-    private static final SpatialRelations CARTESIAN = new SpatialRelations(
+    protected static final SpatialRelations CARTESIAN = new SpatialRelations(
         ShapeField.QueryRelation.INTERSECTS,
         SpatialCoordinateTypes.CARTESIAN,
         CoordinateEncoder.CARTESIAN,

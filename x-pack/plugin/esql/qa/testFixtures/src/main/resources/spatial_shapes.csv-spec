@@ -92,6 +92,30 @@ HOD            | Hodeidah Int'l | POINT(42.97109630194 14.7552534413725) | Yemen
 literalPointIntersectsStringPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_INTERSECTS(pt, "POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))")
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+literalPointIntersectsStringPolygonReversed#[skip:-8.12.99, reason:st_intersects added in 8.13]
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_INTERSECTS("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))", pt)
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+literalPointAsShapeIntersectsStringPolygon#[skip:-8.12.99, reason:st_intersects added in 8.13]
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
 | EVAL pt = TO_GEOSHAPE(wkt)
 | WHERE ST_INTERSECTS(pt, "POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))")
 ;
@@ -101,7 +125,7 @@ wkt:keyword   | pt:geo_shape
 "POINT(1 -1)" | POINT(1 -1)
 ;
 
-literalPointIntersectsStringPolygonReversed#[skip:-8.12.99, reason:st_intersects added in 8.13]
+literalPointAsShapeIntersectsStringPolygonReversed#[skip:-8.12.99, reason:st_intersects added in 8.13]
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOSHAPE(wkt)

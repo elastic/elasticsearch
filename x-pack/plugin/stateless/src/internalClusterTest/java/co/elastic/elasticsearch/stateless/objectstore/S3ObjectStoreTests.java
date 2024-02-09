@@ -61,6 +61,7 @@ import static org.hamcrest.Matchers.oneOf;
 public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     private static final Set<String> EXPECTED_REQUEST_NAMES = Set.of(
+        "HeadObject",
         "GetObject",
         "ListObjects",
         "PutObject",
@@ -115,10 +116,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
         assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.requestCounts.keySet());
         repositoryStats.requestCounts.forEach((metricName, count) -> {
-            if ("AbortMultipartObject".equals(metricName)) {
-                assertThat(count, greaterThanOrEqualTo(0L));
+            if ("AbortMultipartObject".equals(metricName) || "HeadObject".equals(metricName)) {
+                assertThat(metricName, count, greaterThanOrEqualTo(0L));
             } else {
-                assertThat(count, greaterThan(0L));
+                assertThat(metricName, count, greaterThan(0L));
             }
         });
     }

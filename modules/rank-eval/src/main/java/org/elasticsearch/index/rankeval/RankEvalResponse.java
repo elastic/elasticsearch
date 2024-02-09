@@ -11,15 +11,18 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -27,7 +30,7 @@ import java.util.Map;
  * The response contains a detailed section for each evaluation query in the request and
  * possible failures that happened when execution individual queries.
  **/
-public class RankEvalResponse extends ActionResponse implements ToXContentObject {
+public class RankEvalResponse extends ActionResponse implements ChunkedToXContentObject {
 
     /** The overall evaluation result. */
     private double metricScore;
@@ -85,22 +88,20 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("metric_score", metricScore);
-        builder.startObject("details");
-        for (String key : details.keySet()) {
-            details.get(key).toXContent(builder, params);
-        }
-        builder.endObject();
-        builder.startObject("failures");
-        for (String key : failures.keySet()) {
-            builder.startObject(key);
-            ElasticsearchException.generateFailureXContent(builder, params, failures.get(key), true);
-            builder.endObject();
-        }
-        builder.endObject();
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.singleChunk(
+                (builder, params) -> builder.startObject().field("metric_score", metricScore).startObject("details")
+            ),
+            Iterators.flatMap(details.keySet().iterator(), key -> details.get(key).toXContentChunked(outerParams)),
+            ChunkedToXContentHelper.singleChunk((builder, params) -> builder.endObject().startObject("failures")),
+            Iterators.flatMap(failures.keySet().iterator(), key -> ChunkedToXContentHelper.singleChunk((builder, params) -> {
+                builder.startObject(key);
+                ElasticsearchException.generateFailureXContent(builder, params, failures.get(key), true);
+                builder.endObject();
+                return builder;
+            })),
+            ChunkedToXContentHelper.singleChunk((builder, params) -> builder.endObject().endObject())
+        );
     }
 }

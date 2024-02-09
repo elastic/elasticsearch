@@ -10,6 +10,7 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
@@ -80,7 +81,12 @@ public class EvalQueryQualityTests extends ESTestCase {
         EvalQueryQuality testItem = randomEvalQueryQuality();
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(
+            ChunkedToXContent.wrapAsToXContent(testItem),
+            xContentType,
+            ToXContent.EMPTY_PARAMS,
+            humanReadable
+        );
         // skip inserting random fields for:
         // - the root object, since we expect a particular queryId there in this test
         // - the `metric_details` section, which can potentially contain different namedXContent names

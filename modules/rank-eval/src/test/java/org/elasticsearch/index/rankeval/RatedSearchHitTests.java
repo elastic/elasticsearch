@@ -10,6 +10,7 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -53,7 +54,12 @@ public class RatedSearchHitTests extends ESTestCase {
     public void testXContentRoundtrip() throws IOException {
         RatedSearchHit testItem = randomRatedSearchHit();
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+        BytesReference originalBytes = toShuffledXContent(
+            ChunkedToXContent.wrapAsToXContent(testItem),
+            xContentType,
+            ToXContent.EMPTY_PARAMS,
+            randomBoolean()
+        );
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             RatedSearchHit parsedItem = RatedSearchHit.parse(parser);
             assertNotSame(testItem, parsedItem);

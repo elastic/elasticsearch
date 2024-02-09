@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -29,7 +30,6 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPoolStats;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -443,11 +443,11 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     /**
      * Returns the {@link SearchHit} content as a {@link Map} object.
      */
-    private static Map<String, Object> toMap(final ToXContentObject xContentObject) throws IOException {
+    private static Map<String, Object> toMap(final ChunkedToXContentObject xContentObject) throws IOException {
         final XContentType xContentType = XContentType.JSON;
 
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            xContentObject.toXContent(builder, EMPTY_PARAMS);
+            ChunkedToXContentObject.wrapAsToXContentObject(xContentObject).toXContent(builder, EMPTY_PARAMS);
 
             final Map<String, Object> map = XContentHelper.convertToMap(xContentType.xContent(), Strings.toString(builder), false);
 

@@ -297,7 +297,14 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
                 b.field(Fields.MAX_SCORE, maxScore);
             }
             return b;
-        }), ChunkedToXContentHelper.array(Fields.HITS, Iterators.forArray(hits)), ChunkedToXContentHelper.endObject());
+        }),
+            Iterators.concat(
+                ChunkedToXContentHelper.startArray(Fields.HITS),
+                Iterators.flatMap(Iterators.forArray(hits), hit -> hit.toXContentChunked(params)),
+                ChunkedToXContentHelper.endArray()
+            ),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     public static SearchHits fromXContent(XContentParser parser) throws IOException {

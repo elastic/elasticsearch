@@ -15,6 +15,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,7 +23,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -44,8 +46,8 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -60,6 +62,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -76,7 +79,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *
  * @see SearchHits
  */
-public final class SearchHit implements Writeable, ToXContentObject, RefCounted {
+public final class SearchHit implements Writeable, ChunkedToXContentObject, RefCounted {
 
     private final transient int docId;
 
@@ -799,133 +802,176 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     static final String METADATA_FIELDS = "metadata_fields";
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
-        builder.startObject();
-        toInnerXContent(builder, params);
-        builder.endObject();
-        return builder;
+        return Iterators.concat(ChunkedToXContentHelper.startObject(), toInnerXContentChunked(params), ChunkedToXContentHelper.endObject());
+    }
+
+    private static <T> Iterator<ToXContent> chunkedSection(
+        ToXContent before,
+        Iterator<T> items,
+        Function<T, Iterator<ToXContent>> fn,
+        ToXContent after
+    ) {
+        return Iterators.concat(Iterators.single(before), Iterators.flatMap(items, fn::apply), Iterators.single(after));
     }
 
     // public because we render hit as part of completion suggestion option
-    public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
+    public Iterator<? extends ToXContent> toInnerXContentChunked(ToXContent.Params outerParams) {
+        final int chunksUpperLimit = 20; // Currently, we have at most this number of chunks
+        var chunks = new ArrayList<Iterator<? extends ToXContent>>(chunksUpperLimit);
+
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
         if (getExplanation() != null && shard != null) {
-            builder.field(Fields._SHARD, shard.getShardId());
-            builder.field(Fields._NODE, shard.getNodeIdText());
+            chunks.add(
+                ChunkedToXContentHelper.singleChunk(
+                    (builder, params) -> builder.field(Fields._SHARD, shard.getShardId()).field(Fields._NODE, shard.getNodeIdText())
+                )
+            );
         }
         if (index != null) {
-            builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
+            chunks.add(ChunkedToXContentHelper.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index)));
         }
-        if (builder.getRestApiVersion() == RestApiVersion.V_7 && metaFields.containsKey(MapperService.TYPE_FIELD_NAME) == false) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
+        chunks.add(Iterators.single((builder, params) -> {
+            if (builder.getRestApiVersion() == RestApiVersion.V_7 && metaFields.containsKey(MapperService.TYPE_FIELD_NAME) == false) {
+                builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+            }
+            return builder;
+        }));
         if (id != null) {
-            builder.field(Fields._ID, id);
+            chunks.add(Iterators.single((builder, params) -> builder.field(Fields._ID, id)));
         }
         if (nestedIdentity != null) {
-            nestedIdentity.toXContent(builder, params);
+            // NestedIdentity is small, but can have multiple levels of nesting - consider moving it to Chunked too.
+            chunks.add(Iterators.single(nestedIdentity));
         }
         if (version != -1) {
-            builder.field(Fields._VERSION, version);
+            chunks.add(ChunkedToXContentHelper.field(Fields._VERSION, version));
         }
 
         if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            builder.field(Fields._SEQ_NO, seqNo);
-            builder.field(Fields._PRIMARY_TERM, primaryTerm);
+            chunks.add(
+                ChunkedToXContentHelper.singleChunk(
+                    (builder, params) -> builder.field(Fields._SEQ_NO, seqNo).field(Fields._PRIMARY_TERM, primaryTerm)
+                )
+            );
         }
 
         if (Float.isNaN(score)) {
-            builder.nullField(Fields._SCORE);
+            chunks.add(ChunkedToXContentHelper.nullField(Fields._SCORE));
         } else {
-            builder.field(Fields._SCORE, score);
+            chunks.add(ChunkedToXContentHelper.field(Fields._SCORE, score));
         }
 
         if (rank != NO_RANK) {
-            builder.field(Fields._RANK, rank);
+            chunks.add(ChunkedToXContentHelper.field(Fields._RANK, rank));
         }
 
-        for (DocumentField field : metaFields.values()) {
-            // ignore empty metadata fields
-            if (field.getValues().size() == 0) {
-                continue;
-            }
-            // _ignored is the only multi-valued meta field
-            // TODO: can we avoid having an exception here?
-            if (field.getName().equals(IgnoredFieldMapper.NAME)) {
-                builder.field(field.getName(), field.getValues());
-            } else {
-                builder.field(field.getName(), field.<Object>getValue());
-            }
-        }
+        chunks.add(Iterators.flatMap(metaFields.values().iterator(), field ->
+        // ignore empty metadata fields
+        // _ignored is the only multi-valued meta field
+        // TODO: can we avoid having an exception here?
+        (field.getValues().isEmpty() == false
+            ? (field.getName().equals(IgnoredFieldMapper.NAME)
+                ? Iterators.single((builder, params) -> builder.field(field.getName(), field.getValues()))
+                : Iterators.single((builder, params) -> builder.field(field.getName(), field.<Object>getValue())))
+            : Collections.emptyIterator())));
+
         if (source != null) {
-            XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
+            chunks.add(Iterators.single((builder, params) -> {
+                // TODO
+                XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
+                return builder;
+            }));
         }
         if (documentFields.isEmpty() == false &&
         // ignore fields all together if they are all empty
-            documentFields.values().stream().anyMatch(df -> df.getValues().size() > 0)) {
-            builder.startObject(Fields.FIELDS);
-            for (DocumentField field : documentFields.values()) {
-                if (field.getValues().size() > 0) {
-                    field.getValidValuesWriter().toXContent(builder, params);
-                }
-            }
-            builder.endObject();
+            documentFields.values().stream().anyMatch(df -> df.getValues().isEmpty() == false)) {
+            chunks.add(
+                chunkedSection(
+                    (builder, params) -> builder.startObject(Fields.FIELDS),
+                    documentFields.values().iterator(),
+                    field -> (field.getValues().isEmpty() == false
+                        ? Iterators.single((builder, params) -> field.getValidValuesWriter().toXContent(builder, params))
+                        : Collections.emptyIterator()),
+                    (builder, params) -> builder.endObject()
+                )
+            );
         }
+
         // ignored field values
         if (documentFields.isEmpty() == false &&
         // omit ignored_field_values all together if there are none
-            documentFields.values().stream().anyMatch(df -> df.getIgnoredValues().size() > 0)) {
-            builder.startObject(Fields.IGNORED_FIELD_VALUES);
-            for (DocumentField field : documentFields.values()) {
-                if (field.getIgnoredValues().size() > 0) {
-                    field.getIgnoredValuesWriter().toXContent(builder, params);
-                }
-            }
-            builder.endObject();
+            documentFields.values().stream().anyMatch(df -> df.getIgnoredValues().isEmpty() == false)) {
+            chunks.add(
+                chunkedSection(
+                    (builder, params) -> builder.startObject(Fields.IGNORED_FIELD_VALUES),
+                    documentFields.values().iterator(),
+                    field -> (field.getIgnoredValues().isEmpty() == false
+                        ? Iterators.single((builder, params) -> field.getIgnoredValuesWriter().toXContent(builder, params))
+                        : Collections.emptyIterator()),
+                    (builder, params) -> builder.endObject()
+                )
+            );
         }
         if (highlightFields != null && highlightFields.isEmpty() == false) {
-            builder.startObject(Fields.HIGHLIGHT);
-            for (HighlightField field : highlightFields.values()) {
-                field.toXContent(builder, params);
-            }
-            builder.endObject();
+            chunks.add(
+                chunkedSection(
+                    (builder, params) -> builder.startObject(Fields.HIGHLIGHT),
+                    highlightFields.values().iterator(),
+                    Iterators::single,
+                    (builder, params) -> builder.endObject()
+                )
+            );
         }
-        sortValues.toXContent(builder, params);
-        if (matchedQueries != null && matchedQueries.size() > 0) {
-            boolean includeMatchedQueriesScore = params.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
+
+        chunks.add(sortValues.toXContentChunked(outerParams));
+
+        if (matchedQueries != null && matchedQueries.isEmpty() == false) {
+            boolean includeMatchedQueriesScore = outerParams.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
             if (includeMatchedQueriesScore) {
-                builder.startObject(Fields.MATCHED_QUERIES);
-                for (Map.Entry<String, Float> entry : matchedQueries.entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
-                builder.endObject();
+                chunks.add(
+                    chunkedSection(
+                        (builder, params) -> builder.startObject(Fields.MATCHED_QUERIES),
+                        matchedQueries.entrySet().iterator(),
+                        entry -> ChunkedToXContentHelper.field(entry.getKey(), entry.getValue()),
+                        (builder, params) -> builder.endObject()
+                    )
+                );
             } else {
-                builder.startArray(Fields.MATCHED_QUERIES);
-                for (String matchedFilter : matchedQueries.keySet()) {
-                    builder.value(matchedFilter);
-                }
-                builder.endArray();
+                chunks.add(
+                    chunkedSection(
+                        (builder, params) -> builder.startArray(Fields.MATCHED_QUERIES),
+                        matchedQueries.keySet().iterator(),
+                        matchedFilter -> Iterators.single((builder, params) -> builder.value(matchedFilter)),
+                        (builder, params) -> builder.endArray()
+                    )
+                );
             }
         }
         if (getExplanation() != null) {
-            builder.field(Fields._EXPLANATION);
-            buildExplanation(builder, getExplanation());
+            chunks.add(Iterators.single((builder, params) -> builder.field(Fields._EXPLANATION)));
+            chunks.add(buildExplanation(getExplanation()));
         }
         if (innerHits != null) {
-            builder.startObject(Fields.INNER_HITS);
-            for (Map.Entry<String, SearchHits> entry : innerHits.entrySet()) {
-                builder.startObject(entry.getKey());
-                ChunkedToXContent.wrapAsToXContent(entry.getValue()).toXContent(builder, params);
-                builder.endObject();
-            }
-            builder.endObject();
+            chunks.add(
+                chunkedSection(
+                    (builder, params) -> builder.startObject(Fields.INNER_HITS),
+                    innerHits.entrySet().iterator(),
+                    entry -> Iterators.concat(
+                        ChunkedToXContentHelper.startObject(entry.getKey()),
+                        entry.getValue().toXContentChunked(outerParams),
+                        ChunkedToXContentHelper.endObject()
+                    ),
+                    (builder, params) -> builder.endObject()
+                )
+            );
         }
-        return builder;
+        return Iterators.flatMap(chunks.iterator(), Function.identity());
     }
 
-    // All fields on the root level of the parsed SearhHit are interpreted as metadata fields
+    // All fields on the root level of the parsed SearchHit are interpreted as metadata fields
     // public because we use it in a completion suggestion option
     @SuppressWarnings("unchecked")
     public static final ObjectParser.UnknownFieldConsumer<Map<String, Object>> unknownMetaFieldConsumer = (map, fieldName, fieldValue) -> {
@@ -946,7 +992,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      * is that this way we can reuse the parser when parsing xContent from
      * {@link org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option} which unfortunately inlines
      * the output of
-     * {@link #toInnerXContent(XContentBuilder, org.elasticsearch.xcontent.ToXContent.Params)}
+     * {@link #toInnerXContentChunked(ToXContent.Params)}
      * of the included search hit. The output of the map is used to create the
      * actual SearchHit instance via {@link #createFromMap(Map)}
      */
@@ -1177,19 +1223,21 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         return Explanation.match(value, description, details);
     }
 
-    private static void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {
-        builder.startObject();
-        builder.field(Fields.VALUE, explanation.getValue());
-        builder.field(Fields.DESCRIPTION, explanation.getDescription());
-        Explanation[] innerExps = explanation.getDetails();
-        if (innerExps != null) {
-            builder.startArray(Fields.DETAILS);
-            for (Explanation exp : innerExps) {
-                buildExplanation(builder, exp);
-            }
-            builder.endArray();
-        }
-        builder.endObject();
+    private static Iterator<ToXContent> buildExplanation(Explanation explanation) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            Iterators.single((builder, params) -> builder.field(Fields.VALUE, explanation.getValue())),
+            ChunkedToXContentHelper.field(Fields.DESCRIPTION, explanation.getDescription()),
+            (explanation.getDetails() != null
+                ? chunkedSection(
+                    (builder, params) -> builder.startArray(Fields.DETAILS),
+                    Iterators.forArray(explanation.getDetails()),
+                    SearchHit::buildExplanation,
+                    (builder, params) -> builder.endArray()
+                )
+                : Collections.emptyIterator()),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     @Override

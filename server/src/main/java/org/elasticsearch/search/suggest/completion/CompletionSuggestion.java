@@ -21,6 +21,7 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -314,11 +315,19 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 this.hit = hit == null ? null : hit.asUnpooled();
             }
 
+            private static void serializeHit(SearchHit hit, XContentBuilder builder, Params params) throws IOException {
+                Iterator<? extends ToXContent> serialization = hit.toInnerXContentChunked(params);
+                while (serialization.hasNext()) {
+                    serialization.next().toXContent(builder, params);
+                }
+            }
+
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.field(TEXT.getPreferredName(), getText());
                 if (hit != null) {
-                    hit.toInnerXContent(builder, params);
+                    // TODO: switch the enclosing class to ChunkedToXContent too
+                    serializeHit(hit, builder, params);
                 } else {
                     builder.field(SCORE.getPreferredName(), getScore());
                 }

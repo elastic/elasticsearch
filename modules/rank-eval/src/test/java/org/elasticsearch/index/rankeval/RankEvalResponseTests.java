@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Tuple;
@@ -140,7 +141,12 @@ public class RankEvalResponseTests extends ESTestCase {
         RankEvalResponse testItem = createRandomResponse();
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(
+            ChunkedToXContent.wrapAsToXContent(testItem),
+            xContentType,
+            ToXContent.EMPTY_PARAMS,
+            humanReadable
+        );
         // skip inserting random fields for:
         // - the `details` section, which can contain arbitrary queryIds
         // - everything under `failures` (exceptions parsing is quiet lenient)
@@ -183,7 +189,8 @@ public class RankEvalResponseTests extends ESTestCase {
             Collections.singletonMap("beer_query", new ParsingException(new XContentLocation(0, 0), "someMsg"))
         );
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        String xContent = BytesReference.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
+        String xContent = BytesReference.bytes(ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, ToXContent.EMPTY_PARAMS))
+            .utf8ToString();
         assertEquals(XContentHelper.stripWhitespace("""
             {
               "metric_score": 0.123,

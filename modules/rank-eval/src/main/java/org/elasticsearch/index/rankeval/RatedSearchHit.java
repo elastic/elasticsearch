@@ -8,26 +8,28 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.OptionalInt;
 
 /**
  * Combines a {@link SearchHit} with a document rating.
  */
-public class RatedSearchHit implements Writeable, ToXContentObject {
+public class RatedSearchHit implements Writeable, ChunkedToXContentObject {
 
     private final SearchHit searchHit;
     private final OptionalInt rating;
@@ -59,12 +61,14 @@ public class RatedSearchHit implements Writeable, ToXContentObject {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        builder.field("hit", (ToXContent) searchHit);
-        builder.field("rating", rating.isPresent() ? rating.getAsInt() : null);
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.singleChunk((builder, params) -> builder.startObject().field("hit")),
+            searchHit.toXContentChunked(outerParams),
+            ChunkedToXContentHelper.singleChunk(
+                (builder, params) -> builder.field("rating", rating.isPresent() ? rating.getAsInt() : null).endObject()
+            )
+        );
     }
 
     private static final ParseField HIT_FIELD = new ParseField("hit");

@@ -8,26 +8,29 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * Result of the evaluation metric calculation on one particular query alone.
  */
-public class EvalQueryQuality implements ToXContentFragment, Writeable {
+public class EvalQueryQuality implements ChunkedToXContent, Writeable {
 
     private final String queryId;
     private final double metricScore;
@@ -88,27 +91,30 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(queryId);
-        builder.field(METRIC_SCORE_FIELD.getPreferredName(), this.metricScore);
-        builder.startArray(UNRATED_DOCS_FIELD.getPreferredName());
-        for (DocumentKey key : EvaluationMetric.filterUnratedDocuments(ratedHits)) {
-            builder.startObject();
-            builder.field(RatedDocument.INDEX_FIELD.getPreferredName(), key.index());
-            builder.field(RatedDocument.DOC_ID_FIELD.getPreferredName(), key.docId());
-            builder.endObject();
-        }
-        builder.endArray();
-        builder.startArray(HITS_FIELD.getPreferredName());
-        for (RatedSearchHit hit : ratedHits) {
-            hit.toXContent(builder, params);
-        }
-        builder.endArray();
-        if (optionalMetricDetails != null) {
-            builder.field(METRIC_DETAILS_FIELD.getPreferredName(), optionalMetricDetails);
-        }
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.singleChunk(
+                (builder, params) -> builder.startObject(queryId)
+                    .field(METRIC_SCORE_FIELD.getPreferredName(), this.metricScore)
+                    .startArray(UNRATED_DOCS_FIELD.getPreferredName())
+            ),
+            Iterators.flatMap(
+                EvaluationMetric.filterUnratedDocuments(ratedHits).iterator(),
+                key -> ChunkedToXContentHelper.singleChunk(
+                    (builder, params) -> builder.startObject()
+                        .field(RatedDocument.INDEX_FIELD.getPreferredName(), key.index())
+                        .field(RatedDocument.DOC_ID_FIELD.getPreferredName(), key.docId())
+                        .endObject()
+                )
+            ),
+            ChunkedToXContentHelper.singleChunk((builder, params) -> builder.endArray().startArray(HITS_FIELD.getPreferredName())),
+            Iterators.flatMap(ratedHits.iterator(), hit -> hit.toXContentChunked(outerParams)),
+            ChunkedToXContentHelper.endArray(),
+            (optionalMetricDetails != null
+                ? Iterators.single((builder, params) -> builder.field(METRIC_DETAILS_FIELD.getPreferredName(), optionalMetricDetails))
+                : Collections.emptyIterator()),
+            ChunkedToXContentHelper.singleChunk((builder, params) -> builder.endObject())
+        );
     }
 
     static final ParseField METRIC_SCORE_FIELD = new ParseField("metric_score");

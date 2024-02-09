@@ -48,9 +48,7 @@ public record OpenAiEmbeddingsTaskSettings(String modelId, @Nullable String user
         ValidationException validationException = new ValidationException();
 
         String oldModelId = extractOptionalString(map, OLD_MODEL_ID_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
-        if (OpenAiParseContext.isRequestContext(context) && oldModelId != null) {
-            logger.info(MODEL_DEPRECATION_MESSAGE);
-        }
+        logOldModelDeprecation(oldModelId, context, logger);
 
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.TASK_SETTINGS, validationException);
         String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
@@ -62,6 +60,13 @@ public record OpenAiEmbeddingsTaskSettings(String modelId, @Nullable String user
         }
 
         return new OpenAiEmbeddingsTaskSettings(modelIdToUse, user);
+    }
+
+    // default for testing
+    static void logOldModelDeprecation(@Nullable String oldModelId, OpenAiParseContext context, Logger logger) {
+        if (OpenAiParseContext.isRequestContext(context) && oldModelId != null) {
+            logger.info(MODEL_DEPRECATION_MESSAGE);
+        }
     }
 
     private static String getModelId(@Nullable String oldModelId, @Nullable String modelId, ValidationException validationException) {

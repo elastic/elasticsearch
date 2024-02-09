@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,6 +25,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<OpenAiEmbeddingsTaskSettings> {
 
@@ -178,6 +185,28 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"model_id":"modelId"}"""));
+    }
+
+    public void testLogModelDeprecation_CallsInfo_WhenContextIsRequest_AndOldModelIdIsDefined() {
+        var mockLogger = mock(Logger.class);
+
+        OpenAiEmbeddingsTaskSettings.logOldModelDeprecation("model", OpenAiParseContext.REQUEST, mockLogger);
+        verify(mockLogger, times(1)).info(anyString());
+        verifyNoMoreInteractions(mockLogger);
+    }
+
+    public void testLogModelDeprecation_DoesNotCallInfo_WhenContextIsRequest_AndOldModelIdIsNull() {
+        var mockLogger = mock(Logger.class);
+
+        OpenAiEmbeddingsTaskSettings.logOldModelDeprecation(null, OpenAiParseContext.PERSISTENT, mockLogger);
+        verifyNoInteractions(mockLogger);
+    }
+
+    public void testLogModelDeprecation_DoesNotCallInfo_WhenContextIsPersistent_AndOldModelIdIsDefined() {
+        var mockLogger = mock(Logger.class);
+
+        OpenAiEmbeddingsTaskSettings.logOldModelDeprecation("model", OpenAiParseContext.PERSISTENT, mockLogger);
+        verifyNoInteractions(mockLogger);
     }
 
     @Override

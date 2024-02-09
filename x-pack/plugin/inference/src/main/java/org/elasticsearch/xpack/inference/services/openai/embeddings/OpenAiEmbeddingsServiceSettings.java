@@ -43,7 +43,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
     public static final String NAME = "openai_service_settings";
 
-    public static final String ORGANIZATION = "organization_id";
+    static final String ORGANIZATION = "organization_id";
     static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
 
     public static OpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, OpenAiParseContext context) {

@@ -16,7 +16,9 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.xpack.inference.external.http.sender.BaseRequestManagerFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.RequestManagerFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 
 import java.io.IOException;
@@ -26,13 +28,26 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class SenderService implements InferenceService {
-    private final SetOnce<HttpRequestSender.HttpRequestSenderFactory> factory;
+    private final SetOnce<HttpRequestSender.HttpRequestSenderFactory> httpRequestSenderFactory;
     private final SetOnce<ServiceComponents> serviceComponents;
     private final AtomicReference<Sender> sender = new AtomicReference<>();
+    private final RequestManagerFactory requestManagerFactory;
 
-    public SenderService(SetOnce<HttpRequestSender.HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
-        this.factory = Objects.requireNonNull(factory);
+    public SenderService(
+        SetOnce<HttpRequestSender.HttpRequestSenderFactory> httpRequestSenderFactory,
+        SetOnce<ServiceComponents> serviceComponents
+    ) {
+        this(httpRequestSenderFactory, serviceComponents, new BaseRequestManagerFactory());
+    }
+
+    public SenderService(
+        SetOnce<HttpRequestSender.HttpRequestSenderFactory> httpRequestSenderFactory,
+        SetOnce<ServiceComponents> serviceComponents,
+        RequestManagerFactory requestManagerFactory
+    ) {
+        this.httpRequestSenderFactory = Objects.requireNonNull(httpRequestSenderFactory);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
+        this.requestManagerFactory = Objects.requireNonNull(requestManagerFactory);
     }
 
     protected Sender getSender() {
@@ -98,7 +113,12 @@ public abstract class SenderService implements InferenceService {
     }
 
     private void init() {
-        sender.updateAndGet(current -> Objects.requireNonNullElseGet(current, () -> factory.get().createSender(name())));
+        sender.updateAndGet(
+            current -> Objects.requireNonNullElseGet(
+                current,
+                () -> httpRequestSenderFactory.get().createSender(name(), requestManagerFactory)
+            )
+        );
         sender.get().start();
     }
 

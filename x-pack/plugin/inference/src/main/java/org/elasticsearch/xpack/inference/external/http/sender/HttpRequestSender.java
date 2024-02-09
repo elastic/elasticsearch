@@ -16,10 +16,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
+import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,25 +44,36 @@ public class HttpRequestSender implements Sender {
      * A helper class for constructing a {@link HttpRequestSender}.
      */
     public static class HttpRequestSenderFactory {
-        private final ThreadPool threadPool;
+        private final ServiceComponents serviceComponents;
         private final HttpClientManager httpClientManager;
         private final ClusterService clusterService;
-        private final Settings settings;
+        private final RequestSender requestSender;
 
         public HttpRequestSenderFactory(
-            ThreadPool threadPool,
+            ServiceComponents serviceComponents,
             HttpClientManager httpClientManager,
-            ClusterService clusterService,
-            Settings settings
+            ClusterService clusterService
         ) {
-            this.threadPool = Objects.requireNonNull(threadPool);
+            this.serviceComponents = Objects.requireNonNull(serviceComponents);
             this.httpClientManager = Objects.requireNonNull(httpClientManager);
             this.clusterService = Objects.requireNonNull(clusterService);
-            this.settings = Objects.requireNonNull(settings);
+            this.requestSender = new RetryingHttpSender(
+                this.httpClientManager.getHttpClient(),
+                serviceComponents.throttlerManager(),
+                new RetrySettings(serviceComponents.settings(), clusterService),
+                serviceComponents.threadPool()
+            );
         }
 
-        public Sender createSender(String serviceName) {
-            return new HttpRequestSender(serviceName, threadPool, httpClientManager, clusterService, settings);
+        public Sender createSender(String serviceName, RequestManagerFactory requestManagerFactory) {
+            return new HttpRequestSender(
+                serviceName,
+                serviceComponents.threadPool(),
+                httpClientManager,
+                clusterService,
+                serviceComponents.settings(),
+                requestManagerFactory.create(requestSender)
+            );
         }
     }
 
@@ -90,7 +104,8 @@ public class HttpRequestSender implements Sender {
         ThreadPool threadPool,
         HttpClientManager httpClientManager,
         ClusterService clusterService,
-        Settings settings
+        Settings settings,
+        RequestManager requestManager
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.manager = Objects.requireNonNull(httpClientManager);
@@ -99,7 +114,8 @@ public class HttpRequestSender implements Sender {
             manager.getHttpClient(),
             threadPool,
             startCompleted,
-            new RequestExecutorServiceSettings(settings, clusterService)
+            new RequestExecutorServiceSettings(settings, clusterService),
+            requestManager
         );
 
         this.maxRequestTimeout = MAX_REQUEST_TIMEOUT.get(settings);
@@ -136,17 +152,22 @@ public class HttpRequestSender implements Sender {
     }
 
     /**
-     * Send a request at some point in the future with a timeout specified.
-     * @param request the http request to send
+     * Send a request at some point in the future. The timeout used is retrieved from the settings.
+     * @param requestCreator a factory for creating a request to be sent to a 3rd party service
+     * @param input the list of string input to send in the request
      * @param timeout the maximum time the request should wait for a response before timing out. If null, the timeout is ignored.
      *                The queuing logic may still throw a timeout if it fails to send the request because it couldn't get a leased
-     *                connection from the connection pool
      * @param listener a listener to handle the response
      */
-    public void send(HttpRequest request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
+    public void send(
+        ExecutableRequestCreator requestCreator,
+        List<String> input,
+        @Nullable TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
         assert started.get() : "call start() before sending a request";
         waitForStartToComplete();
-        service.execute(request, timeout, listener);
+        service.execute(requestCreator, input, timeout, listener);
     }
 
     private void waitForStartToComplete() {
@@ -161,13 +182,14 @@ public class HttpRequestSender implements Sender {
 
     /**
      * Send a request at some point in the future. The timeout used is retrieved from the settings.
-     * @param request the http request to send
+     * @param requestCreator a factory for creating a request to be sent to a 3rd party service
+     * @param input the list of string input to send in the request
      * @param listener a listener to handle the response
      */
-    public void send(HttpRequest request, ActionListener<HttpResult> listener) {
+    public void send(ExecutableRequestCreator requestCreator, List<String> input, ActionListener<InferenceServiceResults> listener) {
         assert started.get() : "call start() before sending a request";
         waitForStartToComplete();
-        service.execute(request, maxRequestTimeout, listener);
+        service.execute(requestCreator, input, maxRequestTimeout, listener);
     }
 
     public static List<Setting<?>> getSettings() {

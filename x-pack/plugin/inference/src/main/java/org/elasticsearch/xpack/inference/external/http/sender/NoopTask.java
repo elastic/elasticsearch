@@ -7,13 +7,35 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.InferenceServiceResults;
 
-class NoopTask extends AbstractRunnable {
+import java.util.List;
+
+class NoopTask implements RejectableTask {
 
     @Override
-    public void onFailure(Exception e) {}
+    public ExecutableRequestCreator requestCreator() {
+        return null;
+    }
 
     @Override
-    protected void doRun() throws Exception {}
+    public List<String> input() {
+        return null;
+    }
+
+    @Override
+    public ActionListener<InferenceServiceResults> listener() {
+        return null;
+    }
+
+    @Override
+    public boolean hasFinished() {
+        return true;
+    }
+
+    @Override
+    public void onRejection(Exception e) {
+
+    }
 }

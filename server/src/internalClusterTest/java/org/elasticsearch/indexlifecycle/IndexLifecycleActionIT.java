@@ -10,6 +10,7 @@ package org.elasticsearch.indexlifecycle;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -44,6 +45,8 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
     public void testIndexLifecycleActionsWith11Shards1Backup() throws Exception {
         CreateIndexResponse createIndexResponse = null;
         ClusterHealthResponse clusterHealth = null;
+        ClusterRerouteResponse clusterRerouteResponse = null;
+        AcknowledgedResponse deleteIndexResponse = null;
         try {
             Settings settings = Settings.builder()
                 .put(indexSettings())
@@ -82,7 +85,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
             final String node2 = getLocalNodeId(server_2);
 
             // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
-            clusterAdmin().prepareReroute().get();
+            clusterRerouteResponse = clusterAdmin().prepareReroute().get();
 
             clusterHealth = clusterAdmin().health(
                 new ClusterHealthRequest(new String[] {}).waitForGreenStatus().waitForNodes("2").waitForNoRelocatingShards(true)
@@ -123,7 +126,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
             final String node3 = getLocalNodeId(server_3);
 
             // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
-            clusterAdmin().prepareReroute().get();
+            clusterRerouteResponse = clusterAdmin().prepareReroute().get();
 
             clusterHealth = clusterAdmin().prepareHealth()
                 .setWaitForGreenStatus()
@@ -177,7 +180,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
             assertThat(clusterHealth.isTimedOut(), equalTo(false));
             assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-            clusterAdmin().prepareReroute().get();
+            clusterRerouteResponse = clusterAdmin().prepareReroute().get();
 
             clusterHealth = clusterAdmin().prepareHealth()
                 .setWaitForGreenStatus()
@@ -209,7 +212,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
             logger.info("Deleting index [test]");
             // last, lets delete the index
-            AcknowledgedResponse deleteIndexResponse = indicesAdmin().prepareDelete("test").get();
+            deleteIndexResponse = indicesAdmin().prepareDelete("test").get();
             assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
 
             clusterState = clusterAdmin().prepareState().get().getState();
@@ -225,6 +228,12 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
             }
             if (clusterHealth != null) {
                 clusterHealth.decRef();
+            }
+            if (clusterRerouteResponse != null) {
+                clusterRerouteResponse.decRef();
+            }
+            if (deleteIndexResponse != null) {
+                deleteIndexResponse.decRef();
             }
         }
 

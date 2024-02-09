@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -175,27 +176,32 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         Map<String, List<InternalBucket>> bucketsMap = new HashMap<>();
-        for (InternalAggregation aggregation : aggregations) {
-            InternalAdjacencyMatrix filters = (InternalAdjacencyMatrix) aggregation;
-            for (InternalBucket bucket : filters.buckets) {
-                List<InternalBucket> sameRangeList = bucketsMap.computeIfAbsent(bucket.key, k -> new ArrayList<>(aggregations.size()));
-                sameRangeList.add(bucket);
+        return new AggregatorReducer() {
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalAdjacencyMatrix filters = (InternalAdjacencyMatrix) aggregation;
+                for (InternalBucket bucket : filters.buckets) {
+                    List<InternalBucket> sameRangeList = bucketsMap.computeIfAbsent(bucket.key, k -> new ArrayList<>(size));
+                    sameRangeList.add(bucket);
+                }
             }
-        }
 
-        ArrayList<InternalBucket> reducedBuckets = new ArrayList<>(bucketsMap.size());
-        for (List<InternalBucket> sameRangeList : bucketsMap.values()) {
-            InternalBucket reducedBucket = reduceBucket(sameRangeList, reduceContext);
-            if (reducedBucket.docCount >= 1) {
-                reducedBuckets.add(reducedBucket);
+            @Override
+            public InternalAggregation get() {
+                List<InternalBucket> reducedBuckets = new ArrayList<>(bucketsMap.size());
+                for (List<InternalBucket> sameRangeList : bucketsMap.values()) {
+                    InternalBucket reducedBucket = reduceBucket(sameRangeList, reduceContext);
+                    if (reducedBucket.docCount >= 1) {
+                        reducedBuckets.add(reducedBucket);
+                    }
+                }
+                reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+                reducedBuckets.sort(Comparator.comparing(InternalBucket::getKey));
+                return new InternalAdjacencyMatrix(name, reducedBuckets, getMetadata());
             }
-        }
-        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
-        reducedBuckets.sort(Comparator.comparing(InternalBucket::getKey));
-
-        return new InternalAdjacencyMatrix(name, reducedBuckets, getMetadata());
+        };
     }
 
     @Override
@@ -203,8 +209,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
         return new InternalAdjacencyMatrix(name, buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(), getMetadata());
     }
 
-    @Override
-    protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
+    private InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
         InternalBucket reduced = null;
         for (InternalBucket bucket : buckets) {

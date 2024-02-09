@@ -265,7 +265,7 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
 
     @Override
     protected void doStart() {
-        logger.debug("Periodic health logger has is starting.");
+        logger.debug("Periodic health logger is starting.");
     }
 
     /**

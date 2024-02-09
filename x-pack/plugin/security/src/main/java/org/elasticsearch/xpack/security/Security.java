@@ -2052,9 +2052,13 @@ public class Security extends Plugin
         } else if (builderFactories.size() == 1) {
             PutRoleRequestBuilderFactory builderFactory = builderFactories.get(0);
             this.putRoleRequestBuilderFactory.set(builderFactory);
-            logger.info("Loaded implementation [{}] for interface RoleRequestBuilderFactory", builderFactory.getClass().getCanonicalName());
+            logger.debug(
+                "Loaded implementation [{}] for interface [{}]",
+                builderFactory.getClass().getCanonicalName(),
+                PutRoleRequestBuilderFactory.class
+            );
         } else {
-            logger.info("Using default implementation for interface RoleRequestBuilderFactory");
+            logger.debug("Using default implementation for interface [{}]", PutRoleRequestBuilderFactory.class);
             this.putRoleRequestBuilderFactory.set(new PutRoleRequestBuilderFactory.Default());
         }
     }

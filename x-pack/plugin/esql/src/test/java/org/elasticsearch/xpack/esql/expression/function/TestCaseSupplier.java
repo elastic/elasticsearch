@@ -949,58 +949,62 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     public static List<TypedDataSupplier> geoPointCases() {
-        return geoPointCases(ESTestCase.randomBoolean());
+        return geoPointCases(ESTestCase::randomBoolean);
     }
 
     public static List<TypedDataSupplier> cartesianPointCases() {
-        return cartesianPointCases(ESTestCase.randomBoolean());
+        return cartesianPointCases(ESTestCase::randomBoolean);
     }
 
     public static List<TypedDataSupplier> geoShapeCases() {
-        return geoShapeCases(ESTestCase.randomBoolean());
+        return geoShapeCases(ESTestCase::randomBoolean);
     }
 
     public static List<TypedDataSupplier> cartesianShapeCases() {
-        return cartesianShapeCases(ESTestCase.randomBoolean());
+        return cartesianShapeCases(ESTestCase::randomBoolean);
     }
 
-    public static List<TypedDataSupplier> geoPointCases(boolean hasAlt) {
+    public static List<TypedDataSupplier> geoPointCases(Supplier<Boolean> hasAlt) {
         return List.of(
-            new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint(hasAlt)), EsqlDataTypes.GEO_POINT)
+            new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint(hasAlt.get())), EsqlDataTypes.GEO_POINT)
         );
     }
 
-    public static List<TypedDataSupplier> cartesianPointCases(boolean hasAlt) {
+    public static List<TypedDataSupplier> cartesianPointCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier(
                 "<cartesian_point>",
-                () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(hasAlt)),
+                () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(hasAlt.get())),
                 EsqlDataTypes.CARTESIAN_POINT
             )
         );
     }
 
-    public static List<TypedDataSupplier> textShapeCases(boolean hasAlt) {
+    public static List<TypedDataSupplier> textShapeCases(Supplier<Boolean> hasAlt) {
         return List.of(
-            new TypedDataSupplier("<keyword> from <geo_shape>", () -> GEO.asWkt(GeometryTestUtils.randomPolygon(hasAlt)), DataTypes.KEYWORD)
+            new TypedDataSupplier(
+                "<keyword> from <geo_shape>",
+                () -> GEO.asWkt(GeometryTestUtils.randomPolygon(hasAlt.get())),
+                DataTypes.KEYWORD
+            )
         );
     }
 
-    public static List<TypedDataSupplier> geoShapeCases(boolean hasAlt) {
+    public static List<TypedDataSupplier> geoShapeCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier(
                 "<geo_shape>",
-                () -> GEO.asWkb(GeometryTestUtils.randomGeometryWithoutCircle(0, hasAlt)),
+                () -> GEO.asWkb(GeometryTestUtils.randomGeometryWithoutCircle(0, hasAlt.get())),
                 EsqlDataTypes.GEO_SHAPE
             )
         );
     }
 
-    public static List<TypedDataSupplier> cartesianShapeCases(boolean hasAlt) {
+    public static List<TypedDataSupplier> cartesianShapeCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier(
                 "<cartesian_shape>",
-                () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(hasAlt)),
+                () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(hasAlt.get())),
                 EsqlDataTypes.CARTESIAN_SHAPE
             )
         );

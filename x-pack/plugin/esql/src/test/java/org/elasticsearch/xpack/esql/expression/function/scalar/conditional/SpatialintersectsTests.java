@@ -126,11 +126,11 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
 
     private static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType) {
         return switch (dataType.esType()) {
-            case "geo_point" -> TestCaseSupplier.geoPointCases(false).get(0);
-            case "geo_shape" -> TestCaseSupplier.geoShapeCases(false).get(0);
-            case "cartesian_point" -> TestCaseSupplier.cartesianPointCases(false).get(0);
-            case "cartesian_shape" -> TestCaseSupplier.cartesianShapeCases(false).get(0);
-            case "keyword", "text" -> TestCaseSupplier.textShapeCases(false).get(0);
+            case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).get(0);
+            case "geo_shape" -> TestCaseSupplier.geoShapeCases(() -> false).get(0);
+            case "cartesian_point" -> TestCaseSupplier.cartesianPointCases(() -> false).get(0);
+            case "cartesian_shape" -> TestCaseSupplier.cartesianShapeCases(() -> false).get(0);
+            case "keyword", "text" -> TestCaseSupplier.textShapeCases(() -> false).get(0);
             default -> throw new IllegalArgumentException("Unsupported datatype for ST_INTERSECTS: " + dataType);
         };
     }

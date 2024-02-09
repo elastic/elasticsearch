@@ -17,6 +17,7 @@ import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
@@ -185,6 +186,8 @@ class Elasticsearch {
         IfConfig.logIfNecessary();
 
         ensureInitialized(
+            // ReleaseVersions does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
+            ReleaseVersions.class,
             // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
             ReferenceDocs.class,
             // The following classes use MethodHandles.lookup during initialization, load them now (before SM) to be sure they succeed

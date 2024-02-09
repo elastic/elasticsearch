@@ -45,7 +45,6 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
         addSpatialCombinations(suppliers, geoDataTypes);
         DataType[] cartesianDataTypes = { KEYWORD, EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE };
         addSpatialCombinations(suppliers, cartesianDataTypes);
-        var ans = parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, SpatialintersectsTests::typeErrorMessage));
         return parameterSuppliersFromTypedData(
             errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), SpatialintersectsTests::typeErrorMessage)
         );
@@ -62,14 +61,11 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
             for (DataType rightType : dataTypes) {
                 if (typeCompatible(leftType, rightType)) {
                     TestCaseSupplier.TypedDataSupplier rightDataSupplier = testCaseSupplier(rightType);
-                    String spatialTypePrefix = pickSpatialPrefix(leftType, rightType);
                     suppliers.add(
                         TestCaseSupplier.testCaseSupplier(
                             leftDataSupplier,
                             rightDataSupplier,
-                            (lhsType, rhsType) -> "SpatialIntersects"
-                                + spatialTypePrefix
-                                + "SourceAndSourceEvaluator[leftValue=Attribute[channel=0], rightValue=Attribute[channel=1]]",
+                            SpatialintersectsTests::spatialEvaluatorString,
                             DataTypes.BOOLEAN,
                             (l, r) -> expected(l, leftType, r, rightType)
                         )
@@ -205,8 +201,30 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
         }
     }
 
-    private static String pickSpatialPrefix(DataType leftType, DataType rightType) {
-        return isSpatialGeo(pickSpatialType(leftType, rightType)) ? "Geo" : "Cartesian";
+    private static String spatialEvaluatorString(DataType leftType, DataType rightType) {
+        String crsType = isSpatialGeo(pickSpatialType(leftType, rightType)) ? "Geo" : "Cartesian";
+        String left = (leftType == KEYWORD) ? "String" : "Source";
+        String right = (rightType == KEYWORD) ? "String" : "Source";
+        if (left.equals("String") && right.equals("String")) {
+            return makeEvaluatorName("", left, right, "0", "1");
+        } else if (left.equals("String")) {
+            return makeEvaluatorName(crsType, right, left, "1", "0");
+        } else {
+            return makeEvaluatorName(crsType, left, right, "0", "1");
+        }
+    }
+
+    private static String makeEvaluatorName(String crsType, String left, String right, String leftId, String rightId) {
+        return "SpatialIntersects"
+            + crsType
+            + left
+            + "And"
+            + right
+            + "Evaluator[leftValue=Attribute[channel="
+            + leftId
+            + "], rightValue=Attribute[channel="
+            + rightId
+            + "]]";
     }
 
     private static int countGeo(DataType... types) {

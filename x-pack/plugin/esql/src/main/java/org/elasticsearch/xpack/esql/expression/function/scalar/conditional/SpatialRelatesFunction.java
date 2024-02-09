@@ -48,18 +48,15 @@ import java.util.function.Function;
 import static org.apache.lucene.document.ShapeField.QueryRelation.DISJOINT;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 
 public abstract class SpatialRelatesFunction extends BinaryScalarFunction implements EvaluatorMapper {
-    protected DataType spatialDataType;
+    protected SpatialCrsTypes crsType;
     protected final boolean useDocValues;
 
     protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean useDocValues) {
@@ -84,7 +81,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
             && (rightResolution.unresolved() || right().dataType().equals(NULL))) {
             TypeResolution resolution = bothAreStringTypes(left(), right(), sourceText());
             if (resolution.unresolved() == false) {
-                spatialDataType = CARTESIAN_SHAPE;
+                crsType = SpatialCrsTypes.UNSPECIFIED;
             }
             return resolution;
         }
@@ -111,11 +108,16 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         Expression otherExpression,
         TypeResolutions.ParamOrdinal otherParamOrdinal
     ) {
-        spatialDataType = spatialExpression.dataType();
-        TypeResolution resolution = isSameSpatialTypeOrString(spatialDataType, otherExpression, sourceText(), otherParamOrdinal);
+        TypeResolution resolution = isSameSpatialTypeOrString(
+            spatialExpression.dataType(),
+            otherExpression,
+            sourceText(),
+            otherParamOrdinal
+        );
         if (resolution.unresolved()) {
             return resolution;
         }
+        crsType = SpatialCrsTypes.fromDataType(spatialExpression.dataType());
         return TypeResolution.TYPE_RESOLVED;
     }
 
@@ -173,19 +175,23 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         return countKeywords > 0 && (countNulls + countKeywords == expressions.length);
     }
 
-    protected static Component2D asLuceneComponent2D(DataType spatialDataType, Expression expression) {
+    protected static Component2D asLuceneComponent2D(SpatialCrsTypes crsType, Expression expression) {
         Object result = expression.fold();
         if (result instanceof String string) {
-            return asLuceneComponent2D(spatialDataType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(string));
+            return asLuceneComponent2D(crsType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(string));
         } else if (result instanceof BytesRef bytesRef) {
-            return asLuceneComponent2D(spatialDataType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString()));
+            if (expression.dataType() == KEYWORD) {
+                return asLuceneComponent2D(crsType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString()));
+            } else {
+                return asLuceneComponent2D(crsType, SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef));
+            }
         } else {
             throw new IllegalArgumentException("Invalid spatial constant string: " + result);
         }
     }
 
-    protected static Component2D asLuceneComponent2D(DataType spatialDataType, Geometry geometry) {
-        if (EsqlDataTypes.isSpatialGeo(spatialDataType)) {
+    protected static Component2D asLuceneComponent2D(SpatialCrsTypes crsType, Geometry geometry) {
+        if (crsType == SpatialCrsTypes.GEO) {
             var luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, false, t -> {});
             return LatLonGeometry.create(luceneGeometries);
         } else {
@@ -194,19 +200,23 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         }
     }
 
-    protected static GeometryDocValueReader asGeometryDocValueReader(DataType spatialDataType, Expression expression) throws IOException {
+    protected static GeometryDocValueReader asGeometryDocValueReader(SpatialCrsTypes crsType, Expression expression) throws IOException {
         Object result = expression.fold();
         if (result instanceof String string) {
-            return asGeometryDocValueReader(spatialDataType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(string));
+            return asGeometryDocValueReader(crsType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(string));
         } else if (result instanceof BytesRef bytesRef) {
-            return asGeometryDocValueReader(spatialDataType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString()));
+            if (expression.dataType() == KEYWORD) {
+                return asGeometryDocValueReader(crsType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString()));
+            } else {
+                return asGeometryDocValueReader(crsType, SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef));
+            }
         } else {
             throw new IllegalArgumentException("Invalid spatial constant string: " + result);
         }
     }
 
-    protected static GeometryDocValueReader asGeometryDocValueReader(DataType spatialDataType, Geometry geometry) throws IOException {
-        if (EsqlDataTypes.isSpatialGeo(spatialDataType)) {
+    protected static GeometryDocValueReader asGeometryDocValueReader(SpatialCrsTypes crsType, Geometry geometry) throws IOException {
+        if (crsType == SpatialCrsTypes.GEO) {
             return asGeometryDocValueReader(
                 CoordinateEncoder.GEO,
                 new GeoShapeIndexer(Orientation.CCW, "SpatialRelatesFunction"),
@@ -276,7 +286,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        if (spatialDataType == null) {
+        if (crsType == null) {
             resolveType();
         }
         SpatialEvaluatorFactory<?, ?> factory = getSpatialEvaluatorFactory();
@@ -284,24 +294,24 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
     }
 
     protected SpatialEvaluatorFactory<?, ?> getSpatialEvaluatorFactory() {
-        if (spatialDataType == null) {
+        if (crsType == null) {
             resolveType();
         }
-        var evaluatorKey = new SpatialEvaluatorKey(
-            spatialDataType,
-            useDocValues,
-            isConstantExpression(left()),
-            isConstantExpression(right())
-        );
+        var evaluatorKey = new SpatialEvaluatorKey(crsType, useDocValues, fieldKey(left()), fieldKey(right()));
         SpatialEvaluatorFactory<?, ?> factory = evaluatorRules().get(evaluatorKey);
         if (factory == null) {
-            throw evaluatorKey.unsupported();
+            evaluatorKey = evaluatorKey.swapSides();
+            factory = evaluatorRules().get(evaluatorKey);
+            if (factory == null) {
+                throw evaluatorKey.unsupported();
+            }
+            factory.swapSides();
         }
         return factory;
     }
 
-    protected boolean isConstantExpression(Expression expression) {
-        return isString(expression.dataType()) && expression.foldable();
+    protected SpatialEvaluatorFieldKey fieldKey(Expression expression) {
+        return new SpatialEvaluatorFieldKey(expression.dataType(), expression.foldable());
     }
 
     public boolean hasFieldAttribute(Set<Attribute> foundAttributes) {
@@ -311,6 +321,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
 
     protected abstract static class SpatialEvaluatorFactory<V extends Object, T extends Object> {
         protected final TriFunction<Source, V, T, EvalOperator.ExpressionEvaluator.Factory> factoryCreator;
+        protected boolean swapSides = false;
 
         SpatialEvaluatorFactory(TriFunction<Source, V, T, EvalOperator.ExpressionEvaluator.Factory> factoryCreator) {
             this.factoryCreator = factoryCreator;
@@ -319,6 +330,10 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         public abstract EvalOperator.ExpressionEvaluator.Factory get(
             Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
         );
+
+        public void swapSides() {
+            this.swapSides = this.swapSides == false;
+        }
     }
 
     protected class SpatialEvaluatorFactoryWithFields extends SpatialEvaluatorFactory<
@@ -336,32 +351,35 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
 
         @Override
         public EvalOperator.ExpressionEvaluator.Factory get(Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator) {
-            return factoryCreator.apply(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            if (swapSides) {
+                return factoryCreator.apply(source(), toEvaluator.apply(right()), toEvaluator.apply(left()));
+            } else {
+                return factoryCreator.apply(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            }
         }
     }
 
     protected class SpatialEvaluatorWithConstantFactory extends SpatialEvaluatorFactory<
         EvalOperator.ExpressionEvaluator.Factory,
         Component2D> {
-        private final boolean swapSides;
 
         SpatialEvaluatorWithConstantFactory(
             TriFunction<
                 Source,
                 EvalOperator.ExpressionEvaluator.Factory,
                 Component2D,
-                EvalOperator.ExpressionEvaluator.Factory> factoryCreator,
-            boolean swapSides
+                EvalOperator.ExpressionEvaluator.Factory> factoryCreator
         ) {
             super(factoryCreator);
-            this.swapSides = swapSides;
         }
 
         @Override
         public EvalOperator.ExpressionEvaluator.Factory get(Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator) {
-            return swapSides
-                ? factoryCreator.apply(source(), toEvaluator.apply(right()), asLuceneComponent2D(spatialDataType, left()))
-                : factoryCreator.apply(source(), toEvaluator.apply(left()), asLuceneComponent2D(spatialDataType, right()));
+            if (swapSides) {
+                return factoryCreator.apply(source(), toEvaluator.apply(right()), asLuceneComponent2D(crsType, left()));
+            } else {
+                return factoryCreator.apply(source(), toEvaluator.apply(left()), asLuceneComponent2D(crsType, right()));
+            }
         }
     }
 
@@ -376,18 +394,81 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         @Override
         public EvalOperator.ExpressionEvaluator.Factory get(Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator) {
             try {
-                return factoryCreator.apply(
-                    source(),
-                    asGeometryDocValueReader(spatialDataType, left()),
-                    asLuceneComponent2D(spatialDataType, right())
-                );
+                if (swapSides) {
+                    return factoryCreator.apply(source(), asGeometryDocValueReader(crsType, right()), asLuceneComponent2D(crsType, left()));
+                } else {
+                    return factoryCreator.apply(source(), asGeometryDocValueReader(crsType, left()), asLuceneComponent2D(crsType, right()));
+                }
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to process spatial constant", e);
             }
         }
     }
 
-    protected record SpatialEvaluatorKey(DataType dataType, boolean useDocValues, boolean leftIsConstant, boolean rightIsConstant) {
+    protected enum SpatialCrsTypes {
+        GEO,
+        CARTESIAN,
+        UNSPECIFIED;
+
+        public static SpatialCrsTypes fromDataType(DataType dataType) {
+            return EsqlDataTypes.isSpatialGeo(dataType) ? SpatialCrsTypes.GEO
+                : EsqlDataTypes.isSpatial(dataType) ? SpatialCrsTypes.CARTESIAN
+                : SpatialCrsTypes.UNSPECIFIED;
+        }
+    }
+
+    protected record SpatialEvaluatorFieldKey(DataType dataType, boolean isConstant) {}
+
+    protected record SpatialEvaluatorKey(
+        SpatialCrsTypes crsType,
+        boolean useDocValues,
+        SpatialEvaluatorFieldKey left,
+        SpatialEvaluatorFieldKey right
+    ) {
+        SpatialEvaluatorKey withDocValues() {
+            return new SpatialEvaluatorKey(crsType, true, left, right);
+        }
+
+        SpatialEvaluatorKey swapSides() {
+            return new SpatialEvaluatorKey(crsType, useDocValues, right, left);
+        }
+
+        SpatialEvaluatorKey withConstants(boolean leftConstant, boolean rightConstant) {
+            return new SpatialEvaluatorKey(
+                crsType,
+                useDocValues,
+                new SpatialEvaluatorFieldKey(left.dataType, leftConstant),
+                new SpatialEvaluatorFieldKey(right.dataType, rightConstant)
+            );
+        }
+
+        static SpatialEvaluatorKey fromSourceAndConstant(DataType left, DataType right) {
+            return new SpatialEvaluatorKey(
+                SpatialCrsTypes.fromDataType(left),
+                false,
+                new SpatialEvaluatorFieldKey(left, false),
+                new SpatialEvaluatorFieldKey(right, true)
+            );
+        }
+
+        static SpatialEvaluatorKey fromSources(DataType left, DataType right) {
+            return new SpatialEvaluatorKey(
+                SpatialCrsTypes.fromDataType(left),
+                false,
+                new SpatialEvaluatorFieldKey(left, false),
+                new SpatialEvaluatorFieldKey(right, false)
+            );
+        }
+
+        static SpatialEvaluatorKey fromConstants(DataType left, DataType right) {
+            return new SpatialEvaluatorKey(
+                SpatialCrsTypes.fromDataType(left),
+                false,
+                new SpatialEvaluatorFieldKey(left, true),
+                new SpatialEvaluatorFieldKey(right, true)
+            );
+        }
+
         UnsupportedOperationException unsupported() {
             return new UnsupportedOperationException("Unsupported spatial relation combination: " + this);
         }
@@ -398,7 +479,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         protected final SpatialCoordinateTypes spatialCoordinateType;
         protected final CoordinateEncoder coordinateEncoder;
         protected final ShapeIndexer shapeIndexer;
-        protected final DataType spatialDataType;
+        protected final SpatialCrsTypes crsType;
 
         protected SpatialRelations(
             ShapeField.QueryRelation queryRelation,
@@ -410,7 +491,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
             this.spatialCoordinateType = spatialCoordinateType;
             this.coordinateEncoder = encoder;
             this.shapeIndexer = shapeIndexer;
-            this.spatialDataType = spatialCoordinateType.equals(SpatialCoordinateTypes.GEO) ? GEO_SHAPE : CARTESIAN_SHAPE;
+            this.crsType = spatialCoordinateType.equals(SpatialCoordinateTypes.GEO) ? SpatialCrsTypes.GEO : SpatialCrsTypes.CARTESIAN;
         }
 
         protected boolean geometryRelatesGeometry(BytesRef left, BytesRef right) throws IOException {
@@ -466,7 +547,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         }
 
         protected Component2D makeComponent2D(Geometry geometry) {
-            return asLuceneComponent2D(spatialDataType, geometry);
+            return asLuceneComponent2D(crsType, geometry);
         }
 
         protected boolean pointRelatesGeometry(Point leftPoint, Geometry geometry) {

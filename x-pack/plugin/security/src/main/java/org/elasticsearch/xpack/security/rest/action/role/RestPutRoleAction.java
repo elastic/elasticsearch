@@ -19,9 +19,9 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
-import org.elasticsearch.xpack.security.operator.PutRoleRequestBuilderFactory;
 
 import java.io.IOException;
 import java.util.List;

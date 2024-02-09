@@ -5,11 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.operator;
+package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 
 import java.util.function.Predicate;
 

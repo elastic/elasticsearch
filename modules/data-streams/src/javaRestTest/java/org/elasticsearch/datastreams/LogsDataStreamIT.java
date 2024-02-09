@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -550,9 +551,8 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         // "start-timestamp" doesn't match the ECS dynamic mapping pattern "*_timestamp"
         assertThat(fields.get("test.start-timestamp"), is(List.of("not a date")));
         assertThat(ignored.size(), is(2));
-        assertThat(ignored.get(0), is("vulnerability.textual_score"));
+        assertThat(ignored, containsInAnyOrder("test.start_timestamp", "vulnerability.textual_score"));
         // the ECS date dynamic template enforces mapping of "*_timestamp" fields to a date type
-        assertThat(ignored.get(1), is("test.start_timestamp"));
         assertThat(ignoredFieldValues.get("test.start_timestamp").size(), is(1));
         assertThat(ignoredFieldValues.get("test.start_timestamp"), is(List.of("not a date")));
         assertThat(ignoredFieldValues.get("vulnerability.textual_score").size(), is(1));

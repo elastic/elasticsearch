@@ -46,7 +46,7 @@ public final class ChannelActionListener<Response extends TransportResponse> imp
             sendException.addSuppressed(e);
             final String message = format("channel [%s] threw exceptions on sendResponse", channel);
             assert false : new AssertionError(message, sendException);
-            logger.warn(() -> message, sendException);
+            logger.error(() -> message, sendException);
             throw sendException;
         }
     }

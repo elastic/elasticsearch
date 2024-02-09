@@ -40,7 +40,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -146,13 +145,13 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
                     }
 
                     @Override
-                    public void sendResponse(TransportResponse response) throws IOException {
+                    public void sendResponse(TransportResponse response) {
                         await();
                         channel.sendResponse(response);
                     }
 
                     @Override
-                    public void sendResponse(Exception exception) throws IOException {
+                    public void sendResponse(Exception exception) {
                         await();
                         channel.sendResponse(exception);
                     }
@@ -241,7 +240,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
                     }
 
                     @Override
-                    public void sendResponse(Exception exception) throws IOException {
+                    public void sendResponse(Exception exception) {
                         await();
                         channel.sendResponse(exception);
                     }

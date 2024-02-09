@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -110,13 +111,16 @@ public class ServiceUtils {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
-    public static String invalidValue(String settingName, String scope, String invalidType, String[] requiredTypes) {
+    public static String invalidValue(String settingName, String scope, String invalidType, String[] requiredValues) {
+        var copyOfRequiredValues = requiredValues.clone();
+        Arrays.sort(copyOfRequiredValues);
+
         return Strings.format(
             "[%s] Invalid value [%s] received. [%s] must be one of [%s]",
             scope,
             invalidType,
             settingName,
-            String.join(", ", requiredTypes)
+            String.join(", ", copyOfRequiredValues)
         );
     }
 
@@ -235,6 +239,7 @@ public class ServiceUtils {
         }
 
         var validValuesAsStrings = validValues.stream().map(value -> value.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
+
         try {
             var createdEnum = constructor.apply(enumString);
             validateEnumValue(createdEnum, validValues);

@@ -82,8 +82,6 @@ all.
 
 experimental:[] {esql}'s support for <<synthetic-source,synthetic `_source`>>
 is currently experimental.
-
-
 [discrete]
 [[esql-limitations-full-text-search]]
 === Full-text search is not supported

@@ -38,9 +38,9 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.entityToMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 import static org.hamcrest.Matchers.closeTo;
@@ -595,7 +595,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 .entry("values", List.of(matchesList().item(null).item(value)))
         );
     }
-    
+
     private enum SourceMode {
         DEFAULT {
             @Override

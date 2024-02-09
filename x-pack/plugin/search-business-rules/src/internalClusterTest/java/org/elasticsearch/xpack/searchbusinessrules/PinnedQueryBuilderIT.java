@@ -19,7 +19,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
+import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.PinnedDocument;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -90,11 +90,11 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             int numPromotions = randomIntBetween(0, totalDocs);
 
             LinkedHashSet<String> idPins = new LinkedHashSet<>();
-            LinkedHashSet<Item> docPins = new LinkedHashSet<>();
+            LinkedHashSet<PinnedDocument> docPins = new LinkedHashSet<>();
             for (int j = 0; j < numPromotions; j++) {
                 String id = Integer.toString(randomIntBetween(0, totalDocs));
                 idPins.add(id);
-                docPins.add(new Item("test", id));
+                docPins.add(new PinnedDocument("test", id));
             }
             QueryBuilder organicQuery = null;
             if (i % 5 == 0) {
@@ -105,7 +105,12 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             }
 
             assertPinnedPromotions(new PinnedQueryBuilder(organicQuery, idPins.toArray(new String[0])), idPins, i, numRelevantDocs);
-            assertPinnedPromotions(new PinnedQueryBuilder(organicQuery, docPins.toArray(new Item[0])), idPins, i, numRelevantDocs);
+            assertPinnedPromotions(
+                new PinnedQueryBuilder(organicQuery, docPins.toArray(new PinnedDocument[0])),
+                idPins,
+                i,
+                numRelevantDocs
+            );
         }
 
     }
@@ -184,7 +189,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
         QueryBuilder organicQuery = QueryBuilders.queryStringQuery("foo");
         assertExhaustiveScoring(new PinnedQueryBuilder(organicQuery, "2"));
-        assertExhaustiveScoring(new PinnedQueryBuilder(organicQuery, new Item("test", "2")));
+        assertExhaustiveScoring(new PinnedQueryBuilder(organicQuery, new PinnedDocument("test", "2")));
     }
 
     private void assertExhaustiveScoring(PinnedQueryBuilder pqb) {
@@ -218,7 +223,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
         QueryBuilder organicQuery = QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR);
         assertExplain(new PinnedQueryBuilder(organicQuery, "2"));
-        assertExplain(new PinnedQueryBuilder(organicQuery, new Item("test", "2")));
+        assertExplain(new PinnedQueryBuilder(organicQuery, new PinnedDocument("test", "2")));
     }
 
     private void assertExplain(PinnedQueryBuilder pqb) {
@@ -259,7 +264,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
         QueryBuilder organicQuery = QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR);
         assertHighlight(new PinnedQueryBuilder(organicQuery, "2"));
-        assertHighlight(new PinnedQueryBuilder(organicQuery, new Item("test", "2")));
+        assertHighlight(new PinnedQueryBuilder(organicQuery, new PinnedDocument("test", "2")));
     }
 
     private void assertHighlight(PinnedQueryBuilder pqb) {
@@ -320,9 +325,9 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
         PinnedQueryBuilder pqb = new PinnedQueryBuilder(
             QueryBuilders.queryStringQuery("foo"),
-            new Item("test2", "a"),
-            new Item("test1", "a"),
-            new Item("test1", "b")
+            new PinnedDocument("test2", "a"),
+            new PinnedDocument("test1", "a"),
+            new PinnedDocument("test1", "b")
         );
 
         assertResponse(prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH), searchResponse -> {
@@ -360,9 +365,9 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
         PinnedQueryBuilder pqb = new PinnedQueryBuilder(
             QueryBuilders.queryStringQuery("document"),
-            new Item("test", "b"),
-            new Item("test-alias", "a"),
-            new Item("test", "a")
+            new PinnedDocument("test", "b"),
+            new PinnedDocument("test-alias", "a"),
+            new PinnedDocument("test", "a")
         );
 
         assertResponse(prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH), searchResponse -> {
@@ -416,11 +421,11 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
         PinnedQueryBuilder pqb = new PinnedQueryBuilder(
             QueryBuilders.queryStringQuery("document"),
-            new Item("test1", "b"),
-            new Item(null, "a"),
-            new Item("test1", "c"),
-            new Item("test1", "a"),
-            new Item("test-alias", "a")
+            new PinnedDocument("test1", "b"),
+            new PinnedDocument(null, "a"),
+            new PinnedDocument("test1", "c"),
+            new PinnedDocument("test1", "a"),
+            new PinnedDocument("test-alias", "a")
         );
 
         assertResponse(prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH), searchResponse -> {

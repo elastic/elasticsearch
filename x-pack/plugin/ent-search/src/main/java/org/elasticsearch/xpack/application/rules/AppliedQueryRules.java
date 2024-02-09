@@ -10,20 +10,20 @@ package org.elasticsearch.xpack.application.rules;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
+import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.PinnedDocument;
 
 public class AppliedQueryRules {
-    private final List<Item> pinnedDocs;
+    private final List<PinnedDocument> pinnedDocs;
 
     public AppliedQueryRules() {
         this(new ArrayList<>(0));
     }
 
-    public AppliedQueryRules(List<Item> pinnedDocs) {
+    public AppliedQueryRules(List<PinnedDocument> pinnedDocs) {
         this.pinnedDocs = pinnedDocs;
     }
 
-    public List<Item> pinnedDocs() {
+    public List<PinnedDocument> pinnedDocs() {
         return pinnedDocs;
     }
 

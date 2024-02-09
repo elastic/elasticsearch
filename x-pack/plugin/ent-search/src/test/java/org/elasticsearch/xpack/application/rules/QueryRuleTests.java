@@ -31,7 +31,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EXACT;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.PREFIX;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.SUFFIX;
-import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
+import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.PinnedDocument;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryRuleTests extends ESTestCase {
@@ -175,7 +175,7 @@ public class QueryRuleTests extends ESTestCase {
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
-        assertEquals(List.of(new Item(null, "id1"), new Item(null, "id2")), appliedQueryRules.pinnedDocs());
+        assertEquals(List.of(new PinnedDocument(null, "id1"), new PinnedDocument(null, "id2")), appliedQueryRules.pinnedDocs());
 
         appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic1"));
@@ -191,7 +191,7 @@ public class QueryRuleTests extends ESTestCase {
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic - you know, for search"));
-        assertEquals(List.of(new Item(null, "id1"), new Item(null, "id2")), appliedQueryRules.pinnedDocs());
+        assertEquals(List.of(new PinnedDocument(null, "id1"), new PinnedDocument(null, "id2")), appliedQueryRules.pinnedDocs());
 
         appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));

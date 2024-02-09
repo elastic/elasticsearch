@@ -35,7 +35,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.ALWAYS;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.DOCS_FIELD;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.IDS_FIELD;
-import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item.INDEX_FIELD;
+import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.PinnedDocument.INDEX_FIELD;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX_NUM_PINNED_HITS;
 
 /**
@@ -283,7 +283,7 @@ public class QueryRule implements Writeable, ToXContentObject {
         }
 
         List<String> matchingPinnedIds = new ArrayList<>();
-        List<PinnedQueryBuilder.Item> matchingPinnedDocs = new ArrayList<>();
+        List<PinnedQueryBuilder.PinnedDocument> matchingPinnedDocs = new ArrayList<>();
         Boolean isRuleMatch = null;
 
         // All specified criteria in a rule must match for the rule to be applied
@@ -303,14 +303,14 @@ public class QueryRule implements Writeable, ToXContentObject {
         if (isRuleMatch != null && isRuleMatch) {
             if (actions.containsKey(IDS_FIELD.getPreferredName())) {
                 List<String> ids = (List<String>) actions.get(IDS_FIELD.getPreferredName());
-                matchingPinnedDocs.addAll(ids.stream().map(id -> new PinnedQueryBuilder.Item(null, id)).toList());
+                matchingPinnedDocs.addAll(ids.stream().map(id -> new PinnedQueryBuilder.PinnedDocument(null, id)).toList());
             } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
                 List<Map<String, String>> docsToPin = (List<Map<String, String>>) actions.get(DOCS_FIELD.getPreferredName());
-                List<PinnedQueryBuilder.Item> items = docsToPin.stream()
+                List<PinnedQueryBuilder.PinnedDocument> items = docsToPin.stream()
                     .map(
-                        map -> new PinnedQueryBuilder.Item(
+                        map -> new PinnedQueryBuilder.PinnedDocument(
                             map.get(INDEX_FIELD.getPreferredName()),
-                            map.get(PinnedQueryBuilder.Item.ID_FIELD.getPreferredName())
+                            map.get(PinnedQueryBuilder.PinnedDocument.ID_FIELD.getPreferredName())
                         )
                     )
                     .toList();
@@ -318,7 +318,7 @@ public class QueryRule implements Writeable, ToXContentObject {
             }
         }
 
-        List<PinnedQueryBuilder.Item> pinnedDocs = appliedRules.pinnedDocs();
+        List<PinnedQueryBuilder.PinnedDocument> pinnedDocs = appliedRules.pinnedDocs();
         pinnedDocs.addAll(matchingPinnedDocs);
         return new AppliedQueryRules(pinnedDocs);
     }

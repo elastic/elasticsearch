@@ -35,7 +35,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
-import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
+import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.PinnedDocument;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -66,8 +66,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     private final String rulesetId;
     private final Map<String, Object> matchCriteria;
     private final QueryBuilder organicQuery;
-    private final List<Item> pinnedDocs;
-    private final Supplier<List<Item>> pinnedDocsSupplier;
+    private final List<PinnedDocument> pinnedDocs;
+    private final Supplier<List<PinnedDocument>> pinnedDocsSupplier;
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
@@ -86,7 +86,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         if (in.getTransportVersion().before(TransportVersions.SEARCH_QUERY_RULES_IDS_REMOVED)) {
             in.readOptionalStringCollectionAsList();
         }
-        pinnedDocs = in.readOptionalCollectionAsList(Item::new);
+        pinnedDocs = in.readOptionalCollectionAsList(PinnedDocument::new);
         pinnedDocsSupplier = null;
     }
 
@@ -94,8 +94,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         QueryBuilder organicQuery,
         Map<String, Object> matchCriteria,
         String rulesetId,
-        List<Item> pinnedDocs,
-        Supplier<List<Item>> pinnedDocsSupplier
+        List<PinnedDocument> pinnedDocs,
+        Supplier<List<PinnedDocument>> pinnedDocsSupplier
 
     ) {
         if (organicQuery == null) {
@@ -170,15 +170,17 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (pinnedDocs != null) {
-            return new PinnedQueryBuilder(organicQuery, pinnedDocs.toArray(new Item[0]));
+            return new PinnedQueryBuilder(organicQuery, pinnedDocs.toArray(new PinnedDocument[0]));
         } else if (pinnedDocsSupplier != null) {
-            List<Item> identifiedPinnedDocs = pinnedDocsSupplier.get();
-            return identifiedPinnedDocs != null ? new PinnedQueryBuilder(organicQuery, identifiedPinnedDocs.toArray(new Item[0])) : this;
+            List<PinnedDocument> identifiedPinnedDocs = pinnedDocsSupplier.get();
+            return identifiedPinnedDocs != null
+                ? new PinnedQueryBuilder(organicQuery, identifiedPinnedDocs.toArray(new PinnedDocument[0]))
+                : this;
         }
 
         // Identify matching rules and apply them as applicable
         GetRequest getRequest = new GetRequest(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME, rulesetId);
-        SetOnce<List<Item>> pinnedDocsSetOnce = new SetOnce<>();
+        SetOnce<List<PinnedDocument>> pinnedDocsSetOnce = new SetOnce<>();
         AppliedQueryRules appliedRules = new AppliedQueryRules();
 
         queryRewriteContext.registerAsyncAction((client, listener) -> {
@@ -214,7 +216,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         });
 
         QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
-        List<Item> docsToPin = pinnedDocsSetOnce.get();
+        List<PinnedDocument> docsToPin = pinnedDocsSetOnce.get();
         QueryBuilder rewritten;
 
         if (docsToPin != null) {

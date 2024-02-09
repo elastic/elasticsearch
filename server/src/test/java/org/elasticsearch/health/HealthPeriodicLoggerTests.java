@@ -324,6 +324,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         doAnswer(invocation -> {
             ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
             assertNotNull(listener);
+            calledGetHealth.set(true);
             listener.onResponse(getTestIndicatorResults());
             return null;
         }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());

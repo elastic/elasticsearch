@@ -127,8 +127,7 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
     private final HealthService healthService;
     private final Clock clock;
 
-    // default visibility for testing purposes
-    volatile boolean isHealthNode = false;
+    private volatile boolean isHealthNode = false;
 
     // This semaphore is used to ensure only one schedule is currently running and to wait for this run to finish before closing
     private final Semaphore currentlyRunning = new Semaphore(1, true);
@@ -527,5 +526,15 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
     // Visible for testing
     TimeValue getPollInterval() {
         return pollInterval;
+    }
+
+    // Visible for testing
+    boolean isHealthNode() {
+        return isHealthNode;
+    }
+
+    // Visible for testing
+    boolean enabled() {
+        return enabled;
     }
 }

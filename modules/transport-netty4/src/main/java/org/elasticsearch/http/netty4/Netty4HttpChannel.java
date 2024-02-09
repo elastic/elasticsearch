@@ -18,6 +18,7 @@ import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.channels.ClosedChannelException;
 
 public class Netty4HttpChannel implements HttpChannel {
 
@@ -31,7 +32,13 @@ public class Netty4HttpChannel implements HttpChannel {
 
     @Override
     public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        channel.writeAndFlush(response, Netty4TcpChannel.addPromise(listener, channel));
+        if (isOpen()) {
+            channel.writeAndFlush(response, Netty4TcpChannel.addPromise(listener, channel));
+        } else {
+            // No need to dispatch to the event loop just to fail this listener; moreover the channel might be closed because the whole
+            // node is shutting down, in which case the event loop might not exist any more so the channel promise cannot be completed.
+            listener.onFailure(new ClosedChannelException());
+        }
     }
 
     @Override

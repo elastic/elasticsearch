@@ -29,7 +29,6 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
     private Long seqNo;
     private Long term;
     private WriteRequest.RefreshPolicy refreshPolicy;
-    private String refreshPolicyString;
 
     public DeleteRequestBuilder(ElasticsearchClient client, @Nullable String index) {
         super(client, TransportDeleteAction.TYPE);
@@ -102,13 +101,12 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
 
     @Override
     public DeleteRequestBuilder setRefreshPolicy(String refreshPolicy) {
-        this.refreshPolicyString = refreshPolicy;
+        this.refreshPolicy = WriteRequest.RefreshPolicy.parse(refreshPolicy);
         return this;
     }
 
     @Override
     public DeleteRequest request() {
-        validate();
         DeleteRequest request = new DeleteRequest();
         super.apply(request);
         if (id != null) {
@@ -132,17 +130,6 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
         if (refreshPolicy != null) {
             request.setRefreshPolicy(refreshPolicy);
         }
-        if (refreshPolicyString != null) {
-            request.setRefreshPolicy(refreshPolicyString);
-        }
         return request;
-    }
-
-    @Override
-    protected void validate() throws IllegalStateException {
-        super.validate();
-        if (refreshPolicy != null && refreshPolicyString != null) {
-            throw new IllegalStateException("Must use only one setRefreshPolicy method");
-        }
     }
 }

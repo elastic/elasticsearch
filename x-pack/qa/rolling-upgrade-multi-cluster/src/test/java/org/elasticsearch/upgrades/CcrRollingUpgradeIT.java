@@ -235,6 +235,10 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                         containsString("] which is higher than the version used by this node [")
                     ),
                     allOf(
+                        containsString("the snapshot was created with version ["),
+                        containsString("] which is higher than the version of this node [")
+                    ),
+                    allOf(
                         containsString("the snapshot was created with Elasticsearch version ["),
                         containsString("] which is higher than the version of this node [")
                     )

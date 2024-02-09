@@ -36,14 +36,15 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secrets
+        @Nullable Map<String, Object> secrets,
+        boolean logDeprecations
     ) {
         this(
             inferenceEntityId,
             taskType,
             service,
             OpenAiServiceSettings.fromMap(serviceSettings),
-            OpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
+            OpenAiEmbeddingsTaskSettings.fromMap(taskSettings, logDeprecations),
             DefaultSecretSettings.fromMap(secrets)
         );
     }

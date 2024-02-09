@@ -280,14 +280,14 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         return this;
     }
 
-    /** For testing and serialisation only. */
-    SimpleQueryStringBuilder flags(int flags) {
+    /** For testing, builder instance copy, and serialisation only. */
+    public SimpleQueryStringBuilder flags(int flags) {
         this.flags = flags;
         return this;
     }
 
-    /** For testing only: Return the flags set for this query. */
-    int flags() {
+    /** For testing and instance copy only: Return the flags set for this query. */
+    public int flags() {
         return this.flags;
     }
 

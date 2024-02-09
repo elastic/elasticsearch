@@ -199,21 +199,7 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         if (resolution.unresolved()) {
             return resolution;
         }
-
-        resolution = checkThirdAndForth.apply(from, THIRD);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        resolution = isFoldable(from, sourceText(), THIRD);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        resolution = checkThirdAndForth.apply(to, FOURTH);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        return isFoldable(to, sourceText(), FOURTH);
+        return checkThirdAndForth.apply(from, THIRD).and(checkThirdAndForth.apply(to, FOURTH));
     }
 
     public static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {

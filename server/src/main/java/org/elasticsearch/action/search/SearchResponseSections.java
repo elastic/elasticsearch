@@ -79,31 +79,12 @@ public class SearchResponseSections implements RefCounted {
         }) : ALWAYS_REFERENCED;
     }
 
-    public final boolean timedOut() {
-        return this.timedOut;
-    }
-
-    public final Boolean terminatedEarly() {
-        return this.terminatedEarly;
-    }
-
     public final SearchHits hits() {
         return hits;
     }
 
-    public final InternalAggregations aggregations() {
-        return aggregations;
-    }
-
     public final Suggest suggest() {
         return suggest;
-    }
-
-    /**
-     * Returns the number of reduce phases applied to obtain this search response
-     */
-    public final int getNumReducePhases() {
-        return numReducePhases;
     }
 
     /**

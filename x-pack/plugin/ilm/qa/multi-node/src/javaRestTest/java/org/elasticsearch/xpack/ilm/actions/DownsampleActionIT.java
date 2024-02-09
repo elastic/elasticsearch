@@ -394,7 +394,6 @@ public class DownsampleActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103981")
     public void testRollupNonTSIndex() throws Exception {
         createIndex(index, alias, false);
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
@@ -404,10 +403,19 @@ public class DownsampleActionIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
         updatePolicy(client(), index, policy);
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())));
-        String rollupIndex = getRollupIndexName(client(), index, fixedInterval);
-        assertNull("Rollup index should not have been created", rollupIndex);
-        assertTrue("Source index should not have been deleted", indexExists(index));
+        try {
+            assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())));
+            String rollupIndex = getRollupIndexName(client(), index, fixedInterval);
+            assertNull("Rollup index should not have been created", rollupIndex);
+            assertTrue("Source index should not have been deleted", indexExists(index));
+        } catch (AssertionError ea) {
+            logger.warn(
+                "--> original index name is [{}], rollup index name is NULL, possible explanation: {}",
+                index,
+                explainIndex(client(), index)
+            );
+            throw ea;
+        }
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101428")

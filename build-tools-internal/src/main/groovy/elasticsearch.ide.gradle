@@ -114,7 +114,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     description = 'Builds artifacts needed as dependency for IDE modules'
     dependsOn([':client:rest-high-level:shadowJar',
       ':plugins:repository-hdfs:hadoop-client-api:shadowJar',
-      ':libs:elasticsearch-x-content:generateProviderImpl',
+      ':libs:elasticsearch-x-content:generateImplProviderImpl',
       ':x-pack:plugin:esql:compute:ann:jar',
       ':x-pack:plugin:esql:compute:gen:jar',
       ':server:generateModulesList',

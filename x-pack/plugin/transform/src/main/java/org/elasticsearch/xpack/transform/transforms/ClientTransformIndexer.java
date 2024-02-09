@@ -449,8 +449,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ActionListener<Tuple<String, SearchRequest>> listener
     ) {
         SearchRequest searchRequest = namedSearchRequest.v2();
-        // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
-        if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
+        if (disablePit || searchRequest.indices().length == 0) {
             listener.onResponse(namedSearchRequest);
             return;
         }

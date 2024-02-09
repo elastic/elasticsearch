@@ -14,6 +14,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -135,6 +136,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -4551,6 +4553,89 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(getResult.exists());
         getResult.close();
 
+        closeShards(shard);
+    }
+
+    public void testMget() throws IOException {
+        AtomicInteger wrappedWithoutKeys = new AtomicInteger();
+        AtomicInteger wrappedWithKeys = new AtomicInteger();
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> {
+            IndexReader.CacheHelper cache = reader.getReaderCacheHelper();
+            if (cache != null && cache.getKey() != null) {
+                wrappedWithKeys.incrementAndGet();
+            } else {
+                wrappedWithoutKeys.incrementAndGet(); // for translog readers
+            }
+            return reader;
+        };
+        Settings settings = indexSettings(IndexVersion.current(), 1, 0).build();
+        String mapping = """
+            { "properties": {}}""";
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping(mapping).settings(settings).primaryTerm(0, 1).build();
+        IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, wrapper);
+        recoverShardFromStore(shard);
+
+        indexDoc(shard, "_doc", "test");
+        // first realtime get to start tracking translog location
+        try (var result = shard.get(new Engine.Get(true, true, "test"))) {
+            assertTrue(result.exists());
+        }
+        indexDoc(shard, "_doc", "1");
+        indexDoc(shard, "_doc", "3");
+        shard.refresh("force");
+        indexDoc(shard, "_doc", "0");
+        indexDoc(shard, "_doc", "2");
+        wrappedWithKeys.set(0);
+        wrappedWithoutKeys.set(0);
+        shard.mget(mget -> {
+            try {
+                indexDoc(shard, "_doc", "4");
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            try (var result = mget.get(new Engine.Get(randomBoolean(), randomBoolean(), "1"))) {
+                assertTrue(result.exists());
+                assertThat(wrappedWithKeys.get(), equalTo(1));
+                assertThat(wrappedWithoutKeys.get(), equalTo(0));
+            }
+            try (var result = mget.get(new Engine.Get(false, false, "2"))) {
+                assertFalse(result.exists());
+                assertThat(wrappedWithKeys.get(), equalTo(1));
+                assertThat(wrappedWithoutKeys.get(), equalTo(0));
+            }
+            try (var result = mget.get(new Engine.Get(true, true, "2"))) {
+                assertTrue(result.exists());
+                assertThat(wrappedWithKeys.get(), equalTo(1));
+                assertThat(wrappedWithoutKeys.get(), equalTo(1));
+            }
+            try (var result = mget.get(new Engine.Get(randomBoolean(), randomBoolean(), "3"))) {
+                assertTrue(result.exists());
+                assertThat(wrappedWithKeys.get(), equalTo(1));
+                assertThat(wrappedWithoutKeys.get(), equalTo(1));
+            }
+
+            try (var result = mget.get(new Engine.Get(true, true, "4"))) {
+                assertTrue(result.exists());
+                assertThat(wrappedWithKeys.get(), equalTo(1));
+                assertThat(wrappedWithoutKeys.get(), equalTo(2));
+            }
+
+            shard.refresh("force");
+            for (int i = 0; i < 5; i++) {
+                try (var result = mget.get(new Engine.Get(randomBoolean(), randomBoolean(), Integer.toString(i)))) {
+                    assertTrue(result.exists());
+                    assertThat(wrappedWithKeys.get(), equalTo(2));
+                    assertThat(wrappedWithoutKeys.get(), equalTo(2));
+                }
+            }
+            for (int i = 10; i < 15; i++) {
+                try (var result = mget.get(new Engine.Get(randomBoolean(), randomBoolean(), Integer.toString(i)))) {
+                    assertFalse(result.exists());
+                    assertThat(wrappedWithKeys.get(), equalTo(2));
+                    assertThat(wrappedWithoutKeys.get(), equalTo(2));
+                }
+            }
+        });
         closeShards(shard);
     }
 

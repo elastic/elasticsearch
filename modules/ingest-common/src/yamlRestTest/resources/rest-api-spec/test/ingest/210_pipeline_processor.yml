@@ -67,9 +67,9 @@ teardown:
 
 ---
 "Test Pipeline Processor with Circular Pipelines":
-  - skip:
-      version: " - 8.12.99"
-      reason: exception class changed in 8.13.0
+- skip:
+    version: " - 8.12.99"
+    reason: exception class changed in 8.13.0
 - do:
     ingest.put_pipeline:
       id: "outer"

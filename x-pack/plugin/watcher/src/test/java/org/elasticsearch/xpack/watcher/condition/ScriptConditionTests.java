@@ -21,7 +21,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -95,8 +95,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testExecute() throws Exception {
         ScriptCondition condition = new ScriptCondition(mockScript("ctx.payload.hits.total.value > 1"), scriptService);
-        SearchResponse response = new SearchResponse(
-            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+        SearchResponse response = SearchResponseUtils.emptyWithTotalHits(
             "",
             3,
             3,
@@ -121,8 +120,7 @@ public class ScriptConditionTests extends ESTestCase {
             singletonMap("threshold", 1)
         );
         ScriptCondition executable = new ScriptCondition(script, scriptService);
-        SearchResponse response = new SearchResponse(
-            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+        SearchResponse response = SearchResponseUtils.emptyWithTotalHits(
             "",
             3,
             3,
@@ -147,8 +145,7 @@ public class ScriptConditionTests extends ESTestCase {
         parser.nextToken();
         ExecutableCondition executable = ScriptCondition.parse(scriptService, "_watch", parser);
 
-        SearchResponse response = new SearchResponse(
-            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+        SearchResponse response = SearchResponseUtils.emptyWithTotalHits(
             "",
             3,
             3,
@@ -223,8 +220,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testScriptConditionThrowException() throws Exception {
         ScriptCondition condition = new ScriptCondition(mockScript("null.foo"), scriptService);
-        SearchResponse response = new SearchResponse(
-            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+        SearchResponse response = SearchResponseUtils.emptyWithTotalHits(
             "",
             3,
             3,
@@ -247,8 +243,7 @@ public class ScriptConditionTests extends ESTestCase {
             mockScript("ctx.trigger.scheduled_time.toInstant().toEpochMill() < new Date().time"),
             scriptService
         );
-        SearchResponse response = new SearchResponse(
-            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+        SearchResponse response = SearchResponseUtils.emptyWithTotalHits(
             "",
             3,
             3,

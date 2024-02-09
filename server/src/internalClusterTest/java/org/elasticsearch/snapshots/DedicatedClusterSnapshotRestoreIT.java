@@ -196,7 +196,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
 
         logger.info("--> making sure that snapshot no longer exists");
-        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get());
+        expectThrows(SnapshotMissingException.class, clusterAdmin().prepareGetSnapshots("test-repo").setSnapshots("test-snap"));
 
         logger.info("--> trigger repository cleanup");
         clusterAdmin().prepareCleanupRepository("test-repo").get();
@@ -263,10 +263,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> start snapshot with default settings without a closed index - should fail");
         final SnapshotException sne = expectThrows(
             SnapshotException.class,
-            () -> clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-1")
+            clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-1")
                 .setIndices("test-idx-all", "test-idx-none", "test-idx-some", "test-idx-closed")
                 .setWaitForCompletion(true)
-                .get()
         );
         assertThat(sne.getMessage(), containsString("Indices don't have primary shards"));
 
@@ -965,8 +964,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         final String leaseId = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         logger.debug("--> adding retention lease with id {} to {}", leaseId, shardId);
-        client().execute(RetentionLeaseActions.Add.INSTANCE, new RetentionLeaseActions.AddRequest(shardId, leaseId, RETAIN_ALL, "test"))
-            .actionGet();
+        client().execute(RetentionLeaseActions.ADD, new RetentionLeaseActions.AddRequest(shardId, leaseId, RETAIN_ALL, "test")).actionGet();
 
         final ShardStats shardStats = Arrays.stream(indicesAdmin().prepareStats(indexName).get().getShards())
             .filter(s -> s.getShardRouting().shardId().equals(shardId))

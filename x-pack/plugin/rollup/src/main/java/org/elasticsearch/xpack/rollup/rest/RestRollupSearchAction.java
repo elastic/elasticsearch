@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 
@@ -24,6 +25,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestRollupSearchAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
+
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
+    public RestRollupSearchAction(NamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
+    }
 
     @Override
     public List<Route> routes() {
@@ -43,12 +50,16 @@ public class RestRollupSearchAction extends BaseRestHandler {
                 searchRequest,
                 restRequest,
                 parser,
-                client.getNamedWriteableRegistry(),
+                namedWriteableRegistry,
                 size -> searchRequest.source().size(size)
             )
         );
         RestSearchAction.validateSearchRequest(restRequest, searchRequest);
-        return channel -> client.execute(RollupSearchAction.INSTANCE, searchRequest, new RestChunkedToXContentListener<>(channel));
+        return channel -> client.execute(
+            RollupSearchAction.INSTANCE,
+            searchRequest,
+            new RestRefCountedChunkedToXContentListener<>(channel)
+        );
     }
 
     @Override

@@ -41,14 +41,17 @@ public class TestModel extends Model {
     }
 
     public TestModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         TestServiceSettings serviceSettings,
         TestTaskSettings taskSettings,
         TestSecretSettings secretSettings
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(secretSettings)
+        );
     }
 
     @Override

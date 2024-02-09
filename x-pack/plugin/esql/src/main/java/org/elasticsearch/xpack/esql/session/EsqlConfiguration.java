@@ -67,7 +67,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         this.resultTruncationMaxSize = in.readVInt();
         this.resultTruncationDefaultSize = in.readVInt();
         this.query = readQuery(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.profile = in.readBoolean();
         } else {
             this.profile = false;
@@ -87,7 +87,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         out.writeVInt(resultTruncationMaxSize);
         out.writeVInt(resultTruncationDefaultSize);
         writeQuery(out, query);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(profile);
         }
     }
@@ -110,6 +110,15 @@ public class EsqlConfiguration extends Configuration implements Writeable {
 
     public String query() {
         return query;
+    }
+
+    /**
+     * Returns the current time in milliseconds from the time epoch for the execution of this request.
+     * It ensures consistency by using the same value on all nodes involved in the search request.
+     * Note: Currently, it returns {@link System#currentTimeMillis()}, but this value will be serialized between nodes.
+     */
+    public long absoluteStartedTimeInMillis() {
+        return System.currentTimeMillis();
     }
 
     /**

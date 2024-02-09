@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
@@ -846,6 +847,16 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertNull(snapshots.get(3).getQuantiles());
         assertNull(snapshots.get(4).getQuantiles());
 
+        // test get single snapshot
+        PlainActionFuture<Result<ModelSnapshot>> singleFuture = new PlainActionFuture<>();
+        jobProvider.getModelSnapshot(jobId, "snap_1", true, singleFuture::onResponse, singleFuture::onFailure);
+        ModelSnapshot withQuantiles = singleFuture.actionGet().result;
+        assertThat(withQuantiles.getQuantiles().getTimestamp().getTime(), equalTo(11L));
+
+        singleFuture = new PlainActionFuture<>();
+        jobProvider.getModelSnapshot(jobId, "snap_2", false, singleFuture::onResponse, singleFuture::onFailure);
+        ModelSnapshot withoutQuantiles = singleFuture.actionGet().result;
+        assertNull(withoutQuantiles.getQuantiles());
     }
 
     public void testGetAutodetectParams() throws Exception {

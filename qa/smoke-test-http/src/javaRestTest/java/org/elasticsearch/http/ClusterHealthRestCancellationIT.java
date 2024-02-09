@@ -33,6 +33,8 @@ public class ClusterHealthRestCancellationIT extends HttpSmokeTestCase {
     @TestIssueLogging(
         issueUrl = "https://github.com/elastic/elasticsearch/issues/100062",
         value = "org.elasticsearch.test.TaskAssertions:TRACE"
+            + ",org.elasticsearch.cluster.service.MasterService:TRACE"
+            + ",org.elasticsearch.tasks.TaskManager:TRACE"
     )
     public void testClusterHealthRestCancellation() throws Exception {
 

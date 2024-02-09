@@ -33,15 +33,15 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
     @Override
     protected HuggingFaceModel createModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage
     ) {
         return switch (taskType) {
-            case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(modelId, taskType, NAME, serviceSettings, secretSettings);
-            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(modelId, taskType, NAME, serviceSettings, secretSettings);
+            case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(inferenceEntityId, taskType, NAME, serviceSettings, secretSettings);
+            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(inferenceEntityId, taskType, NAME, serviceSettings, secretSettings);
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
@@ -52,10 +52,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
             ServiceUtils.getEmbeddingSize(
                 model,
                 this,
-                ActionListener.wrap(
-                    size -> listener.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)),
-                    listener::onFailure
-                )
+                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
             );
         } else {
             listener.onResponse(model);
@@ -67,7 +64,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
             model.getServiceSettings().uri(),
             null, // Similarity measure is unknown
             embeddingSize,
-            null  // max input tokens is unknown
+            model.getTokenLimit()
         );
 
         return new HuggingFaceEmbeddingsModel(model, serviceSettings);
@@ -80,6 +77,6 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_HF_SERVICE_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 }

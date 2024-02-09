@@ -584,14 +584,15 @@ end::knn-filter[]
 
 tag::knn-k[]
 Number of nearest neighbors to return as top hits. This value must be less than
-`num_candidates`.
+`num_candidates`. Defaults to `size`.
 end::knn-k[]
 
 tag::knn-num-candidates[]
-The number of nearest neighbor candidates to consider per shard. Cannot exceed
-10,000. {es} collects `num_candidates` results from each shard, then merges them
+The number of nearest neighbor candidates to consider per shard.
+Needs to be greater than `k`, or `size` if `k` is omitted, and cannot exceed 10,000.
+{es} collects `num_candidates` results from each shard, then merges them
 to find the top `k` results. Increasing `num_candidates` tends to improve the
-accuracy of the final `k` results.
+accuracy of the final `k` results. Defaults to `Math.min(1.5 * k, 10_000)`.
 end::knn-num-candidates[]
 
 tag::knn-query-vector[]
@@ -611,9 +612,10 @@ The `similarity` parameter is the direct vector similarity calculation.
 
 * `l2_norm`: also known as Euclidean, will include documents where the vector is within
 the `dims` dimensional hypersphere with radius `similarity` with origin at `query_vector`.
-* `cosine` & `dot_product`: Only return vectors where the cosine similarity or dot-product are at least the provided
+* `cosine`, `dot_product`, and `max_inner_product`: Only return vectors where the cosine similarity or dot-product are at least the provided
 `similarity`.
 --
+Read more here: <<knn-similarity-search, knn similarity search>>
 end::knn-similarity[]
 
 tag::lenient[]

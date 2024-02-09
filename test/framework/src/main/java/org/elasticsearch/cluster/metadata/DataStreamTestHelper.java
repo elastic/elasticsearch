@@ -68,6 +68,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.DataStream.BACKING_INDEX_PREFIX;
 import static org.elasticsearch.cluster.metadata.DataStream.DATE_FORMATTER;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
+import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureStoreName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -111,7 +112,32 @@ public final class DataStreamTestHelper {
         boolean replicated,
         @Nullable DataStreamLifecycle lifecycle
     ) {
-        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, lifecycle, false, List.of());
+        return newInstance(name, indices, generation, metadata, replicated, lifecycle, List.of());
+    }
+
+    public static DataStream newInstance(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated,
+        @Nullable DataStreamLifecycle lifecycle,
+        List<Index> failureStores
+    ) {
+        return new DataStream(
+            name,
+            indices,
+            generation,
+            metadata,
+            false,
+            replicated,
+            false,
+            false,
+            null,
+            lifecycle,
+            failureStores.size() > 0,
+            failureStores
+        );
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -151,6 +177,25 @@ public final class DataStreamTestHelper {
 
     public static IndexMetadata.Builder createBackingIndex(String dataStreamName, int generation, long epochMillis) {
         return IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, generation, epochMillis))
+            .settings(SETTINGS)
+            .numberOfShards(NUMBER_OF_SHARDS)
+            .numberOfReplicas(NUMBER_OF_REPLICAS);
+    }
+
+    public static IndexMetadata.Builder createFirstFailureStore(String dataStreamName) {
+        return createFailureStore(dataStreamName, 1, System.currentTimeMillis());
+    }
+
+    public static IndexMetadata.Builder createFirstFailureStore(String dataStreamName, long epochMillis) {
+        return createFailureStore(dataStreamName, 1, epochMillis);
+    }
+
+    public static IndexMetadata.Builder createFailureStore(String dataStreamName, int generation) {
+        return createFailureStore(dataStreamName, generation, System.currentTimeMillis());
+    }
+
+    public static IndexMetadata.Builder createFailureStore(String dataStreamName, int generation, long epochMillis) {
+        return IndexMetadata.builder(DataStream.getDefaultFailureStoreName(dataStreamName, generation, epochMillis))
             .settings(SETTINGS)
             .numberOfShards(NUMBER_OF_SHARDS)
             .numberOfReplicas(NUMBER_OF_REPLICAS);
@@ -261,7 +306,8 @@ public final class DataStreamTestHelper {
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
             failureStore,
-            failureIndices
+            failureIndices,
+            randomBoolean()
         );
     }
 
@@ -318,8 +364,20 @@ public final class DataStreamTestHelper {
         int replicas,
         boolean replicated
     ) {
+        return getClusterStateWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, replicated, false);
+    }
+
+    public static ClusterState getClusterStateWithDataStreams(
+        List<Tuple<String, Integer>> dataStreams,
+        List<String> indexNames,
+        long currentTime,
+        Settings settings,
+        int replicas,
+        boolean replicated,
+        boolean storeFailures
+    ) {
         Metadata.Builder builder = Metadata.builder();
-        getClusterStateWithDataStreams(builder, dataStreams, indexNames, currentTime, settings, replicas, replicated);
+        getClusterStateWithDataStreams(builder, dataStreams, indexNames, currentTime, settings, replicas, replicated, storeFailures);
         return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
     }
 
@@ -330,13 +388,16 @@ public final class DataStreamTestHelper {
         long currentTime,
         Settings settings,
         int replicas,
-        boolean replicated
+        boolean replicated,
+        boolean storeFailures
     ) {
         builder.put(
             "template_1",
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("*"))
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .dataStreamTemplate(
+                    new ComposableIndexTemplate.DataStreamTemplate(false, false, DataStream.isFailureStoreEnabled() && storeFailures)
+                )
                 .build()
         );
 
@@ -350,12 +411,29 @@ public final class DataStreamTestHelper {
             }
             allIndices.addAll(backingIndices);
 
+            List<IndexMetadata> failureStores = new ArrayList<>();
+            if (DataStream.isFailureStoreEnabled() && storeFailures) {
+                for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
+                    failureStores.add(
+                        createIndexMetadata(
+                            getDefaultFailureStoreName(dsTuple.v1(), failureStoreNumber, currentTime),
+                            true,
+                            settings,
+                            replicas
+                        )
+                    );
+                }
+                allIndices.addAll(failureStores);
+            }
+
             DataStream ds = DataStreamTestHelper.newInstance(
                 dsTuple.v1(),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
                 dsTuple.v2(),
                 null,
-                replicated
+                replicated,
+                null,
+                failureStores.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
             );
             builder.put(ds);
         }

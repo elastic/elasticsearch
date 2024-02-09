@@ -80,7 +80,7 @@ public class JobTaskState implements PersistentTaskState, MlTaskState {
         state = JobState.fromStream(in);
         allocationId = in.readLong();
         reason = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_STATE_CHANGE_TIMESTAMPS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             lastStateChangeTime = in.readOptionalInstant();
         } else {
             lastStateChangeTime = null;
@@ -104,6 +104,11 @@ public class JobTaskState implements PersistentTaskState, MlTaskState {
     @Nullable
     public Instant getLastStateChangeTime() {
         return lastStateChangeTime;
+    }
+
+    @Override
+    public boolean isFailed() {
+        return JobState.FAILED.equals(state);
     }
 
     /**
@@ -131,7 +136,7 @@ public class JobTaskState implements PersistentTaskState, MlTaskState {
         state.writeTo(out);
         out.writeLong(allocationId);
         out.writeOptionalString(reason);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_STATE_CHANGE_TIMESTAMPS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalInstant(lastStateChangeTime);
         }
     }

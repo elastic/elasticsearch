@@ -12,12 +12,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -72,14 +72,20 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        final TDigestState valueMerged = TDigestState.createUsingParamsFrom(valuesSketch);
-        for (InternalAggregation aggregation : aggregations) {
-            final InternalMedianAbsoluteDeviation madAggregation = (InternalMedianAbsoluteDeviation) aggregation;
-            valueMerged.add(madAggregation.valuesSketch);
-        }
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final TDigestState valueMerged = TDigestState.createUsingParamsFrom(valuesSketch);
 
-        return new InternalMedianAbsoluteDeviation(name, metadata, format, valueMerged);
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                valueMerged.add(((InternalMedianAbsoluteDeviation) aggregation).valuesSketch);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalMedianAbsoluteDeviation(name, metadata, format, valueMerged);
+            }
+        };
     }
 
     @Override

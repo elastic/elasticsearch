@@ -2760,15 +2760,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
         when(subject.getUser()).thenReturn(InternalUsers.SYSTEM_USER);
         final IllegalArgumentException e1 = expectThrows(
             IllegalArgumentException.class,
-            () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
+            () -> compositeRolesStore.getRoleDescriptors(subject, ActionListener.noop())
         );
         assertThat(e1.getMessage(), equalTo("should never try to get the roles for internal user [" + SystemUser.NAME + "]"));
 
         for (var internalUser : AuthenticationTestHelper.internalUsersWithLocalRoleDescriptor()) {
             when(subject.getUser()).thenReturn(internalUser);
-            final PlainActionFuture<Collection<Set<RoleDescriptor>>> future = new PlainActionFuture<>();
-            compositeRolesStore.getRoleDescriptorsList(subject, future);
-            assertThat(future.actionGet(), equalTo(List.of(Set.of(internalUser.getLocalClusterRoleDescriptor().get()))));
+            final PlainActionFuture<Set<RoleDescriptor>> future = new PlainActionFuture<>();
+            compositeRolesStore.getRoleDescriptors(subject, future);
+            assertThat(future.actionGet(), equalTo(Set.of(internalUser.getLocalClusterRoleDescriptor().get())));
         }
     }
 
@@ -2787,9 +2787,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         when(subject.getRoleReferenceIntersection(any())).thenReturn(
             new RoleReferenceIntersection(new RoleReference.NamedRoleReference(new String[] { roleName }))
         );
-        final PlainActionFuture<Collection<Set<RoleDescriptor>>> future = new PlainActionFuture<>();
-        compositeRolesStore.getRoleDescriptorsList(subject, future);
-        assertThat(future.actionGet(), equalTo(List.of(Set.of(expectedRoleDescriptor))));
+        final PlainActionFuture<Set<RoleDescriptor>> future = new PlainActionFuture<>();
+        compositeRolesStore.getRoleDescriptors(subject, future);
+        assertThat(future.actionGet(), equalTo(Set.of(expectedRoleDescriptor)));
     }
 
     private void getRoleForRoleNames(CompositeRolesStore rolesStore, Collection<String> roleNames, ActionListener<Role> listener) {

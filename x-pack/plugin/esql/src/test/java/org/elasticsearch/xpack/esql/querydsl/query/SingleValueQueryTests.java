@@ -83,7 +83,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
             new SingleValueQuery.Builder(new RangeQueryBuilder("i").lt(max), "foo", new SingleValueQuery.Stats(), Source.EMPTY),
             false,
             false,
-            (fieldValues, count) -> runCase(fieldValues, count, null, max)
+            (fieldValues, count) -> runCase(fieldValues, count, null, max, false)
         );
     }
 
@@ -137,14 +137,13 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102997")
     public void testNotMatchSome() throws IOException {
         int max = between(1, 100);
         testCase(
             new SingleValueQuery(new RangeQuery(Source.EMPTY, "i", null, false, max, false, null), "foo").negate(Source.EMPTY).asBuilder(),
             false,
             true,
-            (fieldValues, count) -> runCase(fieldValues, count, max, 100)
+            (fieldValues, count) -> runCase(fieldValues, count, max, 100, true)
         );
     }
 
@@ -153,22 +152,34 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         void run(List<List<Object>> fieldValues, int count) throws IOException;
     }
 
-    private void runCase(List<List<Object>> fieldValues, int count, Integer docsStart, Integer docsStop) {
+    /**
+     * Helper to run the checks of some of the test cases. This will perform two verifications: one about the count of the values the query
+     * is supposed to match and one on the Warnings that are supposed to be raised.
+     * @param fieldValues The indexed values of the field the query runs against.
+     * @param count The count of the docs the query matched.
+     * @param docsStart The start of the slice in fieldValues we want to consider. If `null`, the start will be 0.
+     * @param docsStop The end of the slice in fieldValues we want to consider. If `null`, the end will be the fieldValues size.
+     * @param scanForMVs Should the check for Warnings scan the entire fieldValues? This will override the docsStart:docsStop interval,
+     *                   which is needed for some cases.
+     */
+    private void runCase(List<List<Object>> fieldValues, int count, Integer docsStart, Integer docsStop, boolean scanForMVs) {
         int expected = 0;
         int min = docsStart != null ? docsStart : 0;
         int max = docsStop != null ? docsStop : fieldValues.size();
-        int valuesCount = 0;
+        int mvCountInRange = 0;
         for (int i = min; i < max; i++) {
-            int mvCount = fieldValues.get(i).size();
-            if (mvCount == 1) {
+            int valuesCount = fieldValues.get(i).size();
+            if (valuesCount == 1) {
                 expected++;
+            } else if (valuesCount > 1) {
+                mvCountInRange++;
             }
-            valuesCount += mvCount;
         }
         assertThat(count, equalTo(expected));
 
-        // query's count runs against the full set, not just min-to-max
-        if (valuesCount > 0 && fieldValues.stream().anyMatch(x -> x.size() > 1)) {
+        // the SingleValueQuery.TwoPhaseIteratorForSortedNumericsAndTwoPhaseQueries can scan all docs - and generate warnings - even if
+        // inner query matches none, so warn if MVs have been encountered within given range, OR if a full scan is required
+        if (mvCountInRange > 0 || (scanForMVs && fieldValues.stream().anyMatch(x -> x.size() > 1))) {
             assertWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
@@ -177,7 +188,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     }
 
     private void runCase(List<List<Object>> fieldValues, int count) {
-        runCase(fieldValues, count, null, null);
+        runCase(fieldValues, count, null, null, false);
     }
 
     private void testCase(SingleValueQuery.Builder builder, boolean rewritesToMatchNone, boolean subHasTwoPhase, TestCase testCase)

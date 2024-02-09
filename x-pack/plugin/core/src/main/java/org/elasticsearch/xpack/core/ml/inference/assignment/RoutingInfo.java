@@ -86,6 +86,10 @@ public class RoutingInfo implements ToXContentObject, Writeable {
         return targetAllocations;
     }
 
+    public int getFailedAllocations() {
+        return state == RoutingState.FAILED ? targetAllocations : 0;
+    }
+
     public RoutingState getState() {
         return state;
     }

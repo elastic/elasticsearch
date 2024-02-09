@@ -15,8 +15,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansionQueryBuilder> {
 
     public static final String NAME = "text_expansion";
+    public static final ParseField PRUNING_CONFIG = new ParseField("pruning_config");
     public static final ParseField MODEL_TEXT = new ParseField("model_text");
     public static final ParseField MODEL_ID = new ParseField("model_id");
 
@@ -48,8 +49,13 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private final String modelText;
     private final String modelId;
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
+    private final TokenPruningConfig tokenPruningConfig;
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
+        this(fieldName, modelText, modelId, null);
+    }
+
+    public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId, @Nullable TokenPruningConfig tokenPruningConfig) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a fieldName");
         }
@@ -59,10 +65,10 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         if (modelId == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + MODEL_ID.getPreferredName() + " value");
         }
-
         this.fieldName = fieldName;
         this.modelText = modelText;
         this.modelId = modelId;
+        this.tokenPruningConfig = tokenPruningConfig;
     }
 
     public TextExpansionQueryBuilder(StreamInput in) throws IOException {
@@ -70,12 +76,18 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.fieldName = in.readString();
         this.modelText = in.readString();
         this.modelId = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED)) {
+            this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
+        } else {
+            this.tokenPruningConfig = null;
+        }
     }
 
     private TextExpansionQueryBuilder(TextExpansionQueryBuilder other, SetOnce<TextExpansionResults> weightedTokensSupplier) {
         this.fieldName = other.fieldName;
         this.modelText = other.modelText;
         this.modelId = other.modelId;
+        this.tokenPruningConfig = other.tokenPruningConfig;
         this.boost = other.boost;
         this.queryName = other.queryName;
         this.weightedTokensSupplier = weightedTokensSupplier;
@@ -83,6 +95,10 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
 
     String getFieldName() {
         return fieldName;
+    }
+
+    public TokenPruningConfig getTokenPruningConfig() {
+        return tokenPruningConfig;
     }
 
     @Override
@@ -103,6 +119,9 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         out.writeString(fieldName);
         out.writeString(modelText);
         out.writeString(modelId);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED)) {
+            out.writeOptionalWriteable(tokenPruningConfig);
+        }
     }
 
     @Override
@@ -111,6 +130,9 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         builder.startObject(fieldName);
         builder.field(MODEL_TEXT.getPreferredName(), modelText);
         builder.field(MODEL_ID.getPreferredName(), modelId);
+        if (tokenPruningConfig != null) {
+            builder.field(PRUNING_CONFIG.getPreferredName(), tokenPruningConfig);
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
@@ -122,7 +144,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             if (weightedTokensSupplier.get() == null) {
                 return this;
             }
-            return weightedTokensToQuery(fieldName, weightedTokensSupplier.get(), queryRewriteContext);
+            return weightedTokensToQuery(fieldName, weightedTokensSupplier.get());
         }
 
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
@@ -174,21 +196,29 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         return new TextExpansionQueryBuilder(this, textExpansionResultsSupplier);
     }
 
-    static BoolQueryBuilder weightedTokensToQuery(
-        String fieldName,
-        TextExpansionResults textExpansionResults,
-        QueryRewriteContext queryRewriteContext
-    ) throws IOException {
+    private QueryBuilder weightedTokensToQuery(String fieldName, TextExpansionResults textExpansionResults) {
+        if (tokenPruningConfig != null) {
+            WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
+                fieldName,
+                textExpansionResults.getWeightedTokens(),
+                tokenPruningConfig
+            );
+            weightedTokensQueryBuilder.queryName(queryName);
+            weightedTokensQueryBuilder.boost(boost);
+            return weightedTokensQueryBuilder;
+        }
         var boolQuery = QueryBuilders.boolQuery();
         for (var weightedToken : textExpansionResults.getWeightedTokens()) {
             boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);
+        boolQuery.boost(this.boost);
+        boolQuery.queryName(this.queryName);
         return boolQuery;
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) {
         throw new IllegalStateException("text_expansion should have been rewritten to another query type");
     }
 
@@ -197,18 +227,20 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(modelText, other.modelText)
             && Objects.equals(modelId, other.modelId)
+            && Objects.equals(tokenPruningConfig, other.tokenPruningConfig)
             && Objects.equals(weightedTokensSupplier, other.weightedTokensSupplier);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, modelText, modelId, weightedTokensSupplier);
+        return Objects.hash(fieldName, modelText, modelId, tokenPruningConfig, weightedTokensSupplier);
     }
 
     public static TextExpansionQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
         String modelText = null;
         String modelId = null;
+        TokenPruningConfig tokenPruningConfig = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
@@ -222,6 +254,15 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
+                    } else if (token == XContentParser.Token.START_OBJECT) {
+                        if (PRUNING_CONFIG.match(currentFieldName, parser.getDeprecationHandler())) {
+                            tokenPruningConfig = TokenPruningConfig.fromXContent(parser);
+                        } else {
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                            );
+                        }
                     } else if (token.isValue()) {
                         if (MODEL_TEXT.match(currentFieldName, parser.getDeprecationHandler())) {
                             modelText = parser.text();
@@ -259,7 +300,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             throw new ParsingException(parser.getTokenLocation(), "No fieldname specified for query");
         }
 
-        TextExpansionQueryBuilder queryBuilder = new TextExpansionQueryBuilder(fieldName, modelText, modelId);
+        TextExpansionQueryBuilder queryBuilder = new TextExpansionQueryBuilder(fieldName, modelText, modelId, tokenPruningConfig);
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);
         return queryBuilder;

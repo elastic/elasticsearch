@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -339,7 +339,7 @@ public class LimitedRoleTests extends ESTestCase {
             assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
             assertThat(iac.hasIndexPermissions("_index1"), is(false));
             iac = limitedByRole.authorize(
-                DeleteIndexAction.NAME,
+                TransportDeleteIndexAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
                 md.getIndicesLookup(),
                 fieldPermissionsCache
@@ -379,7 +379,7 @@ public class LimitedRoleTests extends ESTestCase {
             assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
             assertThat(iac.hasIndexPermissions("_index1"), is(false));
             iac = role.authorize(
-                DeleteIndexAction.NAME,
+                TransportDeleteIndexAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
                 md.getIndicesLookup(),
                 fieldPermissionsCache

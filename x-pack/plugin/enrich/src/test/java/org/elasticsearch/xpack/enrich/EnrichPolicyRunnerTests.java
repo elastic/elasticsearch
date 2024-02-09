@@ -17,8 +17,8 @@ import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthActio
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -30,10 +30,9 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -1653,22 +1652,24 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
-        SearchResponse sourceSearchResponse = client().search(
-            new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
-        ).actionGet();
-        assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
-        Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
-        assertNotNull(sourceDocMap);
-        Map<?, ?> dataField = ((Map<?, ?>) sourceDocMap.get("data"));
-        assertNotNull(dataField);
-        Map<?, ?> fieldsField = ((Map<?, ?>) dataField.get("fields"));
-        assertNotNull(fieldsField);
-        Map<?, ?> periodField = ((Map<?, ?>) fieldsField.get("period"));
-        assertNotNull(periodField);
-        assertThat(periodField.get("gte"), is(equalTo("2021/08/20 at 12:00")));
-        assertThat(periodField.get("lte"), is(equalTo("2021/08/28 at 23:00")));
-        assertThat(fieldsField.get("status"), is(equalTo("enrolled")));
-        assertThat(fieldsField.get("field3"), is(equalTo("ignored")));
+        assertResponse(
+            client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
+            sourceSearchResponse -> {
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
+                assertNotNull(sourceDocMap);
+                Map<?, ?> dataField = ((Map<?, ?>) sourceDocMap.get("data"));
+                assertNotNull(dataField);
+                Map<?, ?> fieldsField = ((Map<?, ?>) dataField.get("fields"));
+                assertNotNull(fieldsField);
+                Map<?, ?> periodField = ((Map<?, ?>) fieldsField.get("period"));
+                assertNotNull(periodField);
+                assertThat(periodField.get("gte"), is(equalTo("2021/08/20 at 12:00")));
+                assertThat(periodField.get("lte"), is(equalTo("2021/08/28 at 23:00")));
+                assertThat(fieldsField.get("status"), is(equalTo("enrolled")));
+                assertThat(fieldsField.get("field3"), is(equalTo("ignored")));
+            }
+        );
 
         String policyName = "test1";
         List<String> enrichFields = List.of("data.fields.status", "missingField");
@@ -1716,42 +1717,48 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
             """);
 
-        SearchResponse enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1").source(
-                SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("data.fields.period", "2021-08-19T14:00:00Z"))
-            )
-        ).actionGet();
+        assertResponse(
+            client().search(
+                new SearchRequest(".enrich-test1").source(
+                    SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("data.fields.period", "2021-08-19T14:00:00Z"))
+                )
+            ),
+            enrichSearchResponse -> assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(0L))
+        );
 
-        assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(0L));
+        assertResponse(
+            client().search(
+                new SearchRequest(".enrich-test1").source(
+                    SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("data.fields.period", "2021-08-20T14:00:00Z"))
+                )
+            ),
+            enrichSearchResponse -> {
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
+                assertNotNull(enrichDocument);
+                assertThat(enrichDocument.size(), is(equalTo(1)));
+                Map<?, ?> resultDataField = ((Map<?, ?>) enrichDocument.get("data"));
+                assertNotNull(resultDataField);
+                Map<?, ?> resultFieldsField = ((Map<?, ?>) resultDataField.get("fields"));
+                assertNotNull(resultFieldsField);
+                assertThat(resultFieldsField.size(), is(equalTo(2)));
+                Map<?, ?> resultsPeriodField = ((Map<?, ?>) resultFieldsField.get("period"));
+                assertNotNull(resultsPeriodField);
+                assertThat(resultsPeriodField.get("gte"), is(equalTo("2021/08/20 at 12:00")));
+                assertThat(resultsPeriodField.get("lte"), is(equalTo("2021/08/28 at 23:00")));
+                assertThat(resultFieldsField.get("status"), is(equalTo("enrolled")));
+                assertNull(resultFieldsField.get("field3"));
+            }
+        );
 
-        enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1").source(
-                SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("data.fields.period", "2021-08-20T14:00:00Z"))
-            )
-        ).actionGet();
-
-        assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
-        Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
-        assertNotNull(enrichDocument);
-        assertThat(enrichDocument.size(), is(equalTo(1)));
-        Map<?, ?> resultDataField = ((Map<?, ?>) enrichDocument.get("data"));
-        assertNotNull(resultDataField);
-        Map<?, ?> resultFieldsField = ((Map<?, ?>) resultDataField.get("fields"));
-        assertNotNull(resultFieldsField);
-        assertThat(resultFieldsField.size(), is(equalTo(2)));
-        Map<?, ?> resultsPeriodField = ((Map<?, ?>) resultFieldsField.get("period"));
-        assertNotNull(periodField);
-        assertThat(resultsPeriodField.get("gte"), is(equalTo("2021/08/20 at 12:00")));
-        assertThat(resultsPeriodField.get("lte"), is(equalTo("2021/08/28 at 23:00")));
-        assertThat(resultFieldsField.get("status"), is(equalTo("enrolled")));
-        assertNull(resultFieldsField.get("field3"));
-
-        enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1").source(
-                SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("data.fields.period", "2021/08/20 at 14:00"))
-            )
-        ).actionGet();
-        assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertResponse(
+            client().search(
+                new SearchRequest(".enrich-test1").source(
+                    SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("data.fields.period", "2021/08/20 at 14:00"))
+                )
+            ),
+            enrichSearchResponse -> assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L))
+        );
 
         // Validate segments
         validateSegments(createdEnrichIndex, 1);
@@ -2070,7 +2077,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             ForceMergeAction.INSTANCE,
             RefreshAction.INSTANCE,
             IndicesSegmentsAction.INSTANCE,
-            UpdateSettingsAction.INSTANCE,
+            TransportUpdateSettingsAction.TYPE,
             TransportClusterHealthAction.TYPE
         );
         logger.info("Selected [{}] to perform cancel", randomActionType.name());
@@ -2384,7 +2391,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             ) {
                 if (action.equals(EnrichReindexAction.INSTANCE)) {
                     super.doExecute(
-                        DeleteIndexAction.INSTANCE,
+                        TransportDeleteIndexAction.TYPE,
                         new DeleteIndexRequest(createdEnrichIndex),
                         listener.delegateFailureAndWrap((delegate, response) -> {
                             if (response.isAcknowledged() == false) {

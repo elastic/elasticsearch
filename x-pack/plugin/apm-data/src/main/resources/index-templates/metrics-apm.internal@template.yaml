@@ -14,11 +14,11 @@ composed_of:
 - apm-90d@lifecycle
 - metrics-apm@mappings
 - metrics-apm@settings
-- apm@custom
+- metrics@custom
 - metrics-apm.internal@custom
 - ecs@mappings
 ignore_missing_component_templates:
-- apm@custom
+- metrics@custom
 - metrics-apm.internal@custom
 template:
   settings:

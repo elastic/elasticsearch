@@ -108,10 +108,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "--add-opens=java.base/java.nio.file=ALL-UNNAMED",
                 "--add-opens=java.base/java.time=ALL-UNNAMED",
                 "--add-opens=java.management/java.lang.management=ALL-UNNAMED",
-                "-XX:+HeapDumpOnOutOfMemoryError",
-                // REMOVE once bumped to a JDK greater than 21.0.1, https://github.com/elastic/elasticsearch/issues/103004
-                "-XX:CompileCommand=exclude,org.apache.lucene.util.MSBRadixSorter::computeCommonPrefixLengthAndBuildHistogram",
-                "-XX:CompileCommand=exclude,org.apache.lucene.util.RadixSelector::computeCommonPrefixLengthAndBuildHistogram"
+                "-XX:+HeapDumpOnOutOfMemoryError"
             );
 
             test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
@@ -147,6 +144,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // don't track these as inputs since they contain absolute paths and break cache relocatability
             File gradleUserHome = project.getGradle().getGradleUserHomeDir();
             nonInputProperties.systemProperty("gradle.user.home", gradleUserHome);
+            nonInputProperties.systemProperty("workspace.dir", Util.locateElasticsearchWorkspace(project.getGradle()));
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 

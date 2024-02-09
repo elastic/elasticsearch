@@ -15,6 +15,7 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
@@ -397,9 +398,18 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.field("field", randomAlphaOfLengthBetween(1025, 2048))))
+            () -> mapper.parse(
+                source(
+                    b -> b.field("field", randomAlphaOfLengthBetween(IndexWriter.MAX_TERM_LENGTH + 1, IndexWriter.MAX_TERM_LENGTH + 100))
+                )
+            )
         );
-        assertThat(e.getCause().getMessage(), containsString("Dimension fields must be less than [1024] bytes but was"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "Document contains at least one immense term in field=\"field\" (whose UTF8 encoding is longer than the max length 32766"
+            )
+        );
     }
 
     public void testConfigureSimilarity() throws IOException {
@@ -684,10 +694,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         @Override
         public SyntheticSourceExample example(int maxValues) {
+            return example(maxValues, false);
+        }
+
+        public SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource) {
             if (randomBoolean()) {
                 Tuple<String, String> v = generateValue();
                 Object loadBlock = v.v2();
-                if (ignoreAbove != null && v.v2().length() > ignoreAbove) {
+                if (loadBlockFromSource == false && ignoreAbove != null && v.v2().length() > ignoreAbove) {
                     loadBlock = null;
                 }
                 return new SyntheticSourceExample(v.v1(), v.v2(), loadBlock, this::mapping);
@@ -704,9 +718,15 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 }
             });
             List<String> outList = store ? outPrimary : new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
-            List<String> loadBlock = docValues
-                ? new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList())
-                : List.copyOf(outList);
+            List<String> loadBlock;
+            if (loadBlockFromSource) {
+                // The block loader infrastructure will never return nulls. Just zap them all.
+                loadBlock = in.stream().filter(m -> m != null).toList();
+            } else if (docValues) {
+                loadBlock = new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
+            } else {
+                loadBlock = List.copyOf(outList);
+            }
             Object loadBlockResult = loadBlock.size() == 1 ? loadBlock.get(0) : loadBlock;
             outList.addAll(outExtraValues);
             Object out = outList.size() == 1 ? outList.get(0) : outList;

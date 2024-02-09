@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedDocValues;
@@ -100,6 +101,7 @@ import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -199,6 +201,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         SparseVectorFieldMapper.CONTENT_TYPE, // Sparse vectors are no longer supported
 
         NestedObjectMapper.CONTENT_TYPE, // TODO support for nested
+        PassThroughObjectMapper.CONTENT_TYPE, // TODO support for passthrough
         CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
         FieldAliasMapper.CONTENT_TYPE // TODO support alias
     );
@@ -382,7 +385,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
             () -> true,
             valuesSourceRegistry,
             emptyMap()
-        );
+        ) {
+            @Override
+            public Iterable<MappedFieldType> dimensionFields() {
+                return Arrays.stream(fieldTypes).filter(MappedFieldType::isDimension).toList();
+            }
+        };
 
         AggregationContext context = new ProductionAggregationContext(
             Optional.ofNullable(analysisModule).map(AnalysisModule::getAnalysisRegistry).orElse(null),
@@ -485,6 +493,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     protected ScriptService getMockScriptService() {
         return null;
+    }
+
+    /**
+     * Create a RandomIndexWriter that uses the LogDocMergePolicy.
+     *
+     * The latest lucene upgrade adds a new merge policy that reverses the order of the documents and it is not compatible with some
+     * aggregation types. This writer avoids randomization by hardcoding the merge policy to LogDocMergePolicy.
+     */
+    protected static RandomIndexWriter newRandomIndexWriterWithLogDocMergePolicy(Directory directory) throws IOException {
+        final IndexWriterConfig conf = newIndexWriterConfig(new MockAnalyzer(random())).setMergePolicy(new LogDocMergePolicy());
+        return new RandomIndexWriter(random(), directory, conf);
     }
 
     /**
@@ -713,6 +732,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         boolean timeSeries = aggTestConfig.builder().isInSortOrderExecutionRequired();
         try (Directory directory = newDirectory()) {
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+            if (aggTestConfig.useLogDocMergePolicy()) {
+                // Use LogDocMergePolicy to avoid randomization issues with the doc retrieval order for nested aggs.
+                config.setMergePolicy(new LogDocMergePolicy());
+            }
             if (timeSeries) {
                 Sort sort = new Sort(
                     new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
@@ -1478,9 +1501,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-            aggregations.forEach(ia -> { assertThat(((InternalAggCardinalityUpperBound) ia).cardinality, equalTo(cardinality)); });
-            return new InternalAggCardinalityUpperBound(name, cardinality, metadata);
+        protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+            return new AggregatorReducer() {
+                @Override
+                public void accept(InternalAggregation aggregation) {
+                    assertThat(((InternalAggCardinalityUpperBound) aggregation).cardinality, equalTo(cardinality));
+                }
+
+                @Override
+                public InternalAggregation get() {
+                    return new InternalAggCardinalityUpperBound(name, cardinality, metadata);
+                }
+            };
         }
 
         @Override
@@ -1524,11 +1556,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
         boolean splitLeavesIntoSeparateAggregators,
         boolean shouldBeCached,
         boolean incrementalReduce,
+
+        boolean useLogDocMergePolicy,
         MappedFieldType... fieldTypes
     ) {
 
         public AggTestConfig(AggregationBuilder builder, MappedFieldType... fieldTypes) {
-            this(new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, randomBoolean(), fieldTypes);
+            this(new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, randomBoolean(), false, fieldTypes);
         }
 
         public AggTestConfig withQuery(Query query) {
@@ -1539,6 +1573,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,
                 incrementalReduce,
+                useLogDocMergePolicy,
                 fieldTypes
             );
         }
@@ -1551,6 +1586,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,
                 incrementalReduce,
+                useLogDocMergePolicy,
                 fieldTypes
             );
         }
@@ -1563,6 +1599,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,
                 incrementalReduce,
+                useLogDocMergePolicy,
                 fieldTypes
             );
         }
@@ -1575,6 +1612,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,
                 incrementalReduce,
+                useLogDocMergePolicy,
                 fieldTypes
             );
         }
@@ -1587,6 +1625,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,
                 incrementalReduce,
+                useLogDocMergePolicy,
+                fieldTypes
+            );
+        }
+
+        public AggTestConfig withLogDocMergePolicy() {
+            return new AggTestConfig(
+                query,
+                builder,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                incrementalReduce,
+                true,
                 fieldTypes
             );
         }

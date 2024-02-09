@@ -152,10 +152,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 randomBoolean(),
                 shuffleProtectedFields()
             );
-            assertParsedQuery(createParser(xContentType.xContent(), shuffledXContent), testQuery);
+            try (var parser = createParser(xContentType.xContent(), shuffledXContent)) {
+                assertParsedQuery(parser, testQuery);
+            }
             for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
                 String queryAsString = alternateVersion.getKey();
-                assertParsedQuery(createParser(JsonXContent.jsonXContent, queryAsString), alternateVersion.getValue());
+                try (var parser = createParser(JsonXContent.jsonXContent, queryAsString)) {
+                    assertParsedQuery(parser, alternateVersion.getValue());
+                }
             }
         }
     }
@@ -281,7 +285,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
                     XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
-                    XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, query);
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, query)
                 ) {
                     int objectIndex = -1;
                     Deque<String> levels = new LinkedList<>();
@@ -388,7 +392,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             + "["
             + validQuery.substring(insertionPosition, endArrayPosition)
             + "]"
-            + validQuery.substring(endArrayPosition, validQuery.length());
+            + validQuery.substring(endArrayPosition);
 
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(testQuery));
         assertEquals("[" + queryName + "] query malformed, no start_object after query name", e.getMessage());
@@ -424,12 +428,15 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     protected QueryBuilder parseQuery(AbstractQueryBuilder<?> builder) throws IOException {
         BytesReference bytes = XContentHelper.toXContent(builder, XContentType.JSON, false);
-        return parseQuery(createParser(JsonXContent.jsonXContent, bytes));
+        try (var parser = createParser(JsonXContent.jsonXContent, bytes)) {
+            return parseQuery(parser);
+        }
     }
 
     protected QueryBuilder parseQuery(String queryAsString) throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, queryAsString);
-        return parseQuery(parser);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, queryAsString)) {
+            return parseQuery(parser);
+        }
     }
 
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
@@ -464,13 +471,15 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             assertNotNull("toQuery should not return null", firstLuceneQuery);
             assertLuceneQuery(firstQuery, firstLuceneQuery, context);
             // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
-            assertTrue(
+            assertEquals(
                 "query is not equal to its copy after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
-                firstQuery.equals(controlQuery)
+                firstQuery,
+                controlQuery
             );
-            assertTrue(
+            assertEquals(
                 "equals is not symmetric after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
-                controlQuery.equals(firstQuery)
+                controlQuery,
+                firstQuery
             );
             assertThat(
                 "query copy's hashcode is different from original hashcode after calling toQuery, firstQuery: "
@@ -552,7 +561,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * and {@link SearchExecutionContext}. Verifies that named queries and boost are properly handled and delegates to
      * {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, SearchExecutionContext)} for query specific checks.
      */
-    private void assertLuceneQuery(QB queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+    protected void assertLuceneQuery(QB queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         if (queryBuilder.queryName() != null && query instanceof MatchNoDocsQuery == false) {
             Query namedQuery = context.copyNamedQueries().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
@@ -649,9 +658,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             QB testQuery = createTestQueryBuilder();
             XContentType xContentType = XContentType.JSON;
             String toString = Strings.toString(testQuery);
-            assertParsedQuery(createParser(xContentType.xContent(), toString), testQuery);
+            try (var parser = createParser(xContentType.xContent(), toString)) {
+                assertParsedQuery(parser, testQuery);
+            }
             BytesReference bytes = XContentHelper.toXContent(testQuery, xContentType, false);
-            assertParsedQuery(createParser(xContentType.xContent(), bytes), testQuery);
+            try (var parser = createParser(xContentType.xContent(), bytes)) {
+                assertParsedQuery(parser, testQuery);
+            }
         }
     }
 
@@ -671,7 +684,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     // we use the streaming infra to create a copy of the query provided as argument
     @SuppressWarnings("unchecked")
-    private QB copyQuery(QB query) throws IOException {
+    protected QB copyQuery(QB query) throws IOException {
         Reader<QB> reader = (Reader<QB>) namedWriteableRegistry().getReader(QueryBuilder.class, query.getWriteableName());
         return copyWriteable(query, namedWriteableRegistry(), reader);
     }

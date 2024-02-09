@@ -52,9 +52,7 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
 
     public static URI extractUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
         String parsedUrl = extractRequiredString(map, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        if (parsedUrl == null) {
-            return null;
-        }
+
         return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
     }
 
@@ -88,7 +86,7 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
 
     public HuggingFaceServiceSettings(StreamInput in) throws IOException {
         this.uri = createUri(in.readString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             similarity = in.readOptionalEnum(SimilarityMeasure.class);
             dimensions = in.readOptionalVInt();
             maxInputTokens = in.readOptionalVInt();
@@ -123,13 +121,13 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_HF_SERVICE_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uri.toString());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalEnum(similarity);
             out.writeOptionalVInt(dimensions);
             out.writeOptionalVInt(maxInputTokens);

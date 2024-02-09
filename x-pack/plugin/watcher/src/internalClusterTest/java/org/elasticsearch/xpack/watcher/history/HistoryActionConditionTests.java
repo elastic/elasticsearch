@@ -180,7 +180,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
             try {
                 assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
-                searchHitReference.set(response.getHits().getAt(0));
+                searchHitReference.set(response.getHits().getAt(0).asUnpooled());
             } finally {
                 response.decRef();
             }
@@ -240,7 +240,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
             try {
                 assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
-                searchHitReference.set(response.getHits().getAt(0));
+                searchHitReference.set(response.getHits().getAt(0).asUnpooled());
             } finally {
                 response.decRef();
             }

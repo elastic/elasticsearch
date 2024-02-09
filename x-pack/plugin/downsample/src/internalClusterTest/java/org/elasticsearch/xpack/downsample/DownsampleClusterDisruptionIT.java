@@ -109,7 +109,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
                     .getNodes()[0].getName();
                 logger.info("Candidate node [" + candidateNode + "]");
                 disruption.accept(candidateNode);
-                ensureGreen(sourceIndex);
+                ensureGreen(TimeValue.timeValueSeconds(60), sourceIndex);
                 ensureStableCluster(cluster.numDataAndMasterNodes(), clientNode);
 
             } catch (Exception e) {
@@ -203,12 +203,11 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
             }
         })).start();
         startDownsampleTaskDuringDisruption(sourceIndex, targetIndex, config, disruptionStart, disruptionEnd);
-        waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
+        waitUntil(() -> getClusterPendingTasks(cluster.client()).pendingTasks().isEmpty());
         ensureStableCluster(cluster.numDataAndMasterNodes());
         assertTargetIndex(cluster, sourceIndex, targetIndex, indexedDocs);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100653")
     public void testDownsampleIndexWithRollingRestart() throws Exception {
         final InternalTestCluster cluster = internalCluster();
         final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
@@ -265,7 +264,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         })).start();
 
         startDownsampleTaskDuringDisruption(sourceIndex, targetIndex, config, disruptionStart, disruptionEnd);
-        waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
+        waitUntil(() -> getClusterPendingTasks(cluster.client()).pendingTasks().isEmpty());
         ensureStableCluster(cluster.numDataAndMasterNodes());
         assertTargetIndex(cluster, sourceIndex, targetIndex, indexedDocs);
     }
@@ -354,7 +353,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         })).start();
 
         startDownsampleTaskDuringDisruption(sourceIndex, downsampleIndex, config, disruptionStart, disruptionEnd);
-        waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
+        waitUntil(() -> getClusterPendingTasks(cluster.client()).pendingTasks().isEmpty());
         ensureStableCluster(cluster.numDataAndMasterNodes());
         assertTargetIndex(cluster, sourceIndex, downsampleIndex, indexedDocs);
     }
@@ -429,7 +428,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         assertAcked(
             internalCluster().client()
                 .execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config))
-                .actionGet(TIMEOUT.millis())
+                .actionGet(TIMEOUT)
         );
     }
 

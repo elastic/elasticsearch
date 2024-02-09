@@ -1,19 +1,27 @@
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  yamlRestTestImplementation project(xpackModule('esql:qa:server'))
+}
+
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
 }
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'indices', 'esql', 'xpack'
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster'
+  }
+  restTests {
+    includeXpack 'esql'
   }
 }
 
-testClusters.configureEach {
-  numberOfNodes = 2
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.monitoring.collection.enabled', 'true'
-  setting 'xpack.security.enabled', 'false'
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution()
+  maxParallelForks = 1
 }

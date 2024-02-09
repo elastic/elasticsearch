@@ -181,12 +181,12 @@ public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAct
     ) {
         User user = secondaryAuthentication.getUser();
         secondaryAuthentication.execute(ignore -> {
-            ActionListener<UserPrivilegeResolver.UserPrivileges> wrapped = ActionListener.wrap(userPrivileges -> {
+            ActionListener<UserPrivilegeResolver.UserPrivileges> wrapped = listener.delegateFailureAndWrap((delegate, userPrivileges) -> {
                 if (userPrivileges.hasAccess == false) {
-                    listener.onResponse(null);
+                    delegate.onResponse(null);
                 } else {
                     logger.debug("Resolved [{}] for [{}]", userPrivileges, user);
-                    listener.onResponse(
+                    delegate.onResponse(
                         new UserServiceAuthentication(
                             user.principal(),
                             user.fullName(),
@@ -196,7 +196,7 @@ public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAct
                         )
                     );
                 }
-            }, listener::onFailure);
+            });
             privilegeResolver.resolve(serviceProvider.getPrivileges(), wrapped);
             return null;
         });

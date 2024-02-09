@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.application.connector.configuration;
 import java.util.Locale;
 
 public enum ConfigurationDisplayType {
+    TEXT,
     TEXTBOX,
     TEXTAREA,
     NUMERIC,

@@ -442,12 +442,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     }
 
     private static void assertReturnedIndices(SearchRequestBuilder searchRequestBuilder, String... indices) {
-        var searchResponse = searchRequestBuilder.get();
-        try {
-            assertReturnedIndices(searchResponse, indices);
-        } finally {
-            searchResponse.decRef();
-        }
+        assertResponse(searchRequestBuilder, searchResponse -> assertReturnedIndices(searchResponse, indices));
     }
 
     private static void assertReturnedIndices(SearchResponse searchResponse, String... indices) {

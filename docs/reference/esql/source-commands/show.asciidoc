@@ -12,7 +12,7 @@ SHOW item
 *Parameters*
 
 `item`::
-Can be `INFO` or `FUNCTIONS`.
+Can be `INFO` or experimental:[] `FUNCTIONS`.
 
 *Description*
 
@@ -20,7 +20,7 @@ The `SHOW` source command returns information about the deployment and
 its capabilities:
 
 * Use `SHOW INFO` to return the deployment's version, build date and hash.
-* Use `SHOW FUNCTIONS` to return a list of all supported functions and a
+* Use experimental:[] `SHOW FUNCTIONS` to return a list of all supported functions and a
 synopsis of each function.
 
 *Examples*

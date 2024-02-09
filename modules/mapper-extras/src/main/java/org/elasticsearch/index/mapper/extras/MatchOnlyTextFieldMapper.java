@@ -326,7 +326,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (textFieldType.isSyntheticSource()) {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(storedFieldNameForSyntheticSource());
             }
-            return new BlockSourceReader.BytesRefsBlockLoader(SourceValueFetcher.toString(blContext.sourcePaths(name())));
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
+            // MatchOnlyText never has norms, so we have to use the field names field
+            BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, lookup);
         }
 
         @Override

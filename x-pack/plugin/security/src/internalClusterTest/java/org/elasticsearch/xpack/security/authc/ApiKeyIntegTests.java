@@ -15,10 +15,10 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -810,7 +810,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private void refreshSecurityIndex() throws Exception {
         assertBusy(() -> {
-            final RefreshResponse refreshResponse = indicesAdmin().prepareRefresh(SECURITY_MAIN_ALIAS).get();
+            final BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh(SECURITY_MAIN_ALIAS).get();
             assertThat(refreshResponse.getFailedShards(), is(0));
         });
     }
@@ -1959,7 +1959,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 null
             )
         );
-        final var request = new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, ApiKeyTests.randomMetadata());
+        final var request = new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, ApiKeyTests.randomMetadata(), null);
 
         final UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulkAction(TEST_USER_NAME, request);
 
@@ -2030,7 +2030,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         BulkUpdateApiKeyResponse response = executeBulkUpdateApiKey(
             TEST_USER_NAME,
-            new BulkUpdateApiKeyRequest(apiKeyIds, newRoleDescriptors, newMetadata)
+            new BulkUpdateApiKeyRequest(apiKeyIds, newRoleDescriptors, newMetadata, ApiKeyTests.randomFutureExpirationTime())
         );
 
         assertNotNull(response);
@@ -2070,7 +2070,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             () -> randomValueOtherThanMany(apiKeyIds::contains, () -> randomAlphaOfLength(10))
         );
         newIds.addAll(notFoundIds);
-        final BulkUpdateApiKeyRequest request = new BulkUpdateApiKeyRequest(shuffledList(newIds), newRoleDescriptors, newMetadata);
+        final BulkUpdateApiKeyRequest request = new BulkUpdateApiKeyRequest(shuffledList(newIds), newRoleDescriptors, newMetadata, null);
 
         response = executeBulkUpdateApiKey(TEST_USER_NAME, request);
 
@@ -2100,7 +2100,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final BulkUpdateApiKeyRequest requestWithSomeErrors = new BulkUpdateApiKeyRequest(
             shuffledList(apiKeyIds),
             randomValueOtherThan(null, this::randomRoleDescriptors),
-            randomValueOtherThan(null, ApiKeyTests::randomMetadata)
+            randomValueOtherThan(null, ApiKeyTests::randomMetadata),
+            ApiKeyTests.randomFutureExpirationTime()
         );
 
         response = executeBulkUpdateApiKey(TEST_USER_NAME, requestWithSomeErrors);
@@ -2124,7 +2125,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         BulkUpdateApiKeyResponse response = executeBulkUpdateApiKey(
             TEST_USER_NAME,
-            new BulkUpdateApiKeyRequest(idsWithDuplicates, newRoleDescriptors, newMetadata)
+            new BulkUpdateApiKeyRequest(idsWithDuplicates, newRoleDescriptors, newMetadata, ApiKeyTests.randomFutureExpirationTime())
         );
 
         assertNotNull(response);
@@ -2142,7 +2143,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         response = executeBulkUpdateApiKey(
             TEST_USER_NAME,
-            new BulkUpdateApiKeyRequest(notFoundIdsWithDuplicates, newRoleDescriptors, newMetadata)
+            new BulkUpdateApiKeyRequest(
+                notFoundIdsWithDuplicates,
+                newRoleDescriptors,
+                newMetadata,
+                ApiKeyTests.randomFutureExpirationTime()
+            )
         );
 
         assertNotNull(response);
@@ -2317,7 +2323,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
         final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
-        final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
+        final var request = new UpdateApiKeyRequest(
+            apiKeyId,
+            List.of(expectedRoleDescriptor),
+            ApiKeyTests.randomMetadata(),
+            ApiKeyTests.randomFutureExpirationTime()
+        );
 
         // Validate can update own API key
         final UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulkAction(TEST_USER_NAME, request);
@@ -2326,12 +2337,24 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Test not found exception on non-existent API key
         final var otherApiKeyId = randomValueOtherThan(apiKeyId, () -> randomAlphaOfLength(20));
-        doTestUpdateApiKeysNotFound(new UpdateApiKeyRequest(otherApiKeyId, request.getRoleDescriptors(), request.getMetadata()));
+        doTestUpdateApiKeysNotFound(
+            new UpdateApiKeyRequest(
+                otherApiKeyId,
+                request.getRoleDescriptors(),
+                request.getMetadata(),
+                ApiKeyTests.randomFutureExpirationTime()
+            )
+        );
 
         // Test not found exception on other user's API key
         final Tuple<CreateApiKeyResponse, Map<String, Object>> otherUsersApiKey = createApiKey("user_with_manage_api_key_role", null);
         doTestUpdateApiKeysNotFound(
-            new UpdateApiKeyRequest(otherUsersApiKey.v1().getId(), request.getRoleDescriptors(), request.getMetadata())
+            new UpdateApiKeyRequest(
+                otherUsersApiKey.v1().getId(),
+                request.getRoleDescriptors(),
+                request.getMetadata(),
+                ApiKeyTests.randomFutureExpirationTime()
+            )
         );
 
         // Test not found exception on API key of user with the same username but from a different realm
@@ -2351,7 +2374,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             "all"
         ).v1().get(0);
         doTestUpdateApiKeysNotFound(
-            new UpdateApiKeyRequest(apiKeyForNativeRealmUser.getId(), request.getRoleDescriptors(), request.getMetadata())
+            new UpdateApiKeyRequest(
+                apiKeyForNativeRealmUser.getId(),
+                request.getRoleDescriptors(),
+                request.getMetadata(),
+                ApiKeyTests.randomFutureExpirationTime()
+            )
         );
     }
 
@@ -2364,7 +2392,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var apiKeyId = createdApiKey.getId();
 
         final var roleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "manage_own_api_key" }, null, null);
-        final var request = new UpdateApiKeyRequest(apiKeyId, List.of(roleDescriptor), ApiKeyTests.randomMetadata());
+        final var request = new UpdateApiKeyRequest(
+            apiKeyId,
+            List.of(roleDescriptor),
+            ApiKeyTests.randomMetadata(),
+            ApiKeyTests.randomFutureExpirationTime()
+        );
         final PlainActionFuture<UpdateApiKeyResponse> updateListener = new PlainActionFuture<>();
         client().filterWithHeader(
             Collections.singletonMap(
@@ -2465,7 +2498,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null)),
             // Ensure not `null` to set metadata since we use the initialRequest further down in the test to ensure that
             // metadata updates are non-noops
-            randomValueOtherThanMany(Objects::isNull, ApiKeyTests::randomMetadata)
+            randomValueOtherThanMany(Objects::isNull, ApiKeyTests::randomMetadata),
+            null // Expiration is relative current time, so must be null to cause noop
         );
         UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulkAction(TEST_USER_NAME, initialRequest);
         assertNotNull(response);
@@ -2501,14 +2535,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 () -> RoleDescriptorTests.randomRoleDescriptor(false)
             )
         );
-        response = updateSingleApiKeyMaybeUsingBulkAction(TEST_USER_NAME, new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, null));
+        response = updateSingleApiKeyMaybeUsingBulkAction(
+            TEST_USER_NAME,
+            new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, null, null)
+        );
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
         // Update with re-ordered role descriptors is a noop
         response = updateSingleApiKeyMaybeUsingBulkAction(
             TEST_USER_NAME,
-            new UpdateApiKeyRequest(apiKeyId, List.of(newRoleDescriptors.get(1), newRoleDescriptors.get(0)), null)
+            new UpdateApiKeyRequest(apiKeyId, List.of(newRoleDescriptors.get(1), newRoleDescriptors.get(0)), null, null)
         );
         assertNotNull(response);
         assertFalse(response.isUpdated());
@@ -2519,7 +2556,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             new UpdateApiKeyRequest(
                 apiKeyId,
                 null,
-                randomValueOtherThanMany(md -> md == null || md.equals(initialRequest.getMetadata()), ApiKeyTests::randomMetadata)
+                randomValueOtherThanMany(md -> md == null || md.equals(initialRequest.getMetadata()), ApiKeyTests::randomMetadata),
+                null
             )
         );
         assertNotNull(response);
@@ -2677,7 +2715,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 apiKey1.v1(),
                 List.of(),
                 // Set metadata to ensure update
-                Map.of(randomAlphaOfLength(5), randomAlphaOfLength(10))
+                Map.of(randomAlphaOfLength(5), randomAlphaOfLength(10)),
+                ApiKeyTests.randomFutureExpirationTime()
             )
         );
 
@@ -3251,7 +3290,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         if (useBulkAction) {
             final BulkUpdateApiKeyResponse response = executeBulkUpdateApiKey(
                 username,
-                new BulkUpdateApiKeyRequest(List.of(request.getId()), request.getRoleDescriptors(), request.getMetadata())
+                new BulkUpdateApiKeyRequest(
+                    List.of(request.getId()),
+                    request.getRoleDescriptors(),
+                    request.getMetadata(),
+                    request.getExpiration()
+                )
             );
             return toUpdateApiKeyResponse(request.getId(), response);
         } else {

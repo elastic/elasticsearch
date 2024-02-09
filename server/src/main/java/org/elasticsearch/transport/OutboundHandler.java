@@ -136,6 +136,7 @@ final class OutboundHandler {
             isHandshake,
             compressionScheme
         );
+        response.mustIncRef();
         sendMessage(channel, message, responseStatsConsumer, () -> {
             try {
                 messageListener.onResponseSent(requestId, action, response);

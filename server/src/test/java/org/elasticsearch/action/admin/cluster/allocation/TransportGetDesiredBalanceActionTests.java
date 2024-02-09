@@ -90,7 +90,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
     private static DesiredBalanceResponse execute(TransportGetDesiredBalanceAction action, ClusterState clusterState) throws Exception {
         return PlainActionFuture.get(
             future -> action.masterOperation(
-                new Task(1, "test", GetDesiredBalanceAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
+                new Task(1, "test", TransportGetDesiredBalanceAction.TYPE.name(), "", TaskId.EMPTY_TASK_ID, Map.of()),
                 new DesiredBalanceRequest(),
                 clusterState,
                 future
@@ -190,8 +190,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
                             ShardRoutingState.STARTED
                         );
                         if (nodeIds.size() > 1) {
-                            shard = TestShardRouting.relocate(
-                                shard,
+                            shard = shard.relocate(
                                 randomValueOtherThan(nodeId, () -> randomFrom(nodeIds)),
                                 ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
                             );

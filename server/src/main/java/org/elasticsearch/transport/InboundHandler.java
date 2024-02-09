@@ -376,7 +376,7 @@ public class InboundHandler {
         final TransportResponseHandler<T> handler,
         final InboundMessage inboundMessage
     ) {
-        final var executor = handler.executor(threadPool);
+        final var executor = handler.executor();
         if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             // no need to provide a buffer release here, we never escape the buffer when handling directly
             doHandleResponse(handler, remoteAddress, stream, inboundMessage.getHeader(), () -> {});
@@ -384,7 +384,7 @@ public class InboundHandler {
             inboundMessage.mustIncRef();
             // release buffer once we deserialize the message, but have a fail-safe in #onAfter below in case that didn't work out
             final Releasable releaseBuffer = Releasables.releaseOnce(inboundMessage::decRef);
-            executor.execute(new ForkingResponseHandlerRunnable(handler, null, threadPool) {
+            executor.execute(new ForkingResponseHandlerRunnable(handler, null) {
                 @Override
                 protected void doRun() {
                     doHandleResponse(handler, remoteAddress, stream, inboundMessage.getHeader(), releaseBuffer);
@@ -457,11 +457,11 @@ public class InboundHandler {
     }
 
     private void handleException(final TransportResponseHandler<?> handler, TransportException transportException) {
-        final var executor = handler.executor(threadPool);
+        final var executor = handler.executor();
         if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             doHandleException(handler, transportException);
         } else {
-            executor.execute(new ForkingResponseHandlerRunnable(handler, transportException, threadPool) {
+            executor.execute(new ForkingResponseHandlerRunnable(handler, transportException) {
                 @Override
                 protected void doRun() {
                     doHandleException(handler, transportException);

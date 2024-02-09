@@ -32,8 +32,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> implements RestRequestFilter {
 
-    public RestReindexAction() {
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
+    public RestReindexAction(NamedWriteableRegistry namedWriteableRegistry) {
         super(ReindexAction.INSTANCE);
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
@@ -48,7 +51,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return doPrepareRequest(request, client, true, true);
+        return doPrepareRequest(request, namedWriteableRegistry, client, true, true);
     }
 
     @Override

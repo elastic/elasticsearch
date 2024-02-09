@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -25,8 +25,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContent;
@@ -48,6 +48,7 @@ import java.util.UUID;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.async.GetAsyncResultRequestTests.randomSearchId;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104838")
 public class AsyncSearchResponseTests extends ESTestCase {
     private final SearchResponse searchResponse = randomSearchResponse(randomBoolean());
     private NamedWriteableRegistry namedWriteableRegistry;
@@ -129,15 +130,13 @@ public class AsyncSearchResponseTests extends ESTestCase {
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
-        InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
         SearchResponse.Clusters clusters;
         if (ccs) {
             clusters = createCCSClusterObjects(20, 19, true, 10, 1, 2);
         } else {
             clusters = SearchResponse.Clusters.EMPTY;
         }
-        return new SearchResponse(
-            internalSearchResponse,
+        return SearchResponseUtils.emptyWithTotalHits(
             null,
             totalShards,
             successfulShards,
@@ -211,9 +210,14 @@ public class AsyncSearchResponseTests extends ESTestCase {
         long expectedCompletionTime = startTimeMillis + took;
 
         SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
-        SearchResponseSections sections = new SearchResponseSections(hits, null, null, false, null, null, 2);
         SearchResponse searchResponse = new SearchResponse(
-            sections,
+            hits,
+            null,
+            null,
+            false,
+            null,
+            null,
+            2,
             null,
             10,
             9,
@@ -316,11 +320,25 @@ public class AsyncSearchResponseTests extends ESTestCase {
         long took = 22968L;
 
         SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
-        SearchResponseSections sections = new SearchResponseSections(hits, null, null, false, null, null, 2);
 
         SearchResponse.Clusters clusters = createCCSClusterObjects(3, 3, true);
 
-        SearchResponse searchResponse = new SearchResponse(sections, null, 10, 9, 1, took, ShardSearchFailure.EMPTY_ARRAY, clusters);
+        SearchResponse searchResponse = new SearchResponse(
+            hits,
+            null,
+            null,
+            false,
+            null,
+            null,
+            2,
+            null,
+            10,
+            9,
+            1,
+            took,
+            ShardSearchFailure.EMPTY_ARRAY,
+            clusters
+        );
 
         AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(
             "id",
@@ -462,7 +480,6 @@ public class AsyncSearchResponseTests extends ESTestCase {
         long expectedCompletionTime = startTimeMillis + took;
 
         SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
-        SearchResponseSections sections = new SearchResponseSections(hits, null, null, true, null, null, 2);
         SearchResponse.Clusters clusters = createCCSClusterObjects(4, 3, true);
 
         SearchResponse.Cluster updated = clusters.swapCluster(
@@ -532,7 +549,22 @@ public class AsyncSearchResponseTests extends ESTestCase {
         );
         assertNotNull("Set cluster failed for cluster " + cluster2.getClusterAlias(), updated);
 
-        SearchResponse searchResponse = new SearchResponse(sections, null, 10, 9, 1, took, new ShardSearchFailure[0], clusters);
+        SearchResponse searchResponse = new SearchResponse(
+            hits,
+            null,
+            null,
+            true,
+            null,
+            null,
+            2,
+            null,
+            10,
+            9,
+            1,
+            took,
+            new ShardSearchFailure[0],
+            clusters
+        );
 
         AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(
             "id",
@@ -659,9 +691,14 @@ public class AsyncSearchResponseTests extends ESTestCase {
         long took = 22968L;
 
         SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
-        SearchResponseSections sections = new SearchResponseSections(hits, null, null, false, null, null, 2);
         SearchResponse searchResponse = new SearchResponse(
-            sections,
+            hits,
+            null,
+            null,
+            false,
+            null,
+            null,
+            2,
             null,
             10,
             9,

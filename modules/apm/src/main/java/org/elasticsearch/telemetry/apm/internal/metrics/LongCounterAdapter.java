@@ -20,15 +20,8 @@ import java.util.Objects;
  * LongCounterAdapter wraps an otel LongCounter
  */
 public class LongCounterAdapter extends AbstractInstrument<LongCounter> implements org.elasticsearch.telemetry.metric.LongCounter {
-
     public LongCounterAdapter(Meter meter, String name, String description, String unit) {
-        super(meter, name, description, unit);
-    }
-
-    @Override
-    protected io.opentelemetry.api.metrics.LongCounter buildInstrument(Meter meter) {
-        var builder = Objects.requireNonNull(meter).counterBuilder(getName());
-        return builder.setDescription(getDescription()).setUnit(getUnit()).build();
+        super(meter, new Builder(name, description, unit));
     }
 
     @Override
@@ -46,5 +39,16 @@ public class LongCounterAdapter extends AbstractInstrument<LongCounter> implemen
     public void incrementBy(long inc, Map<String, Object> attributes) {
         assert inc >= 0;
         getInstrument().add(inc, OtelHelper.fromMap(attributes));
+    }
+
+    private static class Builder extends AbstractInstrument.Builder<LongCounter> {
+        private Builder(String name, String description, String unit) {
+            super(name, description, unit);
+        }
+
+        @Override
+        public LongCounter build(Meter meter) {
+            return Objects.requireNonNull(meter).counterBuilder(name).setDescription(description).setUnit(unit).build();
+        }
     }
 }

@@ -15,11 +15,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
@@ -27,12 +26,13 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -719,7 +719,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         transportActionsDeduplicator.executeOnce(
             deleteIndexRequest,
             new ErrorRecordingActionListener(
-                DeleteIndexAction.NAME,
+                TransportDeleteIndexAction.TYPE.name(),
                 indexName,
                 errorStore,
                 Strings.format("Data stream lifecycle encountered an error trying to delete index [%s]", indexName),
@@ -895,7 +895,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 transportActionsDeduplicator.executeOnce(
                     updateMergePolicySettingsRequest,
                     new ErrorRecordingActionListener(
-                        UpdateSettingsAction.NAME,
+                        TransportUpdateSettingsAction.TYPE.name(),
                         indexName,
                         errorStore,
                         Strings.format(
@@ -1168,7 +1168,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         logger.info("Data stream lifecycle is issuing a request to force merge index [{}]", targetIndex);
         client.admin().indices().forceMerge(forceMergeRequest, new ActionListener<>() {
             @Override
-            public void onResponse(ForceMergeResponse forceMergeResponse) {
+            public void onResponse(BroadcastResponse forceMergeResponse) {
                 if (forceMergeResponse.getFailedShards() > 0) {
                     DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures();
                     String message = Strings.format(

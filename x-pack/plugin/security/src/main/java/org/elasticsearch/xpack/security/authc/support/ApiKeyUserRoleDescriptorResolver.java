@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
-import java.util.Collection;
 import java.util.Set;
 
 public class ApiKeyUserRoleDescriptorResolver {
@@ -37,15 +36,10 @@ public class ApiKeyUserRoleDescriptorResolver {
             return;
         }
 
-        rolesStore.getRoleDescriptorsList(effectiveSubject, listener.delegateFailureAndWrap(this::handleRoleDescriptorsList));
+        rolesStore.getRoleDescriptors(effectiveSubject, listener.delegateFailureAndWrap(this::handleRoleDescriptors));
     }
 
-    private void handleRoleDescriptorsList(
-        ActionListener<Set<RoleDescriptor>> listener,
-        Collection<Set<RoleDescriptor>> roleDescriptorsList
-    ) {
-        assert roleDescriptorsList.size() == 1;
-        final var roleDescriptors = roleDescriptorsList.iterator().next();
+    private void handleRoleDescriptors(ActionListener<Set<RoleDescriptor>> listener, Set<RoleDescriptor> roleDescriptors) {
         for (RoleDescriptor rd : roleDescriptors) {
             DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
         }

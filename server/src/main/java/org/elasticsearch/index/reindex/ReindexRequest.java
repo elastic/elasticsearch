@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
@@ -31,9 +32,9 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
@@ -67,7 +68,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         this(search, destination, true);
     }
 
-    private ReindexRequest(SearchRequest search, IndexRequest destination, boolean setDefaults) {
+    ReindexRequest(SearchRequest search, IndexRequest destination, boolean setDefaults) {
         super(search, setDefaults);
         this.destination = destination;
     }
@@ -329,10 +330,12 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
             try (
-                InputStream stream = BytesReference.bytes(builder).streamInput();
-                XContentParser innerParser = parser.contentType()
-                    .xContent()
-                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)
+                XContentParser innerParser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
+                        .withDeprecationHandler(parser.getDeprecationHandler()),
+                    BytesReference.bytes(builder),
+                    parser.contentType()
+                )
             ) {
                 request.getSearchRequest().source().parseXContent(innerParser, false);
             }

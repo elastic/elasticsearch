@@ -261,7 +261,10 @@ of rows that are retrieved by the query and displayed in Discover. Queries and
 aggregations run on the full data set.
 * Discover shows no more than 50 columns. If a query returns
 more than 50 columns, Discover only shows the first 50.
-* Querying many many indices at once without any filters can cause an error in
+* CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number
+of rows that are retrieved by the query and displayed in Discover. Queries and
+aggregations run on the full data set.
+* Querying many indices at once without any filters can cause an error in
 kibana which looks like `[esql] > Unexpected error from Elasticsearch: The
 content length (536885793) is bigger than the maximum allowed string
 (536870888)`. The response from {esql} is too long. Use <<esql-drop>> or

@@ -114,8 +114,16 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         assertAliases(destIndex2, destAliasAll, destAliasLatest);
     }
 
-    public void testTransformDestIndexCreatedDuringUpdate() throws Exception {
-        String transformId = "test_dest_index_on_update";
+    public void testTransformDestIndexCreatedDuringUpdate_NoDeferValidation() throws Exception {
+        testTransformDestIndexCreatedDuringUpdate(false);
+    }
+
+    public void testTransformDestIndexCreatedDuringUpdate_DeferValidation() throws Exception {
+        testTransformDestIndexCreatedDuringUpdate(true);
+    }
+
+    private void testTransformDestIndexCreatedDuringUpdate(boolean deferValidation) throws Exception {
+        String transformId = "test_dest_index_on_update" + (deferValidation ? "-defer" : "");
         String destIndex = transformId + "-dest";
 
         assertFalse(indexExists(destIndex));
@@ -139,7 +147,7 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         // Note that at this point the destination index could have already been created by the indexing process of the running transform
         // but the update code should cope with this situation.
         updateTransform(transformId, """
-            { "settings": { "max_page_search_size": 123 } }""");
+            { "settings": { "max_page_search_size": 123 } }""", deferValidation);
 
         // Verify that the destination index now exists
         assertTrue(indexExists(destIndex));
@@ -174,7 +182,7 @@ public class TransformDestIndexIT extends TransformRestTestCase {
                     }
                   }
                 }""", destIndex);
-            Request createIndexTemplateRequest = new Request("PUT", "_template/test_dest_index_no_deduce_template");
+            Request createIndexTemplateRequest = new Request("PUT", "_template/test_dest_index_mappings_template");
             createIndexTemplateRequest.setJsonEntity(destIndexTemplate);
             createIndexTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
             Map<String, Object> createIndexTemplateResponse = entityAsMap(client().performRequest(createIndexTemplateRequest));
@@ -253,6 +261,9 @@ public class TransformDestIndexIT extends TransformRestTestCase {
                 )
             )
         );
+        Map<String, Object> searchResult = getAsMap(destIndex + "/_search?q=reviewer:user_0");
+        String timestamp = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.timestamp", searchResult)).get(0);
+        assertThat(timestamp, is(equalTo("2017-01-10T10:10:10.000Z")));
     }
 
     private static void assertAliases(String index, String... aliases) throws IOException {

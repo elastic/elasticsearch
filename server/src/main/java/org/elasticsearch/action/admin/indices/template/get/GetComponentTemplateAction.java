@@ -35,7 +35,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
     public static final String NAME = "cluster:admin/component_template/get";
 
     private GetComponentTemplateAction() {
-        super(NAME, GetComponentTemplateAction.Response::new);
+        super(NAME);
     }
 
     /**
@@ -57,7 +57,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 includeDefaults = in.readBoolean();
             } else {
                 includeDefaults = false;
@@ -68,7 +68,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(name);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeBoolean(includeDefaults);
             }
         }
@@ -121,7 +121,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public Response(StreamInput in) throws IOException {
             super(in);
             componentTemplates = in.readMap(ComponentTemplate::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
             } else {
                 rolloverConfiguration = null;
@@ -149,7 +149,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(componentTemplates, StreamOutput::writeWriteable);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
         }

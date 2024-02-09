@@ -14,8 +14,8 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheActio
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
@@ -24,8 +24,8 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
@@ -36,7 +36,7 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -502,14 +502,14 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testDeleteIndex() {
-        interceptTransportActions(DeleteIndexAction.NAME);
+        interceptTransportActions(TransportDeleteIndexAction.TYPE.name());
 
         String[] randomIndicesOrAliases = randomUniqueIndices();
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(randomIndicesOrAliases);
         assertAcked(internalCluster().coordOnlyNodeClient().admin().indices().delete(deleteIndexRequest).actionGet());
 
         clearInterceptedActions();
-        assertSameIndices(deleteIndexRequest, DeleteIndexAction.NAME);
+        assertSameIndices(deleteIndexRequest, TransportDeleteIndexAction.TYPE.name());
     }
 
     public void testGetMappings() {
@@ -523,13 +523,13 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testPutMapping() {
-        interceptTransportActions(PutMappingAction.NAME);
+        interceptTransportActions(TransportPutMappingAction.TYPE.name());
 
         PutMappingRequest putMappingRequest = new PutMappingRequest(randomUniqueIndicesOrAliases()).source("field", "type=text");
         internalCluster().coordOnlyNodeClient().admin().indices().putMapping(putMappingRequest).actionGet();
 
         clearInterceptedActions();
-        assertSameIndices(putMappingRequest, PutMappingAction.NAME);
+        assertSameIndices(putMappingRequest, TransportPutMappingAction.TYPE.name());
     }
 
     public void testGetSettings() {
@@ -543,7 +543,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testUpdateSettings() {
-        interceptTransportActions(UpdateSettingsAction.NAME);
+        interceptTransportActions(TransportUpdateSettingsAction.TYPE.name());
 
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(randomIndicesOrAliases()).settings(
             Settings.builder().put("refresh_interval", -1)
@@ -551,7 +551,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         internalCluster().coordOnlyNodeClient().admin().indices().updateSettings(updateSettingsRequest).actionGet();
 
         clearInterceptedActions();
-        assertSameIndices(updateSettingsRequest, UpdateSettingsAction.NAME);
+        assertSameIndices(updateSettingsRequest, TransportUpdateSettingsAction.TYPE.name());
     }
 
     public void testSearchQueryThenFetch() throws Exception {

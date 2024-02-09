@@ -334,6 +334,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             getLastAcceptedState(), // doesn't care about blocks or the current master node so no need for getStateForMasterService
             peerFinder.getLastResolvedAddresses(),
             Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)).toList(),
+            peerFinder.getMastersOfPeers(),
             getCurrentTerm(),
             electionStrategy,
             nodeHealthService.getHealth(),

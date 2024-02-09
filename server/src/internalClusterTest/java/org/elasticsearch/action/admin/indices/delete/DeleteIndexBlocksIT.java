@@ -65,10 +65,7 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             createIndex("test");
             ensureGreen("test");
             updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, true), "test");
-            ClusterBlockException e = expectThrows(
-                ClusterBlockException.class,
-                () -> prepareIndex("test").setId("1").setSource("foo", "bar").get()
-            );
+            ClusterBlockException e = expectThrows(ClusterBlockException.class, prepareIndex("test").setId("1").setSource("foo", "bar"));
             assertEquals(
                 "index [test] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "
                     + "index has read-only-allow-delete block];",

@@ -175,7 +175,7 @@ public class ClientYamlTestSuite {
             .filter(section -> section instanceof DoSection)
             .map(section -> (DoSection) section)
             .filter(section -> false == section.getExpectedWarningHeaders().isEmpty())
-            .filter(section -> false == hasSkipFeature("warnings", testSection, setupSection, teardownSection))
+            .filter(section -> false == hasYamlRunnerFeature("warnings", testSection, setupSection, teardownSection))
             .map(section -> String.format(Locale.ROOT, """
                 attempted to add a [do] with a [warnings] section without a corresponding ["skip": "features": "warnings"] \
                 so runners that do not support the [warnings] section can skip the test at line [%d]\
@@ -187,7 +187,7 @@ public class ClientYamlTestSuite {
                 .filter(section -> section instanceof DoSection)
                 .map(section -> (DoSection) section)
                 .filter(section -> false == section.getExpectedWarningHeadersRegex().isEmpty())
-                .filter(section -> false == hasSkipFeature("warnings_regex", testSection, setupSection, teardownSection))
+                .filter(section -> false == hasYamlRunnerFeature("warnings_regex", testSection, setupSection, teardownSection))
                 .map(section -> String.format(Locale.ROOT, """
                     attempted to add a [do] with a [warnings_regex] section without a corresponding \
                     ["skip": "features": "warnings_regex"] so runners that do not support the [warnings_regex] \
@@ -201,7 +201,7 @@ public class ClientYamlTestSuite {
                 .filter(section -> section instanceof DoSection)
                 .map(section -> (DoSection) section)
                 .filter(section -> false == section.getAllowedWarningHeaders().isEmpty())
-                .filter(section -> false == hasSkipFeature("allowed_warnings", testSection, setupSection, teardownSection))
+                .filter(section -> false == hasYamlRunnerFeature("allowed_warnings", testSection, setupSection, teardownSection))
                 .map(section -> String.format(Locale.ROOT, """
                     attempted to add a [do] with a [allowed_warnings] section without a corresponding \
                     ["skip": "features": "allowed_warnings"] so runners that do not support the [allowed_warnings] \
@@ -215,7 +215,7 @@ public class ClientYamlTestSuite {
                 .filter(section -> section instanceof DoSection)
                 .map(section -> (DoSection) section)
                 .filter(section -> false == section.getAllowedWarningHeadersRegex().isEmpty())
-                .filter(section -> false == hasSkipFeature("allowed_warnings_regex", testSection, setupSection, teardownSection))
+                .filter(section -> false == hasYamlRunnerFeature("allowed_warnings_regex", testSection, setupSection, teardownSection))
                 .map(section -> String.format(Locale.ROOT, """
                     attempted to add a [do] with a [allowed_warnings_regex] section without a corresponding \
                     ["skip": "features": "allowed_warnings_regex"] so runners that do not support the [allowed_warnings_regex] \
@@ -229,7 +229,7 @@ public class ClientYamlTestSuite {
                 .filter(section -> section instanceof DoSection)
                 .map(section -> (DoSection) section)
                 .filter(section -> NodeSelector.ANY != section.getApiCallSection().getNodeSelector())
-                .filter(section -> false == hasSkipFeature("node_selector", testSection, setupSection, teardownSection))
+                .filter(section -> false == hasYamlRunnerFeature("node_selector", testSection, setupSection, teardownSection))
                 .map(section -> String.format(Locale.ROOT, """
                     attempted to add a [do] with a [node_selector] section without a corresponding \
                     ["skip": "features": "node_selector"] so runners that do not support the [node_selector] section \
@@ -241,7 +241,7 @@ public class ClientYamlTestSuite {
             errors,
             sections.stream()
                 .filter(section -> section instanceof ContainsAssertion)
-                .filter(section -> false == hasSkipFeature("contains", testSection, setupSection, teardownSection))
+                .filter(section -> false == hasYamlRunnerFeature("contains", testSection, setupSection, teardownSection))
                 .map(section -> String.format(Locale.ROOT, """
                     attempted to add a [contains] assertion without a corresponding ["skip": "features": "contains"] \
                     so runners that do not support the [contains] assertion can skip the test at line [%d]\
@@ -254,7 +254,7 @@ public class ClientYamlTestSuite {
                 .filter(section -> section instanceof DoSection)
                 .map(section -> (DoSection) section)
                 .filter(section -> false == section.getApiCallSection().getHeaders().isEmpty())
-                .filter(section -> false == hasSkipFeature("headers", testSection, setupSection, teardownSection))
+                .filter(section -> false == hasYamlRunnerFeature("headers", testSection, setupSection, teardownSection))
                 .map(section -> String.format(Locale.ROOT, """
                     attempted to add a [do] with a [headers] section without a corresponding ["skip": "features": "headers"] \
                     so runners that do not support the [headers] section can skip the test at line [%d]\
@@ -265,29 +265,40 @@ public class ClientYamlTestSuite {
             errors,
             sections.stream()
                 .filter(section -> section instanceof CloseToAssertion)
-                .filter(section -> false == hasSkipFeature("close_to", testSection, setupSection, teardownSection))
+                .filter(section -> false == hasYamlRunnerFeature("close_to", testSection, setupSection, teardownSection))
                 .map(section -> String.format(Locale.ROOT, """
                     attempted to add a [close_to] assertion without a corresponding ["skip": "features": "close_to"] \
                     so runners that do not support the [close_to] assertion can skip the test at line [%d]\
                     """, section.getLocation().lineNumber()))
         );
 
+        errors = Stream.concat(
+            errors,
+            sections.stream()
+                .filter(section -> section instanceof IsAfterAssertion)
+                .filter(section -> false == hasYamlRunnerFeature("is_after", testSection, setupSection, teardownSection))
+                .map(section -> String.format(Locale.ROOT, """
+                    attempted to add an [is_after] assertion without a corresponding ["skip": "features": "is_after"] \
+                    so runners that do not support the [is_after] assertion can skip the test at line [%d]\
+                    """, section.getLocation().lineNumber()))
+        );
+
         return errors;
     }
 
-    private static boolean hasSkipFeature(
+    private static boolean hasYamlRunnerFeature(
         String feature,
         ClientYamlTestSection testSection,
         SetupSection setupSection,
         TeardownSection teardownSection
     ) {
-        return (testSection != null && hasSkipFeature(feature, testSection.getSkipSection()))
-            || (setupSection != null && hasSkipFeature(feature, setupSection.getSkipSection()))
-            || (teardownSection != null && hasSkipFeature(feature, teardownSection.getSkipSection()));
+        return (testSection != null && hasYamlRunnerFeature(feature, testSection.getPrerequisiteSection()))
+            || (setupSection != null && hasYamlRunnerFeature(feature, setupSection.getPrerequisiteSection()))
+            || (teardownSection != null && hasYamlRunnerFeature(feature, teardownSection.getPrerequisiteSection()));
     }
 
-    private static boolean hasSkipFeature(String feature, SkipSection skipSection) {
-        return skipSection != null && skipSection.getFeatures().contains(feature);
+    private static boolean hasYamlRunnerFeature(String feature, PrerequisiteSection prerequisiteSection) {
+        return prerequisiteSection != null && prerequisiteSection.hasYamlRunnerFeature(feature);
     }
 
     public List<ClientYamlTestSection> getTestSections() {

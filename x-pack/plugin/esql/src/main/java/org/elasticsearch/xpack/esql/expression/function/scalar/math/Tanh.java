@@ -21,8 +21,15 @@ import java.util.List;
  * Tangent hyperbolic function.
  */
 public class Tanh extends AbstractTrigonometricFunction {
-    @FunctionInfo(returnType = "double")
-    public Tanh(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+    @FunctionInfo(returnType = "double", description = "Returns the hyperbolic tangent of a number")
+    public Tanh(
+        Source source,
+        @Param(
+            name = "n",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "The number to return the hyperbolic tangent of"
+        ) Expression n
+    ) {
         super(source, n);
     }
 

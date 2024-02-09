@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -182,14 +183,14 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             .source(new SearchSourceBuilder().query(rangeQuery));
 
         if (includeIndexCoveringSearchRangeInSearchRequest) {
-            SearchResponse searchResponse = client().search(request).actionGet();
-
-            // All the regular index searches succeeded
-            assertThat(searchResponse.getSuccessfulShards(), equalTo(indexWithinSearchRangeShardCount));
-            // All the searchable snapshots shard search failed
-            assertThat(searchResponse.getFailedShards(), equalTo(indexOutsideSearchRangeShardCount));
-            assertThat(searchResponse.getSkippedShards(), equalTo(0));
-            assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
+            assertResponse(client().search(request), searchResponse -> {
+                // All the regular index searches succeeded
+                assertThat(searchResponse.getSuccessfulShards(), equalTo(indexWithinSearchRangeShardCount));
+                // All the searchable snapshots shard search failed
+                assertThat(searchResponse.getFailedShards(), equalTo(indexOutsideSearchRangeShardCount));
+                assertThat(searchResponse.getSkippedShards(), equalTo(0));
+                assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
+            });
         } else {
             // All shards failed, since all shards are unassigned and the IndexMetadata min/max timestamp
             // is not available yet
@@ -271,13 +272,13 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         waitUntilAllShardsAreUnassigned(updatedIndexMetadata.getIndex());
 
         if (includeIndexCoveringSearchRangeInSearchRequest) {
-            SearchResponse newSearchResponse = client().search(request).actionGet();
-
-            assertThat(newSearchResponse.getSkippedShards(), equalTo(indexOutsideSearchRangeShardCount));
-            assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
-            assertThat(newSearchResponse.getFailedShards(), equalTo(0));
-            assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
-            assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo((long) numDocsWithinRange));
+            assertResponse(client().search(request), newSearchResponse -> {
+                assertThat(newSearchResponse.getSkippedShards(), equalTo(indexOutsideSearchRangeShardCount));
+                assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
+                assertThat(newSearchResponse.getFailedShards(), equalTo(0));
+                assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
+                assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo((long) numDocsWithinRange));
+            });
 
             // test with SearchShardsAPI
             {
@@ -338,13 +339,14 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                     }
                 }
             } else {
-                SearchResponse newSearchResponse = client().search(request).actionGet();
-                // When all shards are skipped, at least one of them should be queried in order to
-                // provide a proper search response.
-                assertThat(newSearchResponse.getSkippedShards(), equalTo(indexOutsideSearchRangeShardCount - 1));
-                assertThat(newSearchResponse.getSuccessfulShards(), equalTo(indexOutsideSearchRangeShardCount - 1));
-                assertThat(newSearchResponse.getFailedShards(), equalTo(1));
-                assertThat(newSearchResponse.getTotalShards(), equalTo(indexOutsideSearchRangeShardCount));
+                assertResponse(client().search(request), newSearchResponse -> {
+                    // When all shards are skipped, at least one of them should be queried in order to
+                    // provide a proper search response.
+                    assertThat(newSearchResponse.getSkippedShards(), equalTo(indexOutsideSearchRangeShardCount - 1));
+                    assertThat(newSearchResponse.getSuccessfulShards(), equalTo(indexOutsideSearchRangeShardCount - 1));
+                    assertThat(newSearchResponse.getFailedShards(), equalTo(1));
+                    assertThat(newSearchResponse.getTotalShards(), equalTo(indexOutsideSearchRangeShardCount));
+                });
 
                 // test with SearchShardsAPI
                 {
@@ -449,14 +451,15 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         // test with Search API
         {
-            SearchResponse searchResponse = client().search(request).actionGet();
-            // All the regular index searches succeeded
-            assertThat(searchResponse.getSuccessfulShards(), equalTo(indexOutsideSearchRangeShardCount));
-            // All the searchable snapshots shard search failed
-            assertThat(searchResponse.getFailedShards(), equalTo(indexOutsideSearchRangeShardCount));
-            assertThat(searchResponse.getSkippedShards(), equalTo(searchableSnapshotShardCount));
-            assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+            assertResponse(client().search(request), searchResponse -> {
+                // All the regular index searches succeeded
+                assertThat(searchResponse.getSuccessfulShards(), equalTo(indexOutsideSearchRangeShardCount));
+                // All the searchable snapshots shard search failed
+                assertThat(searchResponse.getFailedShards(), equalTo(indexOutsideSearchRangeShardCount));
+                assertThat(searchResponse.getSkippedShards(), equalTo(searchableSnapshotShardCount));
+                assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+            });
         }
 
         // test with SearchShards API
@@ -513,16 +516,16 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         // busy assert since computing the time stamp field from the cluster state happens off of the CS applier thread and thus can be
         // slightly delayed
         assertBusy(() -> {
-            SearchResponse newSearchResponse = client().search(request).actionGet();
-
-            // All the regular index searches succeeded
-            assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
-            assertThat(newSearchResponse.getFailedShards(), equalTo(0));
-            // We have to query at least one node to construct a valid response, and we pick
-            // a shard that's available in order to construct the search response
-            assertThat(newSearchResponse.getSkippedShards(), equalTo(totalShards - 1));
-            assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
-            assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo(0L));
+            assertResponse(client().search(request), newSearchResponse -> {
+                // All the regular index searches succeeded
+                assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
+                assertThat(newSearchResponse.getFailedShards(), equalTo(0));
+                // We have to query at least one node to construct a valid response, and we pick
+                // a shard that's available in order to construct the search response
+                assertThat(newSearchResponse.getSkippedShards(), equalTo(totalShards - 1));
+                assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
+                assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo(0L));
+            });
         });
 
         // test with SearchShards API

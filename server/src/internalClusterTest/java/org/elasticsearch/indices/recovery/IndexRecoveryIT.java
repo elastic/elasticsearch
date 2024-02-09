@@ -784,7 +784,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
      */
     public void testTargetThrottling() throws Exception {
         logger.info("--> starting node A with default settings");
-        final String nodeA = internalCluster().startNode();
+        final String nodeA = internalCluster().startNode(
+            Settings.builder()
+                // Use a high value so that when unthrottling recoveries we do not cause accidental throttling on the source node.
+                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "200mb")
+        );
 
         logger.info("--> creating index on node A");
         ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0].getStats()
@@ -1035,6 +1039,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThan(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105122")
     public void testDoNotInfinitelyWaitForMapping() {
         internalCluster().ensureAtLeastNumDataNodes(3);
         createIndex(
@@ -1744,12 +1749,12 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         .getNodes()
                         .get(0)
                         .getIndices();
-                    assertThat(nodeIndicesStats.getStore().getReservedSize().getBytes(), equalTo(0L));
+                    assertThat(nodeIndicesStats.getStore().reservedSizeInBytes(), equalTo(0L));
                     assertThat(
                         nodeIndicesStats.getShardStats(clusterState.metadata().index(indexName).getIndex())
                             .stream()
                             .flatMap(s -> Arrays.stream(s.getShards()))
-                            .map(s -> s.getStats().getStore().getReservedSize().getBytes())
+                            .map(s -> s.getStats().getStore().reservedSizeInBytes())
                             .toList(),
                         everyItem(equalTo(StoreStats.UNKNOWN_RESERVED_BYTES))
                     );
@@ -1765,8 +1770,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                             .get(0)
                             .getIndices()
                             .getStore()
-                            .getReservedSize()
-                            .getBytes(),
+                            .reservedSizeInBytes(),
                         greaterThan(0L)
                     );
                 }
@@ -1784,7 +1788,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .get()
                 .getNodes()
                 .stream()
-                .mapToLong(n -> n.getIndices().getStore().getReservedSize().getBytes())
+                .mapToLong(n -> n.getIndices().getStore().reservedSizeInBytes())
                 .sum(),
             equalTo(0L)
         );

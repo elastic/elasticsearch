@@ -15,20 +15,31 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.StringReader;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 
 public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
 
+    @SuppressWarnings("this-escape")
+    private final RefCounted refs = LeakTracker.wrap(
+        AbstractRefCounted.of(() -> Releasables.wrap(Iterators.map(getNodes().iterator(), n -> n::decRef)).close())
+    );
+
+    @SuppressWarnings("this-escape")
     public NodesHotThreadsResponse(ClusterName clusterName, List<NodeHotThreads> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
+        for (NodeHotThreads nodeHotThreads : getNodes()) {
+            nodeHotThreads.mustIncRef();
+        }
     }
 
     public Iterator<CheckedConsumer<java.io.Writer, IOException>> getTextChunks() {
@@ -36,15 +47,21 @@ public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
             getNodes().iterator(),
             node -> Iterators.concat(
                 Iterators.single(writer -> writer.append("::: ").append(node.getNode().toString()).append('\n')),
-                Iterators.map(new LinesIterator(node.getHotThreads()), line -> writer -> writer.append("   ").append(line).append('\n')),
-                Iterators.single(writer -> writer.append('\n'))
+                Iterators.map(
+                    new LinesIterator(node.getHotThreadsReader()),
+                    line -> writer -> writer.append("   ").append(line).append('\n')
+                ),
+                Iterators.single(writer -> {
+                    assert hasReferences();
+                    writer.append('\n');
+                })
             )
         );
     }
 
     @Override
     protected List<NodeHotThreads> readNodesFrom(StreamInput in) throws IOException {
-        return in.readCollectionAsList(NodeHotThreads::new);
+        return TransportAction.localOnly();
     }
 
     @Override
@@ -56,8 +73,8 @@ public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
         final BufferedReader reader;
         String nextLine;
 
-        private LinesIterator(String input) {
-            reader = new BufferedReader(new StringReader(Objects.requireNonNull(input)));
+        private LinesIterator(java.io.Reader reader) {
+            this.reader = new BufferedReader(reader);
             advance();
         }
 
@@ -85,5 +102,25 @@ public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
                 advance();
             }
         }
+    }
+
+    @Override
+    public void incRef() {
+        refs.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refs.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refs.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refs.hasReferences();
     }
 }

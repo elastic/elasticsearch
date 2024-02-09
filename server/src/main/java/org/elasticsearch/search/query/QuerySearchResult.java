@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -149,6 +150,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.terminatedEarly = terminatedEarly;
     }
 
+    @Nullable
     public Boolean terminatedEarly() {
         return this.terminatedEarly;
     }
@@ -204,10 +206,12 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.rankShardResult = rankShardResult;
     }
 
+    @Nullable
     public RankShardResult getRankShardResult() {
         return rankShardResult;
     }
 
+    @Nullable
     public DocValueFormat[] sortValueFormats() {
         return sortValueFormats;
     }
@@ -220,21 +224,21 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     /**
-     * Returns and nulls out the aggregation for this search results. This allows to free up memory once the aggregation is consumed.
-     * @throws IllegalStateException if the aggregations have already been consumed.
+     * Returns the aggregation as a {@link DelayableWriteable} object. Callers are free to expand them whenever they wat
+     * but they should call {@link #releaseAggs()} in order to free memory,
+     * @throws IllegalStateException if {@link #releaseAggs()} has already being called.
      */
-    public InternalAggregations consumeAggs() {
+    public DelayableWriteable<InternalAggregations> getAggs() {
         if (aggregations == null) {
-            throw new IllegalStateException("aggs already consumed");
+            throw new IllegalStateException("aggs already released");
         }
-        try {
-            return aggregations.expand();
-        } finally {
-            aggregations.close();
-            aggregations = null;
-        }
+        return aggregations;
     }
 
+    /**
+     * Release the memory hold by the {@link DelayableWriteable} aggregations
+     * @throws IllegalStateException if {@link #releaseAggs()} has already being called.
+     */
     public void releaseAggs() {
         if (aggregations != null) {
             aggregations.close();
@@ -252,6 +256,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         hasAggs = aggregations != null;
     }
 
+    @Nullable
     public DelayableWriteable<InternalAggregations> aggregations() {
         return aggregations;
     }
@@ -455,6 +460,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
     }
 
+    @Nullable
     public TotalHits getTotalHits() {
         return totalHits;
     }

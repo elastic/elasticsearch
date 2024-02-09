@@ -227,7 +227,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     // state and the repository contents in the below logic
                     final SnapshotIndexShardStage stage = switch (shardEntry.getValue().state()) {
                         case FAILED, ABORTED, MISSING -> SnapshotIndexShardStage.FAILURE;
-                        case INIT, WAITING, QUEUED -> SnapshotIndexShardStage.STARTED;
+                        case INIT, WAITING, PAUSED_FOR_NODE_REMOVAL, QUEUED -> SnapshotIndexShardStage.STARTED;
                         case SUCCESS -> SnapshotIndexShardStage.DONE;
                     };
                     final SnapshotIndexShardStatus shardStatus;

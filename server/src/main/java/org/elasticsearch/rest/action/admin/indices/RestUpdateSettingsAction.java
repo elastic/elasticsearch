@@ -47,7 +47,9 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
         updateSettingsRequest.reopen(request.paramAsBoolean("reopen", false));
-        updateSettingsRequest.fromXContent(request.contentParser());
+        try (var parser = request.contentParser()) {
+            updateSettingsRequest.fromXContent(parser);
+        }
 
         return channel -> client.admin().indices().updateSettings(updateSettingsRequest, new RestToXContentListener<>(channel));
     }

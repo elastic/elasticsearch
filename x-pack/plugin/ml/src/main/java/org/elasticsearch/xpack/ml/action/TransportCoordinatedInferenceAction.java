@@ -20,6 +20,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -28,11 +29,13 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils;
 
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
@@ -42,6 +45,13 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class TransportCoordinatedInferenceAction extends HandledTransportAction<
     CoordinatedInferenceAction.Request,
     InferModelAction.Response> {
+
+    private static final Map<TrainedModelPrefixStrings.PrefixType, InputType> PREFIX_TYPE_INPUT_TYPE_MAP = Map.of(
+        TrainedModelPrefixStrings.PrefixType.INGEST,
+        InputType.INGEST,
+        TrainedModelPrefixStrings.PrefixType.SEARCH,
+        InputType.SEARCH
+    );
 
     private final Client client;
     private final ClusterService clusterService;
@@ -103,13 +113,26 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
     }
 
     private void doInferenceServiceModel(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
+        var inputType = convertPrefixToInputType(request.getPrefixType());
+
         executeAsyncWithOrigin(
             client,
             INFERENCE_ORIGIN,
             InferenceAction.INSTANCE,
-            new InferenceAction.Request(TaskType.ANY, request.getModelId(), request.getInputs(), request.getTaskSettings()),
-            ActionListener.wrap(r -> listener.onResponse(translateInferenceServiceResponse(r.getResults())), listener::onFailure)
+            new InferenceAction.Request(TaskType.ANY, request.getModelId(), request.getInputs(), request.getTaskSettings(), inputType),
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(translateInferenceServiceResponse(r.getResults())))
         );
+    }
+
+    // default for testing
+    static InputType convertPrefixToInputType(TrainedModelPrefixStrings.PrefixType prefixType) {
+        var inputType = PREFIX_TYPE_INPUT_TYPE_MAP.get(prefixType);
+
+        if (inputType == null) {
+            return InputType.INGEST;
+        }
+
+        return inputType;
     }
 
     private void doInClusterModel(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {

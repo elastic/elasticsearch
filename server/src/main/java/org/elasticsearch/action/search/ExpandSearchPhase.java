@@ -18,7 +18,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 
 import java.util.Iterator;
 import java.util.List;
@@ -31,13 +30,13 @@ import java.util.function.Supplier;
  */
 final class ExpandSearchPhase extends SearchPhase {
     private final SearchPhaseContext context;
-    private final InternalSearchResponse searchResponse;
+    private final SearchHits searchHits;
     private final Supplier<SearchPhase> nextPhase;
 
-    ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse, Supplier<SearchPhase> nextPhase) {
+    ExpandSearchPhase(SearchPhaseContext context, SearchHits searchHits, Supplier<SearchPhase> nextPhase) {
         super("expand");
         this.context = context;
-        this.searchResponse = searchResponse;
+        this.searchHits = searchHits;
         this.nextPhase = nextPhase;
     }
 
@@ -53,7 +52,7 @@ final class ExpandSearchPhase extends SearchPhase {
 
     @Override
     public void run() {
-        if (isCollapseRequest() && searchResponse.hits().getHits().length > 0) {
+        if (isCollapseRequest() && searchHits.getHits().length > 0) {
             SearchRequest searchRequest = context.getRequest();
             CollapseBuilder collapseBuilder = searchRequest.source().collapse();
             final List<InnerHitBuilder> innerHitBuilders = collapseBuilder.getInnerHits();
@@ -61,7 +60,7 @@ final class ExpandSearchPhase extends SearchPhase {
             if (collapseBuilder.getMaxConcurrentGroupRequests() > 0) {
                 multiRequest.maxConcurrentSearchRequests(collapseBuilder.getMaxConcurrentGroupRequests());
             }
-            for (SearchHit hit : searchResponse.hits().getHits()) {
+            for (SearchHit hit : searchHits.getHits()) {
                 BoolQueryBuilder groupQuery = new BoolQueryBuilder();
                 Object collapseValue = hit.field(collapseBuilder.getField()).getValue();
                 if (collapseValue != null) {
@@ -85,7 +84,7 @@ final class ExpandSearchPhase extends SearchPhase {
             }
             context.getSearchTransport().sendExecuteMultiSearch(multiRequest, context.getTask(), ActionListener.wrap(response -> {
                 Iterator<MultiSearchResponse.Item> it = response.iterator();
-                for (SearchHit hit : searchResponse.hits.getHits()) {
+                for (SearchHit hit : searchHits.getHits()) {
                     for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
                         MultiSearchResponse.Item item = it.next();
                         if (item.isFailure()) {
@@ -97,6 +96,7 @@ final class ExpandSearchPhase extends SearchPhase {
                             hit.setInnerHits(Maps.newMapWithExpectedSize(innerHitBuilders.size()));
                         }
                         hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
+                        innerHits.mustIncRef();
                     }
                 }
                 onPhaseDone();
@@ -121,7 +121,7 @@ final class ExpandSearchPhase extends SearchPhase {
             }
         }
         if (options.getFetchFields() != null) {
-            options.getFetchFields().forEach(ff -> groupSource.fetchField(ff));
+            options.getFetchFields().forEach(groupSource::fetchField);
         }
         if (options.getDocValueFields() != null) {
             options.getDocValueFields().forEach(ff -> groupSource.docValueField(ff.field, ff.format));

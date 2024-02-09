@@ -13,16 +13,16 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -80,7 +80,7 @@ public class InternalUsersTests extends ESTestCase {
         final List<String> sampleClusterActions = List.of(
             ClusterStateAction.NAME,
             PutComponentTemplateAction.NAME,
-            DeleteStoredScriptAction.NAME,
+            TransportDeleteStoredScriptAction.TYPE.name(),
             UpdateJobAction.NAME,
             CleanupRepositoryAction.NAME
         );
@@ -91,8 +91,8 @@ public class InternalUsersTests extends ESTestCase {
             BulkAction.NAME,
             RefreshAction.NAME,
             CreateIndexAction.NAME,
-            PutMappingAction.NAME,
-            DeleteIndexAction.NAME
+            TransportPutMappingAction.TYPE.name(),
+            TransportDeleteIndexAction.TYPE.name()
         );
         checkIndexAccess(role, randomFrom(sampleIndexActions), randomAlphaOfLengthBetween(3, 12), true);
         checkIndexAccess(
@@ -115,7 +115,7 @@ public class InternalUsersTests extends ESTestCase {
         final List<String> sampleClusterActions = List.of(
             ClusterStateAction.NAME,
             PutComponentTemplateAction.NAME,
-            DeleteStoredScriptAction.NAME,
+            TransportDeleteStoredScriptAction.TYPE.name(),
             UpdateJobAction.NAME,
             CleanupRepositoryAction.NAME
         );
@@ -126,8 +126,8 @@ public class InternalUsersTests extends ESTestCase {
             BulkAction.NAME,
             RefreshAction.NAME,
             CreateIndexAction.NAME,
-            PutMappingAction.NAME,
-            DeleteIndexAction.NAME
+            TransportPutMappingAction.TYPE.name(),
+            TransportDeleteIndexAction.TYPE.name()
         );
         checkIndexAccess(
             role,
@@ -153,8 +153,8 @@ public class InternalUsersTests extends ESTestCase {
             BulkAction.NAME,
             RefreshAction.NAME,
             CreateIndexAction.NAME,
-            PutMappingAction.NAME,
-            DeleteIndexAction.NAME
+            TransportPutMappingAction.TYPE.name(),
+            TransportDeleteIndexAction.TYPE.name()
         );
         checkIndexAccess(role, randomFrom(sampleAllowedActions), ".security-profile", true);
         checkIndexAccess(role, randomFrom(sampleAllowedActions), ".security-profile-" + randomIntBetween(1, 9), true);
@@ -184,8 +184,8 @@ public class InternalUsersTests extends ESTestCase {
             BulkAction.NAME,
             RefreshAction.NAME,
             CreateIndexAction.NAME,
-            PutMappingAction.NAME,
-            DeleteIndexAction.NAME
+            TransportPutMappingAction.TYPE.name(),
+            TransportDeleteIndexAction.TYPE.name()
         );
         checkIndexAccess(role, randomFrom(sampleAllowedActions), XPackPlugin.ASYNC_RESULTS_INDEX, true);
         checkIndexAccess(
@@ -215,8 +215,8 @@ public class InternalUsersTests extends ESTestCase {
         final List<String> sampleDeniedActions = List.of(
             TransportGetAction.TYPE.name(),
             BulkAction.NAME,
-            PutMappingAction.NAME,
-            DeleteIndexAction.NAME
+            TransportPutMappingAction.TYPE.name(),
+            TransportDeleteIndexAction.TYPE.name()
         );
         checkIndexAccess(role, randomFrom(sampleDeniedActions), randomAlphaOfLengthBetween(4, 8), false);
         checkIndexAccess(role, randomFrom(sampleDeniedActions), ".ds-" + randomAlphaOfLengthBetween(4, 8), false);
@@ -246,20 +246,20 @@ public class InternalUsersTests extends ESTestCase {
 
         final List<String> sampleIndexActions = List.of(
             RolloverAction.NAME,
-            DeleteIndexAction.NAME,
+            TransportDeleteIndexAction.TYPE.name(),
             ForceMergeAction.NAME,
             IndicesStatsAction.NAME,
-            UpdateSettingsAction.NAME,
+            TransportUpdateSettingsAction.TYPE.name(),
             DownsampleAction.NAME,
             AddIndexBlockAction.NAME
         );
 
         final List<String> sampleSystemDataStreamActions = List.of(
             RolloverAction.NAME,
-            DeleteIndexAction.NAME,
+            TransportDeleteIndexAction.TYPE.name(),
             ForceMergeAction.NAME,
             IndicesStatsAction.NAME,
-            UpdateSettingsAction.NAME,
+            TransportUpdateSettingsAction.TYPE.name(),
             DownsampleAction.NAME,
             AddIndexBlockAction.NAME
         );

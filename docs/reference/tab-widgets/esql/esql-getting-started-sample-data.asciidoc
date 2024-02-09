@@ -43,6 +43,6 @@ PUT sample_data/_bulk
 
 The data set used in this guide has been preloaded into the Elastic {esql}
 public demo environment. Visit
-https://esql.demo.elastic.co/[esql.demo.elastic.co] to start using it.
+https://ela.st/ql[ela.st/ql] to start using it.
 
 // end::demo-env[]

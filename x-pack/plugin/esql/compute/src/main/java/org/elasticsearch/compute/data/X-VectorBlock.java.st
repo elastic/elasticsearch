@@ -13,7 +13,7 @@ $endif$
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a $Type$Vector.
+ * Block view of a {@link $Type$Vector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class $Type$VectorBlock extends AbstractVectorBlock implements $Type$Block {
@@ -82,11 +82,6 @@ $endif$
     }
 
     @Override
-    public boolean isReleased() {
-        return super.isReleased() || vector.isReleased();
-    }
-
-    @Override
     public void closeInternal() {
         assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
@@ -95,5 +90,10 @@ $endif$
     @Override
     public void allowPassingToDifferentDriver() {
         vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

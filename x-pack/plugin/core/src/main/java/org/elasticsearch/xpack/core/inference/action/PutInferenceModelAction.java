@@ -20,6 +20,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,26 +32,26 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
     public static final String NAME = "cluster:admin/xpack/inference/put";
 
     public PutInferenceModelAction() {
-        super(NAME, PutInferenceModelAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
 
         private final TaskType taskType;
-        private final String modelId;
+        private final String inferenceEntityId;
         private final BytesReference content;
         private final XContentType contentType;
 
-        public Request(String taskType, String modelId, BytesReference content, XContentType contentType) {
-            this.taskType = TaskType.fromStringOrStatusException(taskType);
-            this.modelId = modelId;
+        public Request(TaskType taskType, String inferenceEntityId, BytesReference content, XContentType contentType) {
+            this.taskType = taskType;
+            this.inferenceEntityId = inferenceEntityId;
             this.content = content;
             this.contentType = contentType;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.modelId = in.readString();
+            this.inferenceEntityId = in.readString();
             this.taskType = TaskType.fromStream(in);
             this.content = in.readBytesReference();
             this.contentType = in.readEnum(XContentType.class);
@@ -59,8 +61,8 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             return taskType;
         }
 
-        public String getModelId() {
-            return modelId;
+        public String getInferenceEntityId() {
+            return inferenceEntityId;
         }
 
         public BytesReference getContent() {
@@ -74,7 +76,7 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(modelId);
+            out.writeString(inferenceEntityId);
             taskType.writeTo(out);
             out.writeBytesReference(content);
             XContentHelper.writeTo(out, contentType);
@@ -82,7 +84,16 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = new ActionRequestValidationException();
+            if (MlStrings.isValidId(this.inferenceEntityId) == false) {
+                validationException.addValidationError(Messages.getMessage(Messages.INVALID_ID, "model_id", this.inferenceEntityId));
+            }
+
+            if (validationException.validationErrors().isEmpty() == false) {
+                return validationException;
+            } else {
+                return null;
+            }
         }
 
         @Override
@@ -91,14 +102,14 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return taskType == request.taskType
-                && Objects.equals(modelId, request.modelId)
+                && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && Objects.equals(content, request.content)
                 && contentType == request.contentType;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, modelId, content, contentType);
+            return Objects.hash(taskType, inferenceEntityId, content, contentType);
         }
     }
 

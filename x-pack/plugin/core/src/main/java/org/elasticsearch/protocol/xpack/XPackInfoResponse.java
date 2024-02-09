@@ -362,7 +362,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             public FeatureSet(StreamInput in) throws IOException {
                 this(in.readString(), readAvailable(in), in.readBoolean());
                 if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                    in.readMap(); // backcompat reading native code info, but no longer used here
+                    in.readGenericMap(); // backcompat reading native code info, but no longer used here
                 }
             }
 

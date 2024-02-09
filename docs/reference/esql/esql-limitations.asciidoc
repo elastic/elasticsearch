@@ -32,8 +32,13 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 * `long`
 * `null`
 * `text`
-* `unsigned_long`
+* experimental:[] `unsigned_long`
 * `version`
+* Spatial types
+** `geo_point`
+** `geo_shape`
+** `point`
+** `shape`
 
 [discrete]
 ==== Unsupported types
@@ -44,11 +49,6 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 ** `counter`
 ** `position`
 ** `aggregate_metric_double`
-* Geo/spatial
-** `geo_point`
-** `geo_shape`
-** `point`
-** `shape`
 * Date/time
 ** `date_nanos`
 ** `date_range`
@@ -119,7 +119,7 @@ consequences. An {esql} query on a `text` field is case-sensitive. Furthermore,
 a subfield may have been mapped with a <<normalizer,normalizer>>, which can
 transform the original string. Or it may have been mapped with <<ignore-above>>,
 which can truncate the string. None of these mapping operations are applied to
-an {esql} query, which may lead to false positives or negatives. 
+an {esql} query, which may lead to false positives or negatives.
 
 To avoid these issues, a best practice is to be explicit about the field that
 you query, and query `keyword` sub-fields instead of `text` fields.

@@ -54,6 +54,7 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
     private final String placeholder;
     private final boolean required;
     private final boolean sensitive;
+    @Nullable
     private final String tooltip;
     private final ConfigurationFieldType type;
     private final List<String> uiRestrictions;
@@ -161,8 +162,8 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
                 .setOptions((List<ConfigurationSelectOption>) args[i++])
                 .setOrder((Integer) args[i++])
                 .setPlaceholder((String) args[i++])
-                .setRequired((boolean) args[i++])
-                .setSensitive((boolean) args[i++])
+                .setRequired((Boolean) args[i++])
+                .setSensitive((Boolean) args[i++])
                 .setTooltip((String) args[i++])
                 .setType((ConfigurationFieldType) args[i++])
                 .setUiRestrictions((List<String>) args[i++])
@@ -186,40 +187,42 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
             }
             throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
         }, DEFAULT_VALUE_FIELD, ObjectParser.ValueType.VALUE);
-        PARSER.declareObjectArray(constructorArg(), (p, c) -> ConfigurationDependency.fromXContent(p), DEPENDS_ON_FIELD);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ConfigurationDependency.fromXContent(p), DEPENDS_ON_FIELD);
         PARSER.declareField(
-            constructorArg(),
+            optionalConstructorArg(),
             (p, c) -> ConfigurationDisplayType.displayType(p.text()),
             DISPLAY_FIELD,
-            ObjectParser.ValueType.STRING
+            ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareString(constructorArg(), LABEL_FIELD);
-        PARSER.declareObjectArray(constructorArg(), (p, c) -> ConfigurationSelectOption.fromXContent(p), OPTIONS_FIELD);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ConfigurationSelectOption.fromXContent(p), OPTIONS_FIELD);
         PARSER.declareInt(optionalConstructorArg(), ORDER_FIELD);
-        PARSER.declareString(optionalConstructorArg(), PLACEHOLDER_FIELD);
-        PARSER.declareBoolean(constructorArg(), REQUIRED_FIELD);
-        PARSER.declareBoolean(constructorArg(), SENSITIVE_FIELD);
-        PARSER.declareStringOrNull(constructorArg(), TOOLTIP_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), PLACEHOLDER_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), REQUIRED_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), SENSITIVE_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), TOOLTIP_FIELD);
         PARSER.declareField(
-            constructorArg(),
-            (p, c) -> ConfigurationFieldType.fieldType(p.text()),
+            optionalConstructorArg(),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : ConfigurationFieldType.fieldType(p.text()),
             TYPE_FIELD,
-            ObjectParser.ValueType.STRING
+            ObjectParser.ValueType.STRING_OR_NULL
         );
-        PARSER.declareStringArray(constructorArg(), UI_RESTRICTIONS_FIELD);
-        PARSER.declareObjectArray(constructorArg(), (p, c) -> ConfigurationValidation.fromXContent(p), VALIDATIONS_FIELD);
-        PARSER.declareField(constructorArg(), (p, c) -> {
+        PARSER.declareStringArray(optionalConstructorArg(), UI_RESTRICTIONS_FIELD);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ConfigurationValidation.fromXContent(p), VALIDATIONS_FIELD);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return p.text();
             } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 return p.numberValue();
             } else if (p.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
                 return p.booleanValue();
+            } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+                return p.map();
             } else if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
                 return null;
             }
             throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
-        }, VALUE_FIELD, ObjectParser.ValueType.VALUE);
+        }, VALUE_FIELD, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
     }
 
     @Override
@@ -230,10 +233,16 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
                 builder.field(CATEGORY_FIELD.getPreferredName(), category);
             }
             builder.field(DEFAULT_VALUE_FIELD.getPreferredName(), defaultValue);
-            builder.xContentList(DEPENDS_ON_FIELD.getPreferredName(), dependsOn);
-            builder.field(DISPLAY_FIELD.getPreferredName(), display.toString());
+            if (dependsOn != null) {
+                builder.xContentList(DEPENDS_ON_FIELD.getPreferredName(), dependsOn);
+            }
+            if (display != null) {
+                builder.field(DISPLAY_FIELD.getPreferredName(), display.toString());
+            }
             builder.field(LABEL_FIELD.getPreferredName(), label);
-            builder.xContentList(OPTIONS_FIELD.getPreferredName(), options);
+            if (options != null) {
+                builder.xContentList(OPTIONS_FIELD.getPreferredName(), options);
+            }
             if (order != null) {
                 builder.field(ORDER_FIELD.getPreferredName(), order);
             }
@@ -242,10 +251,18 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
             }
             builder.field(REQUIRED_FIELD.getPreferredName(), required);
             builder.field(SENSITIVE_FIELD.getPreferredName(), sensitive);
-            builder.field(TOOLTIP_FIELD.getPreferredName(), tooltip);
-            builder.field(TYPE_FIELD.getPreferredName(), type.toString());
-            builder.stringListField(UI_RESTRICTIONS_FIELD.getPreferredName(), uiRestrictions);
-            builder.xContentList(VALIDATIONS_FIELD.getPreferredName(), validations);
+            if (tooltip != null) {
+                builder.field(TOOLTIP_FIELD.getPreferredName(), tooltip);
+            }
+            if (type != null) {
+                builder.field(TYPE_FIELD.getPreferredName(), type.toString());
+            }
+            if (uiRestrictions != null) {
+                builder.stringListField(UI_RESTRICTIONS_FIELD.getPreferredName(), uiRestrictions);
+            }
+            if (validations != null) {
+                builder.xContentList(VALIDATIONS_FIELD.getPreferredName(), validations);
+            }
             builder.field(VALUE_FIELD.getPreferredName(), value);
         }
         builder.endObject();
@@ -384,13 +401,13 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setRequired(boolean required) {
-            this.required = required;
+        public Builder setRequired(Boolean required) {
+            this.required = Objects.requireNonNullElse(required, false);
             return this;
         }
 
-        public Builder setSensitive(boolean sensitive) {
-            this.sensitive = sensitive;
+        public Builder setSensitive(Boolean sensitive) {
+            this.sensitive = Objects.requireNonNullElse(sensitive, false);
             return this;
         }
 

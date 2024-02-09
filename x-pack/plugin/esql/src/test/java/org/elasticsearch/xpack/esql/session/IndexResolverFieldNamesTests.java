@@ -26,7 +26,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testBasicFromCommandWithMetadata() {
-        assertFieldNames("from test [metadata _index, _id, _version]", ALL_FIELDS);
+        assertFieldNames("from test metadata _index, _id, _version", ALL_FIELDS);
     }
 
     public void testBasicEvalAndDrop() {
@@ -198,7 +198,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | eval y = date_trunc(hire_date, 1 year)
             | stats count(emp_no) by y
             | sort y
-            | keep y, count(emp_no)
+            | keep y, `count(emp_no)`
             | limit 5""", Set.of("hire_date", "hire_date.*", "emp_no", "emp_no.*"));
     }
 
@@ -620,43 +620,43 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testSelectAll() {
-        assertFieldNames("FROM apps [metadata _id]", ALL_FIELDS);
+        assertFieldNames("FROM apps metadata _id", ALL_FIELDS);
     }
 
     public void testFilterById() {
-        assertFieldNames("FROM apps [metadata _id]| WHERE _id == \"4\"", ALL_FIELDS);
+        assertFieldNames("FROM apps metadata _id| WHERE _id == \"4\"", ALL_FIELDS);
     }
 
     public void testKeepId() {
-        assertFieldNames("FROM apps [metadata _id] | WHERE id == 3 | KEEP _id", Set.of("id", "id.*"));
+        assertFieldNames("FROM apps metadata _id | WHERE id == 3 | KEEP _id", Set.of("id", "id.*"));
     }
 
     public void testIdRangeAndSort() {
         assertFieldNames("""
-            FROM apps [metadata _id]
+            FROM apps metadata _id
             | WHERE _id >= "2" AND _id <= "7"
             | SORT _id
             | keep id, name, _id""", Set.of("id", "id.*", "name", "name.*"));
     }
 
     public void testOrderById() {
-        assertFieldNames("FROM apps [metadata _id] | KEEP _id, name | SORT _id", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | KEEP _id, name | SORT _id", Set.of("name", "name.*"));
     }
 
     public void testOrderByIdDesc() {
-        assertFieldNames("FROM apps [metadata _id] | KEEP _id, name | SORT _id DESC", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | KEEP _id, name | SORT _id DESC", Set.of("name", "name.*"));
     }
 
     public void testConcatId() {
-        assertFieldNames("FROM apps [metadata _id] | eval c = concat(_id, name) | SORT _id | KEEP c", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | eval c = concat(_id, name) | SORT _id | KEEP c", Set.of("name", "name.*"));
     }
 
     public void testStatsOnId() {
-        assertFieldNames("FROM apps [metadata _id] | stats c = count(_id), d = count_distinct(_id)", INDEX_METADATA_FIELD);
+        assertFieldNames("FROM apps metadata _id | stats c = count(_id), d = count_distinct(_id)", INDEX_METADATA_FIELD);
     }
 
     public void testStatsOnIdByGroup() {
-        assertFieldNames("FROM apps [metadata _id] | stats c = count(_id) by name | sort c desc, name | limit 5", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | stats c = count(_id) by name | sort c desc, name | limit 5", Set.of("name", "name.*"));
     }
 
     public void testSimpleProject() {
@@ -709,10 +709,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMetaIndexAliasedInAggs() {
-        assertFieldNames(
-            "from employees [metadata _index] | eval _i = _index | stats max = max(emp_no) by _i",
-            Set.of("emp_no", "emp_no.*")
-        );
+        assertFieldNames("from employees metadata _index | eval _i = _index | stats max = max(emp_no) by _i", Set.of("emp_no", "emp_no.*"));
     }
 
     public void testCoalesceFolding() {

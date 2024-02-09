@@ -9,13 +9,18 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 
 public class IndicesStatsAction extends ActionType<IndicesStatsResponse> {
 
     public static final IndicesStatsAction INSTANCE = new IndicesStatsAction();
     public static final String NAME = "indices:monitor/stats";
+    public static final RemoteClusterActionType<IndicesStatsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        NAME,
+        IndicesStatsResponse::new
+    );
 
     private IndicesStatsAction() {
-        super(NAME, IndicesStatsResponse::new);
+        super(NAME);
     }
 }

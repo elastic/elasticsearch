@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterAp
  */
 public final class ApiKey implements ToXContentObject, Writeable {
 
-    public static final TransportVersion CROSS_CLUSTER_KEY_VERSION = TransportVersions.V_8_500_020;
+    public static final TransportVersion CROSS_CLUSTER_KEY_VERSION = TransportVersions.V_8_9_X;
 
     public enum Type {
         /**
@@ -182,7 +182,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.creation = in.readInstant();
         this.expiration = in.readOptionalInstant();
         this.invalidated = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.GET_API_KEY_INVALIDATION_TIME_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.invalidation = in.readOptionalInstant();
         } else {
             this.invalidation = null;
@@ -191,7 +191,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.username = in.readString();
         this.realm = in.readString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.metadata = in.readMap();
+            this.metadata = in.readGenericMap();
         } else {
             this.metadata = Map.of();
         }
@@ -337,7 +337,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         out.writeInstant(creation);
         out.writeOptionalInstant(expiration);
         out.writeBoolean(invalidated);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.GET_API_KEY_INVALIDATION_TIME_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalInstant(invalidation);
         }
         out.writeString(username);

@@ -36,6 +36,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
@@ -333,20 +334,8 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                     logger.info("--> add random documents to {}", index);
                     addRandomDocuments(index, randomIntBetween(10, 1000));
                 } else {
-                    var resp = prepareSearch(index).setSize(0).get();
-                    final int docCount;
-                    try {
-                        docCount = (int) resp.getHits().getTotalHits().value;
-                    } finally {
-                        resp.decRef();
-                    }
-                    int deleteCount = randomIntBetween(1, docCount);
-                    logger.info("--> delete {} random documents from {}", deleteCount, index);
-                    for (int i = 0; i < deleteCount; i++) {
-                        int doc = randomIntBetween(0, docCount - 1);
-                        client().prepareDelete(index, Integer.toString(doc)).get();
-                    }
-                    client().admin().indices().prepareRefresh(index).get();
+                    final int docCount = (int) SearchResponseUtils.getTotalHitsValue(prepareSearch(index).setSize(0));
+                    deleteRandomDocs(index, docCount);
                 }
             }
 
@@ -395,13 +384,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             if (randomBoolean() && i > 0) { // don't delete on the first iteration
                 int docCount = docCounts[i - 1];
                 if (docCount > 0) {
-                    int deleteCount = randomIntBetween(1, docCount);
-                    logger.info("--> delete {} random documents from {}", deleteCount, indexName);
-                    for (int j = 0; j < deleteCount; j++) {
-                        int doc = randomIntBetween(0, docCount - 1);
-                        client().prepareDelete(indexName, Integer.toString(doc)).get();
-                    }
-                    client().admin().indices().prepareRefresh(indexName).get();
+                    deleteRandomDocs(indexName, docCount);
                 }
             } else {
                 int docCount = randomIntBetween(10, 1000);
@@ -409,12 +392,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 addRandomDocuments(indexName, docCount);
             }
             // Check number of documents in this iteration
-            var resp = prepareSearch(indexName).setSize(0).get();
-            try {
-                docCounts[i] = (int) resp.getHits().getTotalHits().value;
-            } finally {
-                resp.decRef();
-            }
+            docCounts[i] = (int) SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName).setSize(0));
             logger.info("-->  create snapshot {}:{} with {} documents", repoName, snapshotName + "-" + i, docCounts[i]);
             assertSuccessfulSnapshot(
                 clusterAdmin().prepareCreateSnapshot(repoName, snapshotName + "-" + i).setWaitForCompletion(true).setIndices(indexName)
@@ -444,6 +422,16 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             logger.info("-->  delete snapshot {}:{}", repoName, snapshotName + "-" + i);
             assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName + "-" + i).get());
         }
+    }
+
+    private void deleteRandomDocs(String indexName, int existingDocCount) {
+        int deleteCount = randomIntBetween(1, existingDocCount);
+        logger.info("--> delete {} random documents from {}", deleteCount, indexName);
+        for (int j = 0; j < deleteCount; j++) {
+            int doc = randomIntBetween(0, existingDocCount - 1);
+            client().prepareDelete(indexName, Integer.toString(doc)).get();
+        }
+        client().admin().indices().prepareRefresh(indexName).get();
     }
 
     public void testIndicesDeletedFromRepository() throws Exception {

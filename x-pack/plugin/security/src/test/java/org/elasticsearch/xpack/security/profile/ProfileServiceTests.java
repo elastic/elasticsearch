@@ -55,7 +55,6 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -1031,7 +1030,7 @@ public class ProfileServiceTests extends ESTestCase {
             } else {
                 final var searchResponse = mock(SearchResponse.class);
                 when(searchResponse.getHits()).thenReturn(
-                    new SearchHits(new SearchHit[0], new TotalHits(metrics.get(name), TotalHits.Relation.EQUAL_TO), 1)
+                    SearchHits.empty(new TotalHits(metrics.get(name), TotalHits.Relation.EQUAL_TO), 1)
                 );
                 return new MultiSearchResponse.Item(searchResponse, null);
             }

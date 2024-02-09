@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTriggerMethod;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
@@ -34,15 +35,12 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class PostConnectorSyncJobAction extends ActionType<PostConnectorSyncJobAction.Response> {
-
-    public static final PostConnectorSyncJobAction INSTANCE = new PostConnectorSyncJobAction();
+public class PostConnectorSyncJobAction {
 
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/post";
+    public static final ActionType<PostConnectorSyncJobAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    private PostConnectorSyncJobAction() {
-        super(NAME, PostConnectorSyncJobAction.Response::new);
-    }
+    private PostConnectorSyncJobAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
         public static final String EMPTY_CONNECTOR_ID_ERROR_MESSAGE = "[id] of the connector cannot be null or empty";
@@ -116,9 +114,9 @@ public class PostConnectorSyncJobAction extends ActionType<PostConnectorSyncJobA
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field("id", id);
-                builder.field("job_type", jobType);
-                builder.field("trigger_method", triggerMethod);
+                builder.field(Connector.ID_FIELD.getPreferredName(), id);
+                builder.field(ConnectorSyncJob.JOB_TYPE_FIELD.getPreferredName(), jobType);
+                builder.field(ConnectorSyncJob.TRIGGER_METHOD_FIELD.getPreferredName(), triggerMethod);
             }
             builder.endObject();
             return builder;
@@ -182,7 +180,7 @@ public class PostConnectorSyncJobAction extends ActionType<PostConnectorSyncJobA
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("id", id);
+            builder.field(ConnectorSyncJob.ID_FIELD.getPreferredName(), id);
             builder.endObject();
             return builder;
         }

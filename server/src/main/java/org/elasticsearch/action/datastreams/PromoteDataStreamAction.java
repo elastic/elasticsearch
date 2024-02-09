@@ -27,7 +27,7 @@ public class PromoteDataStreamAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/data_stream/promote";
 
     private PromoteDataStreamAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<PromoteDataStreamAction.Request> implements IndicesRequest {

@@ -11,17 +11,23 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -105,9 +111,26 @@ public class ServiceUtils {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
+    public static String invalidValue(String settingName, String scope, String invalidType, String[] requiredValues) {
+        var copyOfRequiredValues = requiredValues.clone();
+        Arrays.sort(copyOfRequiredValues);
+
+        return Strings.format(
+            "[%s] Invalid value [%s] received. [%s] must be one of [%s]",
+            scope,
+            invalidType,
+            settingName,
+            String.join(", ", copyOfRequiredValues)
+        );
+    }
+
     // TODO improve URI validation logic
-    public static URI convertToUri(String url, String settingName, String settingScope, ValidationException validationException) {
+    public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
+            if (url == null) {
+                return null;
+            }
+
             return createUri(url);
         } catch (IllegalArgumentException ignored) {
             validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope));
@@ -123,6 +146,14 @@ public class ServiceUtils {
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(format("unable to parse url [%s]", url), e);
         }
+    }
+
+    public static URI createOptionalUri(String url) {
+        if (url == null) {
+            return null;
+        }
+
+        return createUri(url);
     }
 
     public static SecureString extractRequiredSecureString(
@@ -194,8 +225,62 @@ public class ServiceUtils {
         return optionalField;
     }
 
-    public static String parsePersistedConfigErrorMsg(String modelId, String serviceName) {
-        return format("Failed to parse stored model [%s] for [%s] service, please delete and add the service again", modelId, serviceName);
+    public static <E extends Enum<E>> E extractOptionalEnum(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        EnumConstructor<E> constructor,
+        EnumSet<E> validValues,
+        ValidationException validationException
+    ) {
+        var enumString = extractOptionalString(map, settingName, scope, validationException);
+        if (enumString == null) {
+            return null;
+        }
+
+        var validValuesAsStrings = validValues.stream().map(value -> value.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
+
+        try {
+            var createdEnum = constructor.apply(enumString);
+            validateEnumValue(createdEnum, validValues);
+
+            return createdEnum;
+        } catch (IllegalArgumentException e) {
+            validationException.addValidationError(invalidValue(settingName, scope, enumString, validValuesAsStrings));
+        }
+
+        return null;
+    }
+
+    private static <E extends Enum<E>> void validateEnumValue(E enumValue, EnumSet<E> validValues) {
+        if (validValues.contains(enumValue) == false) {
+            throw new IllegalArgumentException(Strings.format("Enum value [%s] is not one of the acceptable values", enumValue.toString()));
+        }
+    }
+
+    public static String mustBeAPositiveNumberErrorMessage(String settingName, int value) {
+        if (value <= 0) {
+            return "Invalid value [" + value + "]. [" + settingName + "] must be a positive integer";
+        } else {
+            throw new IllegalArgumentException("Value [" + value + "] is not a positive integer");
+        }
+    }
+
+    /**
+     * Functional interface for creating an enum from a string.
+     * @param <E>
+     */
+    @FunctionalInterface
+    public interface EnumConstructor<E extends Enum<E>> {
+        E apply(String name) throws IllegalArgumentException;
+    }
+
+    public static String parsePersistedConfigErrorMsg(String inferenceEntityId, String serviceName) {
+        return format(
+            "Failed to parse stored model [%s] for [%s] service, please delete and add the service again",
+            inferenceEntityId,
+            serviceName
+        );
     }
 
     public static ElasticsearchStatusException createInvalidModelException(Model model) {
@@ -203,7 +288,7 @@ public class ServiceUtils {
             format(
                 "The internal model was invalid, please delete the service [%s] with id [%s] and add it again.",
                 model.getConfigurations().getService(),
-                model.getConfigurations().getModelId()
+                model.getConfigurations().getInferenceEntityId()
             ),
             RestStatus.INTERNAL_SERVER_ERROR
         );
@@ -218,20 +303,15 @@ public class ServiceUtils {
     public static void getEmbeddingSize(Model model, InferenceService service, ActionListener<Integer> listener) {
         assert model.getTaskType() == TaskType.TEXT_EMBEDDING;
 
-        service.infer(model, List.of(TEST_EMBEDDING_INPUT), Map.of(), ActionListener.wrap(r -> {
-            if (r instanceof TextEmbeddingResults embeddingResults) {
-                if (embeddingResults.embeddings().isEmpty()) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "Could not determine embedding size, no embeddings were returned in test call",
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
-                } else {
-                    listener.onResponse(embeddingResults.embeddings().get(0).values().size());
+        service.infer(model, List.of(TEST_EMBEDDING_INPUT), Map.of(), InputType.INGEST, listener.delegateFailureAndWrap((delegate, r) -> {
+            if (r instanceof TextEmbedding embeddingResults) {
+                try {
+                    delegate.onResponse(embeddingResults.getFirstEmbeddingSize());
+                } catch (Exception e) {
+                    delegate.onFailure(new ElasticsearchStatusException("Could not determine embedding size", RestStatus.BAD_REQUEST, e));
                 }
             } else {
-                listener.onFailure(
+                delegate.onFailure(
                     new ElasticsearchStatusException(
                         "Could not determine embedding size. "
                             + "Expected a result of type ["
@@ -243,7 +323,7 @@ public class ServiceUtils {
                     )
                 );
             }
-        }, listener::onFailure));
+        }));
     }
 
     private static final String TEST_EMBEDDING_INPUT = "how big";

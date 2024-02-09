@@ -86,8 +86,7 @@ public final class MachineDependentHeap {
         @SuppressWarnings("unchecked")
         public static MachineNodeRole parse(InputStream config) {
             final Settings settings;
-            try {
-                var parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, config);
+            try (var parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, config)) {
                 if (parser.currentToken() == null && parser.nextToken() == null) {
                     settings = null;
                 } else {

@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.action.ConnectorUpdateActionResponse;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants;
 
@@ -32,15 +32,14 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class UpdateConnectorSyncJobErrorAction extends ActionType<AcknowledgedResponse> {
+public class UpdateConnectorSyncJobErrorAction {
 
-    public static final UpdateConnectorSyncJobErrorAction INSTANCE = new UpdateConnectorSyncJobErrorAction();
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/update_error";
-    public static final String ERROR_EMPTY_MESSAGE = "[error] of the connector sync job cannot be null or empty";
+    public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
-    private UpdateConnectorSyncJobErrorAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
-    }
+    private UpdateConnectorSyncJobErrorAction() {/* no instances */}
+
+    public static final String ERROR_EMPTY_MESSAGE = "[error] of the connector sync job cannot be null or empty";
 
     public static class Request extends ActionRequest implements ToXContentObject {
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(

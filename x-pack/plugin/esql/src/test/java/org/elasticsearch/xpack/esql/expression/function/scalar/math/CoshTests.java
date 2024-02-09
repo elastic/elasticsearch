@@ -33,7 +33,6 @@ public class CoshTests extends AbstractFunctionTestCase {
             710d,  // Hyperbolic Cosine grows extremely fast. Values outside this range return Double.POSITIVE_INFINITY
             List.of()
         );
-        suppliers = anyNullIsNull(true, suppliers);
 
         // Out of range cases
         suppliers.addAll(
@@ -62,7 +61,7 @@ public class CoshTests extends AbstractFunctionTestCase {
                 )
             )
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 
     @Override

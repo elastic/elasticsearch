@@ -1,0 +1,38 @@
+[discrete]
+[[esql-to_geoshape]]
+=== `TO_GEOSHAPE`
+
+*Syntax*
+
+[source,esql]
+----
+TO_GEOPOINT(v)
+----
+
+*Parameters*
+
+`v`::
+Input value. The input can be a single- or multi-valued column or an expression.
+The input type must be a string, a `geo_shape` or a `geo_point`.
+
+*Description*
+
+Converts an input value to a `geo_shape` value.
+
+A string will only be successfully converted if it respects the
+{wikipedia}/Well-known_text_representation_of_geometry[WKT] format.
+
+*Supported types*
+
+include::types/to_geoshape.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/spatial_shapes.csv-spec[tag=to_geoshape-str]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/spatial_shapes.csv-spec[tag=to_geoshape-str-result]
+|===

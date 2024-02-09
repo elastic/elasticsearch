@@ -69,4 +69,17 @@ public class RoutingInfoTests extends AbstractXContentSerializingTestCase<Routin
         RoutingInfo routingInfo = new RoutingInfo(randomIntBetween(1, 10), 1, RoutingState.STARTED, "");
         assertThat(routingInfo.isRoutable(), is(true));
     }
+
+    public void testGetFailedAllocations() {
+        int targetAllocations = randomIntBetween(1, 10);
+        RoutingInfo routingInfo = new RoutingInfo(
+            randomIntBetween(0, targetAllocations),
+            targetAllocations,
+            randomFrom(RoutingState.STARTING, RoutingState.STARTED, RoutingState.STOPPING),
+            ""
+        );
+        assertThat(routingInfo.getFailedAllocations(), is(0));
+        routingInfo = new RoutingInfo(randomIntBetween(0, targetAllocations), targetAllocations, RoutingState.FAILED, "");
+        assertThat(routingInfo.getFailedAllocations(), is(targetAllocations));
+    }
 }

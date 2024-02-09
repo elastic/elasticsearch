@@ -15,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -204,7 +204,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         "manage_ingest_pipelines",
                         "monitor",
                         GetLifecycleAction.NAME,
-                        PutLifecycleAction.NAME,
+                        ILMActions.PUT.name(),
                         "cluster:monitor/xpack/watcher/watch/get",
                         "cluster:admin/xpack/watcher/watch/put",
                         "cluster:admin/xpack/watcher/watch/delete" },

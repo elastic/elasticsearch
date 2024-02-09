@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -44,13 +43,11 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
-import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -66,6 +63,8 @@ import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.security.action.user.ChangePasswordRequestBuilder;
+import org.elasticsearch.xpack.security.action.user.SetEnabledRequestBuilder;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -81,6 +80,7 @@ import java.util.concurrent.CountDownLatch;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
@@ -319,9 +319,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
 
         String token = basicAuthHeaderValue(username, new SecureString("s3krit-password"));
-        SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
-
-        assertEquals(1L, searchResp.getHits().getTotalHits().value);
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx"),
+            searchResp -> assertEquals(1L, searchResp.getHits().getTotalHits().value)
+        );
 
         assertClusterHealthOnlyAuthorizesWhenAnonymousRoleActive(token);
     }
@@ -341,9 +342,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         // Index a document with the default test user
         prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit-password"));
-        SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
-
-        assertEquals(1L, searchResp.getHits().getTotalHits().value);
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx"),
+            searchResp -> assertEquals(1L, searchResp.getHits().getTotalHits().value)
+        );
 
         preparePutUser("joe", "s3krit-password2", hasher, SecuritySettingsSource.TEST_ROLE).get();
 
@@ -356,8 +358,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         }
 
         token = basicAuthHeaderValue("joe", new SecureString("s3krit-password2"));
-        searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
-        assertEquals(1L, searchResp.getHits().getTotalHits().value);
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx"),
+            searchResp -> assertEquals(1L, searchResp.getHits().getTotalHits().value)
+        );
     }
 
     public void testCreateDeleteAuthenticate() {
@@ -375,9 +379,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         // Index a document with the default test user
         prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit-password"));
-        SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
-
-        assertEquals(1L, searchResp.getHits().getTotalHits().value);
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx"),
+            searchResp -> assertEquals(1L, searchResp.getHits().getTotalHits().value)
+        );
 
         DeleteUserResponse response = new DeleteUserRequestBuilder(client()).username("joe").get();
         assertThat(response.found(), is(true));

@@ -10,7 +10,6 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -34,22 +33,19 @@ public final class CountDistinctDoubleAggregatorFunction implements AggregatorFu
 
   private final List<Integer> channels;
 
-  private final BigArrays bigArrays;
-
   private final int precision;
 
   public CountDistinctDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      HllStates.SingleState state, BigArrays bigArrays, int precision) {
+      HllStates.SingleState state, int precision) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
-    this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
   public static CountDistinctDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, BigArrays bigArrays, int precision) {
-    return new CountDistinctDoubleAggregatorFunction(driverContext, channels, CountDistinctDoubleAggregator.initSingle(bigArrays, precision), bigArrays, precision);
+      List<Integer> channels, int precision) {
+    return new CountDistinctDoubleAggregatorFunction(driverContext, channels, CountDistinctDoubleAggregator.initSingle(driverContext.bigArrays(), precision), precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -95,11 +91,11 @@ public final class CountDistinctDoubleAggregatorFunction implements AggregatorFu
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
+    Block hllUncast = page.getBlock(channels.get(0));
+    if (hllUncast.areAllValuesNull()) {
       return;
     }
-    BytesRefVector hll = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
+    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
     assert hll.getPositionCount() == 1;
     BytesRef scratch = new BytesRef();
     CountDistinctDoubleAggregator.combineIntermediate(state, hll.getBytesRef(0, scratch));

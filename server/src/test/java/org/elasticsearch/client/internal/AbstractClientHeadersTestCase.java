@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
@@ -50,7 +51,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         TransportGetAction.TYPE,
         TransportSearchAction.TYPE,
         TransportDeleteAction.TYPE,
-        DeleteStoredScriptAction.INSTANCE,
+        TransportDeleteStoredScriptAction.TYPE,
         TransportIndexAction.TYPE,
 
         // cluster admin actions
@@ -76,7 +77,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
             .put("node.name", "test-" + getTestName())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        threadPool = new ThreadPool(settings);
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
         client = buildClient(settings, ACTIONS);
     }
 
@@ -102,7 +103,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.admin()
             .cluster()
             .prepareDeleteStoredScript("id")
-            .execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
+            .execute(new AssertingActionListener<>(TransportDeleteStoredScriptAction.TYPE.name(), client.threadPool()));
         client.prepareIndex("idx")
             .setId("id")
             .setSource("source", XContentType.JSON)

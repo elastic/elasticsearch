@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -288,7 +288,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
-        }).when(client).execute(eq(PutMappingAction.INSTANCE), any(), any(ActionListener.class));
+        }).when(client).execute(eq(TransportPutMappingAction.TYPE), any(), any(ActionListener.class));
 
         ClusterState clusterState = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("index-name", "0.0"));
         ElasticsearchMappings.addDocMappingIfMissing(
@@ -304,7 +304,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         ArgumentCaptor<PutMappingRequest> requestCaptor = ArgumentCaptor.forClass(PutMappingRequest.class);
         verify(client).threadPool();
-        verify(client).execute(eq(PutMappingAction.INSTANCE), requestCaptor.capture(), any(ActionListener.class));
+        verify(client).execute(eq(TransportPutMappingAction.TYPE), requestCaptor.capture(), any(ActionListener.class));
         verifyNoMoreInteractions(client);
 
         PutMappingRequest request = requestCaptor.getValue();
@@ -362,10 +362,9 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private Set<String> collectFieldNames(String mapping) throws IOException {
         BufferedInputStream inputStream = new BufferedInputStream(new ByteArrayInputStream(mapping.getBytes(StandardCharsets.UTF_8)));
-        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, inputStream);
         Set<String> fieldNames = new HashSet<>();
         boolean isAfterPropertiesStart = false;
-        try {
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, inputStream)) {
             XContentParser.Token token = parser.nextToken();
             while (token != null) {
                 switch (token) {

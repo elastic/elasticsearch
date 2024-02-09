@@ -15,8 +15,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
-import org.elasticsearch.xpack.esql.analysis.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -54,14 +55,24 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    @SuppressWarnings("unchecked")
+    EnrichPolicyResolver mockEnrichResolver() {
+        EnrichPolicyResolver enrichResolver = mock(EnrichPolicyResolver.class);
+        doAnswer(invocation -> {
+            Object[] arguments = invocation.getArguments();
+            ActionListener<EnrichResolution> listener = (ActionListener<EnrichResolution>) arguments[arguments.length - 1];
+            listener.onResponse(new EnrichResolution());
+            return null;
+        }).when(enrichResolver).resolvePolicies(any(), any(), any());
+        return enrichResolver;
+    }
+
     public void testFailedMetric() {
         Client client = mock(Client.class);
         IndexResolver idxResolver = new IndexResolver(client, randomAlphaOfLength(10), EsqlDataTypeRegistry.INSTANCE, Set::of);
         var planExecutor = new PlanExecutor(idxResolver);
         String[] indices = new String[] { "test" };
-        EnrichPolicyResolver enrichResolver = mock(EnrichPolicyResolver.class);
-        when(enrichResolver.allPolicyNames()).thenReturn(Set.of());
-
+        var enrichResolver = mockEnrichResolver();
         // simulate a valid field_caps response so we can parse and correctly analyze de query
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
         when(fieldCapabilitiesResponse.getIndices()).thenReturn(indices);

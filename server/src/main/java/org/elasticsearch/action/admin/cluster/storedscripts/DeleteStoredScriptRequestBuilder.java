@@ -18,7 +18,7 @@ public class DeleteStoredScriptRequestBuilder extends AcknowledgedRequestBuilder
     DeleteStoredScriptRequestBuilder> {
 
     public DeleteStoredScriptRequestBuilder(ElasticsearchClient client) {
-        super(client, DeleteStoredScriptAction.INSTANCE, new DeleteStoredScriptRequest());
+        super(client, TransportDeleteStoredScriptAction.TYPE, new DeleteStoredScriptRequest());
     }
 
     public DeleteStoredScriptRequestBuilder setId(String id) {

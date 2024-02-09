@@ -12,30 +12,24 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 
 /**
- * Vector implementation that defers to an enclosed LongArray.
+ * Vector implementation that defers to an enclosed {@link LongArray}.
+ * Does not take ownership of the array and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class LongBigArrayVector extends AbstractVector implements LongVector, Releasable {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongBigArrayVector.class);
+    private static final long BASE_RAM_BYTES_USED = 0; // FIXME
 
     private final LongArray values;
-
-    private final LongBlock block;
-
-    public LongBigArrayVector(LongArray values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
 
     public LongBigArrayVector(LongArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new LongVectorBlock(this);
     }
 
     @Override
     public LongBlock asBlock() {
-        return block;
+        return new LongVectorBlock(this);
     }
 
     @Override
@@ -61,7 +55,7 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     @Override
     public LongVector filter(int... positions) {
         var blockFactory = blockFactory();
-        final LongArray filtered = blockFactory.bigArrays().newLongArray(positions.length, true);
+        final LongArray filtered = blockFactory.bigArrays().newLongArray(positions.length);
         for (int i = 0; i < positions.length; i++) {
             filtered.set(i, values.get(positions[i]));
         }
@@ -69,11 +63,9 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link LongArray} is adjusted outside
+        // of this class.
         values.close();
     }
 

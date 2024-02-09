@@ -22,6 +22,9 @@ public abstract class SecurityInBasicRestTestCase extends ESRestTestCase {
     protected static final String REST_USER = "security_test_user";
     private static final SecureString REST_PASSWORD = new SecureString("security-test-password".toCharArray());
 
+    protected static final String READ_USERS_USER = "read_users_user";
+    private static final SecureString READ_USERS_PASSWORD = new SecureString("read-users-password".toCharArray());
+
     private static final String ADMIN_USER = "admin_user";
     private static final SecureString ADMIN_PASSWORD = new SecureString("admin-password".toCharArray());
 
@@ -47,6 +50,7 @@ public abstract class SecurityInBasicRestTestCase extends ESRestTestCase {
         .user(REST_USER, REST_PASSWORD.toString(), "security_test_role", false)
         .user(API_KEY_USER, API_KEY_USER_PASSWORD.toString(), "api_key_user_role", false)
         .user(API_KEY_ADMIN_USER, API_KEY_ADMIN_USER_PASSWORD.toString(), "api_key_admin_role", false)
+        .user(READ_USERS_USER, READ_USERS_PASSWORD.toString(), "read_users_user_role", false)
         .build();
 
     @Override

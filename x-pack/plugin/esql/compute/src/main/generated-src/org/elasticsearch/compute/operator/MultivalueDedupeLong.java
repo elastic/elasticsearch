@@ -47,7 +47,7 @@ public class MultivalueDedupeLong {
             block.incRef();
             return block;
         }
-        try (LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -97,7 +97,7 @@ public class MultivalueDedupeLong {
             block.incRef();
             return block;
         }
-        try (LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -127,7 +127,7 @@ public class MultivalueDedupeLong {
             block.incRef();
             return block;
         }
-        try (LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);

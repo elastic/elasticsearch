@@ -86,7 +86,7 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
             final SnapshotDeletionsInProgress snapshotDeletionsInProgress = SnapshotDeletionsInProgress.get(state);
             return snapshotDeletionsInProgress.getEntries()
                 .stream()
-                .flatMap(entry -> entry.getSnapshots().stream())
+                .flatMap(entry -> entry.snapshots().stream())
                 .anyMatch(snapshotId -> snapshotId.getName().equals("snap-1"));
 
         });
@@ -149,7 +149,7 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
                 .stream()
                 .anyMatch(
                     entry -> entry.state() == SnapshotDeletionsInProgress.State.WAITING
-                        && entry.getSnapshots().stream().anyMatch(snapshotId -> snapshotId.getName().equals("snap-2"))
+                        && entry.snapshots().stream().anyMatch(snapshotId -> snapshotId.getName().equals("snap-2"))
                 );
         });
         new Thread(() -> {

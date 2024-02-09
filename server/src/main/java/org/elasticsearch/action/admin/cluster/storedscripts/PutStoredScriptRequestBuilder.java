@@ -20,7 +20,7 @@ public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<
     PutStoredScriptRequestBuilder> {
 
     public PutStoredScriptRequestBuilder(ElasticsearchClient client) {
-        super(client, PutStoredScriptAction.INSTANCE, new PutStoredScriptRequest());
+        super(client, TransportPutStoredScriptAction.TYPE, new PutStoredScriptRequest());
     }
 
     public PutStoredScriptRequestBuilder setId(String id) {

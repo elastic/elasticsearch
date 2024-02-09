@@ -77,7 +77,7 @@ public class DieWithDignityIT extends ESRestTestCase {
     }
 
     private Process startJcmd(long pid) throws IOException {
-        final String jcmdPath = PathUtils.get(System.getProperty("tests.runtime.java"), "bin/jcmd").toString();
+        final String jcmdPath = PathUtils.get(System.getProperty("java.home"), "bin/jcmd").toString();
         return new ProcessBuilder().command(jcmdPath, Long.toString(pid), "VM.command_line").redirectErrorStream(true).start();
     }
 

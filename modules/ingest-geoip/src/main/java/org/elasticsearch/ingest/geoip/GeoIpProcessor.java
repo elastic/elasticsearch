@@ -48,7 +48,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class GeoIpProcessor extends AbstractProcessor {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoIpProcessor.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoIpProcessor.class);
     static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated, because "
         + "Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
 
@@ -172,10 +172,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             geoData = retrieveCityGeoData(geoIpDatabase, ipAddress);
         } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
             geoData = retrieveCountryGeoData(geoIpDatabase, ipAddress);
-
         } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
             geoData = retrieveAsnGeoData(geoIpDatabase, ipAddress);
-
         } else {
             throw new ElasticsearchParseException(
                 "Unsupported database type [" + geoIpDatabase.getDatabaseType() + "]",
@@ -431,7 +429,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             // noop, should be removed in 9.0
             Object value = config.remove("fallback_to_default_databases");
             if (value != null) {
-                DEPRECATION_LOGGER.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
+                deprecationLogger.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
             }
 
             GeoIpDatabase geoIpDatabase = geoIpDatabaseProvider.getDatabase(databaseFile);

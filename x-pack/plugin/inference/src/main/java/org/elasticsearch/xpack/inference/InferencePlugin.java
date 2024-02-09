@@ -20,11 +20,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.InferenceServiceRegistryImpl;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.InferenceRegistryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
@@ -42,40 +46,45 @@ import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
+import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.services.textembedding.TextEmbeddingInternalService;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin {
+public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, InferenceRegistryPlugin {
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
     private final Settings settings;
-    // We'll keep a reference to the http manager just in case the inference services don't get closed individually
-    private final SetOnce<HttpClientManager> httpManager = new SetOnce<>();
     private final SetOnce<HttpRequestSenderFactory> httpFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
+    private final SetOnce<ModelRegistry> modelRegistry = new SetOnce<>();
+
     private List<InferenceServiceExtension> inferenceServiceExtensions;
 
     public InferencePlugin(Settings settings) {
@@ -96,12 +105,14 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(
             new RestInferenceAction(),
@@ -114,19 +125,18 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     @Override
     public Collection<?> createComponents(PluginServices services) {
         var throttlerManager = new ThrottlerManager(settings, services.threadPool(), services.clusterService());
-        serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings));
-
-        httpManager.set(HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager));
+        var truncator = new Truncator(settings, services.clusterService());
+        serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
 
         var httpRequestSenderFactory = new HttpRequestSenderFactory(
             services.threadPool(),
-            httpManager.get(),
+            HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager),
             services.clusterService(),
             settings
         );
         httpFactory.set(httpRequestSenderFactory);
 
-        ModelRegistry modelRegistry = new ModelRegistry(services.client());
+        ModelRegistry modelReg = new ModelRegistryImpl(services.client());
 
         if (inferenceServiceExtensions == null) {
             inferenceServiceExtensions = new ArrayList<>();
@@ -135,11 +145,13 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         inferenceServices.add(this::getInferenceServiceFactories);
 
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client());
-        var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
-        registry.init(services.client());
-        inferenceServiceRegistry.set(registry);
+        var inferenceRegistry = new InferenceServiceRegistryImpl(inferenceServices, factoryContext);
+        inferenceRegistry.init(services.client());
+        inferenceServiceRegistry.set(inferenceRegistry);
+        modelRegistry.set(modelReg);
 
-        return List.of(modelRegistry, registry);
+        // Don't return components as they will be registered using InferenceRegistryPlugin methods to retrieve them
+        return List.of();
     }
 
     @Override
@@ -149,10 +161,12 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
         return List.of(
-            ElserMlNodeService::new,
+            ElserInternalService::new,
             context -> new HuggingFaceElserService(httpFactory, serviceComponents),
             context -> new HuggingFaceService(httpFactory, serviceComponents),
-            context -> new OpenAiService(httpFactory, serviceComponents)
+            context -> new OpenAiService(httpFactory, serviceComponents),
+            context -> new CohereService(httpFactory, serviceComponents),
+            TextEmbeddingInternalService::new
         );
     }
 
@@ -211,7 +225,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             HttpClientManager.getSettings(),
             HttpRequestSenderFactory.HttpRequestSender.getSettings(),
             ThrottlerManager.getSettings(),
-            RetrySettings.getSettingsDefinitions()
+            RetrySettings.getSettingsDefinitions(),
+            Truncator.getSettings(),
+            RequestExecutorServiceSettings.getSettingsDefinitions()
         ).flatMap(Collection::stream).collect(Collectors.toList());
     }
 
@@ -230,6 +246,16 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var serviceComponentsRef = serviceComponents.get();
         var throttlerToClose = serviceComponentsRef != null ? serviceComponentsRef.throttlerManager() : null;
 
-        IOUtils.closeWhileHandlingException(httpManager.get(), throttlerToClose);
+        IOUtils.closeWhileHandlingException(inferenceServiceRegistry.get(), throttlerToClose);
+    }
+
+    @Override
+    public InferenceServiceRegistry getInferenceServiceRegistry() {
+        return inferenceServiceRegistry.get();
+    }
+
+    @Override
+    public ModelRegistry getModelRegistry() {
+        return modelRegistry.get();
     }
 }

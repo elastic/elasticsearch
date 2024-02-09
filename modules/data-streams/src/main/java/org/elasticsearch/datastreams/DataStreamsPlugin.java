@@ -21,6 +21,7 @@ import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -47,6 +48,7 @@ import org.elasticsearch.datastreams.lifecycle.action.TransportExplainDataStream
 import org.elasticsearch.datastreams.lifecycle.action.TransportGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportGetDataStreamLifecycleStatsAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportPutDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.datastreams.lifecycle.rest.RestDataStreamLifecycleStatsAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycleAction;
@@ -60,8 +62,11 @@ import org.elasticsearch.datastreams.rest.RestGetDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestMigrateToDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestModifyDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -72,11 +77,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
-public class DataStreamsPlugin extends Plugin implements ActionPlugin {
+public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlugin {
 
     public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
         "time_series.poll_interval",
@@ -87,15 +93,28 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
+    private static final TimeValue MAX_LOOK_AHEAD_TIME = TimeValue.timeValueHours(2);
     public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
         "index.look_ahead_time",
-        TimeValue.timeValueHours(2),
+        TimeValue.timeValueMinutes(30),
         TimeValue.timeValueMinutes(1),
-        TimeValue.timeValueDays(7),
+        TimeValue.timeValueDays(7), // is effectively 2h now.
         Setting.Property.IndexScope,
         Setting.Property.Dynamic,
         Setting.Property.ServerlessPublic
     );
+
+    /**
+     * Returns the look ahead time and lowers it when it to 2 hours if it is configured to more than 2 hours.
+     */
+    public static TimeValue getLookAheadTime(Settings settings) {
+        TimeValue lookAheadTime = DataStreamsPlugin.LOOK_AHEAD_TIME.get(settings);
+        if (lookAheadTime.compareTo(DataStreamsPlugin.MAX_LOOK_AHEAD_TIME) > 0) {
+            lookAheadTime = DataStreamsPlugin.MAX_LOOK_AHEAD_TIME;
+        }
+        return lookAheadTime;
+    }
+
     public static final String LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
     public static final Setting<TimeValue> LOOK_BACK_TIME = Setting.timeSetting(
         "index.look_back_time",
@@ -112,6 +131,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
 
     private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
+    private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
     private final Settings settings;
 
     public DataStreamsPlugin(Settings settings) {
@@ -184,6 +204,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
             )
         );
         dataLifecycleInitialisationService.get().init();
+        dataStreamLifecycleHealthIndicatorService.set(new DataStreamLifecycleHealthIndicatorService());
+
         components.add(errorStoreInitialisationService.get());
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
@@ -211,12 +233,14 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
             TimeValue timeSeriesPollInterval = updateTimeSeriesRangeService.get().pollInterval;
@@ -250,5 +274,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         } catch (IOException e) {
             throw new ElasticsearchException("unable to close the data stream lifecycle service", e);
         }
+    }
+
+    @Override
+    public Collection<HealthIndicatorService> getHealthIndicatorServices() {
+        return List.of(dataStreamLifecycleHealthIndicatorService.get());
     }
 }

@@ -695,11 +695,6 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                             }
 
                             @Override
-                            public String getChannelType() {
-                                return channel.getChannelType();
-                            }
-
-                            @Override
                             public void sendResponse(TransportResponse response) {
                                 fail("recovery should not succeed");
                             }

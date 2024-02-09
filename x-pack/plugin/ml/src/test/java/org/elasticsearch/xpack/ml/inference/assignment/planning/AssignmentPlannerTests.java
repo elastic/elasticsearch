@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -43,7 +44,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             List<Node> nodes = List.of(new Node("n_1", scaleNodeSize(50), 4));
             Deployment deployment = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(51).getBytes(), 4, 1, Map.of(), 0, 0, 0);
             AssignmentPlan plan = new AssignmentPlanner(nodes, List.of(deployment)).computePlan();
-            assertThat(plan.assignments(deployment).isEmpty(), is(true));
+            assertThat(plan.assignments(deployment), isEmpty());
         }
         { // With perDeploymentMemory and perAllocationMemory specified
             List<Node> nodes = List.of(new Node("n_1", scaleNodeSize(55), 4));
@@ -58,7 +59,7 @@ public class AssignmentPlannerTests extends ESTestCase {
                 ByteSizeValue.ofMb(51).getBytes()
             );
             AssignmentPlan plan = new AssignmentPlanner(nodes, List.of(deployment)).computePlan();
-            assertThat(plan.assignments(deployment).isEmpty(), is(true));
+            assertThat(plan.assignments(deployment), isEmpty());
         }
     }
 
@@ -66,7 +67,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         List<Node> nodes = List.of(new Node("n_1", scaleNodeSize(100), 4), new Node("n_2", scaleNodeSize(100), 5));
         Deployment deployment = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(1).getBytes(), 1, 6, Map.of(), 0, 0, 0);
         AssignmentPlan plan = new AssignmentPlanner(nodes, List.of(deployment)).computePlan();
-        assertThat(plan.assignments(deployment).isEmpty(), is(true));
+        assertThat(plan.assignments(deployment), isEmpty());
     }
 
     public void testSingleModelThatFitsFullyOnSingleNode() {

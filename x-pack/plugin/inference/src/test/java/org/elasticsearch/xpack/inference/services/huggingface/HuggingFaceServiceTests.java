@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.services.huggingface;
@@ -10,11 +12,14 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 import org.apache.http.HttpHeaders;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -42,10 +47,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
-import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettingsTests.getServiceSettingsMap;
@@ -84,18 +89,22 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var model = service.parseRequestConfig(
+
+            ActionListener<Model> modelVerificationActionListener = ActionListener.<Model>wrap((model) -> {
+                assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
+
+                var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
+                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, (e) -> fail("parse request should not fail " + e.getMessage()));
+
+            service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret")),
-                Set.of()
+                Set.of(),
+                modelVerificationActionListener
             );
-
-            assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
-
-            var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
@@ -106,18 +115,21 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var model = service.parseRequestConfig(
+            ActionListener<Model> modelVerificationActionListener = ActionListener.<Model>wrap((model) -> {
+                assertThat(model, instanceOf(HuggingFaceElserModel.class));
+
+                var embeddingsModel = (HuggingFaceElserModel) model;
+                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, (e) -> fail("parse request should not fail " + e.getMessage()));
+
+            service.parseRequestConfig(
                 "id",
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret")),
-                Set.of()
+                Set.of(),
+                modelVerificationActionListener
             );
-
-            assertThat(model, instanceOf(HuggingFaceElserModel.class));
-
-            var embeddingsModel = (HuggingFaceElserModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
@@ -131,15 +143,18 @@ public class HuggingFaceServiceTests extends ESTestCase {
             var config = getRequestConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret"));
             config.put("extra_key", "value");
 
-            var thrownException = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
+            ActionListener<Model> modelVerificationActionListener = ActionListener.<Model>wrap(
+                (model) -> { fail("parse request should fail"); },
+                (e) -> {
+                    assertThat(e, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(
+                        e.getMessage(),
+                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                    );
+                }
             );
 
-            assertThat(
-                thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationActionListener);
         }
     }
 
@@ -155,15 +170,18 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var config = getRequestConfigMap(serviceSettings, getSecretSettingsMap("secret"));
 
-            var thrownException = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
+            ActionListener<Model> modelVerificationActionListener = ActionListener.<Model>wrap(
+                (model) -> { fail("parse request should fail"); },
+                (e) -> {
+                    assertThat(e, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(
+                        e.getMessage(),
+                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                    );
+                }
             );
 
-            assertThat(
-                thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationActionListener);
         }
     }
 
@@ -179,15 +197,18 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var config = getRequestConfigMap(getServiceSettingsMap("url"), secretSettingsMap);
 
-            var thrownException = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
+            ActionListener<Model> modelVerificationActionListener = ActionListener.<Model>wrap(
+                (model) -> { fail("parse request should fail"); },
+                (e) -> {
+                    assertThat(e, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(
+                        e.getMessage(),
+                        is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+                    );
+                }
             );
 
-            assertThat(
-                thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
-            );
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationActionListener);
         }
     }
 
@@ -491,7 +512,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, List.of("abc"), new HashMap<>(), listener);
+            service.infer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -526,7 +547,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, List.of("abc"), new HashMap<>(), listener);
+            service.infer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -549,6 +570,31 @@ public class HuggingFaceServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), Matchers.is(1));
             assertThat(requestMap.get("inputs"), Matchers.is(List.of("abc")));
+        }
+    }
+
+    public void testCheckModelConfig_IncludesMaxTokens() throws IOException {
+        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+
+        try (var service = new HuggingFaceService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+
+            String responseJson = """
+                {
+                    "embeddings": [
+                        [
+                            -0.0123
+                        ]
+                    ]
+                {
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1);
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+            assertThat(result, is(HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1, 1)));
         }
     }
 

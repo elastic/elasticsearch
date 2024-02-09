@@ -23,8 +23,8 @@ import java.util.List;
 import java.util.function.Function;
 
 public class Abs extends UnaryScalarFunction implements EvaluatorMapper {
-    @FunctionInfo(returnType = { "integer", "long", "double", "unsigned_long" })
-    public Abs(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+    @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, description = "Returns the absolute value.")
+    public Abs(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 

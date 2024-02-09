@@ -104,8 +104,10 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
                 LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.empty().getLoader(leaf, docIds);
                 for (int docId : docIds) {
                     String source = sourceLoaderLeaf.source(storedFieldLoader, docId).internalSourceRef().utf8ToString();
-                    int doc = (int) JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, source).map().get("doc");
-                    assertThat("doc " + docId, source, equalTo("{\"_doc_count\":" + counts.get(doc) + ",\"doc\":" + doc + "}"));
+                    try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, source)) {
+                        int doc = (int) parser.map().get("doc");
+                        assertThat("doc " + docId, source, equalTo("{\"_doc_count\":" + counts.get(doc) + ",\"doc\":" + doc + "}"));
+                    }
                 }
             }
         });

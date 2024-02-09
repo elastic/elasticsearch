@@ -27,7 +27,7 @@ public class MigrateToDataStreamAction extends ActionType<AcknowledgedResponse> 
     public static final String NAME = "indices:admin/data_stream/migrate";
 
     private MigrateToDataStreamAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<MigrateToDataStreamAction.Request> implements IndicesRequest {

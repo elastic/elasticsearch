@@ -32,11 +32,6 @@ public class TransformScheduledTaskTests extends ESTestCase {
         assertThat(task.getListener(), is(equalTo(LISTENER)));
     }
 
-    public void testDefaultFrequency() {
-        TransformScheduledTask task = new TransformScheduledTask(TRANSFORM_ID, null, LAST_TRIGGERED_TIME_MILLIS, 0, 0, LISTENER);
-        assertThat(task.getFrequency(), is(equalTo(DEFAULT_FREQUENCY)));
-    }
-
     public void testNextScheduledTimeMillis() {
         {
             TransformScheduledTask task = new TransformScheduledTask(TRANSFORM_ID, FREQUENCY, LAST_TRIGGERED_TIME_MILLIS, 0, 123, LISTENER);

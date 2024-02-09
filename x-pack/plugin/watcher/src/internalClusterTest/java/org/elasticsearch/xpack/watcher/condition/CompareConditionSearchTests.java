@@ -16,7 +16,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -101,21 +100,18 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
 
     public void testExecuteAccessHits() throws Exception {
         CompareCondition condition = new CompareCondition("ctx.payload.hits.hits.0._score", CompareCondition.Op.EQ, 1, Clock.systemUTC());
-        SearchHit hit = new SearchHit(0, "1");
+        SearchHit hit = SearchHit.unpooled(0, "1");
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
-            new SearchHits(new SearchHit[] { hit }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f),
-            null,
-            null,
-            null,
-            false,
-            false,
-            1
-        );
         SearchResponse response = new SearchResponse(
-            internalSearchResponse,
+            SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f),
+            null,
+            null,
+            false,
+            false,
+            null,
+            1,
             "",
             3,
             3,

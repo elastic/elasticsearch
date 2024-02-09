@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
@@ -34,7 +35,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -67,6 +67,7 @@ import static org.elasticsearch.core.Strings.format;
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase implements SearchPhaseContext {
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
     private final Logger logger;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final SearchTransportService searchTransportService;
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
@@ -106,6 +107,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     AbstractSearchAsyncAction(
         String name,
         Logger logger,
+        NamedWriteableRegistry namedWriteableRegistry,
         SearchTransportService searchTransportService,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
@@ -122,6 +124,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchResponse.Clusters clusters
     ) {
         super(name);
+        this.namedWriteableRegistry = namedWriteableRegistry;
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
         final List<SearchShardIterator> iterators = new ArrayList<>();
         for (final SearchShardIterator iterator : shardsIts) {
@@ -169,7 +172,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.results = resultConsumer;
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
-        addReleasable(resultConsumer::decRef);
+        addReleasable(resultConsumer);
         this.clusters = clusters;
     }
 
@@ -212,7 +215,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             // total hits is null in the response if the tracking of total hits is disabled
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
             sendSearchResponse(
-                withTotalHits ? InternalSearchResponse.EMPTY_WITH_TOTAL_HITS : InternalSearchResponse.EMPTY_WITHOUT_TOTAL_HITS,
+                withTotalHits ? SearchResponseSections.EMPTY_WITH_TOTAL_HITS : SearchResponseSections.EMPTY_WITHOUT_TOTAL_HITS,
                 new AtomicArray<>(0)
             );
             return;
@@ -648,14 +651,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     public boolean isPartOfPointInTime(ShardSearchContextId contextId) {
         final PointInTimeBuilder pointInTimeBuilder = request.pointInTimeBuilder();
         if (pointInTimeBuilder != null) {
-            return request.pointInTimeBuilder().getSearchContextId(searchTransportService.getNamedWriteableRegistry()).contains(contextId);
+            return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
         } else {
             return false;
         }
     }
 
     private SearchResponse buildSearchResponse(
-        InternalSearchResponse internalSearchResponse,
+        SearchResponseSections internalSearchResponse,
         ShardSearchFailure[] failures,
         String scrollId,
         String searchContextId
@@ -682,7 +685,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+    public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";

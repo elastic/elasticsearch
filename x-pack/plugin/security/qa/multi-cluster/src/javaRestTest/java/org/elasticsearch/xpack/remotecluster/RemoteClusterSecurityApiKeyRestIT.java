@@ -15,6 +15,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
@@ -183,7 +184,10 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
             );
             final Response response = performRequestWithApiKey(searchRequest, apiKeyEncoded);
             assertOK(response);
-            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            final SearchResponse searchResponse;
+            try (var parser = responseAsParser(response)) {
+                searchResponse = SearchResponseUtils.parseSearchResponse(parser);
+            }
             try {
                 final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
                     .map(SearchHit::getIndex)

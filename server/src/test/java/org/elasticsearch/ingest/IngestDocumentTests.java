@@ -339,7 +339,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testSetFieldValueNullValue() {
-        ingestDocument.setFieldValue("new_field", null);
+        ingestDocument.setFieldValue("new_field", (Object) null);
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(true));
         assertThat(ingestDocument.getSourceAndMetadata().get("new_field"), nullValue());
     }

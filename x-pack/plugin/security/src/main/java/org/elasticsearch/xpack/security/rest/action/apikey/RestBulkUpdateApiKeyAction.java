@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -35,7 +36,12 @@ public final class RestBulkUpdateApiKeyAction extends ApiKeyBaseRestHandler {
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<BulkUpdateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
         "bulk_update_api_key_request",
-        a -> new BulkUpdateApiKeyRequest((List<String>) a[0], (List<RoleDescriptor>) a[1], (Map<String, Object>) a[2])
+        a -> new BulkUpdateApiKeyRequest(
+            (List<String>) a[0],
+            (List<RoleDescriptor>) a[1],
+            (Map<String, Object>) a[2],
+            TimeValue.parseTimeValue((String) a[3], null, "expiration")
+        )
     );
 
     static {
@@ -45,6 +51,7 @@ public final class RestBulkUpdateApiKeyAction extends ApiKeyBaseRestHandler {
             return RoleDescriptor.parse(n, p, false);
         }, new ParseField("role_descriptors"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
     }
 
     public RestBulkUpdateApiKeyAction(final Settings settings, final XPackLicenseState licenseState) {

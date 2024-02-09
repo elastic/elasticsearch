@@ -59,7 +59,7 @@ import static java.util.Collections.unmodifiableList;
 public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNodeAction<IndicesAliasesRequest> {
 
     public static final String NAME = "indices:admin/aliases";
-    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>(NAME, AcknowledgedResponse::readFrom);
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportIndicesAliasesAction.class);
 
     private final MetadataIndexAliasesService indexAliasesService;

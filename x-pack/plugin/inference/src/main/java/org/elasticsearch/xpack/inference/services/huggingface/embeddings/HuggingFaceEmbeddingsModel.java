@@ -23,28 +23,40 @@ import java.util.Map;
 
 public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
     public HuggingFaceEmbeddingsModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secrets
     ) {
-        this(modelId, taskType, service, HuggingFaceServiceSettings.fromMap(serviceSettings), DefaultSecretSettings.fromMap(secrets));
+        this(
+            inferenceEntityId,
+            taskType,
+            service,
+            HuggingFaceServiceSettings.fromMap(serviceSettings),
+            DefaultSecretSettings.fromMap(secrets)
+        );
     }
 
     // Should only be used directly for testing
     HuggingFaceEmbeddingsModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         HuggingFaceServiceSettings serviceSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings), new ModelSecrets(secrets));
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings), new ModelSecrets(secrets));
     }
 
     public HuggingFaceEmbeddingsModel(HuggingFaceEmbeddingsModel model, HuggingFaceServiceSettings serviceSettings) {
-        this(model.getModelId(), model.getTaskType(), model.getConfigurations().getService(), serviceSettings, model.getSecretSettings());
+        this(
+            model.getInferenceEntityId(),
+            model.getTaskType(),
+            model.getConfigurations().getService(),
+            serviceSettings,
+            model.getSecretSettings()
+        );
     }
 
     @Override
@@ -65,6 +77,11 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
     @Override
     public SecureString getApiKey() {
         return getSecretSettings().apiKey();
+    }
+
+    @Override
+    public Integer getTokenLimit() {
+        return getServiceSettings().maxInputTokens();
     }
 
     @Override

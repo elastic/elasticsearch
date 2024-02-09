@@ -26,7 +26,6 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.hamcrest.CoreMatchers;
@@ -34,6 +33,8 @@ import org.hamcrest.CoreMatchers;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
 
@@ -53,32 +54,33 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().aggregation(agg);
         SubmitAsyncSearchRequest submitAsyncSearchRequest = new SubmitAsyncSearchRequest(sourceBuilder);
         submitAsyncSearchRequest.setWaitForCompletionTimeout(TimeValue.timeValueSeconds(10));
-        AsyncSearchResponse asyncSearchResponse = client().execute(SubmitAsyncSearchAction.INSTANCE, submitAsyncSearchRequest).actionGet();
-
-        assertFalse(asyncSearchResponse.isRunning());
-        assertTrue(asyncSearchResponse.isPartial());
-        SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
-        assertEquals(10, searchResponse.getTotalShards());
-        assertEquals(10, searchResponse.getSuccessfulShards());
-        assertEquals(0, searchResponse.getFailedShards());
-        assertEquals(0, searchResponse.getShardFailures().length);
-        assertEquals(10, searchResponse.getHits().getTotalHits().value);
-        assertEquals(0, searchResponse.getHits().getHits().length);
-        StringTerms terms = searchResponse.getAggregations().get("text");
-        assertEquals(1, terms.getBuckets().size());
-        assertEquals(10, terms.getBucketByKey("value").getDocCount());
-        assertNotNull(asyncSearchResponse.getFailure());
-        assertThat(asyncSearchResponse.getFailure(), CoreMatchers.instanceOf(ElasticsearchStatusException.class));
-        ElasticsearchStatusException statusException = (ElasticsearchStatusException) asyncSearchResponse.getFailure();
-        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, statusException.status());
-        assertThat(asyncSearchResponse.getFailure().getCause(), CoreMatchers.instanceOf(SearchPhaseExecutionException.class));
-        SearchPhaseExecutionException phaseExecutionException = (SearchPhaseExecutionException) asyncSearchResponse.getFailure().getCause();
-        assertEquals("fetch", phaseExecutionException.getPhaseName());
-        assertEquals("boom", phaseExecutionException.getCause().getMessage());
-        assertEquals(10, phaseExecutionException.shardFailures().length);
-        for (ShardSearchFailure shardSearchFailure : phaseExecutionException.shardFailures()) {
-            assertEquals("boom", shardSearchFailure.getCause().getMessage());
-        }
+        assertResponse(client().execute(SubmitAsyncSearchAction.INSTANCE, submitAsyncSearchRequest), asyncSearchResponse -> {
+            assertFalse(asyncSearchResponse.isRunning());
+            assertTrue(asyncSearchResponse.isPartial());
+            SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
+            assertEquals(10, searchResponse.getTotalShards());
+            assertEquals(10, searchResponse.getSuccessfulShards());
+            assertEquals(0, searchResponse.getFailedShards());
+            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(10, searchResponse.getHits().getTotalHits().value);
+            assertEquals(0, searchResponse.getHits().getHits().length);
+            StringTerms terms = searchResponse.getAggregations().get("text");
+            assertEquals(1, terms.getBuckets().size());
+            assertEquals(10, terms.getBucketByKey("value").getDocCount());
+            assertNotNull(asyncSearchResponse.getFailure());
+            assertThat(asyncSearchResponse.getFailure(), CoreMatchers.instanceOf(ElasticsearchStatusException.class));
+            ElasticsearchStatusException statusException = (ElasticsearchStatusException) asyncSearchResponse.getFailure();
+            assertEquals(RestStatus.INTERNAL_SERVER_ERROR, statusException.status());
+            assertThat(asyncSearchResponse.getFailure().getCause(), CoreMatchers.instanceOf(SearchPhaseExecutionException.class));
+            SearchPhaseExecutionException phaseExecutionException = (SearchPhaseExecutionException) asyncSearchResponse.getFailure()
+                .getCause();
+            assertEquals("fetch", phaseExecutionException.getPhaseName());
+            assertEquals("boom", phaseExecutionException.getCause().getMessage());
+            assertEquals(10, phaseExecutionException.shardFailures().length);
+            for (ShardSearchFailure shardSearchFailure : phaseExecutionException.shardFailures()) {
+                assertEquals("boom", shardSearchFailure.getCause().getMessage());
+            }
+        });
     }
 
     public void testFetchFailuresOnlySomeShards() throws Exception {
@@ -96,24 +98,24 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().aggregation(agg);
         SubmitAsyncSearchRequest submitAsyncSearchRequest = new SubmitAsyncSearchRequest(sourceBuilder);
         submitAsyncSearchRequest.setWaitForCompletionTimeout(TimeValue.timeValueSeconds(10));
-        AsyncSearchResponse asyncSearchResponse = client().execute(SubmitAsyncSearchAction.INSTANCE, submitAsyncSearchRequest).actionGet();
-
-        assertFalse(asyncSearchResponse.isRunning());
-        assertFalse(asyncSearchResponse.isPartial());
-        assertNull(asyncSearchResponse.getFailure());
-        SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
-        assertEquals(10, searchResponse.getTotalShards());
-        assertEquals(5, searchResponse.getSuccessfulShards());
-        assertEquals(5, searchResponse.getFailedShards());
-        assertEquals(10, searchResponse.getHits().getTotalHits().value);
-        assertEquals(5, searchResponse.getHits().getHits().length);
-        StringTerms terms = searchResponse.getAggregations().get("text");
-        assertEquals(1, terms.getBuckets().size());
-        assertEquals(10, terms.getBucketByKey("value").getDocCount());
-        assertEquals(5, searchResponse.getShardFailures().length);
-        for (ShardSearchFailure shardFailure : searchResponse.getShardFailures()) {
-            assertEquals("boom", shardFailure.getCause().getMessage());
-        }
+        assertResponse(client().execute(SubmitAsyncSearchAction.INSTANCE, submitAsyncSearchRequest), asyncSearchResponse -> {
+            assertFalse(asyncSearchResponse.isRunning());
+            assertFalse(asyncSearchResponse.isPartial());
+            assertNull(asyncSearchResponse.getFailure());
+            SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
+            assertEquals(10, searchResponse.getTotalShards());
+            assertEquals(5, searchResponse.getSuccessfulShards());
+            assertEquals(5, searchResponse.getFailedShards());
+            assertEquals(10, searchResponse.getHits().getTotalHits().value);
+            assertEquals(5, searchResponse.getHits().getHits().length);
+            StringTerms terms = searchResponse.getAggregations().get("text");
+            assertEquals(1, terms.getBuckets().size());
+            assertEquals(10, terms.getBucketByKey("value").getDocCount());
+            assertEquals(5, searchResponse.getShardFailures().length);
+            for (ShardSearchFailure shardFailure : searchResponse.getShardFailures()) {
+                assertEquals("boom", shardFailure.getCause().getMessage());
+            }
+        });
     }
 
     public static final class SubFetchPhasePlugin extends Plugin implements SearchPlugin {

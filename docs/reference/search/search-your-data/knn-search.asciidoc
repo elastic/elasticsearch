@@ -547,6 +547,7 @@ score = 0.9 * match_score + 0.1 * knn_score_image-vector + 0.5 * knn_score_title
 ```
 
 [discrete]
+[[knn-similarity-search]]
 ==== Search kNN with expected similarity
 
 While kNN is a powerful tool, it always tries to return `k` nearest neighbors. Consequently, when using `knn` with
@@ -561,6 +562,18 @@ minimum similarity for a vector to be considered a match. The `knn` search flow 
 * Apply any user provided `filter` queries
 * Explore the vector space to get `k` vectors
 * Do not return any vectors that are further away than the configured `similarity`
+--
+
+NOTE: `similarity` is the true <<dense-vector-similarity, similarity>> before it has been transformed into `_score` and boost applied.
+
+For each configured <<dense-vector-similarity, similarity>>, here is the corresponding inverted `_score` function. This is so if you are wanting to filter from a `_score` perspective, you can do this minor transformation to correctly reject irrelevant results.
+--
+ - `l2_norm`: `sqrt((1 / _score) - 1)`
+ - `cosine`: `(2 * _score) - 1`
+ - `dot_product`: `(2 * _score) - 1`
+ - `max_inner_product`:
+    - `_score < 1`: `1 - (1 / _score)`
+    - `_score >= 1`: `_score - 1`
 --
 
 Here is an example. In this example we search for the given `query_vector` for `k` nearest neighbors. However, with
@@ -801,11 +814,15 @@ Now we have filtered based on the top level `"creation_time"` and only one docum
 ----
 // TESTRESPONSE[s/"took": 4/"took" : "$body.took"/]
 
+[discrete]
+[[nested-knn-search-inner-hits]]
+==== Nested kNN Search with Inner hits
+
 Additionally, if you wanted to extract the nearest passage for a matched document, you can supply <<inner-hits, inner_hits>>
 to the `knn` clause.
 
-NOTE: `inner_hits` for kNN will only ever return a single hit, the nearest passage vector.
-Setting `"size"` to any value greater than `1` will have no effect on the results.
+NOTE: When using `inner_hits` and multiple `knn` clauses, be sure to specify the <<inner-hits-options,`inner_hits.name`>>
+field. Otherwise, a naming clash can occur and fail the search request.
 
 [source,console]
 ----
@@ -828,7 +845,8 @@ POST passage_vectors/_search
             "_source": false,
             "fields": [
                 "paragraph.text"
-            ]
+            ],
+            "size": 1
         }
     }
 }
@@ -871,7 +889,7 @@ Now the result will contain the nearest found paragraph when searching.
                     "paragraph": {
                         "hits": {
                             "total": {
-                                "value": 1,
+                                "value": 2,
                                 "relation": "eq"
                             },
                             "max_score": 1.0,
@@ -915,7 +933,7 @@ Now the result will contain the nearest found paragraph when searching.
                     "paragraph": {
                         "hits": {
                             "total": {
-                                "value": 1,
+                                "value": 2,
                                 "relation": "eq"
                             },
                             "max_score": 0.9997144,

@@ -19,8 +19,8 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobSearchResult;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,14 +28,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class GetConnectorSyncJobAction extends ActionType<GetConnectorSyncJobAction.Response> {
+public class GetConnectorSyncJobAction {
 
-    public static final GetConnectorSyncJobAction INSTANCE = new GetConnectorSyncJobAction();
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/get";
+    public static final ActionType<GetConnectorSyncJobAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    private GetConnectorSyncJobAction() {
-        super(NAME, GetConnectorSyncJobAction.Response::new);
-    }
+    private GetConnectorSyncJobAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
         private final String connectorSyncJobId;
@@ -112,15 +110,15 @@ public class GetConnectorSyncJobAction extends ActionType<GetConnectorSyncJobAct
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        private final ConnectorSyncJob connectorSyncJob;
+        private final ConnectorSyncJobSearchResult connectorSyncJob;
 
-        public Response(ConnectorSyncJob connectorSyncJob) {
+        public Response(ConnectorSyncJobSearchResult connectorSyncJob) {
             this.connectorSyncJob = connectorSyncJob;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.connectorSyncJob = new ConnectorSyncJob(in);
+            this.connectorSyncJob = new ConnectorSyncJobSearchResult(in);
         }
 
         @Override
@@ -131,10 +129,6 @@ public class GetConnectorSyncJobAction extends ActionType<GetConnectorSyncJobAct
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return connectorSyncJob.toXContent(builder, params);
-        }
-
-        public static GetConnectorSyncJobAction.Response fromXContent(XContentParser parser) throws IOException {
-            return new GetConnectorSyncJobAction.Response(ConnectorSyncJob.fromXContent(parser));
         }
 
         @Override

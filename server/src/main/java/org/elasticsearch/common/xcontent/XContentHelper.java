@@ -74,8 +74,24 @@ public class XContentHelper {
             final XContentType contentType = XContentFactory.xContentType(compressedInput);
             return XContentFactory.xContent(contentType).createParser(config, compressedInput);
         } else {
-            return XContentFactory.xContent(xContentType(bytes)).createParser(config, bytes.streamInput());
+            return createParserNotCompressed(config, bytes, xContentType(bytes));
         }
+    }
+
+    /**
+     * Same as {@link #createParser(XContentParserConfiguration, BytesReference, XContentType)} but only supports uncompressed
+     * {@code bytes}.
+     */
+    public static XContentParser createParserNotCompressed(
+        XContentParserConfiguration config,
+        BytesReference bytes,
+        XContentType xContentType
+    ) throws IOException {
+        XContent xContent = xContentType.xContent();
+        if (bytes.hasArray()) {
+            return xContent.createParser(config, bytes.array(), bytes.arrayOffset(), bytes.length());
+        }
+        return xContent.createParser(config, bytes.streamInput());
     }
 
     /**
@@ -104,17 +120,10 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
-            if (compressedInput.markSupported() == false) {
-                compressedInput = new BufferedInputStream(compressedInput);
-            }
-            return XContentFactory.xContent(xContentType).createParser(config, compressedInput);
+            return XContentFactory.xContent(xContentType).createParser(config, compressor.threadLocalInputStream(bytes.streamInput()));
         } else {
-            // TODO now that we have config we make a method on bytes to do this building wihout needing this check everywhere
-            if (bytes.hasArray()) {
-                return xContentType.xContent().createParser(config, bytes.array(), bytes.arrayOffset(), bytes.length());
-            }
-            return xContentType.xContent().createParser(config, bytes.streamInput());
+            // TODO now that we have config we make a method on bytes to do this building without needing this check everywhere
+            return createParserNotCompressed(config, bytes, xContentType);
         }
     }
 
@@ -310,7 +319,7 @@ public class XContentHelper {
 
     @Deprecated
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
-        return convertToJson(bytes, reformatJson, prettyPrint, XContentFactory.xContentType(bytes.toBytesRef().bytes));
+        return convertToJson(bytes, reformatJson, prettyPrint, xContentType(bytes));
     }
 
     public static String convertToJson(BytesReference bytes, boolean reformatJson, XContentType xContentType) throws IOException {
@@ -337,20 +346,8 @@ public class XContentHelper {
             return bytes.utf8ToString();
         }
 
-        if (bytes.hasArray()) {
-            try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
-                    .createParser(XContentParserConfiguration.EMPTY, bytes.array(), bytes.arrayOffset(), bytes.length())
-            ) {
-                return toJsonString(prettyPrint, parser);
-            }
-        } else {
-            try (
-                InputStream stream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.EMPTY, stream)
-            ) {
-                return toJsonString(prettyPrint, parser);
-            }
+        try (var parser = createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, xContentType)) {
+            return toJsonString(prettyPrint, parser);
         }
     }
 
@@ -746,7 +743,7 @@ public class XContentHelper {
     public static XContentParser mapToXContentParser(XContentParserConfiguration config, Map<String, ?> source) {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.map(source);
-            return XContentFactory.xContent(builder.contentType()).createParser(config, Strings.toString(builder));
+            return createParserNotCompressed(config, BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }

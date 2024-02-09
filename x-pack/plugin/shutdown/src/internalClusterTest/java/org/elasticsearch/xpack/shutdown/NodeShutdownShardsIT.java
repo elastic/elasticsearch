@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -419,6 +420,21 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         internalCluster().stopNode(nodeA);
 
         assertBusy(() -> assertNodeShutdownStatus(nodeAId, STALLED));
+    }
+
+    public void testRemoveNodeWaitsForAutoExpandReplicas() throws Exception {
+        final var nodes = internalCluster().startNodes(2);
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build());
+        ensureGreen(indexName);
+
+        final var nodeToShutdownName = randomFrom(nodes);
+        final var nodeToShutdownId = getNodeId(nodeToShutdownName);
+        putNodeShutdown(nodeToShutdownId, SingleNodeShutdownMetadata.Type.REMOVE, null);
+        assertBusy(() -> assertNodeShutdownStatus(nodeToShutdownId, COMPLETE));
+        internalCluster().stopNode(nodeToShutdownName);
+
+        ensureGreen(indexName);
     }
 
     private void indexRandomData(String index) throws Exception {

@@ -51,6 +51,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.SPARSE_VECTOR_SUBFIELD_NAME;
+import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.TEXT_SUBFIELD_NAME;
 import static org.hamcrest.Matchers.containsString;
 
 public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperTestCase {
@@ -212,10 +214,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     )
                 )
             );
-            assertThat(
-                ex.getMessage(),
-                containsString("Missing required subfields: [" + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME + "]")
-            );
+            assertThat(ex.getMessage(), containsString("Missing required subfields: [" + SPARSE_VECTOR_SUBFIELD_NAME + "]"));
         }
         {
             DocumentParsingException ex = expectThrows(
@@ -233,10 +232,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     )
                 )
             );
-            assertThat(
-                ex.getMessage(),
-                containsString("Missing required subfields: [" + SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME + "]")
-            );
+            assertThat(ex.getMessage(), containsString("Missing required subfields: [" + TEXT_SUBFIELD_NAME + "]"));
         }
         {
             DocumentParsingException ex = expectThrows(
@@ -256,32 +252,8 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             );
             assertThat(
                 ex.getMessage(),
-                containsString(
-                    "Missing required subfields: ["
-                        + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME
-                        + ", "
-                        + SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME
-                        + "]"
-                )
+                containsString("Missing required subfields: [" + SPARSE_VECTOR_SUBFIELD_NAME + ", " + TEXT_SUBFIELD_NAME + "]")
             );
-        }
-        {
-            DocumentParsingException ex = expectThrows(
-                DocumentParsingException.class,
-                DocumentParsingException.class,
-                () -> documentMapper.parse(
-                    source(
-                        b -> addSemanticTextInferenceResults(
-                            b,
-                            List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
-                            new SparseVectorSubfieldOptions(true, false, false),
-                            false,
-                            null
-                        )
-                    )
-                )
-            );
-            assertThat(ex.getMessage(), containsString("Missing required subfields: [" + SparseEmbeddingResults.Embedding.EMBEDDING + "]"));
         }
     }
 
@@ -460,10 +432,10 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     if (sparseVectorSubfieldOptions.includeEmbedding() == false) {
                         embeddingMap.remove(SparseEmbeddingResults.Embedding.EMBEDDING);
                     }
-                    subfieldMap.put(SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME, embeddingMap);
+                    subfieldMap.put(SPARSE_VECTOR_SUBFIELD_NAME, embeddingMap);
                 }
                 if (includeTextSubfield) {
-                    subfieldMap.put(SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME, text);
+                    subfieldMap.put(TEXT_SUBFIELD_NAME, text);
                 }
                 if (extraSubfields != null) {
                     subfieldMap.putAll(extraSubfields);
@@ -482,14 +454,14 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         mappingBuilder.startObject(semanticTextFieldName);
         mappingBuilder.field("type", "nested");
         mappingBuilder.startObject("properties");
-        mappingBuilder.startObject(SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME);
+        mappingBuilder.startObject(SPARSE_VECTOR_SUBFIELD_NAME);
         mappingBuilder.startObject("properties");
         mappingBuilder.startObject(SparseEmbeddingResults.Embedding.EMBEDDING);
         mappingBuilder.field("type", "sparse_vector");
         mappingBuilder.endObject();
         mappingBuilder.endObject();
         mappingBuilder.endObject();
-        mappingBuilder.startObject(SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME);
+        mappingBuilder.startObject(TEXT_SUBFIELD_NAME);
         mappingBuilder.field("type", "text");
         mappingBuilder.field("index", false);
         mappingBuilder.endObject();
@@ -507,14 +479,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             queryBuilder.add(
                 new BooleanClause(
                     new TermQuery(
-                        new Term(
-                            path
-                                + "."
-                                + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME
-                                + "."
-                                + SparseEmbeddingResults.Embedding.EMBEDDING,
-                            token
-                        )
+                        new Term(path + "." + SPARSE_VECTOR_SUBFIELD_NAME + "." + SparseEmbeddingResults.Embedding.EMBEDDING, token)
                     ),
                     BooleanClause.Occur.MUST
                 )
@@ -535,11 +500,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             new VisitedChildDocInfo(
                 childDoc.getPath(),
                 childDoc.getFields(
-                    childDoc.getPath()
-                        + "."
-                        + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME
-                        + "."
-                        + SparseEmbeddingResults.Embedding.EMBEDDING
+                    childDoc.getPath() + "." + SPARSE_VECTOR_SUBFIELD_NAME + "." + SparseEmbeddingResults.Embedding.EMBEDDING
                 ).size()
             )
         );

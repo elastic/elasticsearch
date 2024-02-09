@@ -57,7 +57,7 @@ public class Iterators {
         for (int i = 0; i < iterators.length; i++) {
             if (iterators[i].hasNext()) {
                 // explicit generic type argument needed for type inference
-                return new ConcatenatedIterator<T>(iterators, i);
+                return new ConcatenatedIterator<>(iterators, i);
             }
         }
 

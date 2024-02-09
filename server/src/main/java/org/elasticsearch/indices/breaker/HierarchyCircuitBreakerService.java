@@ -520,7 +520,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 createYoungGcCountSupplier(),
                 System::currentTimeMillis,
                 500,
-                5000,
+                2000,
                 lockTimeout,
                 fullGCLockTimeout
             );

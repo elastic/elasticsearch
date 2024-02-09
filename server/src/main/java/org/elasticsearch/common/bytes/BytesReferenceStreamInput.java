@@ -230,6 +230,16 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     @Override
+    public BytesReference readSlicedBytesReference() throws IOException {
+        int len = readVInt();
+        int pos = offset();
+        if (len != skip(len)) {
+            throw new EOFException();
+        }
+        return bytesReference.slice(pos, len);
+    }
+
+    @Override
     public boolean markSupported() {
         return true;
     }

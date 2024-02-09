@@ -77,7 +77,7 @@ all.
 [[esql-_source-availability]]
 === _source availability
 
-{esql} is not supported with configurations where the
+{esql} does not support configurations where the
 <<mapping-source-field,_source field>> is <<disable-source-field,disabled>>.
 
 experimental:[] {esql}'s support for <<synthetic-source,synthetic `_source`>>

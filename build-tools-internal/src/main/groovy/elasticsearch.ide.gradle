@@ -102,11 +102,11 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     description = 'Configures the appropriate JVM for Gradle'
 
     doLast {
-      /*modifyXml('.idea/gradle.xml') { xml ->
+      modifyXml('.idea/gradle.xml') { xml ->
         def gradleSettings = xml.component.find { it.'@name' == 'GradleSettings' }.option[0].GradleProjectSettings
         // Remove configured JVM option to force IntelliJ to use the project JDK for Gradle
         gradleSettings.option.findAll { it.'@name' == 'gradleJvm' }.each { it.parent().remove(it) }
-      }*/
+      }
     }
   }
 
@@ -130,7 +130,6 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       ':server:generateModulesList',
       ':server:generatePluginsList',
       ':generateProviderImpls'].collect { elasticsearchProject.right()?.task(it) ?: it })
-    // generate all embedded providers
   }
 
   idea {

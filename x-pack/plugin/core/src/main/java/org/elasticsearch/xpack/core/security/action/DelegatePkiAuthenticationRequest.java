@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
@@ -75,7 +76,7 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
         try {
             final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
             certificateChain = input.readCollectionAsImmutableList(in -> {
-                try (ByteArrayInputStream bis = new ByteArrayInputStream(in.readByteArray())) {
+                try (InputStream bis = in.readSlicedBytesReference().streamInput()) {
                     return (X509Certificate) certificateFactory.generateCertificate(bis);
                 } catch (CertificateException e) {
                     throw new IOException(e);

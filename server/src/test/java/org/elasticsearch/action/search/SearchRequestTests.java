@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.AbstractSearchTestCase;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rank.TestRankBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
@@ -230,6 +232,84 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[size] cannot be [0] in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // scroll and search_after
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.requestCache(false);
+            searchRequest.scroll(new TimeValue(1000));
+            searchRequest.source().searchAfter(new String[] { "value" });
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[search_after] cannot be used in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // scroll and collapse
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.requestCache(false);
+            searchRequest.scroll(new TimeValue(1000));
+            searchRequest.source().collapse(new CollapseBuilder("field"));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("cannot use `collapse` in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // search_after and `from` isn't valid
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.scroll((Scroll) null);
+            searchRequest.source().searchAfter(new String[] { "value" });
+            searchRequest.source().from(10);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[from] parameter must be set to 0 when [search_after] is used", validationErrors.validationErrors().get(0));
+        }
+        {
+            // slice without scroll or pit
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.scroll((Scroll) null);
+            searchRequest.source().pointInTimeBuilder(null);
+            searchRequest.source().slice(new SliceBuilder(1, 10));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[slice] can only be used with [scroll] or [point-in-time] requests", validationErrors.validationErrors().get(0));
+        }
+        {
+            // collapse and rescore
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.scroll((Scroll) null);
+            searchRequest.source().collapse(new CollapseBuilder("field"));
+            searchRequest.source().addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder()));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("cannot use `collapse` in conjunction with `rescore`", validationErrors.validationErrors().get(0));
+        }
+        {
+            // stored fields disabled with _source requested
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.scroll((Scroll) null);
+            searchRequest.source().storedField("_none_");
+            searchRequest.source().fetchSource(true);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[stored_fields] cannot be disabled if [_source] is requested", validationErrors.validationErrors().get(0));
+        }
+        {
+            // stored fields disabled with fetch fields requested
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.scroll((Scroll) null);
+            searchRequest.source().storedField("_none_");
+            searchRequest.source().fetchSource(false);
+            searchRequest.source().fetchField("field");
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[stored_fields] cannot be disabled when using the [fields] option", validationErrors.validationErrors().get(0));
         }
         {
             // cannot have multiple queries without rank

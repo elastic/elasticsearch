@@ -396,7 +396,7 @@ public class ExchangeServiceTests extends ESTestCase {
             ) throws Exception {
                 FilterTransportChannel filterChannel = new FilterTransportChannel(channel) {
                     @Override
-                    public void sendResponse(TransportResponse transportResponse) throws IOException {
+                    public void sendResponse(TransportResponse transportResponse) {
                         ExchangeResponse origResp = (ExchangeResponse) transportResponse;
                         Page page = origResp.takePage();
                         if (page != null) {
@@ -404,7 +404,8 @@ public class ExchangeServiceTests extends ESTestCase {
                             for (int i = 0; i < block.getPositionCount(); i++) {
                                 if (block.getInt(i) == disconnectOnSeqNo) {
                                     page.releaseBlocks();
-                                    throw new IOException("page is too large");
+                                    sendResponse(new IOException("page is too large"));
+                                    return;
                                 }
                             }
                         }
@@ -469,12 +470,12 @@ public class ExchangeServiceTests extends ESTestCase {
         }
 
         @Override
-        public void sendResponse(TransportResponse response) throws IOException {
+        public void sendResponse(TransportResponse response) {
             in.sendResponse(response);
         }
 
         @Override
-        public void sendResponse(Exception exception) throws IOException {
+        public void sendResponse(Exception exception) {
             in.sendResponse(exception);
         }
     }

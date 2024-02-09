@@ -132,13 +132,14 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
-        public Model parseRequestConfig(
+        public void parseRequestConfig(
             String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platfromArchitectures
+            Set<String> platfromArchitectures,
+            ActionListener<Model> parsedModelListener
         ) {
-            return null;
+            parsedModelListener.onResponse(null);
         }
 
         @Override

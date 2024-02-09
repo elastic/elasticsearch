@@ -115,6 +115,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     }
 
     protected Map<String, Object> getAllModels() throws IOException {
+        var endpoint = Strings.format("_inference/_all");
         return getAllModelInternal("_inference/_all");
     }
 
@@ -172,5 +173,13 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
         String responseStr = EntityUtils.toString(response.getEntity());
         assertThat(responseStr, response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    protected Map<String, Object> getTrainedModel(String inferenceEntityId) throws IOException {
+        var endpoint = Strings.format("_ml/trained_models/%s/_stats", inferenceEntityId);
+        var request = new Request("GET", endpoint);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
     }
 }

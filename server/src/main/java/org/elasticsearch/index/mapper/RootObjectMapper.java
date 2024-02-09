@@ -114,7 +114,11 @@ public class RootObjectMapper extends ObjectMapper {
             Map<String, Mapper> mappers = buildMappers(context);
 
             Map<String, Mapper> aliasMappers = new HashMap<>();
-            getAliasMappers(mappers, aliasMappers, context, 0);
+            Map<String, ObjectMapper.Builder> objectIntermediates = new HashMap<>(1);
+            getAliasMappers(mappers, aliasMappers, objectIntermediates, context, 0);
+            for (var entry : objectIntermediates.entrySet()) {
+                aliasMappers.put(entry.getKey(), entry.getValue().build(context));
+            }
             mappers.putAll(aliasMappers);
 
             return new RootObjectMapper(
@@ -131,7 +135,13 @@ public class RootObjectMapper extends ObjectMapper {
             );
         }
 
-        void getAliasMappers(Map<String, Mapper> mappers, Map<String, Mapper> aliasMappers, MapperBuilderContext context, int level) {
+        void getAliasMappers(
+            Map<String, Mapper> mappers,
+            Map<String, Mapper> aliasMappers,
+            Map<String, ObjectMapper.Builder> objectIntermediates,
+            MapperBuilderContext context,
+            int level
+        ) {
             if (level >= MAX_NESTING_LEVEL_FOR_PASS_THROUGH_OBJECTS) {
                 logger.warn("Exceeded maximum nesting level for searching for pass-through object fields within object fields.");
                 return;
@@ -174,21 +184,20 @@ public class RootObjectMapper extends ObjectMapper {
                                     );
                                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                                         String intermediateObjectName = fieldNameParts[i];
-                                        ObjectMapper.Builder intermediate = new ObjectMapper.Builder(
+                                        ObjectMapper.Builder intermediate = objectIntermediates.computeIfAbsent(
                                             intermediateObjectName,
-                                            ObjectMapper.Defaults.SUBOBJECTS
+                                            s -> new ObjectMapper.Builder(intermediateObjectName, ObjectMapper.Defaults.SUBOBJECTS)
                                         );
                                         intermediate.add(fieldBuilder);
                                         fieldBuilder = intermediate;
                                     }
-                                    aliasMappers.put(fieldNameParts[0], fieldBuilder.build(context));
                                 }
                             }
                         }
                     }
                 } else if (mapper instanceof ObjectMapper objectMapper) {
                     // Call recursively to check child fields. The level guards against long recursive call sequences.
-                    getAliasMappers(objectMapper.mappers, aliasMappers, context, level + 1);
+                    getAliasMappers(objectMapper.mappers, aliasMappers, objectIntermediates, context, level + 1);
                 }
             }
         }

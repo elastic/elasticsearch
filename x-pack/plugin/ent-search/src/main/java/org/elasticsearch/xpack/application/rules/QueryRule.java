@@ -35,8 +35,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.ALWAYS;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.DOCS_FIELD;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.IDS_FIELD;
-import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.PinnedDocument.INDEX_FIELD;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX_NUM_PINNED_HITS;
+import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.PinnedDocument.INDEX_FIELD;
 
 /**
  * A query rule consists of:

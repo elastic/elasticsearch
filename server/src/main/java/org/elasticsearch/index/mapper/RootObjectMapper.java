@@ -139,6 +139,7 @@ public class RootObjectMapper extends ObjectMapper {
             for (Mapper mapper : mappers.values()) {
                 // Create aliases for all fields in child passthrough mappers and place them under the root object.
                 if (mapper instanceof PassThroughObjectMapper passthroughMapper) {
+                    Map<String, ObjectMapper.Builder> intermediates = new HashMap<>(1);
                     for (Mapper internalMapper : passthroughMapper.mappers.values()) {
                         if (internalMapper instanceof FieldMapper fieldMapper) {
                             // If there's a conflicting alias with the same name at the root level, we don't want to throw an error
@@ -174,17 +175,19 @@ public class RootObjectMapper extends ObjectMapper {
                                     );
                                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                                         String intermediateObjectName = fieldNameParts[i];
-                                        ObjectMapper.Builder intermediate = new ObjectMapper.Builder(
+                                        ObjectMapper.Builder intermediate = intermediates.computeIfAbsent(
                                             intermediateObjectName,
-                                            ObjectMapper.Defaults.SUBOBJECTS
+                                            s -> new ObjectMapper.Builder(intermediateObjectName, ObjectMapper.Defaults.SUBOBJECTS)
                                         );
                                         intermediate.add(fieldBuilder);
                                         fieldBuilder = intermediate;
                                     }
-                                    aliasMappers.put(fieldNameParts[0], fieldBuilder.build(context));
                                 }
                             }
                         }
+                    }
+                    for (var entry : intermediates.entrySet()) {
+                        aliasMappers.put(entry.getKey(), entry.getValue().build(context));
                     }
                 } else if (mapper instanceof ObjectMapper objectMapper) {
                     // Call recursively to check child fields. The level guards against long recursive call sequences.

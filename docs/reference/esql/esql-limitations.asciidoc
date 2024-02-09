@@ -74,7 +74,7 @@ values, with the exception of nested fields. Nested fields are not returned at
 all.
 
 [discrete]
-[[esql-limitations-full-text-search]]
+[[esql-_source-availability]]
 === _source availability
 
 {esql} is not supported with configurations where the

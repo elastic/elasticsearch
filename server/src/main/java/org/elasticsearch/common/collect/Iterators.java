@@ -20,6 +20,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 
 public class Iterators {
@@ -254,6 +255,32 @@ public class Iterators {
         @Override
         public void forEachRemaining(Consumer<? super U> action) {
             input.forEachRemaining(t -> action.accept(fn.apply(idx++, t)));
+        }
+    }
+
+    public static <T> Iterator<T> fromSupplier(Supplier<? extends T> input) {
+        return new SupplierIterator<>(Objects.requireNonNull(input));
+    }
+
+    private static final class SupplierIterator<T> implements Iterator<T> {
+        private final Supplier<? extends T> fn;
+        private T head;
+
+        public SupplierIterator(Supplier<? extends T> fn) {
+            this.fn = fn;
+            this.head = fn.get();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return head != null;
+        }
+
+        @Override
+        public T next() {
+            T next = head;
+            head = fn.get();
+            return next;
         }
     }
 

@@ -333,11 +333,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
       }
 
-    libNativeFiles = { platform ->
+    libNativeFiles = { // platform ->
       copySpec {
-        if (platform == 'darwin-aarch64') {
+        //if (platform == 'darwin-aarch64') {
           from(configurations.libsNativeDarwinAarch64)
-        }
+       //}
         // else linux-aarch64 ...
       }
     }

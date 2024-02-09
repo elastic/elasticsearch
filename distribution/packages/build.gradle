@@ -141,6 +141,7 @@ def commonPackageConfig(String type, String architecture) {
       }
       into('lib') {
         with libFiles
+        // with libNativeFiles("darwin-aarch64") // TODO REMOVE
       }
       into('modules') {
         with modulesFiles('linux-' + ((architecture == 'x64') ? 'x86_64' : architecture))

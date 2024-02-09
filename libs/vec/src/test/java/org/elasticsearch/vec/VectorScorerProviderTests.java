@@ -28,6 +28,8 @@ public class VectorScorerProviderTests extends AbstractVectorTestCase {
         supported();
     }
 
+    // TODO: test maximum inner product, cosine, euclidean
+
     public void testDotProductSimple() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         Path topLevelDir = createTempDir(getTestName());

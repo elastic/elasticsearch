@@ -17,7 +17,7 @@ final class Euclidean extends AbstractScalarQuantizedVectorScorer {
 
     @Override
     public float score(int firstOrd, int secondOrd) {
-        return 0F; // TODO
+        throw new UnsupportedOperationException("implement me");
     }
 
 }

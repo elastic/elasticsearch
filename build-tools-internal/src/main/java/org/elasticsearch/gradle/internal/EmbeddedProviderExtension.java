@@ -59,9 +59,7 @@ public class EmbeddedProviderExtension {
                 spec.from(generateProviderManifest);
             });
         });
-        metaTask.configure(t -> {
-            t.dependsOn(generateProviderImpl);
-        });
+        metaTask.configure(t -> { t.dependsOn(generateProviderImpl); });
 
         var mainSourceSet = getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
         mainSourceSet.getOutput().dir(generateProviderImpl);

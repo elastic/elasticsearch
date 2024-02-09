@@ -174,20 +174,20 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
             matchesMap().entry("type", "alias").entry("path", "attributes.metricset")
         );
         // TODO: why is pod.name missing? (Looks like only one field makes it into the top level pod field.
-        //  Should contain 3 alias fields, but only contains one)
-//        assertMap(
-//            ObjectPath.eval("properties.pod.properties", mapping),
-//            matchesMap().extraOk().entry("name", matchesMap().entry("type", "alias").entry("path", "attributes.pod.name"))
-//        );
+        // Should contain 3 alias fields, but only contains one)
+        // assertMap(
+        // ObjectPath.eval("properties.pod.properties", mapping),
+        // matchesMap().extraOk().entry("name", matchesMap().entry("type", "alias").entry("path", "attributes.pod.name"))
+        // );
         assertMap(
             ObjectPath.eval("properties.pod.properties", mapping),
             matchesMap().extraOk().entry("uid", matchesMap().entry("type", "alias").entry("path", "attributes.pod.uid"))
         );
         // TODO: why is pod.ip missing?
-//        assertMap(
-//            ObjectPath.eval("properties.pod.properties", mapping),
-//            matchesMap().extraOk().entry("ip", matchesMap().entry("type", "alias").entry("path", "attributes.pod.ip"))
-//        );
+        // assertMap(
+        // ObjectPath.eval("properties.pod.properties", mapping),
+        // matchesMap().extraOk().entry("ip", matchesMap().entry("type", "alias").entry("path", "attributes.pod.ip"))
+        // );
     }
 
     static String formatInstant(Instant instant) {

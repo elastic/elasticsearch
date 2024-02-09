@@ -176,8 +176,8 @@ class IndicesAndAliasesResolver {
             }
             localIndices.add(IndexNameExpressionResolver.resolveDateMathExpression(name));
         }
-        /// MP TODO: class = org.elasticsearch.painless.action.PainlessExecuteAction$Request - how handle this for real?
-        if (indicesRequest.getClass().toString().contains("PainlessExecuteAction$Request")) {
+        /// MP TODO: best way to handle this?
+        if (indicesRequest instanceof IndicesRequest.SingleIndexNoWildcards single && single.allowsRemoteIndices()) {
             assert indices.length == 1;
 
             // ensure that `index` has a remote name and not a date math expression which includes ':' symbol

@@ -408,9 +408,9 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private static boolean allowsRemoteIndices(TransportRequest transportRequest) {
-        /// MP TODO: class = org.elasticsearch.painless.action.PainlessExecuteAction$Request - how handle this for real?
-        if (transportRequest.getClass().toString().contains("PainlessExecuteAction$Request")) {
-            return true;
+        /// MP TODO: best way to handle this?
+        if (transportRequest instanceof IndicesRequest.SingleIndexNoWildcards single) {
+            return single.allowsRemoteIndices();
         } else {
             return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
         }

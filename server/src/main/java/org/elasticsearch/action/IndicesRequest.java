@@ -59,4 +59,13 @@ public interface IndicesRequest {
             return false;
         }
     }
+
+    /**
+     * TODO: DOCUMENT ME
+     */
+    interface SingleIndexNoWildcards extends IndicesRequest {
+        default boolean allowsRemoteIndices() {
+            return true;
+        }
+    }
 }

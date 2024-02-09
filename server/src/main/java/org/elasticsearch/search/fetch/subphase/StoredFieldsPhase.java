@@ -10,6 +10,7 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -54,6 +55,12 @@ public class StoredFieldsPhase implements FetchSubPhase {
 
     private static final List<StoredField> METADATA_FIELDS = List.of(
         new StoredField("_routing", RoutingFieldMapper.FIELD_TYPE, true),
+        // NOTE: here we keep the _ignored field even if from version 8.13 is not a stored field anymore.
+        // This allows us to be backward-compatible in case we have old indices having it as a stored field
+        // instead of doc values. Versions on or above 8.13 do not include the _ignore field as a stored field
+        // but as a doc values field which means this `StoredFieldPhase` would skip it just because the field
+        // is not part of the stored meta fields.
+        new StoredField("_ignored", IgnoredFieldMapper.FIELD_TYPE, true),
         // pre-6.0 indexes can return a _type field, this will be valueless in modern indexes and ignored
         new StoredField("_type", LegacyTypeFieldMapper.FIELD_TYPE, true)
     );

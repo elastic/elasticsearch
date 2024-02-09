@@ -815,6 +815,10 @@ public class Security extends Plugin
             clusterService
         );
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
+        // Need to set to default if it wasn't set by an extension
+        if (putRoleRequestBuilderFactory.get() == null) {
+            putRoleRequestBuilderFactory.set(new PutRoleRequestBuilderFactory.Default());
+        }
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
         for (SecurityExtension extension : securityExtensions) {
@@ -2058,8 +2062,7 @@ public class Security extends Plugin
                 PutRoleRequestBuilderFactory.class
             );
         } else {
-            logger.debug("Using default implementation for interface [{}]", PutRoleRequestBuilderFactory.class);
-            this.putRoleRequestBuilderFactory.set(new PutRoleRequestBuilderFactory.Default());
+            logger.debug("Will fall back on default implementation for interface [{}]", PutRoleRequestBuilderFactory.class);
         }
     }
 

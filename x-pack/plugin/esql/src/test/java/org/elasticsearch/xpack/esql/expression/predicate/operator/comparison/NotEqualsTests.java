@@ -13,8 +13,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
@@ -74,12 +76,121 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 List.of()
             )
         );
-
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsBoolsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.booleanCases(),
+                TestCaseSupplier.booleanCases(),
+                List.of()
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsKeywordsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.ipCases(),
+                TestCaseSupplier.ipCases(),
+                List.of()
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsKeywordsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.versionCases(""),
+                TestCaseSupplier.versionCases(""),
+                List.of()
+            )
+        );
+        // Datetime
+        // TODO: I'm surprised this passes. Shouldn't there be a cast from DateTime to Long?
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateCases(),
+                List.of()
+            )
+        );
+        for (DataType type : AbstractConvertFunction.STRING_TYPES) {
+            suppliers.addAll(
+                TestCaseSupplier.forBinaryNotCasting(
+                    "NotEqualsKeywordsEvaluator",
+                    "lhs",
+                    "rhs",
+                    (l, r) -> false == l.equals(r),
+                    DataTypes.BOOLEAN,
+                    TestCaseSupplier.stringCases(type),
+                    TestCaseSupplier.stringCases(type),
+                    List.of()
+                )
+            );
+        }
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsGeometriesEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.geoPointCases(),
+                TestCaseSupplier.geoPointCases(),
+                List.of()
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsGeometriesEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.geoShapeCases(),
+                TestCaseSupplier.geoShapeCases(),
+                List.of()
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsGeometriesEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.cartesianPointCases(),
+                TestCaseSupplier.cartesianPointCases(),
+                List.of()
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsGeometriesEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.cartesianShapeCases(),
+                TestCaseSupplier.cartesianShapeCases(),
+                List.of()
+            )
+        );
         return parameterSuppliersFromTypedData(
             errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AbstractFunctionTestCase::errorMessageStringForBinaryOperators)
         );
-
-        // return parameterSuppliersFromTypedData(anyNullIsNull(true, suppliers));
     }
 
     @Override

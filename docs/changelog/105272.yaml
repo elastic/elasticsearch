@@ -1,5 +1,5 @@
 pr: 105272
-summary: "[Health Monitoring] Stop the periodic health logger during when es is stopping"
+summary: "Stop the periodic health logger when es is stopping"
 area: Health
 type: bug
 issues: []

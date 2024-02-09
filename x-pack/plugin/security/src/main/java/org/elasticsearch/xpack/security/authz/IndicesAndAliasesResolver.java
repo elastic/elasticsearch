@@ -28,6 +28,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -175,6 +176,18 @@ class IndicesAndAliasesResolver {
             }
             localIndices.add(IndexNameExpressionResolver.resolveDateMathExpression(name));
         }
+        /// MP TODO: class = org.elasticsearch.painless.action.PainlessExecuteAction$Request - how handle this for real?
+        if (indicesRequest.getClass().toString().contains("PainlessExecuteAction$Request")) {
+            assert indices.length == 1;
+
+            // ensure that `index` has a remote name and not a date math expression which includes ':' symbol
+            // since date math expression after evaluation should not contain ':' symbol
+            String indexExpression = IndexNameExpressionResolver.resolveDateMathExpression(indices[0]);
+            if (indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0) {
+                return new ResolvedIndices(List.of(), List.of(indices[0]));
+            }
+        }
+
         return new ResolvedIndices(localIndices, List.of());
     }
 

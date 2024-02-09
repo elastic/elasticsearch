@@ -408,7 +408,12 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private static boolean allowsRemoteIndices(TransportRequest transportRequest) {
-        return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
+        /// MP TODO: class = org.elasticsearch.painless.action.PainlessExecuteAction$Request - how handle this for real?
+        if (transportRequest.getClass().toString().contains("PainlessExecuteAction$Request")) {
+            return true;
+        } else {
+            return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
+        }
     }
 
     private static boolean isChildActionAuthorizedByParentOnLocalNode(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {

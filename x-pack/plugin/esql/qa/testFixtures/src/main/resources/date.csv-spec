@@ -1062,6 +1062,34 @@ FROM sample_data
 // end::docsDateExtractBusinessHours-result[]
 ;
 
+dateExtractConst#[skip:-8.12.99, reason:return null for invalid chrono field is supported in 8.13]
+from employees
+| where gender == "M"
+| EVAL year = DATE_EXTRACT("M", birth_date)
+| sort emp_no
+| keep birth_date, year
+| limit 1
+;
+warning:Line 3:15: evaluation of [DATE_EXTRACT(\"M\", birth_date)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:15: java.lang.IllegalArgumentException: No enum constant java.time.temporal.ChronoField.M
+birth_date:date           | year:long
+1953-09-02T00:00:00.000Z  | null
+;
+
+dateExtractField
+from employees
+| where gender == "M"
+| EVAL year = DATE_EXTRACT(gender, birth_date)
+| sort emp_no
+| keep birth_date, year
+| limit 1
+;
+warning:Line 3:15: evaluation of [DATE_EXTRACT(gender, birth_date)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:15: java.lang.IllegalArgumentException: No enum constant java.time.temporal.ChronoField.M
+birth_date:date           | year:long
+1953-09-02T00:00:00.000Z  | null
+;
+
 docsDateFormat
 // tag::docsDateFormat[]
 FROM employees

@@ -15,7 +15,6 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
@@ -63,11 +62,7 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
         var fieldEvaluator = toEvaluator.apply(children().get(1));
         if (children().get(0).foldable()) {
             ChronoField chrono = chronoField();
-            if (chrono == null) {
-                BytesRef field = (BytesRef) children().get(0).fold();
-                throw new InvalidArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
-            }
-            return new DateExtractConstantEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+            if (chrono != null) return new DateExtractConstantEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
         }
         var chronoEvaluator = toEvaluator.apply(children().get(0));
         return new DateExtractEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());

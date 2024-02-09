@@ -11,673 +11,329 @@ import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
+import static org.hamcrest.Matchers.closeTo;
 
 /**
  * Creates indices with many different mappings and fetches values from them to make sure
- * we can do it. This is a port of a test with the same name on the SQL side.
+ * we can do it. Think of this as an integration test for {@link BlockLoader}
+ * implementations <strong>and</strong> an integration test for field resolution.
+ * This is a port of a test with the same name on the SQL side.
  */
 @Repeat(iterations = 10)
 public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private static final String TEST_INDEX = "test";
 
-    private SourceMode sourceMode;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        sourceMode = randomFrom(SourceMode.values());
-        logger.info("_source mode: {}", sourceMode);
+    public void testTextField() throws IOException {
+        textTest().test(randomAlphaOfLength(20));
     }
 
-    public void testTextField() throws IOException {
-        boolean store = sourceMode == SourceMode.SYNTHETIC || randomBoolean();
-        logger.info("store: {}");
-        createIndex("text", builder -> {
-            if (store) {
-                builder.field("store", true);
-            }
-        });
-
-        String value = randomAlphaOfLength(20);
-        index("""
-            {"text_field":"$VALUE"}
-            """.replace("$VALUE", value));
-
-        assertMap(
-            fetchAll(),
-            matchesMap().entry("columns", List.of(columnInfo("text_field", "text")))
-                // Text fields without
-                .entry("values", List.of(matchesList().item(sourceMode == SourceMode.DISABLED && store == false ? null : value)))
-        );
+    private Test textTest() {
+        return new Test("text").randomStoreUnlessSynthetic();
     }
 
     public void testKeywordField() throws IOException {
+        // TODO randomize store
         Integer ignoreAbove = randomBoolean() ? null : between(10, 50);
         int length = between(10, 50);
-        boolean docValues = sourceMode == SourceMode.SYNTHETIC || randomBoolean();
-        boolean store = randomBoolean();
-        logger.info("ignore_above: {}, length: {}, doc_values: {}, store: {}", ignoreAbove, length, docValues, store);
-
-        createIndex("keyword", builder -> {
-            if (ignoreAbove != null) {
-                builder.field("ignore_above", ignoreAbove);
-            }
-            if (docValues == false) {
-                builder.field("doc_values", false);
-            }
-            if (store) {
-                builder.field("store", true);
-            }
-        });
 
         String value = randomAlphaOfLength(length);
-        index("""
-            {"keyword_field":"$VALUE"}
-            """.replace("$VALUE", value));
+        keywordTest().ignoreAbove(ignoreAbove).test(value, ignoredByIgnoreAbove(ignoreAbove, length) ? null : value);
+    }
 
-        boolean stored = sourceMode.stored() || docValues;
-        assertMap(
-            fetchAll(),
-            matchesMap().entry("columns", List.of(columnInfo("keyword_field", "keyword")))
-                .entry("values", List.of(matchesList().item(ignoredByIgnoreAbove(ignoreAbove, length) || stored == false ? null : value)))
-        );
+    private Test keywordTest() {
+        return new Test("keyword").randomDocValuesAndStoreUnlessSynthetic();
     }
 
     public void testConstantKeywordField() throws IOException {
         boolean specifyInMapping = randomBoolean();
         boolean specifyInDocument = randomBoolean();
-        logger.info("specify_in_mapping: {}, specify_in_document: {}", specifyInDocument, specifyInDocument);
+
         String value = randomAlphaOfLength(20);
-
-        createIndex("constant_keyword", builder -> {
-            if (specifyInMapping) {
-                builder.field("value", value);
-            }
-        });
-
-        if (specifyInDocument) {
-            index("""
-                {"constant_keyword_field":"$VALUE"}
-                """.replace("$VALUE", value));
-        } else {
-            index("{}");
-        }
-
-        assertMap(
-            fetchAll(),
-            matchesMap().entry("columns", List.of(columnInfo("constant_keyword_field", "keyword")))
-                .entry("values", List.of(matchesList().item(specifyInMapping || specifyInDocument ? value : null)))
-        );
+        new Test("constant_keyword").expectedType("keyword")
+            .value(specifyInMapping ? value : null)
+            .test(specifyInDocument ? value : null, specifyInMapping || specifyInDocument ? value : null);
     }
 
     public void testWildcardField() throws IOException {
         Integer ignoreAbove = randomBoolean() ? null : between(10, 50);
         int length = between(10, 50);
 
-        logger.info("ignore_above: {}, length: {}", ignoreAbove, length);
-
-        createIndex("wildcard", builder -> {
-            if (ignoreAbove != null) {
-                builder.field("ignore_above", ignoreAbove);
-            }
-        });
-
         String value = randomAlphaOfLength(length);
-        index("""
-            {"wildcard_field":"$VALUE"}
-            """.replace("$VALUE", value));
-
-        assertMap(
-            fetchAll(),
-            matchesMap().entry("columns", List.of(columnInfo("wildcard_field", "keyword")))
-                .entry("values", List.of(matchesList().item(ignoredByIgnoreAbove(ignoreAbove, length) ? null : value)))
-        );
+        new Test("wildcard").expectedType("keyword")
+            .ignoreAbove(ignoreAbove)
+            .test(value, ignoredByIgnoreAbove(ignoreAbove, length) ? null : value);
     }
 
     public void testLong() throws IOException {
         long value = randomLong();
-        testStructured("long", randomBoolean(), randomBoolean() ? Long.toString(value) : value, "long", value);
+        longTest().test(randomBoolean() ? Long.toString(value) : value, value);
+    }
+
+    public void testLongWithDecimalParts() throws IOException {
+        long value = randomLong();
+        int decimalPart = between(1, 99);
+        BigDecimal withDecimals = new BigDecimal(value + "." + decimalPart);
+        /*
+         * It's possible to pass the BigDecimal here without converting to a string
+         * but that rounds in a different way, and I'm not quite able to reproduce it
+         * at the time.
+         */
+        longTest().test(withDecimals.toString(), value);
     }
 
     public void testLongMalformed() throws IOException {
-        testStructured("long", true, randomAlphaOfLength(5), "long", null);
+        longTest().forceIgnoreMalformed().test(randomAlphaOfLength(5), null);
+    }
+
+    private Test longTest() {
+        return new Test("long").randomIgnoreMalformedUnlessSynthetic().randomDocValuesUnlessSynthetic();
     }
 
     public void testInt() throws IOException {
         int value = randomInt();
-        testStructured("integer", randomBoolean(), randomBoolean() ? Integer.toString(value) : value, "integer", value);
+        intTest().test(randomBoolean() ? Integer.toString(value) : value, value);
+    }
+
+    public void testIntWithDecimalParts() throws IOException {
+        double value = randomDoubleBetween(Integer.MIN_VALUE, Integer.MAX_VALUE, true);
+        intTest().test(randomBoolean() ? Double.toString(value) : value, (int) value);
     }
 
     public void testIntMalformed() throws IOException {
-        testStructured("integer", true, randomAlphaOfLength(5), "integer", null);
+        intTest().forceIgnoreMalformed().test(randomAlphaOfLength(5), null);
+    }
+
+    private Test intTest() {
+        return new Test("integer").randomIgnoreMalformedUnlessSynthetic().randomDocValuesUnlessSynthetic();
     }
 
     public void testShort() throws IOException {
         short value = randomShort();
-        testStructured("short", randomBoolean(), randomBoolean() ? Short.toString(value) : value, "integer", (int) value);
+        shortTest().test(randomBoolean() ? Short.toString(value) : value, (int) value);
+    }
+
+    public void testShortWithDecimalParts() throws IOException {
+        double value = randomDoubleBetween(Short.MIN_VALUE, Short.MAX_VALUE, true);
+        shortTest().test(randomBoolean() ? Double.toString(value) : value, (int) value);
     }
 
     public void testShortMalformed() throws IOException {
-        testStructured("short", true, randomAlphaOfLength(5), "integer", null);
+        shortTest().forceIgnoreMalformed().test(randomAlphaOfLength(5), null);
+    }
+
+    private Test shortTest() {
+        return new Test("short").expectedType("integer").randomIgnoreMalformedUnlessSynthetic().randomDocValuesUnlessSynthetic();
     }
 
     public void testByte() throws IOException {
         byte value = randomByte();
-        testStructured("byte", randomBoolean(), randomBoolean() ? Byte.toString(value) : value, "integer", (int) value);
+        byteTest().test(Byte.toString(value), (int) value);
+    }
+
+    public void testByteWithDecimalParts() throws IOException {
+        double value = randomDoubleBetween(Byte.MIN_VALUE, Byte.MAX_VALUE, true);
+        byteTest().test(randomBoolean() ? Double.toString(value) : value, (int) value);
     }
 
     public void testByteMalformed() throws IOException {
-        testStructured("byte", true, randomAlphaOfLength(5), "integer", null);
+        byteTest().forceIgnoreMalformed().test(randomAlphaOfLength(5), null);
+    }
+
+    private Test byteTest() {
+        return new Test("byte").expectedType("integer").randomIgnoreMalformedUnlessSynthetic().randomDocValuesUnlessSynthetic();
     }
 
     public void testUnsignedLong() throws IOException {
-        boolean ignoreMalformed = sourceMode == SourceMode.SYNTHETIC ? false : randomBoolean();
         BigInteger value = randomUnsignedLong();
-        testStructured(
-            "unsigned_long",
-            ignoreMalformed,
-            randomBoolean() ? value.toString() : value,
-            "unsigned_long",
-            value.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0 ? value.longValue() : value
-        );
+        new Test("unsigned_long").randomIgnoreMalformedUnlessSynthetic()
+            .randomDocValuesUnlessSynthetic()
+            .test(
+                randomBoolean() ? value.toString() : value,
+                value.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0 ? value.longValue() : value
+            );
     }
 
     public void testUnsignedLongMalformed() throws IOException {
-        assumeFalse("unsigned long doesn't support synthetic source with ignore_malformed", sourceMode == SourceMode.SYNTHETIC);
-        testStructured("unsigned_long", true, randomAlphaOfLength(5), "unsigned_long", null);
+        new Test("unsigned_long").forceIgnoreMalformed().randomDocValuesUnlessSynthetic().test(randomAlphaOfLength(5), null);
     }
 
-    //
-    // /*
-    // * "long/integer/short/byte_field": {
-    // * "type": "long/integer/short/byte"
-    // * }
-    // * Note: no unsigned_long tested -- the mapper for it won't accept float formats.
-    // */
-    // public void testFractionsForNonFloatingPointTypes() throws IOException {
-    // String floatingPointNumber = "123.456";
-    // String fieldType = randomFrom("long", "integer", "short", "byte");
-    //
-    // createIndexWithFieldTypeAndProperties(fieldType, null, null);
-    // index("{\"" + fieldType + "_field\":\"" + floatingPointNumber + "\"}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put("columns", asList(columnInfo("plain", fieldType + "_field", fieldType, jdbcTypeFor(fieldType), Integer.MAX_VALUE)));
-    //
-    // // because "coerce" is true, a "123.456" floating point number STRING should be converted to 123, no matter the numeric field type
-    // expected.put("rows", singletonList(singletonList(123)));
-    // assertResponse(expected, runSql("SELECT " + fieldType + "_field FROM test"));
-    // }
-    //
-    // /*
-    // * "double/float/half_float/scaled_float_field": {
-    // * "type": "double/float/half_float/scaled_float",
-    // * "scaling_factor": 10 (for scaled_float type only)
-    // * }
-    // */
-    // public void testCoerceForFloatingPointTypes() throws IOException {
-    // String floatingPointNumber = "123.456";
-    // String fieldType = randomFrom("double", "float", "half_float", "scaled_float");
-    // boolean isScaledFloat = fieldType == "scaled_float";
-    //
-    // Map<String, Map<String, Object>> fieldProps = null;
-    // if (isScaledFloat) {
-    // fieldProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // fieldProp.put("scaling_factor", 10); // scaling_factor is required for "scaled_float"
-    // fieldProps.put(fieldType + "_field", fieldProp);
-    // }
-    //
-    // createIndexWithFieldTypeAndProperties(fieldType, fieldProps, null);
-    // // important here is to pass floatingPointNumber as a string: "float_field": "123.456"
-    // index("{\"" + fieldType + "_field\":\"" + floatingPointNumber + "\"}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put("columns", asList(columnInfo("plain", fieldType + "_field", fieldType, jdbcTypeFor(fieldType), Integer.MAX_VALUE)));
-    //
-    // // because "coerce" is true, a "123.456" floating point number STRING should be converted to 123.456 as number
-    // // and converted to 123.5 for "scaled_float" type
-    // // and 123.4375 for "half_float" because that is all it stores.
-    // double expectedNumber = isScaledFloat ? 123.5 : fieldType.equals("half_float") ? 123.4375 : 123.456;
-    // expected.put("rows", singletonList(singletonList(expectedNumber)));
-    // assertResponse(expected, runSql("SELECT " + fieldType + "_field FROM test"));
-    // }
-    //
+    public void testDouble() throws IOException {
+        double value = randomDouble();
+        new Test("double").randomIgnoreMalformedUnlessSynthetic()
+            .randomDocValuesUnlessSynthetic()
+            .test(randomBoolean() ? Double.toString(value) : value, value);
+    }
+
+    public void testFloat() throws IOException {
+        float value = randomFloat();
+        new Test("float").expectedType("double")
+            .randomIgnoreMalformedUnlessSynthetic()
+            .randomDocValuesUnlessSynthetic()
+            .test(randomBoolean() ? Float.toString(value) : value, (double) value);
+    }
+
+    public void testScaledFloat() throws IOException {
+        double value = randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
+        double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
+        new Test("scaled_float").expectedType("double")
+            .randomIgnoreMalformedUnlessSynthetic()
+            .randomDocValuesUnlessSynthetic()
+            .scalingFactor(scalingFactor)
+            .test(randomBoolean() ? Double.toString(value) : value, scaledFloatMatcher(scalingFactor, value));
+    }
+
+    private Matcher<Double> scaledFloatMatcher(double scalingFactor, double d) {
+        long encoded = Math.round(d * scalingFactor);
+        double decoded = encoded / scalingFactor;
+        return closeTo(decoded, Math.ulp(decoded));
+    }
+
+    public void testBoolean() throws IOException {
+        boolean value = randomBoolean();
+        new Test("boolean").ignoreMalformed(randomBoolean())
+            .randomDocValuesUnlessSynthetic()
+            .test(randomBoolean() ? Boolean.toString(value) : value, value);
+    }
+
+    public void testIp() throws IOException {
+        new Test("ip").ignoreMalformed(randomBoolean()).test(NetworkAddress.format(randomIp(randomBoolean())));
+    }
+
+    public void testVersionField() throws IOException {
+        new Test("version").test(randomVersionString());
+    }
+
+    public void testGeoPoint() throws IOException {
+        new Test("geo_point")
+            // TODO we should support loading geo_point from doc values if source isn't enabled
+            .sourceMode(randomValueOtherThanMany(s -> s.stored() == false, () -> randomFrom(SourceMode.values())))
+            .ignoreMalformed(randomBoolean())
+            .storeAndDocValues(randomBoolean(), randomBoolean())
+            .test(GeometryTestUtils.randomPoint(false).toString());
+    }
+
+    public void testGeoShape() throws IOException {
+        new Test("geo_shape")
+            // TODO if source isn't enabled how can we load *something*? It's just triangles, right?
+            .sourceMode(randomValueOtherThanMany(s -> s.stored() == false, () -> randomFrom(SourceMode.values())))
+            .ignoreMalformed(randomBoolean())
+            .storeAndDocValues(randomBoolean(), randomBoolean())
+            // TODO pick supported random shapes
+            .test(GeometryTestUtils.randomPoint(false).toString());
+    }
+
+    public void testAliasToKeyword() throws IOException {
+        keywordTest().createAlias().test(randomAlphaOfLength(20));
+    }
+
+    public void testAliasToText() throws IOException {
+        textTest().createAlias().test(randomAlphaOfLength(20));
+    }
+
+    public void testAliasToInt() throws IOException {
+        intTest().createAlias().test(randomInt());
+    }
 
     /**
-     * Tests field types with some kind of parser that support {@code doc_values}
-     * and {@code ignore_malformed}. Types like {@code long}, {@code double}, {@code ip}.
+     * <pre>
+     * "text_field": {
+     *   "type": "text",
+     *   "fields": {
+     *     "raw": {
+     *       "type": "keyword",
+     *       "ignore_above": 10
+     *     }
+     *   }
+     * }
+     * </pre>
      */
-    private void testStructured(String type, boolean ignoreMalformed, Object value, String expectedType, Object expectedValue)
-        throws IOException {
+    public void testTextFieldWithKeywordSubfield() throws IOException {
+        String value = randomAlphaOfLength(20);
+        Map<String, Object> result = new Test("text").storeAndDocValues(randomBoolean(), null).sub("raw", keywordTest()).roundTrip(value);
 
-        boolean docValues = sourceMode == SourceMode.SYNTHETIC || randomBoolean();
-        logger.info("ignore_malformed: {}, doc_values: {}", ignoreMalformed, docValues);
-
-        createIndex(type, builder -> {
-            if (ignoreMalformed) {
-                builder.field("ignore_malformed", true);
-            }
-            if (docValues == false) {
-                builder.field("doc_values", false);
-            }
-        });
-
-        index(Strings.toString(JsonXContent.contentBuilder().startObject().field(type + "_field", value).endObject()));
-
-        boolean stored = sourceMode.stored() || docValues;
         assertMap(
-            fetchAll(),
-            matchesMap().entry("columns", List.of(columnInfo(type + "_field", expectedType)))
-                .entry("values", List.of(matchesList().item(stored ? expectedValue : null)))
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.raw", "keyword")))
+                .entry("values", List.of(List.of(value, value)))
         );
     }
 
-    // /*
-    // * "boolean_field": {
-    // * "type": "boolean"
-    // * }
-    // */
-    // public void testBooleanField() throws IOException {
-    // String query = "SELECT boolean_field FROM test";
-    // boolean booleanField = randomBoolean();
-    // boolean asString = randomBoolean(); // pass true or false as string "true" or "false
-    //
-    // createIndexWithFieldTypeAndProperties("boolean", null, getIndexProps());
-    // if (asString) {
-    // index("{\"boolean_field\":\"" + booleanField + "\"}");
-    // } else {
-    // index("{\"boolean_field\":" + booleanField + "}");
-    // }
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put("columns", asList(columnInfo("plain", "boolean_field", "boolean", JDBCType.BOOLEAN, Integer.MAX_VALUE)));
-    // // adding the boolean as a String here because parsing the response will yield a "true"/"false" String
-    // expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(booleanField))));
-    // assertResponse(expected, runSql(query));
-    // }
-    //
-    // /*
-    // * "ip_field": {
-    // * "type": "ip",
-    // * "ignore_malformed": true/false
-    // * }
-    // */
-    // public void testIpField() throws IOException {
-    // String query = "SELECT ip_field FROM test";
-    // String actualValue = "192.168.1.1";
-    // boolean ignoreMalformed = randomBoolean();
-    //
-    // Map<String, Map<String, Object>> fieldProps = null;
-    // if (ignoreMalformed) {
-    // fieldProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // // on purpose use a non-IP and check for null when querying the field's value
-    // fieldProp.put("ignore_malformed", true);
-    // fieldProps.put("ip_field", fieldProp);
-    // actualValue = "foo";
-    // }
-    // createIndexWithFieldTypeAndProperties("ip", fieldProps, getIndexProps());
-    // index("{\"ip_field\":\"" + actualValue + "\"}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put("columns", asList(columnInfo("plain", "ip_field", "ip", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-    // expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(ignoreMalformed ? null : actualValue))));
-    // assertResponse(expected, runSql(query));
-    // }
-    //
-    // /*
-    // * "version_field": {
-    // * "type": "version",
-    // * }
-    // */
-    // public void testVersionField() throws IOException {
-    // String query = "SELECT version_field FROM test";
-    // String actualValue = "2.11.4";
-    //
-    // Map<String, Map<String, Object>> fieldProps = null;
-    // createIndexWithFieldTypeAndProperties("version", fieldProps, getIndexProps());
-    // index("{\"version_field\":\"" + actualValue + "\"}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put("columns", asList(columnInfo("plain", "version_field", "version", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-    // expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(actualValue))));
-    // assertResponse(expected, runSql(query));
-    // }
-    //
-    // /*
-    // * "geo_point_field": {
-    // * "type": "geo_point",
-    // * "ignore_malformed": true/false
-    // * }
-    // */
-    // public void testGeoPointField() throws IOException {
-    // String query = "SELECT geo_point_field FROM test";
-    // String geoPointField = "41.12,-71.34";
-    // String actualValue = geoPointField;
-    // boolean ignoreMalformed = randomBoolean();
-    //
-    // Map<String, Map<String, Object>> fieldProps = null;
-    // if (ignoreMalformed) {
-    // fieldProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // // on purpose use a non-geo-point and check for null when querying the field's value
-    // fieldProp.put("ignore_malformed", true);
-    // fieldProps.put("geo_point_field", fieldProp);
-    // actualValue = "foo";
-    // }
-    // createIndexWithFieldTypeAndProperties("geo_point", fieldProps, getIndexProps());
-    // index("{\"geo_point_field\":\"" + actualValue + "\"}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put("columns", asList(columnInfo("plain", "geo_point_field", "geo_point", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-    // expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(ignoreMalformed ? null : "POINT (-71.34 41.12)"))));
-    // assertResponse(expected, runSql(query));
-    // }
-    //
-    // /*
-    // * "geo_shape_field": {
-    // * "type": "point",
-    // * "ignore_malformed": true/false
-    // * }
-    // */
-    // public void testGeoShapeField() throws IOException {
-    // String query = "SELECT geo_shape_field FROM test";
-    // String actualValue = "[-77.03653, 38.897676]";
-    // boolean ignoreMalformed = randomBoolean();
-    //
-    // Map<String, Map<String, Object>> fieldProps = null;
-    // if (ignoreMalformed) {
-    // fieldProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // // on purpose use a non-geo-shape and check for null when querying the field's value
-    // fieldProp.put("ignore_malformed", true);
-    // fieldProps.put("geo_shape_field", fieldProp);
-    // actualValue = "\"foo\"";
-    // }
-    // createIndexWithFieldTypeAndProperties("geo_shape", fieldProps, getIndexProps());
-    // index(String.format(java.util.Locale.ROOT, """
-    // {"geo_shape_field":{"type":"point","coordinates":%s}}
-    // """, actualValue));
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put("columns", asList(columnInfo("plain", "geo_shape_field", "geo_shape", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-    // expected.put(
-    // "rows",
-    // singletonList(singletonList(getExpectedValueFromSource(ignoreMalformed ? null : "POINT (-77.03653 38.897676)")))
-    // );
-    // assertResponse(expected, runSql(query));
-    // }
-    //
-    // /*
-    // * "shape_field": {
-    // * "type": "shape",
-    // * "ignore_malformed": true/false
-    // * }
-    // */
-    // public void testShapeField() throws IOException {
-    // String query = "SELECT shape_field FROM test";
-    // String shapeField = "POINT (-377.03653 389.897676)";
-    // String actualValue = shapeField;
-    // boolean ignoreMalformed = randomBoolean();
-    //
-    // Map<String, Map<String, Object>> fieldProps = null;
-    // if (ignoreMalformed) {
-    // fieldProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // // on purpose use a non-geo-point and check for null when querying the field's value
-    // fieldProp.put("ignore_malformed", true);
-    // fieldProps.put("shape_field", fieldProp);
-    // actualValue = "foo";
-    // }
-    // createIndexWithFieldTypeAndProperties("shape", fieldProps, getIndexProps());
-    // index("{\"shape_field\":\"" + actualValue + "\"}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put("columns", asList(columnInfo("plain", "shape_field", "shape", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-    // expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(ignoreMalformed ? null : shapeField))));
-    // assertResponse(expected, runSql(query));
-    // }
-    //
-    // /*
-    // * "keyword_field": {
-    // * "type": "keyword"
-    // * },
-    // * "keyword_field_alias": {
-    // * "type": "alias",
-    // * "path": "keyword_field"
-    // * },
-    // * "a.b.c.keyword_field_alias": {
-    // * "type": "alias",
-    // * "path": "keyword_field"
-    // * }
-    // */
-    // public void testAliasFromDocValueField() throws IOException {
-    // String keyword = randomAlphaOfLength(20);
-    //
-    // createIndexWithFieldTypeAndAlias("keyword", null, null);
-    // index("{\"keyword_field\":\"" + keyword + "\"}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put(
-    // "columns",
-    // asList(
-    // columnInfo("plain", "keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE),
-    // columnInfo("plain", "keyword_field_alias", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE),
-    // columnInfo("plain", "a.b.c.keyword_field_alias", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)
-    // )
-    // );
-    // expected.put("rows", singletonList(asList(keyword, keyword, keyword)));
-    // assertResponse(expected, runSql("SELECT keyword_field, keyword_field_alias, a.b.c.keyword_field_alias FROM test"));
-    // }
-    //
-    // /*
-    // * "text_field": {
-    // * "type": "text"
-    // * },
-    // * "text_field_alias": {
-    // * "type": "alias",
-    // * "path": "text_field"
-    // * },
-    // * "a.b.c.text_field_alias": {
-    // * "type": "alias",
-    // * "path": "text_field"
-    // * }
-    // */
-    // public void testAliasFromSourceField() throws IOException {
-    // String text = randomAlphaOfLength(20);
-    //
-    // createIndexWithFieldTypeAndAlias("text", null, null);
-    // index("{\"text_field\":\"" + text + "\"}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put(
-    // "columns",
-    // asList(
-    // columnInfo("plain", "text_field", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
-    // columnInfo("plain", "text_field_alias", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
-    // columnInfo("plain", "a.b.c.text_field_alias", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
-    // )
-    // );
-    // expected.put("rows", singletonList(asList(text, text, text)));
-    // assertResponse(expected, runSql("SELECT text_field, text_field_alias, a.b.c.text_field_alias FROM test"));
-    // }
-    //
-    // /*
-    // * "integer_field": {
-    // * "type": "integer"
-    // * },
-    // * "integer_field_alias": {
-    // * "type": "alias",
-    // * "path": "integer_field"
-    // * },
-    // * "a.b.c.integer_field_alias": {
-    // * "type": "alias",
-    // * "path": "integer_field"
-    // * }
-    // */
-    // public void testAliasAggregatableFromSourceField() throws IOException {
-    // int number = randomInt();
-    //
-    // createIndexWithFieldTypeAndAlias("integer", null, null);
-    // index("{\"integer_field\":" + number + "}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put(
-    // "columns",
-    // asList(
-    // columnInfo("plain", "integer_field", "integer", JDBCType.INTEGER, Integer.MAX_VALUE),
-    // columnInfo("plain", "integer_field_alias", "integer", JDBCType.INTEGER, Integer.MAX_VALUE),
-    // columnInfo("plain", "a.b.c.integer_field_alias", "integer", JDBCType.INTEGER, Integer.MAX_VALUE)
-    // )
-    // );
-    // expected.put("rows", singletonList(asList(number, number, number)));
-    // assertResponse(expected, runSql("SELECT integer_field, integer_field_alias, a.b.c.integer_field_alias FROM test"));
-    // }
-    //
-    // /*
-    // * "text_field": {
-    // * "type": "text",
-    // * "fields": {
-    // * "keyword_subfield": {
-    // * "type": "keyword",
-    // * "ignore_above": 10
-    // * }
-    // * }
-    // * }
-    // */
-    // public void testTextFieldWithKeywordSubfield() throws IOException {
-    // String text = randomAlphaOfLength(10) + " " + randomAlphaOfLength(10);
-    // boolean ignoreAbove = randomBoolean();
-    // String fieldName = "text_field";
-    // String subFieldName = "text_field.keyword_subfield";
-    // String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
-    //
-    // Map<String, Map<String, Object>> subFieldsProps = null;
-    // if (ignoreAbove) {
-    // subFieldsProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // fieldProp.put("ignore_above", 10);
-    // subFieldsProps.put(subFieldName, fieldProp);
-    // }
-    //
-    // createIndexWithFieldTypeAndSubFields("text", null, getIndexProps(), subFieldsProps, "keyword");
-    // index("{\"" + fieldName + "\":\"" + text + "\"}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put(
-    // "columns",
-    // asList(
-    // columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
-    // columnInfo("plain", subFieldName, "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)
-    // )
-    // );
-    //
-    // expected.put(
-    // "rows",
-    // singletonList(asList(getExpectedValueFromSource(text), getExpectedValueFromSource(ignoreAbove ? null : text)))
-    // );
-    // assertResponse(expected, runSql(query));
-    // }
-    //
-    // /*
-    // * "keyword_field": {
-    // * "type": "keyword",
-    // * "ignore_above": 10
-    // * },
-    // * "date": {
-    // * "type": "date"
-    // * }
-    // * Test for bug https://github.com/elastic/elasticsearch/issues/80653
-    // */
-    // public void testTopHitsAggBug_With_IgnoreAbove_Subfield() throws IOException {
-    // String text = randomAlphaOfLength(10) + " " + randomAlphaOfLength(10);
-    // String function = randomFrom("FIRST", "LAST");
-    // String query = "select keyword_field from test group by keyword_field order by " + function + "(date)";
-    //
-    // Map<String, Map<String, Object>> fieldProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // fieldProp.put("ignore_above", 10);
-    // fieldProps.put("keyword_field", fieldProp);
-    //
-    // createIndexWithFieldTypeAndProperties("keyword", fieldProps, null);
-    // index("{\"keyword_field\":\"" + text + "\",\"date\":\"2021-11-11T11:11:11.000Z\"}");
-    //
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put("columns", singletonList(columnInfo("plain", "keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-    //
-    // expected.put("rows", singletonList(singletonList(null)));
-    // assertResponse(expected, runSql(query));
-    // }
-    //
-    // /*
-    // * "text_field": {
-    // * "type": "text",
-    // * "fields": {
-    // * "integer_subfield": {
-    // * "type": "integer",
-    // * "ignore_malformed": true/false
-    // * }
-    // * }
-    // * }
-    // */
-    // public void testTextFieldWithIntegerNumberSubfield() throws IOException {
-    // Integer number = randomInt();
-    // boolean ignoreMalformed = randomBoolean(); // ignore_malformed is true, thus test a non-number value
-    // Object actualValue = number;
-    // String fieldName = "text_field";
-    // String subFieldName = "text_field.integer_subfield";
-    // String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
-    //
-    // Map<String, Map<String, Object>> subFieldsProps = null;
-    // if (ignoreMalformed) {
-    // subFieldsProps = Maps.newMapWithExpectedSize(1);
-    // Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
-    // // on purpose use a string instead of a number and check for null when querying the field's value
-    // fieldProp.put("ignore_malformed", true);
-    // subFieldsProps.put(subFieldName, fieldProp);
-    // actualValue = "foo";
-    // }
-    //
-    // createIndexWithFieldTypeAndSubFields("text", null, getIndexProps(), subFieldsProps, "integer");
-    // index("{\"" + fieldName + "\":\"" + actualValue + "\"}");
-    //
-    // // (explicitSourceSetting && enableSource == false)
-    // Map<String, Object> expected = new HashMap<>();
-    // expected.put(
-    // "columns",
-    // asList(
-    // columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
-    // columnInfo("plain", subFieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE)
-    // )
-    // );
-    // if (ignoreMalformed) {
-    // expected.put("rows", singletonList(asList(getExpectedValueFromSource("foo"), null)));
-    // } else {
-    // expected.put(
-    // "rows",
-    // singletonList(asList(getExpectedValueFromSource(String.valueOf(number)), getExpectedValueFromSource(number)))
-    // );
-    // }
-    // assertResponse(expected, runSql(query));
-    // }
-    //
+    /**
+     * <pre>
+     * "text_field": {
+     *   "type": "text",
+     *   "fields": {
+     *     "int": {
+     *       "type": "integer",
+     *       "ignore_malformed": true/false
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testTextFieldWithIntegerSubfield() throws IOException {
+        int value = randomInt();
+        Map<String, Object> result = textTest().sub("int", intTest()).roundTrip(value);
+
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.int", "integer")))
+                .entry("values", List.of(List.of(Integer.toString(value), value)))
+        );
+    }
+
+    /**
+     * <pre>
+     * "text_field": {
+     *   "type": "text",
+     *   "fields": {
+     *     "int": {
+     *       "type": "integer",
+     *       "ignore_malformed": true
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testTextFieldWithIntegerSubfieldMalformed() throws IOException {
+        String value = randomAlphaOfLength(5);
+        Map<String, Object> result = textTest().sourceMode(SourceMode.DEFAULT).sub("int", intTest().ignoreMalformed(true)).roundTrip(value);
+
+        assertMap(
+            result,
+            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.int", "integer")))
+                .entry("values", List.of(matchesList().item(value).item(null)))
+        );
+    }
+
     // /*
     // * "text_field": {
     // * "type": "text",
@@ -1326,125 +982,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     // }
     // }
 
-    private static boolean shouldAddNestedField() {  // NOCOMMIt used?
-        return randomBoolean();
-    }
-
-    private void index(String... docs) throws IOException {
-        indexWithIndexName(TEST_INDEX, docs);
-    }
-
-    private void indexWithIndexName(String indexName, String... docs) throws IOException {
-        Request request = new Request("POST", "/" + indexName + "/_bulk");
-        request.addParameter("refresh", "true");
-        StringBuilder bulk = new StringBuilder();
-        for (String doc : docs) {
-            bulk.append(String.format(Locale.ROOT, """
-                {"index":{}}
-                %s
-                """, doc));
-        }
-        request.setJsonEntity(bulk.toString());
-        client().performRequest(request);
-    }
-
-    private void createIndexWithFieldTypeAndAlias(
-        // NOCOMMIt used?
-        String type,
-        CheckedConsumer<XContentBuilder, IOException> fieldMapping
-    ) throws IOException {
-        createIndex(type, fieldMapping, true, false, null);
-    }
-
-    private void createIndex(String type, CheckedConsumer<XContentBuilder, IOException> fieldMapping) throws IOException {
-        createIndex(type, fieldMapping, false, false, null);
-    }
-
-    private void createIndex(
-        // NOCOMMIt make sure all args are used
-        String type,
-        CheckedConsumer<XContentBuilder, IOException> fieldMapping,
-        Map<String, Map<String, Object>> subFieldsProps,
-        String... subFieldsTypes
-    ) throws IOException {
-        createIndex(type, fieldMapping, false, true, subFieldsProps, subFieldsTypes);
-    }
-
-    private void createIndex(
-        // NOCOMMIt make sure all args are used
-        String type,
-        CheckedConsumer<XContentBuilder, IOException> fieldMapping,
-        boolean withAlias,
-        boolean withSubFields,
-        Map<String, Map<String, Object>> subFieldsProps,
-        String... subFieldsTypes
-    ) throws IOException {
-        Request request = new Request("PUT", "/test");
-        XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
-
-        index.startObject("mappings");
-        {
-            sourceMode.sourceMapping(index);
-            index.startObject("properties");
-            {
-                String fieldName = type + "_field";
-                index.startObject(fieldName);
-                {
-                    index.field("type", type);
-                    fieldMapping.accept(index);
-
-                    if (withSubFields) {
-                        index.startObject("fields");
-                        for (String subFieldType : subFieldsTypes) {
-                            String subFieldName = subFieldType + "_subfield";
-                            String fullSubFieldName = fieldName + "." + subFieldName;
-                            index.startObject(subFieldName);
-                            index.field("type", subFieldType);
-                            if (subFieldsProps != null && subFieldsProps.containsKey(fullSubFieldName)) {
-                                for (Map.Entry<String, Object> prop : subFieldsProps.get(fullSubFieldName).entrySet()) {
-                                    index.field(prop.getKey(), prop.getValue());
-                                }
-                            }
-                            index.endObject();
-                        }
-                        index.endObject();
-                    }
-                }
-                index.endObject();
-
-                if (withAlias) {
-                    // create two aliases - one within a hierarchy, the other just a simple field w/o hierarchy
-                    index.startObject(fieldName + "_alias");
-                    {
-                        index.field("type", "alias");
-                        index.field("path", fieldName);
-                    }
-                    index.endObject();
-                    index.startObject("a.b.c." + fieldName + "_alias");
-                    {
-                        index.field("type", "alias");
-                        index.field("path", fieldName);
-                    }
-                    index.endObject();
-                }
-            }
-            index.endObject();
-        }
-        index.endObject();
-        index.endObject();
-
-        request.setJsonEntity(Strings.toString(index));
-        client().performRequest(request);
-    }
-
-    private Map<String, Object> fetchAll() throws IOException {
-        return runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("from " + TEST_INDEX));
-    }
-
-    private Map<String, Object> columnInfo(String name, String type) {
-        return Map.of("name", name, "type", type);
-    }
-
     private enum SourceMode {
         DEFAULT {
             @Override
@@ -1466,6 +1003,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 return true;
             }
         },
+        /* TODO add support to this test for disabling _source
         DISABLED {
             @Override
             void sourceMapping(XContentBuilder builder) throws IOException {
@@ -1477,6 +1015,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 return false;
             }
         },
+         */
         SYNTHETIC {
             @Override
             void sourceMapping(XContentBuilder builder) throws IOException {
@@ -1501,5 +1040,286 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private BigInteger randomUnsignedLong() {
         BigInteger big = BigInteger.valueOf(randomNonNegativeLong()).shiftLeft(1);
         return big.add(randomBoolean() ? BigInteger.ONE : BigInteger.ZERO);
+    }
+
+    private static String randomVersionString() {
+        return randomVersionNumber() + (randomBoolean() ? "" : randomPrerelease());
+    }
+
+    private static String randomVersionNumber() {
+        int numbers = between(1, 3);
+        String v = Integer.toString(between(0, 100));
+        for (int i = 1; i < numbers; i++) {
+            v += "." + between(0, 100);
+        }
+        return v;
+    }
+
+    private static String randomPrerelease() {
+        if (rarely()) {
+            return randomFrom("alpha", "beta", "prerelease", "whatever");
+        }
+        return randomFrom("alpha", "beta", "") + randomVersionNumber();
+    }
+
+    private record StoreAndDocValues(Boolean store, Boolean docValues) {}
+
+    private static class Test {
+        private static final Logger logger = LogManager.getLogger(Test.class);
+
+        private final String type;
+        private final Map<String, Test> subFields = new TreeMap<>();
+
+        private SourceMode sourceMode;
+        private String expectedType;
+        private Function<SourceMode, Boolean> ignoreMalformed;
+        private Function<SourceMode, StoreAndDocValues> storeAndDocValues = s -> new StoreAndDocValues(null, null);
+        private Double scalingFactor;
+        private Integer ignoreAbove;
+        private Object value;
+        private boolean createAlias;
+
+        Test(String type) {
+            this.type = type;
+            // Default the expected return type to the field type.
+            this.expectedType = type;
+        }
+
+        Test sourceMode(SourceMode sourceMode) {
+            this.sourceMode = sourceMode;
+            return this;
+        }
+
+        Test expectedType(String expectedType) {
+            this.expectedType = expectedType;
+            return this;
+        }
+
+        Test ignoreMalformed(boolean ignoreMalformed) {
+            this.ignoreMalformed = s -> ignoreMalformed;
+            return this;
+        }
+
+        /**
+         * Enable {@code ignore_malformed} and disable synthetic _source because
+         * most fields don't support ignore_malformed and synthetic _source.
+         */
+        Test forceIgnoreMalformed() {
+            return this.sourceMode(randomValueOtherThan(SourceMode.SYNTHETIC, () -> randomFrom(SourceMode.values()))).ignoreMalformed(true);
+        }
+
+        Test randomIgnoreMalformedUnlessSynthetic() {
+            this.ignoreMalformed = s -> s == SourceMode.SYNTHETIC ? false : randomBoolean();
+            return this;
+        }
+
+        Test storeAndDocValues(Boolean store, Boolean docValues) {
+            this.storeAndDocValues = s -> new StoreAndDocValues(store, docValues);
+            return this;
+        }
+
+        Test randomStoreUnlessSynthetic() {
+            this.storeAndDocValues = s -> new StoreAndDocValues(s == SourceMode.SYNTHETIC ? true : randomBoolean(), null);
+            return this;
+        }
+
+        Test randomDocValuesAndStoreUnlessSynthetic() {
+            this.storeAndDocValues = s -> {
+                if (s == SourceMode.SYNTHETIC) {
+                    boolean store = randomBoolean();
+                    return new StoreAndDocValues(store, store == false || randomBoolean());
+                }
+                return new StoreAndDocValues(randomBoolean(), randomBoolean());
+            };
+            return this;
+        }
+
+        Test randomDocValuesUnlessSynthetic() {
+            this.storeAndDocValues = s -> new StoreAndDocValues(null, s == SourceMode.SYNTHETIC || randomBoolean());
+            return this;
+        }
+
+        Test scalingFactor(double scalingFactor) {
+            this.scalingFactor = scalingFactor;
+            return this;
+        }
+
+        Test ignoreAbove(Integer ignoreAbove) {
+            this.ignoreAbove = ignoreAbove;
+            return this;
+        }
+
+        Test value(Object value) {
+            this.value = value;
+            return this;
+        }
+
+        Test createAlias() {
+            this.createAlias = true;
+            return this;
+        }
+
+        Test sub(String name, Test sub) {
+            this.subFields.put(name, sub);
+            return this;
+        }
+
+        Map<String, Object> roundTrip(Object value) throws IOException {
+            if (sourceMode == null) {
+                sourceMode(randomFrom(SourceMode.values()));
+            }
+            logger.info("source_mode: {}", sourceMode);
+            createIndex();
+
+            if (value == null) {
+                index("{}");
+                logger.info("indexing empty doc");
+            } else {
+                logger.info("indexing {}::{}", value, value.getClass().getName());
+                index(Strings.toString(JsonXContent.contentBuilder().startObject().field(type + "_field", value).endObject()));
+            }
+
+            return fetchAll();
+        }
+
+        void test(Object value) throws IOException {
+            test(value, value);
+        }
+
+        /**
+         * Round trip the value through and index configured by the parameters
+         * of this test and assert that it matches the {@code expectedValues}
+         * which can be either the expected value or a subclass of {@link Matcher}.
+         */
+        void test(Object value, Object expectedValue) throws IOException {
+            Map<String, Object> result = roundTrip(value);
+
+            logger.info("expecting {}", expectedValue == null ? null : expectedValue + "::" + expectedValue.getClass().getName());
+
+            List<Map<String, Object>> columns = new ArrayList<>();
+            columns.add(columnInfo(type + "_field", expectedType));
+            if (createAlias) {
+                columns.add(columnInfo("a.b.c." + type + "_field_alias", expectedType));
+                columns.add(columnInfo(type + "_field_alias", expectedType));
+            }
+            Collections.sort(columns, Comparator.comparing(m -> (String) m.get("name")));
+
+            ListMatcher values = matchesList();
+            values = values.item(expectedValue);
+            if (createAlias) {
+                values = values.item(expectedValue);
+                values = values.item(expectedValue);
+            }
+
+            assertMap(result, matchesMap().entry("columns", columns).entry("values", List.of(values)));
+        }
+
+        private void createIndex() throws IOException {
+            Request request = new Request("PUT", "/test");
+            XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
+
+            index.startObject("settings");
+            {
+                index.field("index.number_of_replicas", 0);
+                index.field("index.number_of_shards", 1);
+            }
+            index.endObject();
+            index.startObject("mappings");
+            {
+                sourceMode.sourceMapping(index);
+                index.startObject("properties");
+                {
+                    String fieldName = type + "_field";
+
+                    index.startObject(fieldName);
+                    fieldMapping(index);
+                    index.endObject();
+
+                    if (createAlias) {
+                        // create two aliases - one within a hierarchy, the other just a simple field w/o hierarchy
+                        index.startObject(fieldName + "_alias");
+                        {
+                            index.field("type", "alias");
+                            index.field("path", fieldName);
+                        }
+                        index.endObject();
+                        index.startObject("a.b.c." + fieldName + "_alias");
+                        {
+                            index.field("type", "alias");
+                            index.field("path", fieldName);
+                        }
+                        index.endObject();
+                    }
+                }
+                index.endObject();
+            }
+            index.endObject();
+            index.endObject();
+
+            String mapping = Strings.toString(index);
+            logger.info("index: {}", Strings.toString(index));
+            request.setJsonEntity(mapping);
+            client().performRequest(request);
+        }
+
+        private void fieldMapping(XContentBuilder builder) throws IOException {
+            builder.field("type", type);
+            if (ignoreMalformed != null) {
+                builder.field("ignore_malformed", ignoreMalformed.apply(sourceMode));
+            }
+            StoreAndDocValues sd = storeAndDocValues.apply(sourceMode);
+            if (sd.docValues != null) {
+                builder.field("doc_values", sd.docValues);
+            }
+            if (sd.store != null) {
+                builder.field("store", sd.store);
+            }
+            if (scalingFactor != null) {
+                builder.field("scaling_factor", scalingFactor);
+            }
+            if (ignoreAbove != null) {
+                builder.field("ignore_above", ignoreAbove);
+            }
+            if (value != null) {
+                builder.field("value", value);
+            }
+
+            if (subFields.isEmpty() == false) {
+                builder.startObject("fields");
+                for (Map.Entry<String, Test> sub : subFields.entrySet()) {
+                    builder.startObject(sub.getKey());
+                    if (sub.getValue().sourceMode != null) {
+                        throw new IllegalStateException("source_mode can't be configured on sub-fields");
+                    }
+                    sub.getValue().sourceMode = sourceMode;
+                    sub.getValue().fieldMapping(builder);
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+        }
+
+        private void index(String... docs) throws IOException {
+            Request request = new Request("POST", "/" + TEST_INDEX + "/_bulk");
+            request.addParameter("refresh", "true");
+            StringBuilder bulk = new StringBuilder();
+            for (String doc : docs) {
+                bulk.append(String.format(Locale.ROOT, """
+                    {"index":{}}
+                    %s
+                    """, doc));
+            }
+            request.setJsonEntity(bulk.toString());
+            client().performRequest(request);
+        }
+
+        private Map<String, Object> fetchAll() throws IOException {
+            return runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("from " + TEST_INDEX));
+        }
+
+    }
+
+    private static Map<String, Object> columnInfo(String name, String type) {
+        return Map.of("name", name, "type", type);
     }
 }

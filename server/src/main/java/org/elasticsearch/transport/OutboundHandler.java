@@ -154,9 +154,9 @@ final class OutboundHandler {
                     ex
                 );
                 channel.close();
-                return;
+            } else {
+                sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
             }
-            sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
         }
     }
 
@@ -176,9 +176,9 @@ final class OutboundHandler {
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId, false, null);
         try {
             sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
-        } catch (Exception inner) {
-            inner.addSuppressed(error);
-            logger.warn(() -> format("Failed to send error response on channel [%s], closing channel", channel), inner);
+        } catch (Exception sendException) {
+            sendException.addSuppressed(error);
+            logger.warn(() -> format("Failed to send error response on channel [%s], closing channel", channel), sendException);
             channel.close();
         }
     }

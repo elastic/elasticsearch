@@ -506,7 +506,7 @@ public class OutboundHandlerTests extends ESTestCase {
         handler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action, TransportResponse response) {
-                throw new AssertionError("onResponseSent should be not be called");
+                throw new AssertionError("must not be called");
             }
 
             @Override

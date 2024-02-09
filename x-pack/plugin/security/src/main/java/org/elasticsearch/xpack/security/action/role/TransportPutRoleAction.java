@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.action.role;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
@@ -56,6 +57,11 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
     }
 
     private Exception validateRequest(final PutRoleRequest request) {
+        // TODO we can remove this -- `execute()` already calls `request.validate()` before `doExecute()`
+        ActionRequestValidationException validationException = request.validate();
+        if (validationException != null) {
+            return validationException;
+        }
         try {
             DLSRoleQueryValidator.validateQueryField(request.roleDescriptor().getIndicesPrivileges(), xContentRegistry);
         } catch (ElasticsearchException | IllegalArgumentException e) {

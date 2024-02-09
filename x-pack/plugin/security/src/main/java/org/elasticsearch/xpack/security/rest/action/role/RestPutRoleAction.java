@@ -70,7 +70,6 @@ public class RestPutRoleAction extends NativeRoleBaseRestHandler {
         final PutRoleRequestBuilder requestBuilder = builderFactory.create(client, securityContext, fileRolesStore::exists)
             .source(request.param("name"), request.requiredContent(), request.getXContentType())
             .setRefreshPolicy(request.param("refresh"));
-        requestBuilder.maybeValidate();
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {

@@ -1,0 +1,5 @@
+pr: 105259
+summary: Lower G1 minimum full GC interval
+area: Infra/Circuit Breakers
+type: enhancement
+issues: []

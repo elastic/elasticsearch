@@ -811,7 +811,7 @@ public class InternalEngine extends Engine {
             index,
             mappingLookup,
             documentParser,
-            config().getAnalyzer(),
+            config(),
             translogInMemorySegmentsCount::incrementAndGet
         );
         final Engine.Searcher searcher = new Engine.Searcher(

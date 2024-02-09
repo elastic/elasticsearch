@@ -80,7 +80,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         runTest(true);
     }
 
-    @SuppressWarnings("removal")
     public void runTest(boolean sourceOnlyRepository) throws IOException {
         boolean afterRestart = Booleans.parseBoolean(System.getProperty("tests.after_restart"));
         String repoLocation = System.getProperty("tests.repo.location");
@@ -129,7 +128,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         ensureGreen("mounted_shared_cache_" + indexName);
     }
 
-    @SuppressWarnings("removal")
     private void beforeRestart(
         boolean sourceOnlyRepository,
         String repoLocation,
@@ -267,7 +265,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         return "{\"test\":\"test" + i + "\",\"val\":" + i + ",\"create_date\":\"2020-01-" + Strings.format("%02d", i + 1) + "\"}";
     }
 
-    @SuppressWarnings("removal")
     private void restoreMountAndVerify(
         int numDocs,
         Set<String> expectedIds,
@@ -359,7 +356,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertDocs("mounted_shared_cache_" + indexName, numDocs, expectedIds, sourceOnlyRepository, oldVersion, numberOfShards);
     }
 
-    @SuppressWarnings("removal")
     private void assertDocs(
         String index,
         int numDocs,

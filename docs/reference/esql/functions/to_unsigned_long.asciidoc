@@ -2,6 +2,8 @@
 [[esql-to_unsigned_long]]
 === `TO_UNSIGNED_LONG`
 
+experimental::[]
+
 *Aliases*
 
 `TO_ULONG`, `TO_UL`

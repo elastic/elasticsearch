@@ -37,6 +37,7 @@ import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -1872,30 +1873,36 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             170,
             TransportVersions.V_8_9_X
         ),
-        API_NOT_AVAILABLE_EXCEPTION(ApiNotAvailableException.class, ApiNotAvailableException::new, 171, TransportVersions.V_8_500_065),
+        API_NOT_AVAILABLE_EXCEPTION(ApiNotAvailableException.class, ApiNotAvailableException::new, 171, TransportVersions.V_8_11_X),
         RECOVERY_COMMIT_TOO_NEW_EXCEPTION(
             RecoveryCommitTooNewException.class,
             RecoveryCommitTooNewException::new,
             172,
-            TransportVersions.RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED
+            TransportVersions.V_8_11_X
         ),
         TOO_MANY_SCROLL_CONTEXTS_NEW_EXCEPTION(
             TooManyScrollContextsException.class,
             TooManyScrollContextsException::new,
             173,
-            TransportVersions.TOO_MANY_SCROLL_CONTEXTS_EXCEPTION_ADDED
+            TransportVersions.V_8_12_0
         ),
         INVALID_BUCKET_PATH_EXCEPTION(
             AggregationExecutionException.InvalidPath.class,
             AggregationExecutionException.InvalidPath::new,
             174,
-            TransportVersions.INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED
+            TransportVersions.V_8_12_0
         ),
         MISSED_INDICES_UPDATE_EXCEPTION(
             AutoscalingMissedIndicesUpdateException.class,
             AutoscalingMissedIndicesUpdateException::new,
             175,
-            TransportVersions.MISSED_INDICES_UPDATE_EXCEPTION_ADDED
+            TransportVersions.V_8_12_0
+        ),
+        SEARCH_TIMEOUT_EXCEPTION(
+            SearchTimeoutException.class,
+            SearchTimeoutException::new,
+            176,
+            TransportVersions.SEARCH_TIMEOUT_EXCEPTION_ADDED
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

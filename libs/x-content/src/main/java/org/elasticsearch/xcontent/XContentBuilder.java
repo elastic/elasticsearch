@@ -1046,7 +1046,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         return map(map);
     }
 
-    private XContentBuilder value(ToXContent value, ToXContent.Params params) throws IOException {
+    public XContentBuilder value(ToXContent value, ToXContent.Params params) throws IOException {
         if (value == null) {
             return nullValue();
         }

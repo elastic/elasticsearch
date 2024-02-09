@@ -39,6 +39,10 @@
       "connector_id": {
         "type": "string",
         "description": "Id of the connector to fetch the sync jobs for"
+      },
+      "job_type": {
+        "type": "list",
+        "description": "A comma-separated list of job types"
       }
     }
   }

@@ -63,9 +63,20 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
         });
 
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
+            { "query": { "match": {"name": {"query": "my-ingest-key-1 my-org/alert-key-1", "analyzer": "whitespace"} } } }""", apiKeys -> {
+            assertThat(apiKeys.size(), equalTo(2));
+            assertThat(apiKeys.get(0).get("name"), oneOf("my-ingest-key-1", "my-org/alert-key-1"));
+            assertThat(apiKeys.get(1).get("name"), oneOf("my-ingest-key-1", "my-org/alert-key-1"));
+            apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
+        });
+
         // An empty request body means search for all keys
         assertQuery(API_KEY_ADMIN_AUTH_HEADER, randomBoolean() ? "" : """
             {"query":{"match_all":{}}}""", apiKeys -> assertThat(apiKeys.size(), equalTo(6)));
+
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER, randomBoolean() ? "" : """
+            { "query": { "match": {"type": "rest"} } }""", apiKeys -> assertThat(apiKeys.size(), equalTo(6)));
 
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -24,6 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.HttpRequestTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
 import org.junit.Before;
@@ -92,7 +92,7 @@ public class RequestTaskTests extends ESTestCase {
             assertThat(result.response().getStatusLine().getStatusCode(), equalTo(responseCode));
             assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.getURI().getPath()));
+            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.httpRequestBase().getURI().getPath()));
             assertThat(webServer.requests().get(0).getUri().getQuery(), equalTo(paramKey + "=" + paramValue));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
         }
@@ -111,7 +111,10 @@ public class RequestTaskTests extends ESTestCase {
         requestTask.doRun();
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(thrownException.getMessage(), is(format("Failed to send request [%s]", httpPost.getRequestLine())));
+        assertThat(
+            thrownException.getMessage(),
+            is(format("Failed to send request from inference entity id [%s]", httpPost.inferenceEntityId()))
+        );
     }
 
     public void testRequest_DoesNotCallOnFailureForTimeout_AfterSendThrowsIllegalArgumentException() throws Exception {
@@ -139,7 +142,10 @@ public class RequestTaskTests extends ESTestCase {
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
-        assertThat(argument.getValue().getMessage(), is(format("Failed to send request [%s]", httpPost.getRequestLine())));
+        assertThat(
+            argument.getValue().getMessage(),
+            is(format("Failed to send request from inference entity id [%s]", httpPost.inferenceEntityId()))
+        );
         assertThat(argument.getValue(), instanceOf(ElasticsearchException.class));
         assertThat(argument.getValue().getCause(), instanceOf(IllegalArgumentException.class));
 
@@ -152,7 +158,7 @@ public class RequestTaskTests extends ESTestCase {
 
         PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
         var requestTask = new RequestTask(
-            mock(HttpRequestBase.class),
+            HttpRequestTests.createMock("inferenceEntityId"),
             httpClient,
             HttpClientContext.create(),
             TimeValue.timeValueMillis(1),
@@ -186,7 +192,7 @@ public class RequestTaskTests extends ESTestCase {
         }).when(listener).onFailure(any());
 
         var requestTask = new RequestTask(
-            mock(HttpRequestBase.class),
+            HttpRequestTests.createMock("inferenceEntityId"),
             httpClient,
             HttpClientContext.create(),
             TimeValue.timeValueMillis(1),
@@ -226,7 +232,7 @@ public class RequestTaskTests extends ESTestCase {
         }).when(listener).onFailure(any());
 
         var requestTask = new RequestTask(
-            mock(HttpRequestBase.class),
+            HttpRequestTests.createMock("inferenceEntityId"),
             httpClient,
             HttpClientContext.create(),
             TimeValue.timeValueMillis(1),
@@ -263,7 +269,7 @@ public class RequestTaskTests extends ESTestCase {
         ActionListener<HttpResult> listener = mock(ActionListener.class);
 
         var requestTask = new RequestTask(
-            mock(HttpRequestBase.class),
+            HttpRequestTests.createMock("inferenceEntityId"),
             httpClient,
             HttpClientContext.create(),
             TimeValue.timeValueMillis(1),
@@ -297,7 +303,7 @@ public class RequestTaskTests extends ESTestCase {
         ActionListener<HttpResult> listener = mock(ActionListener.class);
 
         var requestTask = new RequestTask(
-            mock(HttpRequestBase.class),
+            HttpRequestTests.createMock("inferenceEntityId"),
             httpClient,
             HttpClientContext.create(),
             TimeValue.timeValueMillis(1),

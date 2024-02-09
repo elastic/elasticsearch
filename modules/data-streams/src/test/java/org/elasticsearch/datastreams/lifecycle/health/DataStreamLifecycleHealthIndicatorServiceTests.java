@@ -41,7 +41,7 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testGreenWhenNoDSLHealthData() {
-        HealthIndicatorResult result = service.calculate(true, new HealthInfo(Map.of(), null));
+        HealthIndicatorResult result = service.calculate(true, constructHealthInfo(null));
         assertThat(result.status(), is(HealthStatus.GREEN));
         assertThat(
             result.symptom(),
@@ -53,7 +53,7 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testGreenWhenEmptyListOfStagnatingIndices() {
-        HealthIndicatorResult result = service.calculate(true, new HealthInfo(Map.of(), new DataStreamLifecycleHealthInfo(List.of(), 15)));
+        HealthIndicatorResult result = service.calculate(true, constructHealthInfo(new DataStreamLifecycleHealthInfo(List.of(), 15)));
         assertThat(result.status(), is(HealthStatus.GREEN));
         assertThat(result.symptom(), is("Data streams are executing their lifecycles without issues"));
         assertThat(result.details(), is(not(HealthIndicatorDetails.EMPTY)));
@@ -67,8 +67,7 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
         String firstGenerationIndex = DataStream.getDefaultBackingIndexName("foo", 1L);
         HealthIndicatorResult result = service.calculate(
             true,
-            new HealthInfo(
-                Map.of(),
+            constructHealthInfo(
                 new DataStreamLifecycleHealthInfo(
                     List.of(new DslErrorInfo(secondGenerationIndex, 1L, 200), new DslErrorInfo(firstGenerationIndex, 3L, 100)),
                     15
@@ -98,5 +97,9 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
         Diagnosis diagnosis = result.diagnosisList().get(0);
         assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
         assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder(secondGenerationIndex, firstGenerationIndex));
+    }
+
+    private HealthInfo constructHealthInfo(DataStreamLifecycleHealthInfo dslHealthInfo) {
+        return new HealthInfo(Map.of(), dslHealthInfo, Map.of());
     }
 }

@@ -10,14 +10,20 @@ package org.elasticsearch.xpack.application.connector.secrets;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretRequest;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretResponse;
+import org.elasticsearch.xpack.application.connector.secrets.action.PutConnectorSecretRequest;
+import org.elasticsearch.xpack.application.connector.secrets.action.PutConnectorSecretResponse;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Map;
@@ -89,6 +95,40 @@ public class ConnectorSecretsIndexService {
                         (l, indexResponse) -> l.onResponse(new PostConnectorSecretResponse(indexResponse.getId()))
                     )
                 );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    public void createSecretWithDocId(PutConnectorSecretRequest request, ActionListener<PutConnectorSecretResponse> listener) {
+
+        String connectorSecretId = request.id();
+
+        try {
+            clientWithOrigin.prepareIndex(CONNECTOR_SECRETS_INDEX_NAME)
+                .setId(connectorSecretId)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .setSource(request.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
+                .execute(
+                    listener.delegateFailureAndWrap(
+                        (l, indexResponse) -> l.onResponse(new PutConnectorSecretResponse(indexResponse.getResult()))
+                    )
+                );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    public void deleteSecret(String id, ActionListener<DeleteConnectorSecretResponse> listener) {
+        try {
+            clientWithOrigin.prepareDelete(CONNECTOR_SECRETS_INDEX_NAME, id)
+                .execute(listener.delegateFailureAndWrap((delegate, deleteResponse) -> {
+                    if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        delegate.onFailure(new ResourceNotFoundException("No secret with id [" + id + "]"));
+                        return;
+                    }
+                    delegate.onResponse(new DeleteConnectorSecretResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED));
+                }));
         } catch (Exception e) {
             listener.onFailure(e);
         }

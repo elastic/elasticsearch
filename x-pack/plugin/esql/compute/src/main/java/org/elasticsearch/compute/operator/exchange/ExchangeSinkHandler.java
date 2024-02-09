@@ -108,7 +108,10 @@ public final class ExchangeSinkHandler {
         completionFuture.addListener(listener);
     }
 
-    boolean isFinished() {
+    /**
+     * Returns true if an exchange is finished
+     */
+    public boolean isFinished() {
         return completionFuture.isDone();
     }
 

@@ -13,7 +13,7 @@ TO_GEOPOINT(v)
 
 `v`::
 Input value. The input can be a single- or multi-valued column or an expression.
-The input type must be a string or a `geo_shape`.
+The input type must be a string, a `geo_shape` or a `geo_point`.
 
 *Description*
 

@@ -6,13 +6,13 @@
 
 [source,esql]
 ----
-MEDIAN(column)
+MEDIAN(expression)
 ----
 
 *Parameters*
 
-`column`::
-Column from which to return the median value.
+`expression`::
+Expression from which to return the median value.
 
 *Description*
 
@@ -36,4 +36,17 @@ include::{esql-specs}/stats_percentile.csv-spec[tag=median]
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/stats_percentile.csv-spec[tag=median-result]
+|===
+
+The expression can use inline functions. For example, to calculate the median of
+the maximum values of a multivalued column, first use `MV_MAX` to get the
+maximum value per row, and use the result with the `MEDIAN` function:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats_percentile.csv-spec[tag=docsStatsMedianNestedExpression]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats_percentile.csv-spec[tag=docsStatsMedianNestedExpression-result]
 |===

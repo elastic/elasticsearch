@@ -27,7 +27,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
@@ -61,6 +60,10 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class SearchResponse extends ActionResponse implements ChunkedToXContentObject {
 
+    // for cross-cluster scenarios where cluster names are shown in API responses, use this string
+    // rather than empty string (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) we use internally
+    public static final String LOCAL_CLUSTER_NAME_REPRESENTATION = "(local)";
+
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
     private static final ParseField TOOK = new ParseField("took");
@@ -69,7 +72,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
 
     private final SearchHits hits;
-    private final Aggregations aggregations;
+    private final InternalAggregations aggregations;
     private final Suggest suggest;
     private final SearchProfileResults profileResults;
     private final boolean timedOut;
@@ -120,7 +123,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public SearchResponse(
         SearchHits hits,
-        Aggregations aggregations,
+        InternalAggregations aggregations,
         Suggest suggest,
         boolean timedOut,
         Boolean terminatedEarly,
@@ -185,7 +188,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public SearchResponse(
         SearchHits hits,
-        Aggregations aggregations,
+        InternalAggregations aggregations,
         Suggest suggest,
         boolean timedOut,
         Boolean terminatedEarly,
@@ -257,7 +260,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * Aggregations in this response. "empty" aggregations could be
      * either {@code null} or {@link InternalAggregations#EMPTY}.
      */
-    public @Nullable Aggregations getAggregations() {
+    public @Nullable InternalAggregations getAggregations() {
         return aggregations;
     }
 
@@ -299,6 +302,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      */
     public TimeValue getTook() {
         return new TimeValue(tookInMillis);
+    }
+
+    public long getTookInMillis() {
+        return tookInMillis;
     }
 
     /**
@@ -449,7 +456,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser);
         String currentFieldName = parser.currentName();
         SearchHits hits = null;
-        Aggregations aggs = null;
+        InternalAggregations aggs = null;
         Suggest suggest = null;
         SearchProfileResults profile = null;
         boolean timedOut = false;
@@ -485,8 +492,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             } else if (token == Token.START_OBJECT) {
                 if (SearchHits.Fields.HITS.equals(currentFieldName)) {
                     hits = SearchHits.fromXContent(parser);
-                } else if (Aggregations.AGGREGATIONS_FIELD.equals(currentFieldName)) {
-                    aggs = Aggregations.fromXContent(parser);
+                } else if (InternalAggregations.AGGREGATIONS_FIELD.equals(currentFieldName)) {
+                    aggs = InternalAggregations.fromXContent(parser);
                 } else if (Suggest.NAME.equals(currentFieldName)) {
                     suggest = Suggest.fromXContent(parser);
                 } else if (SearchProfileResults.PROFILE_FIELD.equals(currentFieldName)) {
@@ -550,7 +557,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     public void writeTo(StreamOutput out) throws IOException {
         assert hasReferences();
         hits.writeTo(out);
-        out.writeOptionalWriteable((InternalAggregations) aggregations);
+        out.writeOptionalWriteable(aggregations);
         out.writeOptionalWriteable(suggest);
         out.writeBoolean(timedOut);
         out.writeOptionalBoolean(terminatedEarly);
@@ -1085,7 +1092,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             this.timedOut = in.readBoolean();
             this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_066)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 this.skipUnavailable = in.readBoolean();
             } else {
                 this.skipUnavailable = SKIP_UNAVAILABLE_DEFAULT;
@@ -1190,7 +1197,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeOptionalLong(took == null ? null : took.millis());
             out.writeBoolean(timedOut);
             out.writeCollection(failures);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESP_SKIP_UNAVAILABLE_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 out.writeBoolean(skipUnavailable);
             }
         }
@@ -1199,7 +1206,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             String name = clusterAlias;
             if (clusterAlias.equals("")) {
-                name = "(local)";
+                name = LOCAL_CLUSTER_NAME_REPRESENTATION;
             }
             builder.startObject(name);
             {
@@ -1240,7 +1247,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
             String clusterName = clusterAlias;
-            if (clusterAlias.equals("(local)")) {
+            if (clusterAlias.equals(LOCAL_CLUSTER_NAME_REPRESENTATION)) {
                 clusterName = "";
             }
             String indexExpression = null;

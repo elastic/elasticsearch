@@ -26,7 +26,7 @@ public class RatedSearchHitTests extends ESTestCase {
 
     public static RatedSearchHit randomRatedSearchHit() {
         OptionalInt rating = randomBoolean() ? OptionalInt.empty() : OptionalInt.of(randomIntBetween(0, 5));
-        SearchHit searchHit = new SearchHit(randomIntBetween(0, 10), randomAlphaOfLength(10));
+        SearchHit searchHit = SearchHit.unpooled(randomIntBetween(0, 10), randomAlphaOfLength(10));
         RatedSearchHit ratedSearchHit = new RatedSearchHit(searchHit, rating);
         return ratedSearchHit;
     }
@@ -36,7 +36,7 @@ public class RatedSearchHitTests extends ESTestCase {
         SearchHit hit = original.getSearchHit();
         switch (randomIntBetween(0, 1)) {
             case 0 -> rating = rating.isPresent() ? OptionalInt.of(rating.getAsInt() + 1) : OptionalInt.of(randomInt(5));
-            case 1 -> hit = new SearchHit(hit.docId(), hit.getId() + randomAlphaOfLength(10));
+            case 1 -> hit = SearchHit.unpooled(hit.docId(), hit.getId() + randomAlphaOfLength(10));
             default -> throw new IllegalStateException("The test should only allow two parameters mutated");
         }
         return new RatedSearchHit(hit, rating);

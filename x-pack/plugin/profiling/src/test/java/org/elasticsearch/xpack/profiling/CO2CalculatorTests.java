@@ -28,7 +28,8 @@ public class CO2CalculatorTests extends ESTestCase {
                         "eu-west-1",
                         "c5n.xlarge"
                     ),
-                    "" // Doesn't matter if datacenter is known.
+                    "", // Doesn't matter if datacenter is known.
+                    null
                 )
             ),
             Map.entry(HOST_ID_B,
@@ -39,7 +40,8 @@ public class CO2CalculatorTests extends ESTestCase {
                         "europe-west1",
                         null // Doesn't matter for unknown datacenters.
                     ),
-                    "x86_64"
+                    "x86_64",
+                    null
                 )
             ),
             Map.entry(HOST_ID_C,
@@ -50,7 +52,8 @@ public class CO2CalculatorTests extends ESTestCase {
                         "northcentralus",
                         null // Doesn't matter for unknown datacenters.
                     ),
-                    "aarch64"
+                    "aarch64",
+                    null
                 )
             ),
             Map.entry(HOST_ID_D,
@@ -61,7 +64,8 @@ public class CO2CalculatorTests extends ESTestCase {
                         "on-prem-region",
                         null // Doesn't matter for unknown datacenters.
                     ),
-                    "aarch64"
+                    "aarch64",
+                    null
                 )
             )
         );

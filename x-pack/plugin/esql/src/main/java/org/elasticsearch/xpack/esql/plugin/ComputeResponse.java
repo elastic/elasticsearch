@@ -28,7 +28,7 @@ final class ComputeResponse extends TransportResponse {
 
     ComputeResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (in.readBoolean()) {
                 profiles = in.readCollectionAsImmutableList(DriverProfile::new);
             } else {
@@ -41,7 +41,7 @@ final class ComputeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (profiles == null) {
                 out.writeBoolean(false);
             } else {

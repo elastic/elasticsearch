@@ -52,11 +52,19 @@ You can specify the following parameters in the request body:
 (Optional, string) A <<query-dsl,query>> to filter which API keys to return.
 The query supports a subset of query types, including
 <<query-dsl-match-all-query,`match_all`>>, <<query-dsl-bool-query,`bool`>>,
-<<query-dsl-term-query,`term`>>, <<query-dsl-terms-query,`terms`>>, <<query-dsl-ids-query,`ids`>>,
-<<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>, <<query-dsl-exists-query,`exists`>>,
-<<query-dsl-range-query,`range`>>, and <<query-dsl-simple-query-string-query,`simple query string`>>
+<<query-dsl-term-query,`term`>>, <<query-dsl-terms-query,`terms`>>,
+<<query-dsl-match-query,`match`>>, <<query-dsl-ids-query,`ids`>>,
+<<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>,
+<<query-dsl-exists-query,`exists`>>, <<query-dsl-range-query,`range`>>,
+and <<query-dsl-simple-query-string-query,`simple query string`>>
 +
 You can query the following public values associated with an API key.
++
+NOTE: The queryable string values associated with API keys are internally mapped as <<keyword,`keywords`>>.
+Consequently, if no <<analysis-analyzers,`analyzer`>> parameter is specified for a
+<<query-dsl-match-query,`match`>> query, then the provided match query string is interpreted as
+a single keyword value. Such a <<query-dsl-match-query,`match`>> query is hence equivalent to a
+<<query-dsl-term-query,`term`>> query.
 +
 .Valid values for `query`
 [%collapsible%open]

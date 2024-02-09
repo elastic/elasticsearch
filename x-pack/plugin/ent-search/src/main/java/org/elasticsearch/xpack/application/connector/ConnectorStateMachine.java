@@ -23,7 +23,7 @@ public class ConnectorStateMachine {
         ConnectorStatus.CREATED,
         EnumSet.of(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.ERROR),
         ConnectorStatus.NEEDS_CONFIGURATION,
-        EnumSet.of(ConnectorStatus.CONFIGURED),
+        EnumSet.of(ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR),
         ConnectorStatus.CONFIGURED,
         EnumSet.of(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.CONNECTED, ConnectorStatus.ERROR),
         ConnectorStatus.CONNECTED,
@@ -39,6 +39,16 @@ public class ConnectorStateMachine {
      * @param next The proposed next state of the connector.
      */
     public static boolean isValidTransition(ConnectorStatus current, ConnectorStatus next) {
-        return VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet()).contains(next);
+        return validNextStates(current).contains(next);
+    }
+
+    public static void assertValidStateTransition(ConnectorStatus current, ConnectorStatus next)
+        throws ConnectorInvalidStatusTransitionException {
+        if (isValidTransition(current, next)) return;
+        throw new ConnectorInvalidStatusTransitionException(current, next);
+    }
+
+    public static Set<ConnectorStatus> validNextStates(ConnectorStatus current) {
+        return VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet());
     }
 }

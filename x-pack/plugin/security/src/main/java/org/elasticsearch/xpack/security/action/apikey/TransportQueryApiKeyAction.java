@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -23,12 +22,11 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder;
-import org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.translateFieldSortBuilders;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKeyRequest, QueryApiKeyResponse> {
@@ -81,20 +79,23 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
         }
 
         final AtomicBoolean accessesApiKeyTypeField = new AtomicBoolean(false);
-        final ApiKeyBoolQueryBuilder apiKeyBoolQueryBuilder = ApiKeyBoolQueryBuilder.build(request.getQueryBuilder(), fieldName -> {
+        searchSourceBuilder.query(ApiKeyBoolQueryBuilder.build(request.getQueryBuilder(), fieldName -> {
             if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
                 accessesApiKeyTypeField.set(true);
             }
-        }, request.isFilterForCurrentUser() ? authentication : null);
-        searchSourceBuilder.query(apiKeyBoolQueryBuilder);
+        }, request.isFilterForCurrentUser() ? authentication : null));
+
+        if (request.getFieldSortBuilders() != null) {
+            translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder, fieldName -> {
+                if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
+                    accessesApiKeyTypeField.set(true);
+                }
+            });
+        }
 
         // only add the query-level runtime field to the search request if it's actually referring the "type" field
         if (accessesApiKeyTypeField.get()) {
             searchSourceBuilder.runtimeMappings(API_KEY_TYPE_RUNTIME_MAPPING);
-        }
-
-        if (request.getFieldSortBuilders() != null) {
-            translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder);
         }
 
         if (request.getSearchAfterBuilder() != null) {
@@ -105,38 +106,4 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
         apiKeyService.queryApiKeys(searchRequest, request.withLimitedBy(), listener);
     }
 
-    // package private for testing
-    static void translateFieldSortBuilders(List<FieldSortBuilder> fieldSortBuilders, SearchSourceBuilder searchSourceBuilder) {
-        fieldSortBuilders.forEach(fieldSortBuilder -> {
-            if (fieldSortBuilder.getNestedSort() != null) {
-                throw new IllegalArgumentException("nested sorting is not supported for API Key query");
-            }
-            if (FieldSortBuilder.DOC_FIELD_NAME.equals(fieldSortBuilder.getFieldName())) {
-                searchSourceBuilder.sort(fieldSortBuilder);
-            } else {
-                final String translatedFieldName = ApiKeyFieldNameTranslators.translate(fieldSortBuilder.getFieldName());
-                if (translatedFieldName.equals(fieldSortBuilder.getFieldName())) {
-                    searchSourceBuilder.sort(fieldSortBuilder);
-                } else {
-                    final FieldSortBuilder translatedFieldSortBuilder = new FieldSortBuilder(translatedFieldName).order(
-                        fieldSortBuilder.order()
-                    )
-                        .missing(fieldSortBuilder.missing())
-                        .unmappedType(fieldSortBuilder.unmappedType())
-                        .setFormat(fieldSortBuilder.getFormat());
-
-                    if (fieldSortBuilder.sortMode() != null) {
-                        translatedFieldSortBuilder.sortMode(fieldSortBuilder.sortMode());
-                    }
-                    if (fieldSortBuilder.getNestedSort() != null) {
-                        translatedFieldSortBuilder.setNestedSort(fieldSortBuilder.getNestedSort());
-                    }
-                    if (fieldSortBuilder.getNumericType() != null) {
-                        translatedFieldSortBuilder.setNumericType(fieldSortBuilder.getNumericType());
-                    }
-                    searchSourceBuilder.sort(translatedFieldSortBuilder);
-                }
-            }
-        });
-    }
 }

@@ -58,7 +58,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
         var client = mockClientWithTasksResponse(Collections.emptyList(), threadPool);
         var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         assertThat(listener.actionGet(TIMEOUT), nullValue());
     }
@@ -77,11 +77,11 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
 
         var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(exception.getMessage(), is("Unable to cancel task for model id [modelId]"));
+        assertThat(exception.getMessage(), is("Unable to cancel task for model id [inferenceEntityId]"));
     }
 
     public void testCancelDownloadTaskCallsOnResponseNullWhenTheTaskNoLongerExistsWhenCancelling() {
@@ -98,7 +98,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
 
         var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         assertThat(listener.actionGet(TIMEOUT), nullValue());
     }
@@ -116,11 +116,11 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
 
         var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(exception.getMessage(), is("Unable to retrieve existing task information for model id [modelId]"));
+        assertThat(exception.getMessage(), is("Unable to retrieve existing task information for model id [inferenceEntityId]"));
     }
 
     public void testCancelDownloadTaskCallsOnResponseWithTheCancelResponseWhenATaskExists() {
@@ -131,7 +131,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
 
         var listener = new PlainActionFuture<ListTasksResponse>();
 
-        cancelDownloadTask(client, "modelId", listener, TIMEOUT);
+        cancelDownloadTask(client, "inferenceEntityId", listener, TIMEOUT);
 
         assertThat(listener.actionGet(TIMEOUT), is(cancelResponse));
     }

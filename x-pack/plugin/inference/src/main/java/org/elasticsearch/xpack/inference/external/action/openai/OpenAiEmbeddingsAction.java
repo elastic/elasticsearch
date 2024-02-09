@@ -52,7 +52,7 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
         try {
             var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
 
-            OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(truncator, account, truncatedInput, model.getTaskSettings());
+            OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(truncator, account, truncatedInput, model);
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 
             client.send(request, wrappedListener);

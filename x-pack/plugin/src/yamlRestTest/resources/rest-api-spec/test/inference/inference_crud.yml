@@ -3,8 +3,7 @@
   - do:
       catch: missing
       inference.get_model:
-        task_type: sparse_embedding
-        model_id: model_to_get
+        inference_id: model_to_get
   - match: { error.type: "resource_not_found_exception" }
   - match: { error.reason: "Model not found [model_to_get]" }
 
@@ -13,10 +12,10 @@
   - do:
       catch: bad_request
       inference.put_model:
-        task_type: bad
-        model_id: elser_model
+        inference_id: elser_model
         body: >
           {
+            "task_type": "bad",
             "service": "elser",
             "service_settings": {
               "num_allocations": 1,
@@ -33,7 +32,7 @@
       catch: bad_request
       inference.inference:
         task_type: bad
-        model_id: elser_model
+        inference_id: elser_model
         body: >
           {
             "input": "important text"

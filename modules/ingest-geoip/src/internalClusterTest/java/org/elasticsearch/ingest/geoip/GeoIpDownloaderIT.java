@@ -212,7 +212,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92888")
     public void testUpdatedTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         testGeoIpDatabasesDownload();
@@ -224,7 +223,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         testGeoIpDatabasesDownload();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92888")
     public void testGeoIpDatabasesDownload() throws Exception {
         putGeoIpPipeline();
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));

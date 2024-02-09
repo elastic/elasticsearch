@@ -566,48 +566,12 @@ public class DynamicTemplate implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (match.isEmpty() == false) {
-            if (match.size() == 1) {
-                builder.field("match", match.get(0));
-            } else {
-                builder.field("match", match);
-            }
-        }
-        if (pathMatch.isEmpty() == false) {
-            if (pathMatch.size() == 1) {
-                builder.field("path_match", pathMatch.get(0));
-            } else {
-                builder.field("path_match", pathMatch);
-            }
-        }
-        if (unmatch.isEmpty() == false) {
-            if (unmatch.size() == 1) {
-                builder.field("unmatch", unmatch.get(0));
-            } else {
-                builder.field("unmatch", unmatch);
-            }
-        }
-        if (pathUnmatch.isEmpty() == false) {
-            if (pathUnmatch.size() == 1) {
-                builder.field("path_unmatch", pathUnmatch.get(0));
-            } else {
-                builder.field("path_unmatch", pathUnmatch);
-            }
-        }
-        if (matchMappingType.isEmpty() == false) {
-            if (matchMappingType.size() == 1) {
-                builder.field("match_mapping_type", matchMappingType.get(0));
-            } else {
-                builder.field("match_mapping_type", matchMappingType);
-            }
-        }
-        if (unmatchMappingType.isEmpty() == false) {
-            if (unmatchMappingType.size() == 1) {
-                builder.field("unmatch_mapping_type", unmatchMappingType.get(0));
-            } else {
-                builder.field("unmatch_mapping_type", unmatchMappingType);
-            }
-        }
+        addStringOrArrayField(builder, "match", match);
+        addStringOrArrayField(builder, "path_match", pathMatch);
+        addStringOrArrayField(builder, "unmatch", unmatch);
+        addStringOrArrayField(builder, "path_unmatch", pathUnmatch);
+        addStringOrArrayField(builder, "match_mapping_type", matchMappingType);
+        addStringOrArrayField(builder, "unmatch_mapping_type", unmatchMappingType);
         if (matchType != MatchType.DEFAULT) {
             builder.field("match_pattern", matchType);
         }
@@ -619,5 +583,15 @@ public class DynamicTemplate implements ToXContentObject {
         }
         builder.endObject();
         return builder;
+    }
+
+    private void addStringOrArrayField(XContentBuilder builder, String fieldName, List<String> list) throws IOException {
+        if (list.isEmpty() == false) {
+            if (list.size() == 1) {
+                builder.field(fieldName, list.get(0));
+            } else {
+                builder.field(fieldName, list);
+            }
+        }
     }
 }

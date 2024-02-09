@@ -531,7 +531,7 @@ public abstract class StreamInput extends InputStream {
         // calculate number of bytes matching the requested chars
         int pos = start;
         int remaining = chars;
-        while (remaining-- > 0 && pos < limit) {
+        while (pos < limit && remaining-- > 0) {
             int c = bytes[pos] & 0xff;
             switch (c >> 4) {
                 case 0, 1, 2, 3, 4, 5, 6, 7 -> pos++;
@@ -545,7 +545,7 @@ public abstract class StreamInput extends InputStream {
             }
         }
         // not enough bytes to read all chars from array
-        if (remaining > 0 || pos >= limit) return -1;
+        if (remaining > 0 || pos > limit) return -1;
         return pos - start;
     }
 

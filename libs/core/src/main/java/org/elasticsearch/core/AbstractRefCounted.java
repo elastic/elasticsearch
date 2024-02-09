@@ -132,9 +132,7 @@ public abstract class AbstractRefCounted implements RefCounted {
     public static RefCounted plain() {
         return new AbstractRefCounted() {
             @Override
-            protected void closeInternal() {
-                // noop
-            }
+            protected void closeInternal() {}
         };
     }
 

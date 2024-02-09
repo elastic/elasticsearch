@@ -33,7 +33,7 @@ public final class ChannelActionListener<Response extends TransportResponse> imp
         } catch (RuntimeException e) {
             final String message = format("channel [%s] threw exceptions on sendResponse", channel);
             assert false : new AssertionError(message, e);
-            logger.warn(() -> message, e);
+            logger.error(() -> message, e);
             throw e;
         }
     }

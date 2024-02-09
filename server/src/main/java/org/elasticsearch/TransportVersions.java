@@ -172,6 +172,7 @@ public class TransportVersions {
     public static final TransportVersion NLP_DOCUMENT_CHUNKING_ADDED = def(8_585_00_0);
     public static final TransportVersion SEARCH_TIMEOUT_EXCEPTION_ADDED = def(8_586_00_0);
     public static final TransportVersion ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED = def(8_587_00_0);
+    public static final TransportVersion SEARCH_QUERY_RULES_ID_REMOVED = def(8_588_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

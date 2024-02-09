@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,6 +83,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
         matchCriteria = in.readGenericMap();
         rulesetId = in.readString();
+        if (in.getTransportVersion().before(TransportVersions.SEARCH_QUERY_RULES_ID_REMOVED)) {
+            in.readOptionalStringCollectionAsList();
+        }
         pinnedDocs = in.readOptionalCollectionAsList(Item::new);
         pinnedDocsSupplier = null;
     }
@@ -127,6 +131,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         out.writeNamedWriteable(organicQuery);
         out.writeGenericMap(matchCriteria);
         out.writeString(rulesetId);
+
+        if (out.getTransportVersion().before(TransportVersions.SEARCH_QUERY_RULES_ID_REMOVED)) {
+            out.writeOptionalStringCollection(Collections.emptyList());
+        }
+
         out.writeOptionalCollection(pinnedDocs);
     }
 

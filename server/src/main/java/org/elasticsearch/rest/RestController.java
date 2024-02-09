@@ -51,7 +51,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -734,7 +734,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Get the valid set of HTTP methods for a REST request.
      */
     private Set<RestRequest.Method> getValidHandlerMethodSet(String rawPath) {
-        Set<RestRequest.Method> validMethods = new HashSet<>();
+        Set<RestRequest.Method> validMethods = EnumSet.noneOf(RestRequest.Method.class);
         Iterator<MethodHandlers> allHandlers = getAllHandlers(null, rawPath);
         while (allHandlers.hasNext()) {
             final MethodHandlers methodHandlers = allHandlers.next();

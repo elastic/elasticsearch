@@ -960,11 +960,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 .indices()
                 .forceMerge(request, ActionListener.wrap(mergeIndexResp -> actionListener.onResponse(AcknowledgedResponse.TRUE), t -> {
                     /*
-                     * At this point downsampel index has been created
-                     * successfully even force merge fails.
-                     * So, we should not fail the downsample operation
+                     * At this point downsample index has been created
+                     * successfully even if force merge failed.
+                     * So, we should not fail the downsample operation.
                      */
-                    logger.error("Failed to force-merge " + "downsample index [" + downsampleIndexName + "]", t);
+                    logger.error("Failed to force-merge downsample index [" + downsampleIndexName + "]", t);
                     actionListener.onResponse(AcknowledgedResponse.TRUE);
                 }));
         }

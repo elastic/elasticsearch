@@ -9,6 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -39,10 +40,15 @@ import java.util.function.Predicate;
  */
 class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
+    private final boolean includeEmptyFields;
     private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
+    private static final boolean enableFieldHasValue = Booleans.parseBoolean(
+        System.getProperty("es.field_caps_empty_fields_filter", Boolean.TRUE.toString())
+    );
 
-    FieldCapabilitiesFetcher(IndicesService indicesService) {
+    FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeEmptyFields) {
         this.indicesService = indicesService;
+        this.includeEmptyFields = includeEmptyFields;
     }
 
     FieldCapabilitiesIndexResponse fetch(
@@ -107,7 +113,19 @@ class FieldCapabilitiesFetcher {
         }
 
         final MappingMetadata mapping = indexService.getMetadata().mapping();
-        final String indexMappingHash = mapping != null ? mapping.getSha256() : null;
+        String indexMappingHash;
+        if (includeEmptyFields || enableFieldHasValue == false) {
+            indexMappingHash = mapping != null ? mapping.getSha256() : null;
+        } else {
+            // even if the mapping is the same if we return only fields with values we need
+            // to make sure that we consider all the shard-mappings pair, that is why we
+            // calculate a different hash for this particular case.
+            StringBuilder sb = new StringBuilder(indexService.getShard(shardId.getId()).getShardUuid());
+            if (mapping != null) {
+                sb.append(mapping.getSha256());
+            }
+            indexMappingHash = sb.toString();
+        }
         if (indexMappingHash != null) {
             final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
             if (existing != null) {
@@ -121,7 +139,9 @@ class FieldCapabilitiesFetcher {
             fieldNameFilter,
             filters,
             fieldTypes,
-            fieldPredicate
+            fieldPredicate,
+            indicesService.getShardOrNull(shardId),
+            includeEmptyFields
         );
         if (indexMappingHash != null) {
             indexMappingHashToResponses.put(indexMappingHash, responseMap);
@@ -134,7 +154,9 @@ class FieldCapabilitiesFetcher {
         Predicate<String> fieldNameFilter,
         String[] filters,
         String[] types,
-        Predicate<String> indexFieldfilter
+        Predicate<String> indexFieldfilter,
+        IndexShard indexShard,
+        boolean includeEmptyFields
     ) {
         boolean includeParentObjects = checkIncludeParents(filters);
 
@@ -146,7 +168,8 @@ class FieldCapabilitiesFetcher {
                 continue;
             }
             MappedFieldType ft = context.getFieldType(field);
-            if (filter.test(ft)) {
+            boolean includeField = includeEmptyFields || enableFieldHasValue == false || ft.fieldHasValue(indexShard.getFieldInfos());
+            if (includeField && filter.test(ft)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),

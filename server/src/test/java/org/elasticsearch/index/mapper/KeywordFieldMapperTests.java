@@ -399,7 +399,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         Exception e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(
-                source(b -> b.field("field", randomAlphaOfLengthBetween(IndexWriter.MAX_TERM_LENGTH, IndexWriter.MAX_TERM_LENGTH + 100)))
+                source(
+                    b -> b.field("field", randomAlphaOfLengthBetween(IndexWriter.MAX_TERM_LENGTH + 1, IndexWriter.MAX_TERM_LENGTH + 100))
+                )
             )
         );
         assertThat(

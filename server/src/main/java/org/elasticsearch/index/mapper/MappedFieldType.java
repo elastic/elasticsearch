@@ -9,6 +9,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
@@ -630,6 +632,24 @@ public abstract class MappedFieldType {
                 + typeName()
                 + "]."
         );
+    }
+
+    /**
+     * This method is used to support _field_caps when include_empty_fields is set to
+     * {@code false}. In that case we return only fields with value in an index. This method
+     * gets as input FieldInfos and returns if the field is non-empty. This method needs to
+     * be overwritten where fields don't have footprint in Lucene or their name differs from
+     * {@link MappedFieldType#name()}
+     * @param fieldInfos field information
+     * @return {@code true} if field is present in fieldInfos {@code false} otherwise
+     */
+    public boolean fieldHasValue(FieldInfos fieldInfos) {
+        for (FieldInfo fieldInfo : fieldInfos) {
+            if (fieldInfo.getName().equals(name())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

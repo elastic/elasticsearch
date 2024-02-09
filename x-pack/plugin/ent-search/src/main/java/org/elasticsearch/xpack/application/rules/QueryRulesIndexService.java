@@ -43,7 +43,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -340,7 +340,7 @@ public class QueryRulesIndexService {
         @SuppressWarnings("unchecked")
         final List<LinkedHashMap<?, ?>> rules = ((List<LinkedHashMap<?, ?>>) sourceMap.get(QueryRuleset.RULES_FIELD.getPreferredName()));
         final int numRules = rules.size();
-        final Map<QueryRuleCriteriaType, Integer> queryRuleCriteriaTypeToCountMap = new HashMap<>();
+        final Map<QueryRuleCriteriaType, Integer> queryRuleCriteriaTypeToCountMap = new EnumMap<>(QueryRuleCriteriaType.class);
         for (LinkedHashMap<?, ?> rule : rules) {
             @SuppressWarnings("unchecked")
             List<LinkedHashMap<?, ?>> criteriaList = ((List<LinkedHashMap<?, ?>>) rule.get(QueryRule.CRITERIA_FIELD.getPreferredName()));

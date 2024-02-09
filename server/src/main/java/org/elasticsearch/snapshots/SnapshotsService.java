@@ -3136,9 +3136,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         // handles the completion of some shard-snapshot updates, performing the next possible actions
         private final ShardSnapshotUpdateCompletionHandler completionHandler;
 
-        // whether to execute a reroute on completion
-        private boolean needsReroute;
-
         // entries that became complete due to this batch of updates
         private final List<SnapshotsInProgress.Entry> newlyCompletedEntries = new ArrayList<>();
 
@@ -3194,13 +3191,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final var result = new ShardSnapshotUpdateResult(initialState.metadata(), snapshotsInProgress);
                 try (
                     var onCompletionRefs = new RefCountingRunnable(
-                        () -> completionHandler.handleCompletion(result, needsReroute, newlyCompletedEntries, updatesByRepo.keySet())
+                        () -> completionHandler.handleCompletion(result, newlyCompletedEntries, updatesByRepo.keySet())
                     )
                 ) {
                     for (final var taskContext : batchExecutionContext.taskContexts()) {
                         if (taskContext.getTask() instanceof ShardSnapshotUpdate task) {
                             final var ref = onCompletionRefs.acquire();
-                            needsReroute = true;
                             taskContext.success(() -> {
                                 try (ref) {
                                     task.listener.onResponse(result);
@@ -3458,7 +3454,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     interface ShardSnapshotUpdateCompletionHandler {
         void handleCompletion(
             ShardSnapshotUpdateResult shardSnapshotUpdateResult,
-            boolean needsReroute,
             List<SnapshotsInProgress.Entry> newlyCompletedEntries,
             Set<String> updatedRepositories
         );
@@ -3466,7 +3461,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private void handleShardSnapshotUpdateCompletion(
         ShardSnapshotUpdateResult shardSnapshotUpdateResult,
-        boolean needsReroute,
         List<SnapshotsInProgress.Entry> newlyCompletedEntries,
         Set<String> updatedRepositories
     ) {
@@ -3482,8 +3476,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         for (final var updatedRepository : updatedRepositories) {
             startExecutableClones(snapshotsInProgress, updatedRepository);
         }
-        // Also shard snapshot completions may free up some shards to move to other nodes so we must trigger a reroute.
-        if (needsReroute) {
+        // Also shard snapshot completions may free up some shards to move to other nodes, so we must trigger a reroute.
+        if (updatedRepositories.isEmpty() == false) {
             rerouteService.reroute("after shards snapshot update", Priority.NORMAL, ActionListener.noop());
         }
     }

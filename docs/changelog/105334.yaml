@@ -1,6 +1,6 @@
 pr: 105334
 summary: Upgrade ANTLR4 to 4.13.1
-area: "ES|QL, EQL, SQL"
+area: "ES|QL, EQL, Infra/Scripting, SQL"
 type: upgrade
 issues:
  - 102953

@@ -2067,18 +2067,18 @@ public abstract class ESTestCase extends LuceneTestCase {
             barrier.await(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            fail(e);
+            fail(e, "safeAwait: interrupted waiting for CyclicBarrier release");
         } catch (Exception e) {
-            fail(e);
+            fail(e, "safeAwait: CyclicBarrier did not release within the timeout");
         }
     }
 
     public static void safeAwait(CountDownLatch countDownLatch) {
         try {
-            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+            assertTrue("safeAwait: CountDownLatch did not reach zero within the timeout", countDownLatch.await(10, TimeUnit.SECONDS));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            fail(e);
+            fail(e, "safeAwait: interrupted waiting for CountDownLatch to reach zero");
         }
     }
 
@@ -2089,7 +2089,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             return future.get(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("safeAwait: interrupted", e);
+            throw new AssertionError("safeAwait: interrupted waiting for SubscribableListener", e);
         } catch (ExecutionException e) {
             throw new AssertionError("safeAwait: listener was completed exceptionally", e);
         } catch (TimeoutException e) {
@@ -2102,7 +2102,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             Thread.sleep(millis);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            fail(e);
+            fail(e, "safeSleep: interrupted");
         }
     }
 

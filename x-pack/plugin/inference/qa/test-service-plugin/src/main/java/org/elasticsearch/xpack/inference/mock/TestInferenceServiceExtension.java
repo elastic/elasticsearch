@@ -75,11 +75,12 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
 
         @Override
         @SuppressWarnings("unchecked")
-        public TestServiceModel parseRequestConfig(
+        public void parseRequestConfig(
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platfromArchitectures
+            Set<String> platfromArchitectures,
+            ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
             var serviceSettings = TestServiceSettings.fromMap(serviceSettingsMap);
@@ -88,7 +89,7 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
             var taskSettingsMap = getTaskSettingsMap(config);
             var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
-            return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings);
+            parsedModelListener.onResponse(new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings));
         }
 
         @Override

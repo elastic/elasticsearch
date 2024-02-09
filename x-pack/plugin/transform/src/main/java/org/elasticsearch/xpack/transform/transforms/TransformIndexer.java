@@ -57,6 +57,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -119,8 +120,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private Map<String, Object> nextChangeCollectorBucketPosition = null;
 
     private volatile Integer initialConfiguredPageSize;
-    private volatile long logEvery = 1;
-    private volatile long logCount = 0;
+    private final AtomicInteger remainingCheckpointsUntilAudit = new AtomicInteger(0);
     private volatile TransformCheckpoint lastCheckpoint;
     private volatile TransformCheckpoint nextCheckpoint;
 
@@ -1154,26 +1154,31 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     /**
-     * Indicates if an audit message should be written when onFinish is called for the given checkpoint
-     * We audit the first checkpoint, and then every 10 checkpoints until completedCheckpoint == 99
-     * Then we audit every 100, until completedCheckpoint == 999
-     *
-     * Then we always audit every 1_000 checkpoints
+     * Indicates if an audit message should be written when onFinish is called for the given checkpoint.
+     * We audit every checkpoint for the first 10 checkpoints until completedCheckpoint == 9.
+     * Then we audit every 10th checkpoint until completedCheckpoint == 99.
+     * Then we audit every 100th checkpoint until completedCheckpoint == 999.
+     * Then we always audit every 1_000th checkpoints.
      *
      * @param completedCheckpoint The checkpoint that was just completed
      * @return {@code true} if an audit message should be written
      */
     protected boolean shouldAuditOnFinish(long completedCheckpoint) {
-        if (++logCount % logEvery != 0) {
-            return false;
-        }
-        if (completedCheckpoint == 0) {
-            return true;
-        }
-        int log10Checkpoint = (int) Math.floor(Math.log10(completedCheckpoint));
-        logEvery = log10Checkpoint >= 3 ? 1_000 : (int) Math.pow(10.0, log10Checkpoint);
-        logCount = 0;
-        return true;
+        return remainingCheckpointsUntilAudit.getAndUpdate(count -> {
+            if (count > 0) {
+                return count - 1;
+            }
+
+            if (completedCheckpoint >= 1000) {
+                return 999;
+            } else if (completedCheckpoint >= 100) {
+                return 99;
+            } else if (completedCheckpoint >= 10) {
+                return 9;
+            } else {
+                return 0;
+            }
+        }) == 0;
     }
 
     private RunState determineRunStateAtStart() {

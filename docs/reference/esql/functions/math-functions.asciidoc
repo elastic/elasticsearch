@@ -18,6 +18,7 @@
 * <<esql-cosh>>
 * <<esql-e>>
 * <<esql-floor>>
+* <<esql-log>>
 * <<esql-log10>>
 * <<esql-pi>>
 * <<esql-pow>>
@@ -40,6 +41,7 @@ include::cos.asciidoc[]
 include::cosh.asciidoc[]
 include::e.asciidoc[]
 include::floor.asciidoc[]
+include::log.asciidoc[]
 include::log10.asciidoc[]
 include::pi.asciidoc[]
 include::pow.asciidoc[]

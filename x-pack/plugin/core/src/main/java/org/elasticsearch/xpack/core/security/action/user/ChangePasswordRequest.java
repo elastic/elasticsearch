@@ -33,7 +33,7 @@ public class ChangePasswordRequest extends ActionRequest implements UserRequest,
     public ChangePasswordRequest(StreamInput in) throws IOException {
         super(in);
         username = in.readString();
-        passwordHash = CharArrays.utf8BytesToChars(BytesReference.toBytes(in.readBytesReference()));
+        passwordHash = CharArrays.utf8BytesToChars(BytesReference.toBytes(in.readSlicedBytesReference()));
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 

@@ -98,6 +98,9 @@ import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
+import org.elasticsearch.health.node.tracker.DiskHealthTracker;
+import org.elasticsearch.health.node.tracker.HealthTracker;
+import org.elasticsearch.health.node.tracker.RepositoriesHealthTracker;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -1018,7 +1021,8 @@ class NodeConstruction {
                 transportService,
                 featureService,
                 threadPool,
-                telemetryProvider
+                telemetryProvider,
+                repositoryService
             )
         );
 
@@ -1171,7 +1175,8 @@ class NodeConstruction {
         TransportService transportService,
         FeatureService featureService,
         ThreadPool threadPool,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        RepositoriesService repositoriesService
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1203,13 +1208,18 @@ class NodeConstruction {
             telemetryProvider
         );
         HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, featureService, settings);
+
+        List<HealthTracker<?>> healthTrackers = List.of(
+            new DiskHealthTracker(nodeService, clusterService),
+            new RepositoriesHealthTracker(repositoriesService)
+        );
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
             settings,
             clusterService,
-            nodeService,
             threadPool,
             client,
-            featureService
+            featureService,
+            healthTrackers
         );
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
 

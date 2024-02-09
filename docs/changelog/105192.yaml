@@ -1,0 +1,6 @@
+pr: 105192
+summary: Allow transforms to use PIT with remote clusters again
+area: Transform
+type: enhancement
+issues:
+ - 104518

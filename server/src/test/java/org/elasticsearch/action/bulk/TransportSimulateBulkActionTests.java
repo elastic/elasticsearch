@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -74,6 +75,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 clusterService,
                 null,
                 null,
+                new NodeClient(Settings.EMPTY, TransportSimulateBulkActionTests.this.threadPool),
                 new ActionFilters(Collections.emptySet()),
                 new TransportBulkActionTookTests.Resolver(),
                 new IndexingPressure(Settings.EMPTY),

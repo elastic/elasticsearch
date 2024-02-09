@@ -36,7 +36,7 @@ public abstract class FixedMultiBucketAggregatorsReducer<B extends MultiBucketsA
     }
 
     /**
-     * Adds a list of buckets for reduction. The size of the list must be the same as the sizze
+     * Adds a list of buckets for reduction. The size of the list must be the same as the size
      * of the list passed on the constructor
      */
     public final void accept(List<B> buckets) {

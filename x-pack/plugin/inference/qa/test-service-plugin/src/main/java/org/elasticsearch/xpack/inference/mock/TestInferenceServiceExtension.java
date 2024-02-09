@@ -241,11 +241,6 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
             }
 
             String hiddenField = (String) map.remove("hidden_field");
-
-            if (hiddenField == null) {
-                validationException.addValidationError("missing hidden_field");
-            }
-
             Boolean shouldReturnHiddenField = (Boolean) map.remove("should_return_hidden_field");
 
             if (shouldReturnHiddenField == null) {
@@ -260,14 +255,16 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
         }
 
         public TestServiceSettings(StreamInput in) throws IOException {
-            this(in.readString(), in.readString(), in.readBoolean());
+            this(in.readString(), in.readOptionalString(), in.readBoolean());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("model", model);
-            builder.field("hidden_field", hiddenField);
+            if (hiddenField != null) {
+                builder.field("hidden_field", hiddenField);
+            }
             builder.field("should_return_hidden_field", shouldReturnHiddenField);
             builder.endObject();
             return builder;
@@ -286,6 +283,8 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(model);
+            out.writeOptionalString(hiddenField);
+            out.writeBoolean(shouldReturnHiddenField);
         }
 
         @Override
@@ -293,7 +292,7 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
             return (builder, params) -> {
                 builder.startObject();
                 builder.field("model", model);
-                if (shouldReturnHiddenField) {
+                if (shouldReturnHiddenField && hiddenField != null) {
                     builder.field("hidden_field", hiddenField);
                 }
                 builder.endObject();

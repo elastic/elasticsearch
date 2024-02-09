@@ -20,8 +20,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
+import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.operator.PutRoleRequestBuilderFactory;
-import org.elasticsearch.xpack.security.operator.RoleDescriptorValidatorFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,19 +37,19 @@ public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
     private final SecurityContext securityContext;
     private final PutRoleRequestBuilderFactory builderFactory;
-    private final RoleDescriptorValidatorFactory.RoleDescriptorValidator roleDescriptorValidator;
+    private final FileRolesStore fileRolesStore;
 
     public RestPutRoleAction(
         Settings settings,
         XPackLicenseState licenseState,
         SecurityContext securityContext,
         PutRoleRequestBuilderFactory builderFactory,
-        RoleDescriptorValidatorFactory.RoleDescriptorValidator roleDescriptorValidator
+        FileRolesStore fileRolesStore
     ) {
         super(settings, licenseState);
         this.securityContext = securityContext;
         this.builderFactory = builderFactory;
-        this.roleDescriptorValidator = roleDescriptorValidator;
+        this.fileRolesStore = fileRolesStore;
     }
 
     @Override
@@ -67,24 +67,15 @@ public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutRoleRequestBuilder requestBuilder = builderFactory.create(securityContext, client)
+        final PutRoleRequestBuilder requestBuilder = builderFactory.create(client, securityContext, fileRolesStore::exists)
             .source(request.param("name"), request.requiredContent(), request.getXContentType())
             .setRefreshPolicy(request.param("refresh"));
-        validateRequest(requestBuilder);
-        return channel -> {
-            requestBuilder.execute(new RestBuilderListener<>(channel) {
-                @Override
-                public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {
-                    return new RestResponse(RestStatus.OK, builder.startObject().field("role", putRoleResponse).endObject());
-                }
-            });
-        };
-    }
-
-    private void validateRequest(PutRoleRequestBuilder requestBuilder) {
-        final RuntimeException validationException = roleDescriptorValidator.validate(requestBuilder.request().roleDescriptor());
-        if (validationException != null) {
-            throw validationException;
-        }
+        requestBuilder.maybeValidate();
+        return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
+            @Override
+            public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {
+                return new RestResponse(RestStatus.OK, builder.startObject().field("role", putRoleResponse).endObject());
+            }
+        });
     }
 }

@@ -122,7 +122,8 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
     }
 
     public boolean exists(String name) {
-        return permissions.containsKey(name);
+        final Map<String, RoleDescriptor> localPermissions = permissions;
+        return localPermissions.containsKey(name);
     }
 
     public Map<String, Object> usageStats() {

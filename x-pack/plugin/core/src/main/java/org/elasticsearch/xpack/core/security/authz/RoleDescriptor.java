@@ -420,15 +420,15 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
     }
 
-    public static RoleDescriptor parseWithServerlessRestrictions(String name, BytesReference source, XContentType xContentType)
+    public static RoleDescriptor parseServerlessCustomRole(String name, BytesReference source, XContentType xContentType)
         throws IOException {
         assert name != null;
         try (XContentParser parser = createParser(source, xContentType)) {
-            return parseWithServerlessRestrictions(name, parser);
+            return parseServerlessCustomRole(name, parser);
         }
     }
 
-    private static RoleDescriptor parseWithServerlessRestrictions(String name, XContentParser parser) throws IOException {
+    private static RoleDescriptor parseServerlessCustomRole(String name, XContentParser parser) throws IOException {
         // validate name
         Validation.Error validationError = Validation.Roles.validateRoleName(name, false);
         if (validationError != null) {

@@ -47,6 +47,10 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         return this;
     }
 
+    public void maybeValidate() {
+        // noop
+    }
+
     public PutRoleRequestBuilder name(String name) {
         request.name(name);
         return this;

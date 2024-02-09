@@ -307,7 +307,6 @@ import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.PutRoleRequestBuilderFactory;
-import org.elasticsearch.xpack.security.operator.RoleDescriptorValidatorFactory;
 import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
@@ -560,9 +559,8 @@ public class Security extends Plugin
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
-    private final SetOnce<RoleDescriptorValidatorFactory> roleDescriptorRequestValidatorFactory = new SetOnce<>();
-    private final SetOnce<RoleDescriptorValidatorFactory.RoleDescriptorValidator> roleDescriptorValidator = new SetOnce<>();
     private final SetOnce<PutRoleRequestBuilderFactory> putRoleRequestBuilderFactory = new SetOnce<>();
+    private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
     private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
@@ -807,13 +805,8 @@ public class Security extends Plugin
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
-        final FileRolesStore fileRolesStore = new FileRolesStore(
-            settings,
-            environment,
-            resourceWatcherService,
-            getLicenseState(),
-            xContentRegistry
-        );
+
+        this.fileRolesStore.set(new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry));
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(
             settings,
             client,
@@ -873,7 +866,7 @@ public class Security extends Plugin
 
         final RoleProviders roleProviders = new RoleProviders(
             reservedRolesStore,
-            fileRolesStore,
+            fileRolesStore.get(),
             nativeRolesStore,
             customRoleProviders,
             getLicenseState()
@@ -1001,9 +994,6 @@ public class Security extends Plugin
         components.add(reservedRolesStore); // used by roles actions
         components.add(allRolesStore); // for SecurityInfoTransportAction and clear roles cache
         components.add(authzService);
-        roleDescriptorValidator.set(
-            roleDescriptorRequestValidatorFactory.get().create(xContentRegistry, securityContext.get(), fileRolesStore::exists)
-        );
 
         final SecondaryAuthenticator secondaryAuthenticator = new SecondaryAuthenticator(
             securityContext.get(),
@@ -1436,7 +1426,7 @@ public class Security extends Plugin
                 getLicenseState(),
                 securityContext.get(),
                 putRoleRequestBuilderFactory.get(),
-                roleDescriptorValidator.get()
+                fileRolesStore.get()
             ),
             new RestDeleteRoleAction(settings, getLicenseState()),
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
@@ -2054,21 +2044,6 @@ public class Security extends Plugin
                 "Loaded implementation [{}] for interface OperatorOnlyRegistry",
                 operatorOnlyRegistry.getClass().getCanonicalName()
             );
-        }
-
-        List<RoleDescriptorValidatorFactory> validatorFactories = loader.loadExtensions(RoleDescriptorValidatorFactory.class);
-        if (validatorFactories.size() > 1) {
-            throw new IllegalStateException(RoleDescriptorValidatorFactory.class + " may not have multiple implementations");
-        } else if (validatorFactories.size() == 1) {
-            RoleDescriptorValidatorFactory validatorFactory = validatorFactories.get(0);
-            this.roleDescriptorRequestValidatorFactory.set(validatorFactory);
-            logger.info(
-                "Loaded implementation [{}] for interface RoleDescriptorRequestValidatorFactory",
-                validatorFactory.getClass().getCanonicalName()
-            );
-        } else {
-            logger.info("Using default implementation for interface RoleDescriptorRequestValidatorFactory");
-            this.roleDescriptorRequestValidatorFactory.set(new RoleDescriptorValidatorFactory.Default());
         }
 
         List<PutRoleRequestBuilderFactory> builderFactories = loader.loadExtensions(PutRoleRequestBuilderFactory.class);

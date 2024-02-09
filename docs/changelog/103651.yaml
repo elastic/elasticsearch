@@ -6,11 +6,7 @@ issues: []
 highlight:
   title: Flag in `_field_caps` to return only fields with values in index
   body: |-
-    We are adding a query parameter to the `_field_caps` APIs to allow filtering
-    out fields with no values. The query parameter is called `include_empty_fields`
-    and defaults to `true`. If set to `false` it will filter out from the `_field_caps`
-    response all the fields that never had value in an index.
-    Kibana users can access this information by viewing the `Available fields`
-    section in `Discover` while the filtered out empty fields can be viewed under
-    the `Empty fields` section.
+    We added support for filtering the field capabilities API output by removing
+    fields that don't have a value. This can be done through the newly added
+    `include_empty_fields` parameter, which defaults to true.
   notable: true

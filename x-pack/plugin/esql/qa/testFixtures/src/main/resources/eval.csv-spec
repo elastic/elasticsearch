@@ -358,7 +358,7 @@ docsEvalUnnamedColumnStats
 // tag::evalUnnamedColumnStats[]
 FROM employees
 | EVAL height * 3.281
-| STATS avg_height_feet = AVG(`height*3.281`)
+| STATS avg_height_feet = AVG(`height * 3.281`)
 // end::evalUnnamedColumnStats[]
 ;
 

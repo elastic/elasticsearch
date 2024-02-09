@@ -11,7 +11,12 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
@@ -21,6 +26,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Less
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
@@ -219,11 +225,96 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             return null;
         }
 
-        List<String> strings = visitList(this, ctx.identifierPattern(), String.class);
         var src = source(ctx);
-        return strings.size() == 1 && strings.get(0).equals(WILDCARD)
-            ? new UnresolvedStar(src, null)
-            : new UnresolvedAttribute(src, Strings.collectionToDelimitedString(strings, "."));
+        StringBuilder sb = new StringBuilder();
+        var patterns = ctx.identifierPattern();
+
+        // check special wildcard case
+        if (patterns.size() == 1) {
+            var idCtx = patterns.get(0);
+            if (idCtx.idPattern().size() == 1) {
+                var idPattern = idCtx.idPattern(0);
+                if (idPattern.UNQUOTED_ID_PATTERN() != null && idPattern.UNQUOTED_ID_PATTERN().getText().equals(WILDCARD)) {
+                    return new UnresolvedStar(src, null);
+                }
+            }
+        }
+
+        boolean hasPattern = false;
+        // Builds a list of either strings (which map verbatim) or Automatons which match any string
+        List<Object> objects = new ArrayList<>(patterns.size());
+        for (int i = 0, s = patterns.size(); i < s; i++) {
+            var patternContext = patterns.get(i);
+            String name;
+            if (i > 0) {
+                sb.append(".");
+                objects.add(".");
+            }
+            for (var idContext : patternContext.idPattern()) {
+                // a patternCtx can be a series of quoted and unquoted sections
+                // a wildcard that matches can only appear in an unquoted section
+                if (idContext.UNQUOTED_ID_PATTERN() != null) {
+                    name = idContext.UNQUOTED_ID_PATTERN().getText();
+                    sb.append(name);
+                    // loop the string itself to extract any * and make them an automaton directly
+                    // the code is somewhat messy but doesn't invoke the full blown Regex engine either
+                    if (Regex.isSimpleMatchPattern(name)) {
+                        hasPattern = true;
+                        String str = name;
+                        boolean keepGoing = false;
+                        do {
+                            int localIndex = str.indexOf('*');
+                            // in case of match
+                            if (localIndex != -1) {
+                                keepGoing = true;
+                                // copy any prefix string
+                                if (localIndex > 0) {
+                                    objects.add(str.substring(0, localIndex));
+                                }
+                                objects.add(Automata.makeAnyString());
+                                localIndex++;
+                                // trim the string
+                                if (localIndex < str.length()) {
+                                    str = str.substring(localIndex);
+                                } else {
+                                    keepGoing = false;
+                                }
+                            }
+                            // no more matches, copy leftovers and end the loop
+                            else {
+                                keepGoing = false;
+                                if (str.length() > 0) {
+                                    objects.add(str);
+                                }
+                            }
+                        } while (keepGoing);
+                    } else {
+                        objects.add(name);
+                    }
+                }
+                // quoted - definitely no pattern
+                else {
+                    var quoted = idContext.QUOTED_IDENTIFIER();
+                    sb.append(quoted.getText());
+                    objects.add(unquoteIdentifier(quoted, null));
+                }
+            }
+        }
+
+        NamedExpression result;
+        // need to combine automaton
+        if (hasPattern) {
+            // add . as optional matching
+            List<Automaton> list = new ArrayList<>(objects.size());
+            for (var o : objects) {
+                list.add(o instanceof Automaton a ? a : Automata.makeString(o.toString()));
+            }
+            // use the fast run variant
+            result = new UnresolvedNamePattern(src, new CharacterRunAutomaton(Operations.concatenate(list)), sb.toString());
+        } else {
+            result = new UnresolvedAttribute(src, Strings.collectionToDelimitedString(objects, ""));
+        }
+        return result;
     }
 
     @Override

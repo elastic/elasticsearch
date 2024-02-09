@@ -248,6 +248,28 @@ public class AnalyzerTests extends ESTestCase {
             """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
     }
 
+    public void testEscapedStar() {
+        assertProjection("""
+            from test
+            | eval a = 1, `a*` = 2
+            | keep `a*`
+            """, "a*");
+    }
+
+    public void testEscapeStarPlusPattern() {
+        assertProjection("""
+            row a = 0, `a*` = 1, `ab*` = 2, `ab*cd` = 3, `abc*de` = 4
+            | keep `a*`*, abc*
+            """, "a*", "abc*de");
+    }
+
+    public void testBacktickPlusPattern() {
+        assertProjection("""
+            row a = 0, `a``` = 1, `a``b*` = 2, `ab*cd` = 3, `abc*de` = 4
+            | keep a*, a````b`*`
+            """, "a", "a`", "ab*cd", "abc*de", "a`b*");
+    }
+
     public void testNoProjection() {
         assertProjection("""
             from test
@@ -392,7 +414,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep *nonExisting
             """));
-        assertThat(e.getMessage(), containsString("No match found for [*nonExisting]"));
+        assertThat(e.getMessage(), containsString("No matches found for pattern [*nonExisting]"));
     }
 
     public void testErrorOnNoMatchingPatternExclusion() {
@@ -400,7 +422,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | drop *nonExisting
             """));
-        assertThat(e.getMessage(), containsString("No match found for [*nonExisting]"));
+        assertThat(e.getMessage(), containsString("No matches found for pattern [*nonExisting]"));
     }
 
     //
@@ -469,7 +491,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep un*
             """));
-        assertThat(e.getMessage(), containsString("No match found for [un*]"));
+        assertThat(e.getMessage(), containsString("No matches found for pattern [un*]"));
     }
 
     public void testDropUnsupportedFieldExplicit() {
@@ -719,7 +741,7 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported("""
             from test
             | drop dep.*
-            """, "Found 1 problem\n" + "line 2:8: No match found for [dep.*]", "mapping-multi-field-with-nested.json");
+            """, "Found 1 problem\n" + "line 2:8: No matches found for pattern [dep.*]", "mapping-multi-field-with-nested.json");
     }
 
     public void testSupportedDeepHierarchy() {

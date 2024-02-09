@@ -22,8 +22,8 @@ setup:
 ---
 fetch fields:
   - skip:
-      version: ' - 8.5.99'
-      reason:  stored fields phase added in 8.6
+      version: ' - 8.12.99'
+      reason: FetchIgnoredMetadataPhase added in 8.13
 
   - do:
       search:
@@ -54,8 +54,8 @@ fetch fields:
 ---
 fetch source:
   - skip:
-      version: ' - 8.5.99'
-      reason:  stored fields phase added in 8.6
+      version: ' - 8.12.99'
+      reason:  FetchIgnoredMetadataPhase added in 8.13
 
   - do:
       search:
@@ -85,8 +85,8 @@ fetch source:
 ---
 fetch nested source:
   - skip:
-      version: ' - 8.5.99'
-      reason:  stored fields phase added in 8.6
+      version: ' - 8.12.99'
+      reason: FetchIgnoredMetadataPhase added in 8.13
 
   - do:
       indices.create:
@@ -158,8 +158,8 @@ fetch nested source:
 ---
 disabling stored fields removes fetch sub phases:
   - skip:
-      version: ' - 7.15.99'
-      reason:  fetch profiling implemented in 7.16.0
+      version: ' - 8.12.99'
+      reason: FetchIgnoredMetadataPhase added in 8.13
 
   - do:
       search:

@@ -120,8 +120,8 @@ teardown:
 ---
 profile fetch:
   - skip:
-      version: ' - 7.15.99'
-      reason:  fetch profiling implemented in 7.16.0
+      version: ' - 8.12.99'
+      reason: FetchIgnoredMetadataPhase added in 8.13
 
   - do:
       search:

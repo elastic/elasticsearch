@@ -583,10 +583,12 @@ The response contains a list of matched API keys along with their sort values:
 ==== Aggregations Example
 
 For example, given 2 users "june" and "king", each owning 3 API keys:
- * one that never expires (invalidated for user "king")
- * one that expires in 10 days
- * and one that expires in 100 day (invalidated for user "june")
-, the following request returns the names of valid (not expired and not invalidated) API keys
+
+* one that never expires (invalidated for user "king")
+* one that expires in 10 days
+* and one that expires in 100 day (invalidated for user "june")
+
+the following request returns the names of valid (not expired and not invalidated) API keys
 that expire soon (in 30 days time), grouped by owner username.
 
 ===== Request

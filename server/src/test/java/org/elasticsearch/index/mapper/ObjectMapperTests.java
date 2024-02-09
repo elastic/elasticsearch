@@ -530,15 +530,20 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
     }
 
-    public void testNestedObjectWithMultiFieldsMapperSize() throws IOException {
+    public void testNestedObjectWithMultiFieldsgetTotalFieldsCount() {
         ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Explicit.IMPLICIT_TRUE).add(
             new ObjectMapper.Builder("child_size_2", Explicit.IMPLICIT_TRUE).add(
                 new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers()).addMultiField(
                     new KeywordFieldMapper.Builder("multi_field_size_4", IndexVersion.current())
-                ).addMultiField(new KeywordFieldMapper.Builder("multi_field_size_5", IndexVersion.current()))
+                )
+                    .addMultiField(
+                        new TextFieldMapper.Builder("grand_child_size_5", createDefaultIndexAnalyzers()).addMultiField(
+                            new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", IndexVersion.current())
+                        )
+                    )
             )
         );
-        assertThat(mapperBuilder.build(MapperBuilderContext.root(false, false)).mapperSize(), equalTo(5));
+        assertThat(mapperBuilder.build(MapperBuilderContext.root(false, false)).getTotalFieldsCount(), equalTo(6));
     }
 
     public void testWithoutMappers() throws IOException {

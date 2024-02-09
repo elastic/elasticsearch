@@ -1,0 +1,6 @@
+pr: 105245
+summary: Finalize all snapshots completed by shard snapshot updates
+area: Snapshot/Restore
+type: bug
+issues:
+ - 104939

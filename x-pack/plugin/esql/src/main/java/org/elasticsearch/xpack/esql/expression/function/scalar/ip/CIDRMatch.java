@@ -61,6 +61,14 @@ public class CIDRMatch extends ScalarFunction implements EvaluatorMapper {
         this.matches = matches;
     }
 
+    public Expression ipField() {
+        return ipField;
+    }
+
+    public List<Expression> matches() {
+        return matches;
+    }
+
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var ipEvaluatorSupplier = toEvaluator.apply(ipField);

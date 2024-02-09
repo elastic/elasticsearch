@@ -13,6 +13,7 @@ import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,7 +43,7 @@ public class TransportQueryApiKeyActionTests extends ESTestCase {
 
         List<String> sortFields = new ArrayList<>();
         final SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource();
-        TransportQueryApiKeyAction.translateFieldSortBuilders(originals, searchSourceBuilder, sortFields::add);
+        ApiKeyFieldNameTranslators.translateFieldSortBuilders(originals, searchSourceBuilder, sortFields::add);
 
         IntStream.range(0, originals.size()).forEach(i -> {
             final FieldSortBuilder original = originals.get(i);
@@ -95,7 +96,7 @@ public class TransportQueryApiKeyActionTests extends ESTestCase {
         fieldSortBuilder.setNestedSort(new NestedSortBuilder("name"));
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportQueryApiKeyAction.translateFieldSortBuilders(
+            () -> ApiKeyFieldNameTranslators.translateFieldSortBuilders(
                 List.of(fieldSortBuilder),
                 SearchSourceBuilder.searchSource(),
                 ignored -> {}

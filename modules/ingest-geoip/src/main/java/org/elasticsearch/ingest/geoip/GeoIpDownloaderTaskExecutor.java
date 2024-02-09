@@ -268,7 +268,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         return pipelineDefinitions.stream().filter(pipelineConfig -> {
             List<Map<String, Object>> processors = (List<Map<String, Object>>) pipelineConfig.getConfigAsMap().get(Pipeline.PROCESSORS_KEY);
             return hasAtLeastOneGeoipProcessor(processors, downloadDatabaseOnPipelineCreation);
-        }).collect(Collectors.toList());
+        }).toList();
     }
 
     /**

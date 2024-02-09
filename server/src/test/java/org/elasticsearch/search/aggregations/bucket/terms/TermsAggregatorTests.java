@@ -115,6 +115,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
@@ -1291,21 +1292,19 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 b -> {},
                 PipelineTree.EMPTY
             );
-            for (InternalAggregation internalAgg : aggs) {
-                InternalAggregation mergedAggs = internalAgg.reduce(aggs, ctx);
-                assertTrue(mergedAggs instanceof DoubleTerms);
-                long expected = numLongs + numDoubles;
-                List<? extends Terms.Bucket> buckets = ((DoubleTerms) mergedAggs).getBuckets();
-                assertEquals(4, buckets.size());
-                assertEquals("1.0", buckets.get(0).getKeyAsString());
-                assertEquals(expected, buckets.get(0).getDocCount());
-                assertEquals("10.0", buckets.get(1).getKeyAsString());
-                assertEquals(expected * 2, buckets.get(1).getDocCount());
-                assertEquals("100.0", buckets.get(2).getKeyAsString());
-                assertEquals(expected * 2, buckets.get(2).getDocCount());
-                assertEquals("1000.0", buckets.get(3).getKeyAsString());
-                assertEquals(expected, buckets.get(3).getDocCount());
-            }
+            InternalAggregation mergedAggs = InternalAggregationTestCase.reduce(aggs, ctx);
+            assertTrue(mergedAggs instanceof DoubleTerms);
+            long expected = numLongs + numDoubles;
+            List<? extends Terms.Bucket> buckets = ((DoubleTerms) mergedAggs).getBuckets();
+            assertEquals(4, buckets.size());
+            assertEquals("1.0", buckets.get(0).getKeyAsString());
+            assertEquals(expected, buckets.get(0).getDocCount());
+            assertEquals("10.0", buckets.get(1).getKeyAsString());
+            assertEquals(expected * 2, buckets.get(1).getDocCount());
+            assertEquals("100.0", buckets.get(2).getKeyAsString());
+            assertEquals(expected * 2, buckets.get(2).getDocCount());
+            assertEquals("1000.0", buckets.get(3).getKeyAsString());
+            assertEquals(expected, buckets.get(3).getDocCount());
         }
     }
 

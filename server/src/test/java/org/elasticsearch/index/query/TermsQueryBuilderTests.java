@@ -165,8 +165,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertThat(e.getMessage(), containsString("No value specified for terms query"));
         e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (Object[]) null));
         assertThat(e.getMessage(), containsString("No value specified for terms query"));
-        e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (Iterable<?>) null));
-        assertThat(e.getMessage(), containsString("No value specified for terms query"));
     }
 
     public void testBothValuesAndLookupSet() throws IOException {

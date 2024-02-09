@@ -29,7 +29,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
@@ -85,7 +85,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParseRequestConfig_CreatesAnEmbeddingsModel() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -111,7 +111,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParseRequestConfig_CreatesAnElserModel() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -136,7 +136,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -161,7 +161,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -188,7 +188,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -215,7 +215,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModel() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -239,7 +239,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesAnElserModel() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -263,7 +263,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -288,7 +288,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -315,7 +315,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -340,7 +340,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -367,7 +367,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -394,7 +394,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesAnEmbeddingsModel() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -413,7 +413,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesAnElserModel() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -432,7 +432,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -452,7 +452,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -474,7 +474,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -494,7 +494,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsEmbeddingsRequest() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var service = new HuggingFaceService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
@@ -532,7 +537,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsElserRequest() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var service = new HuggingFaceService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
@@ -574,7 +584,12 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     public void testCheckModelConfig_IncludesMaxTokens() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var service = new HuggingFaceService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 

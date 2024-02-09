@@ -14,7 +14,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceBaseService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
@@ -24,7 +24,10 @@ import java.util.Map;
 public class HuggingFaceElserService extends HuggingFaceBaseService {
     public static final String NAME = "hugging_face_elser";
 
-    public HuggingFaceElserService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+    public HuggingFaceElserService(
+        SetOnce<HttpRequestSender.HttpRequestSenderFactory> factory,
+        SetOnce<ServiceComponents> serviceComponents
+    ) {
         super(factory, serviceComponents);
     }
 

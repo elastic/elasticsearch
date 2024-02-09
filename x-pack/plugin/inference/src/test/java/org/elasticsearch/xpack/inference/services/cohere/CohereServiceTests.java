@@ -29,7 +29,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
@@ -95,7 +95,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParseRequestConfig_CreatesACohereEmbeddingsModel() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -132,7 +132,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -166,7 +166,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -188,7 +188,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -208,7 +208,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -233,7 +233,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -257,7 +257,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParseRequestConfig_CreatesACohereEmbeddingsModelWithoutUrl() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -288,7 +288,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesACohereEmbeddingsModel() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -318,7 +318,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -348,7 +348,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesACohereEmbeddingsModelWithoutUrl() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -377,7 +377,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -412,7 +412,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -444,7 +444,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -475,7 +475,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -503,7 +503,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -536,7 +536,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesACohereEmbeddingsModel() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -560,7 +560,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -584,7 +584,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesACohereEmbeddingsModelWithoutUrl() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -609,7 +609,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -633,7 +633,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -656,7 +656,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (
             var service = new CohereService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(HttpRequestSender.HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -683,7 +683,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testInfer_ThrowsErrorWhenModelIsNotCohereModel() throws IOException {
         var sender = mock(Sender.class);
 
-        var factory = mock(HttpRequestSenderFactory.class);
+        var factory = mock(HttpRequestSender.HttpRequestSenderFactory.class);
         when(factory.createSender(anyString())).thenReturn(sender);
 
         var mockModel = getInvalidModel("model_id", "service_name");
@@ -708,7 +708,12 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsRequest() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
@@ -768,7 +773,12 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testCheckModelConfig_UpdatesDimensions() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
@@ -831,7 +841,12 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testInfer_UnauthorisedResponse() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
@@ -862,7 +877,12 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testInfer_SetsInputTypeToIngest_FromInferParameter_WhenTaskSettingsAreEmpty() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
@@ -923,7 +943,12 @@ public class CohereServiceTests extends ESTestCase {
 
     public void testInfer_SetsInputTypeToIngestFromInferParameter_WhenModelSettingIsNull_AndRequestTaskSettingsIsSearch()
         throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
@@ -989,7 +1014,12 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testInfer_DoesNotSetInputType_WhenNotPresentInTaskSettings_AndUnspecifiedIsPassedInRequest() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 

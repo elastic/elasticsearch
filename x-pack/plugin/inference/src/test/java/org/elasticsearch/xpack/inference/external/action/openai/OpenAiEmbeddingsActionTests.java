@@ -22,7 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
@@ -70,7 +70,12 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
     }
 
     public void testExecute_ReturnsSuccessfulResponse() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();

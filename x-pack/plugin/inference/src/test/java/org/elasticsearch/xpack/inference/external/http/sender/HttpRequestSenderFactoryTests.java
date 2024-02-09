@@ -102,7 +102,12 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
     }
 
     public void testHttpRequestSender_Throws_WhenCallingSendBeforeStart() throws Exception {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
@@ -118,12 +123,17 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
         var mockManager = mock(HttpClientManager.class);
         when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
 
-        var senderFactory = new HttpRequestSenderFactory(threadPool, mockManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            mockManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
-            assertThat(sender, instanceOf(HttpRequestSenderFactory.HttpRequestSender.class));
+            assertThat(sender, instanceOf(HttpRequestSender.class));
             // hack to get around the sender interface so we can set the timeout directly
-            var httpSender = (HttpRequestSenderFactory.HttpRequestSender) sender;
+            var httpSender = (HttpRequestSender) sender;
             httpSender.setMaxRequestTimeout(TimeValue.timeValueNanos(1));
             sender.start();
 
@@ -143,7 +153,12 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
         var mockManager = mock(HttpClientManager.class);
         when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
 
-        var senderFactory = new HttpRequestSenderFactory(threadPool, mockManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            mockManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
@@ -160,7 +175,10 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
         }
     }
 
-    private static HttpRequestSenderFactory createSenderFactory(HttpClientManager clientManager, AtomicReference<Thread> threadRef) {
+    private static HttpRequestSender.HttpRequestSenderFactory createSenderFactory(
+        HttpClientManager clientManager,
+        AtomicReference<Thread> threadRef
+    ) {
         var mockExecutorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
             Runnable runnable = (Runnable) invocation.getArguments()[0];
@@ -175,6 +193,6 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(mockThreadPool.schedule(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.ScheduledCancellable.class));
 
-        return new HttpRequestSenderFactory(mockThreadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        return new HttpRequestSender.HttpRequestSenderFactory(mockThreadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
     }
 }

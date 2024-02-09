@@ -20,7 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
@@ -72,7 +72,12 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExecute_ReturnsSuccessfulResponse_ForElserAction() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
@@ -122,7 +127,12 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSend_FailsFromInvalidResponseFormat_ForElserAction() throws IOException, URISyntaxException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
@@ -188,7 +198,12 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
@@ -234,7 +249,12 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSend_FailsFromInvalidResponseFormat_ForEmbeddingsAction() throws IOException, URISyntaxException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
@@ -297,7 +317,12 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
     }
 
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
@@ -362,7 +387,12 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
     }
 
     public void testExecute_TruncatesInputBeforeSending() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();

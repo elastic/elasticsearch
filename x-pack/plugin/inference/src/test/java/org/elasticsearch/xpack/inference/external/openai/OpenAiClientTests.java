@@ -20,7 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.junit.After;
@@ -70,7 +70,12 @@ public class OpenAiClientTests extends ESTestCase {
     }
 
     public void testSend_SuccessfulResponse() throws IOException, URISyntaxException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
@@ -121,7 +126,12 @@ public class OpenAiClientTests extends ESTestCase {
     }
 
     public void testSend_SuccessfulResponse_WithoutUser() throws IOException, URISyntaxException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
@@ -171,7 +181,12 @@ public class OpenAiClientTests extends ESTestCase {
     }
 
     public void testSend_SuccessfulResponse_WithoutOrganization() throws IOException, URISyntaxException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
@@ -221,7 +236,12 @@ public class OpenAiClientTests extends ESTestCase {
     }
 
     public void testSend_FailsFromInvalidResponseFormat() throws IOException, URISyntaxException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.HttpRequestSenderFactory(
+            threadPool,
+            clientManager,
+            mockClusterServiceEmpty(),
+            Settings.EMPTY
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();

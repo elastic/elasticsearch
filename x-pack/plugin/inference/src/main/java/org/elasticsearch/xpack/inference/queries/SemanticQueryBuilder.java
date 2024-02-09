@@ -66,6 +66,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         builder.startObject(NAME);
         builder.startObject(fieldName);
         builder.field(QUERY_FIELD.getPreferredName(), query);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }

@@ -15,7 +15,6 @@ import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -27,10 +26,10 @@ import java.util.Map;
 public class FetchIgnoredMetadataPhase implements FetchSubPhase {
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
-        StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
-        if (storedFieldsContext == null || storedFieldsContext.fetchFields() == false) {
-            return null;
-        }
+        // StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
+        // if (storedFieldsContext == null || storedFieldsContext.fetchFields() == false) {
+        // return null;
+        // }
         return new FetchSubPhaseProcessor() {
 
             SortedSetDocValues ignoredFields = null;

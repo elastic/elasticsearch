@@ -60,7 +60,7 @@ public class IgnoredFieldMapperTests extends MetadataMapperTestCase {
             .orElseThrow();
         assertEquals(IndexOptions.DOCS, stringField.fieldType().indexOptions());
         assertEquals("field", stringField.stringValue());
-        assertTrue(stringField.fieldType().stored());
+        assertEquals(DocValuesType.NONE, stringField.fieldType().docValuesType());
         IndexableField docValues = fields.stream()
             .filter(field -> DocValuesType.SORTED_SET == field.fieldType().docValuesType())
             .findFirst()

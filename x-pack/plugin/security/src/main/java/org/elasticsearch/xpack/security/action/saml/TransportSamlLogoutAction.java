@@ -8,12 +8,13 @@ package org.elasticsearch.xpack.security.action.saml;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Transport action responsible for generating a SAML {@code &lt;LogoutRequest&gt;} as a redirect binding URL.
@@ -39,6 +41,7 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
 
     private final Realms realms;
     private final TokenService tokenService;
+    private final Executor genericExecutor;
 
     @Inject
     public TransportSamlLogoutAction(
@@ -47,13 +50,27 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
         Realms realms,
         TokenService tokenService
     ) {
-        super(SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(
+            SamlLogoutAction.NAME,
+            transportService,
+            actionFilters,
+            SamlLogoutRequest::new,
+            transportService.getThreadPool().executor(ThreadPool.Names.SAME)
+        );
         this.realms = realms;
         this.tokenService = tokenService;
+        this.genericExecutor = transportService.getThreadPool().generic();
     }
 
     @Override
     protected void doExecute(Task task, SamlLogoutRequest request, ActionListener<SamlLogoutResponse> listener) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        genericExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+    }
+
+    private void doExecuteForked(Task task, SamlLogoutRequest request, ActionListener<SamlLogoutResponse> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         invalidateRefreshToken(request.getRefreshToken(), ActionListener.wrap(ignore -> {
             try {
                 final String token = request.getToken();

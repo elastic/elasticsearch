@@ -42,6 +42,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private String[] filters = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
+    private boolean includeEmptyFields = true;
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
     private QueryBuilder indexFilter;
@@ -61,6 +62,9 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             filters = in.readStringArray();
             types = in.readStringArray();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
+            includeEmptyFields = in.readBoolean();
         }
     }
 
@@ -99,6 +103,9 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             out.writeStringArray(filters);
             out.writeStringArray(types);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
+            out.writeBoolean(includeEmptyFields);
         }
     }
 
@@ -168,6 +175,11 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         return this;
     }
 
+    public FieldCapabilitiesRequest includeEmptyFields(boolean includeEmptyFields) {
+        this.includeEmptyFields = includeEmptyFields;
+        return this;
+    }
+
     @Override
     public String[] indices() {
         return indices;
@@ -190,6 +202,10 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
 
     public boolean includeUnmapped() {
         return includeUnmapped;
+    }
+
+    public boolean includeEmptyFields() {
+        return includeEmptyFields;
     }
 
     /**
@@ -247,12 +263,21 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             && Objects.equals(nowInMillis, that.nowInMillis)
             && Arrays.equals(filters, that.filters)
             && Arrays.equals(types, that.types)
-            && Objects.equals(runtimeFields, that.runtimeFields);
+            && Objects.equals(runtimeFields, that.runtimeFields)
+            && includeEmptyFields == that.includeEmptyFields;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, includeUnmapped, mergeResults, indexFilter, nowInMillis, runtimeFields);
+        int result = Objects.hash(
+            indicesOptions,
+            includeUnmapped,
+            mergeResults,
+            indexFilter,
+            nowInMillis,
+            runtimeFields,
+            includeEmptyFields
+        );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(fields);
         result = 31 * result + Arrays.hashCode(filters);
@@ -264,7 +289,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     public String getDescription() {
         final StringBuilder stringBuilder = new StringBuilder("indices[");
         Strings.collectionToDelimitedStringWithLimit(Arrays.asList(indices), ",", "", "", 1024, stringBuilder);
-        return FieldCapabilitiesNodeRequest.completeDescription(stringBuilder, fields, filters, types);
+        return FieldCapabilitiesNodeRequest.completeDescription(stringBuilder, fields, filters, types, includeEmptyFields);
     }
 
     @Override

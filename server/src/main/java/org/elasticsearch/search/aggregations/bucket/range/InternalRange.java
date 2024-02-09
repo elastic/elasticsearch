@@ -10,11 +10,14 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.FixedMultiBucketAggregatorsReducer;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -321,26 +324,37 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     @SuppressWarnings("unchecked")
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        reduceContext.consumeBucketsAndMaybeBreak(ranges.size());
-        @SuppressWarnings("rawtypes")
-        List<B>[] rangeList = new List[ranges.size()];
-        for (int i = 0; i < rangeList.length; ++i) {
-            rangeList[i] = new ArrayList<>();
-        }
-        for (InternalAggregation aggregation : aggregations) {
-            InternalRange<B, R> ranges = (InternalRange<B, R>) aggregation;
-            int i = 0;
-            for (B range : ranges.ranges) {
-                rangeList[i++].add(range);
-            }
-        }
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final FixedMultiBucketAggregatorsReducer<B> reducer = new FixedMultiBucketAggregatorsReducer<>(
+                reduceContext,
+                size,
+                getBuckets()
+            ) {
 
-        final List<B> ranges = new ArrayList<>();
-        for (int i = 0; i < this.ranges.size(); ++i) {
-            ranges.add(reduceBucket(rangeList[i], reduceContext));
-        }
-        return getFactory().create(name, ranges, format, keyed, getMetadata());
+                @Override
+                protected Bucket createBucket(Bucket proto, long docCount, InternalAggregations aggregations) {
+                    return getFactory().createBucket(proto.key, proto.from, proto.to, docCount, aggregations, proto.keyed, proto.format);
+                }
+            };
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                @SuppressWarnings("unchecked")
+                final InternalRange<B, R> ranges = (InternalRange<B, R>) aggregation;
+                reducer.accept(ranges.ranges);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return getFactory().create(name, reducer.get(), format, keyed, getMetadata());
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(reducer);
+            }
+        };
     }
 
     @Override
@@ -365,19 +379,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             keyed,
             getMetadata()
         );
-    }
-
-    @Override
-    protected B reduceBucket(List<B> buckets, AggregationReduceContext context) {
-        assert buckets.isEmpty() == false;
-        long docCount = 0;
-        for (Bucket bucket : buckets) {
-            docCount += bucket.docCount;
-        }
-        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        Bucket prototype = buckets.get(0);
-        return getFactory().createBucket(prototype.key, prototype.from, prototype.to, docCount, aggs, keyed, format);
     }
 
     @Override

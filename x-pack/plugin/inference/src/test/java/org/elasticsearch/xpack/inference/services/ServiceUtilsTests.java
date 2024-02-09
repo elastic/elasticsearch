@@ -311,6 +311,23 @@ public class ServiceUtilsTests extends ESTestCase {
         assertTrue(map.isEmpty());
     }
 
+    public void testExtractOptionalEnum_ReturnsClassification_WhenValueIsAcceptable() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", InputType.CLASSIFICATION.toString()));
+        var createdEnum = extractOptionalEnum(
+            map,
+            "key",
+            "scope",
+            InputType::fromString,
+            EnumSet.of(InputType.INGEST, InputType.CLASSIFICATION),
+            validation
+        );
+
+        assertThat(createdEnum, is(InputType.CLASSIFICATION));
+        assertTrue(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
     public void testGetEmbeddingSize_ReturnsError_WhenTextEmbeddingResults_IsEmpty() {
         var service = mock(InferenceService.class);
 

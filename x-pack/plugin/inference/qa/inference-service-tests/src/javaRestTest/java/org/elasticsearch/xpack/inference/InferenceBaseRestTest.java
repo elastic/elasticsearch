@@ -62,6 +62,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
               "service": "test_service",
               "service_settings": {
                 "model": "my_model",
+                "hidden_field": "my_hidden_value",
                 "api_key": "abc64"
               },
               "task_settings": {
@@ -69,6 +70,25 @@ public class InferenceBaseRestTest extends ESRestTestCase {
               }
             }
             """, taskType);
+    }
+
+    static String mockServiceModelConfig(@Nullable TaskType taskTypeInBody, boolean shouldReturnHiddenField) {
+        var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
+        return Strings.format("""
+            {
+              %s
+              "service": "test_service",
+              "service_settings": {
+                "model": "my_model",
+                "hidden_field": "my_hidden_value",
+                "should_return_hidden_field": %s,
+                "api_key": "abc64"
+              },
+              "task_settings": {
+                "temperature": 3
+              }
+            }
+            """, taskType, shouldReturnHiddenField);
     }
 
     protected void deleteModel(String modelId) throws IOException {
@@ -115,6 +135,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     }
 
     protected Map<String, Object> getAllModels() throws IOException {
+        var endpoint = Strings.format("_inference/_all");
         return getAllModelInternal("_inference/_all");
     }
 
@@ -172,5 +193,13 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
         String responseStr = EntityUtils.toString(response.getEntity());
         assertThat(responseStr, response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    protected Map<String, Object> getTrainedModel(String inferenceEntityId) throws IOException {
+        var endpoint = Strings.format("_ml/trained_models/%s/_stats", inferenceEntityId);
+        var request = new Request("GET", endpoint);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
     }
 }

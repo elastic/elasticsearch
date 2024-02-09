@@ -56,6 +56,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -130,6 +131,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     private TransportSamlInvalidateSessionAction action;
     private SamlLogoutRequestHandler.Result logoutRequest;
     private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> SearchHits.EMPTY;
+    private ThreadPool threadPool;
 
     @Before
     public void setup() throws Exception {
@@ -147,9 +149,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
             .build();
 
-        final ThreadContext threadContext = new ThreadContext(settings);
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        this.threadPool = new TestThreadPool("saml test thread pool", settings);
+        final ThreadContext threadContext = threadPool.getThreadContext();
         AuthenticationTestHelper.builder()
             .user(new User("kibana"))
             .realmRef(new RealmRef("realm", "type", "node"))
@@ -338,6 +339,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     @After
     public void cleanup() {
         samlRealm.close();
+        threadPool.shutdown();
     }
 
     public void testInvalidateCorrectTokensFromLogoutRequest() throws Exception {

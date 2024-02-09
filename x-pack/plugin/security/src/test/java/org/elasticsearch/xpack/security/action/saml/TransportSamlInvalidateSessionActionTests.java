@@ -55,9 +55,10 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -94,6 +95,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -129,6 +131,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     private TransportSamlInvalidateSessionAction action;
     private SamlLogoutRequestHandler.Result logoutRequest;
     private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> SearchHits.EMPTY;
+    private ThreadPool threadPool;
 
     @Before
     public void setup() throws Exception {
@@ -146,10 +149,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
             .build();
 
-        final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        final ThreadContext threadContext = new ThreadContext(settings);
-        final ThreadPool threadPool = transportService.getThreadPool();
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        this.threadPool = new TestThreadPool("saml test thread pool", settings);
+        final ThreadContext threadContext = threadPool.getThreadContext();
         AuthenticationTestHelper.builder()
             .user(new User("kibana"))
             .realmRef(new RealmRef("realm", "type", "node"))
@@ -290,6 +291,15 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             clusterService
         );
 
+        final TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
         final Realms realms = mock(Realms.class);
         action = new TransportSamlInvalidateSessionAction(transportService, mock(ActionFilters.class), tokenService, realms);
 
@@ -329,6 +339,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     @After
     public void cleanup() {
         samlRealm.close();
+        threadPool.shutdown();
     }
 
     public void testInvalidateCorrectTokensFromLogoutRequest() throws Exception {

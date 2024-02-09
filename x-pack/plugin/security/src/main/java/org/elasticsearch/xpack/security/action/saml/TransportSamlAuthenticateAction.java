@@ -75,6 +75,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
 
     private void doExecuteForked(Task task, SamlAuthenticateRequest request, ActionListener<SamlAuthenticateResponse> listener) {
         assert Transports.assertNotTransportThread("SAML authentication may involve slow IO/HTTP calls");
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         final SamlToken saml = new SamlToken(request.getSaml(), request.getValidRequestIds(), request.getRealm());
         logger.trace("Attempting to authenticate SamlToken [{}]", saml);
         final ThreadContext threadContext = threadPool.getThreadContext();

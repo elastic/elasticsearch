@@ -70,6 +70,7 @@ public final class TransportSamlPrepareAuthenticationAction extends HandledTrans
         ActionListener<SamlPrepareAuthenticationResponse> listener
     ) {
         assert Transports.assertNotTransportThread("SAML prepare authentication may involve slow IO/HTTP calls");
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL());
         if (realms.isEmpty()) {
             listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));

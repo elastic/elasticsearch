@@ -81,6 +81,7 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
 
     private void doExecuteForked(Task task, SamlInvalidateSessionRequest request, ActionListener<SamlInvalidateSessionResponse> listener) {
         assert Transports.assertNotTransportThread("SAML invalidate session may involve slow IO/HTTP calls");
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL());
         if (realms.isEmpty()) {
             listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));

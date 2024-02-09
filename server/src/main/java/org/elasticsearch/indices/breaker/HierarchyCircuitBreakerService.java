@@ -739,7 +739,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                     if (initialCollectionCount != gcCountSupplier.getAsLong()) {
                         break;
                     }
-                    //noinspection ArrayHashCode - prevent array allocation from being optimized away
+                    // noinspection ArrayHashCode - prevent array allocation from being optimized away
                     localBlackHole += new byte[allocationSize].hashCode();
                 }
 

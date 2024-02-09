@@ -155,10 +155,34 @@ public class RootObjectMapper extends ObjectMapper {
                                     );
                                 }
                             } else {
-                                FieldAliasMapper aliasMapper = new FieldAliasMapper.Builder(fieldMapper.simpleName()).path(
-                                    fieldMapper.mappedFieldType.name()
-                                ).build(context);
-                                aliasMappers.put(aliasMapper.simpleName(), aliasMapper);
+                                // Check if the field name contains dots, as aliases require nesting within objects in this case.
+                                String[] fieldNameParts = fieldMapper.simpleName().split("\\.");
+                                if (fieldNameParts.length == 0) {
+                                    throw new IllegalArgumentException("field name cannot contain only dots");
+                                }
+                                if (fieldNameParts.length == 1) {
+                                    // No nesting required, add the alias directly to the root.
+                                    FieldAliasMapper aliasMapper = new FieldAliasMapper.Builder(fieldMapper.simpleName()).path(
+                                        fieldMapper.mappedFieldType.name()
+                                    ).build(context);
+                                    aliasMappers.put(aliasMapper.simpleName(), aliasMapper);
+                                } else {
+                                    // Nest the alias within object(s).
+                                    String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+                                    Mapper.Builder fieldBuilder = new FieldAliasMapper.Builder(realFieldName).path(
+                                        fieldMapper.mappedFieldType.name()
+                                    );
+                                    for (int i = fieldNameParts.length - 2; i >= 0; --i) {
+                                        String intermediateObjectName = fieldNameParts[i];
+                                        ObjectMapper.Builder intermediate = new ObjectMapper.Builder(
+                                            intermediateObjectName,
+                                            ObjectMapper.Defaults.SUBOBJECTS
+                                        );
+                                        intermediate.add(fieldBuilder);
+                                        fieldBuilder = intermediate;
+                                    }
+                                    aliasMappers.put(fieldNameParts[0], fieldBuilder.build(context));
+                                }
                             }
                         }
                     }

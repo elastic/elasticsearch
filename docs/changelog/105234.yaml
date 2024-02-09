@@ -1,0 +1,6 @@
+pr: 105234
+summary: Do not log warning when triggering an `ABORTING` transform
+area: Transform
+type: bug
+issues:
+ - 105233

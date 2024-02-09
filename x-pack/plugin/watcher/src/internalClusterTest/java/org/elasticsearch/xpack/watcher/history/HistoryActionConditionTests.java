@@ -124,7 +124,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
             try {
                 assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
                 searchHitReference.set(response.getHits().getAt(0).asUnpooled());
-            } catch (Exception | AssertionError e) {
+            } finally {
                 response.decRef();
             }
         });

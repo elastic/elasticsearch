@@ -188,7 +188,27 @@ class S3BlobStore implements BlobStore {
                 repositoriesMetrics.throttleCounter().incrementBy(throttleCount, attributes);
                 repositoriesMetrics.throttleHistogram().record(throttleCount, attributes);
             }
-            repositoriesMetrics.httpRequestTimeInMicroHistogram().record(getHttpRequestTimeInMicros(request), attributes);
+            maybeRecordHttpRequestTime(request);
+        }
+
+        /**
+         * Used for APM style metrics to measure statics about performance. This is not for billing.
+         */
+        private void maybeRecordHttpRequestTime(Request<?> request) {
+            final List<TimingInfo> requestTimesIncludingRetries = request.getAWSRequestMetrics()
+                .getTimingInfo()
+                .getAllSubMeasurements(AWSRequestMetrics.Field.HttpRequestTime.name());
+            // It can be null if the request did not reach the server for some reason
+            if (requestTimesIncludingRetries == null) {
+                return;
+            }
+
+            final long totalTimeInMicros = getTotalTimeInMicros(requestTimesIncludingRetries);
+            if (totalTimeInMicros == 0) {
+                logger.warn("Expected HttpRequestTime to be tracked for request [{}] but found no count.", request);
+            } else {
+                repositoriesMetrics.httpRequestTimeInMicroHistogram().record(totalTimeInMicros, attributes);
+            }
         }
 
         private boolean assertConsistencyBetweenHttpRequestAndOperation(Request<?> request, Operation operation) {
@@ -227,15 +247,7 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    /**
-     * Used for APM style metrics to measure statics about performance. This is not for billing.
-     */
-    private static long getHttpRequestTimeInMicros(Request<?> request) {
-        List<TimingInfo> requestTimesIncludingRetries;
-        requestTimesIncludingRetries = request.getAWSRequestMetrics()
-            .getTimingInfo()
-            .getAllSubMeasurements(AWSRequestMetrics.Field.HttpRequestTime.name());
-
+    private static long getTotalTimeInMicros(List<TimingInfo> requestTimesIncludingRetries) {
         // Here we calculate the timing in Microseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
         // (time to first byte). We calculate the time in micros for later use with an APM style counter (exposed as a long), rather than
         // using the default double exposed by getTimeTakenMillisIfKnown().
@@ -245,10 +257,6 @@ class S3BlobStore implements BlobStore {
             if (endTimeInNanos != null) {
                 totalTimeInMicros += TimeUnit.NANOSECONDS.toMicros(endTimeInNanos - timingInfo.getStartTimeNano());
             }
-        }
-        if (totalTimeInMicros == 0) {
-            logger.warn("Expected HttpRequestTime to be tracked for request [{}] but found no count.", request);
-            return 0L;
         }
         return totalTimeInMicros;
     }

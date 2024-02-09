@@ -410,7 +410,6 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
                         Collections.reverse(reverse);
                         reducedBuckets = reverse;
                     } else if (InternalOrder.isKeyAsc(order) == false) {
-
                         // nothing to do when sorting by key ascending, as data is already sorted since shards return
                         // sorted buckets and the merge-sort performed by reduceBuckets maintains order.
                         // otherwise, sorted by compound order or sub-aggregation, we need to fall back to a costly n*log(n) sort

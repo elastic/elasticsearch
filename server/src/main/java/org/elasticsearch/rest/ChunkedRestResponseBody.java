@@ -60,8 +60,9 @@ public interface ChunkedRestResponseBody {
 
      * <p>Note that the {@link Task} corresponding to any invocation of {@link Client#execute} completes as soon as the client action
      * returns its response, so it no longer exists when this method is called and cannot be used to receive cancellation notifications.
-     * Instead, if the HTTP channel is closed while sending a response (including while waiting for a continuation) then the REST layer
-     * will invoke {@link RestResponse#close}. Implementations will typically explicitly create a {@link CancellableTask} to represent the
+     * Instead, if the HTTP channel is closed while sending a response then the REST layer will invoke {@link RestResponse#close}. If the
+     * HTTP channel is closed while the REST layer is waiting for a continuation then the {@link RestResponse} will not be closed until the
+     * continuation listener is completed. Implementations will typically explicitly create a {@link CancellableTask} to represent the
      * computation and transmission of the entire {@link RestResponse}, and will cancel this task if the {@link RestResponse} is closed
      * prematurely.</p>
      *

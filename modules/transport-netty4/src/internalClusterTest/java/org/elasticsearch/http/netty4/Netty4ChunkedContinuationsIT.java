@@ -468,6 +468,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
         public static class Response extends ActionResponse {
             private final Executor executor;
+            volatile boolean computingContinuation;
 
             public Response(Executor executor) {
                 this.executor = executor;
@@ -494,7 +495,11 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
                     @Override
                     public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
-                        executor.execute(ActionRunnable.supply(listener, () -> getChunkedBody()));
+                        computingContinuation = true;
+                        executor.execute(ActionRunnable.supply(listener, () -> {
+                            computingContinuation = false;
+                            return getChunkedBody();
+                        }));
                     }
 
                     @Override
@@ -568,7 +573,12 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                                 client.execute(TYPE, new Request(), new RestActionListener<>(channel) {
                                     @Override
                                     protected void processResponse(Response response) {
-                                        channel.sendResponse(RestResponse.chunked(RestStatus.OK, response.getChunkedBody(), refs::decRef));
+                                        channel.sendResponse(RestResponse.chunked(RestStatus.OK, response.getChunkedBody(), () -> {
+                                            // cancellation notification only happens while processing a continuation, not while computing
+                                            // the next one; prompt cancellation requires use of something like RestCancellableNodeClient
+                                            assertFalse(response.computingContinuation);
+                                            refs.decRef();
+                                        }));
                                     }
                                 });
                             }

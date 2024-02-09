@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.ql.util.NumericUtils;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 public class EqualsTests extends AbstractFunctionTestCase {
@@ -194,36 +193,8 @@ public class EqualsTests extends AbstractFunctionTestCase {
         );
 
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), EqualsTests::errorMessageString)
+            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AbstractFunctionTestCase::errorMessageStringForBinaryOperators)
         );
-    }
-
-    private static String errorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types);
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is from the combination
-            if (types.get(0).equals(DataTypes.UNSIGNED_LONG)) {
-                return "first argument of [] is [unsigned_long] and second is ["
-                    + types.get(1).typeName()
-                    + "]. [unsigned_long] can only be operated on together with another [unsigned_long]";
-
-            }
-            if (types.get(1).equals(DataTypes.UNSIGNED_LONG)) {
-                return "first argument of [] is ["
-                    + types.get(0).typeName()
-                    + "] and second is [unsigned_long]. [unsigned_long] can only be operated on together with another [unsigned_long]";
-            }
-            return "first argument of [] is ["
-                + (types.get(0).isNumeric() ? "numeric" : types.get(0).typeName())
-                + "] so second argument must also be ["
-                + (types.get(0).isNumeric() ? "numeric" : types.get(0).typeName())
-                + "] but was ["
-                + types.get(1).typeName()
-                + "]";
-
-        }
-
     }
 
     @Override

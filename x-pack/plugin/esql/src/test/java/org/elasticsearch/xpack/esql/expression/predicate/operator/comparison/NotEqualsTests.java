@@ -15,16 +15,12 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class NotEqualsTests extends AbstractFunctionTestCase {
     public NotEqualsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -79,26 +75,15 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
             )
         );
 
-        /*
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), NotEqualsTests::errorMessageString)
+            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AbstractFunctionTestCase::errorMessageStringForBinaryOperators)
         );
 
-         */
-        return parameterSuppliersFromTypedData(anyNullIsNull(true, suppliers));
+        // return parameterSuppliersFromTypedData(anyNullIsNull(true, suppliers));
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new NotEquals(source, args.get(0), args.get(1));
-    }
-    private static String errorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types);
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is from the combination
-            return "[!=] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
-
-        }
     }
 }

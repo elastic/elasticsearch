@@ -1,5 +1,0 @@
-pr: 105298
-summary: Ignore duplicate `FieldAliasMappers`
-area: TSDB
-type: bug
-issues: []

@@ -11,7 +11,9 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.attributes.Attribute;
+import org.gradle.api.tasks.TaskProvider;
 
 import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE;
 import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.DIRECTORY_TYPE;
@@ -29,6 +31,7 @@ public class EmbeddedProviderPlugin implements Plugin<Project> {
             transformSpec.parameters(parameters -> parameters.getIncludeArtifactName().set(true));
         });
 
-        project.getExtensions().create("embeddedProviders", EmbeddedProviderExtension.class, project);
+        TaskProvider<Task> metaTask = project.getTasks().register("generateProviderImpls");
+        project.getExtensions().create("embeddedProviders", EmbeddedProviderExtension.class, project, metaTask);
     }
 }

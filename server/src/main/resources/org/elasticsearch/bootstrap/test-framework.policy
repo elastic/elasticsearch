@@ -124,7 +124,7 @@ grant codeBase "${codebase.netty-transport}" {
 };
 
 grant codeBase "${codebase.jna}" {
-  permission java.io.FilePermission "*" "read";
+  permission java.io.FilePermission "*", "read";
 };
 
 grant {

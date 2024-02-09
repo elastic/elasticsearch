@@ -11,6 +11,13 @@ dependencies {
   api project(':libs:elasticsearch-core')
   implementation "net.java.dev.jna:jna:${versions.jna}"
 
+  // zstd native implementation bundles
+  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:darwin-aarch64"
+  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:darwin-x86-64"
+  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:linux-aarch64"
+  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:linux-x86-64"
+  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:windows-x86-64"
+
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-zstd'
   }

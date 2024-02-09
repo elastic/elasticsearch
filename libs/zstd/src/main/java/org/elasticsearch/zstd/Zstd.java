@@ -11,6 +11,7 @@ package org.elasticsearch.zstd;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -22,12 +23,14 @@ import java.util.Objects;
 public final class Zstd {
 
     private static ZstdLibrary load() {
-        String zstdPath;
-        try {
-            zstdPath = Native.extractFromResourcePath("zstd").getAbsolutePath();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        File zstdFile = AccessController.doPrivileged((PrivilegedAction<File>) () -> {
+            try {
+                return Native.extractFromResourcePath("zstd");
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+        String zstdPath = zstdFile.getAbsolutePath();
         return AccessController.doPrivileged((PrivilegedAction<ZstdLibrary>) () -> Native.load(zstdPath, ZstdLibrary.class));
     }
 

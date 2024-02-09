@@ -71,6 +71,7 @@ grant codeBase "${codebase.jna}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "newProxyInPackage.org.elasticsearch.zstd";
+  permission java.io.FilePermission "*", "read";
 };
 
 grant codeBase "${codebase.log4j-api}" {
@@ -86,6 +87,7 @@ grant codeBase "${codebase.elasticsearch-preallocate}" {
 
 grant codeBase "${codebase.elasticsearch-zstd}" {
   permission java.lang.reflect.ReflectPermission "newProxyInPackage.org.elasticsearch.zstd";
+  permission java.io.FilePermission "*", "read";
 };
 
 //// Everything else:

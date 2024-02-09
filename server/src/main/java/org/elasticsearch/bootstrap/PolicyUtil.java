@@ -63,7 +63,7 @@ import javax.security.auth.kerberos.DelegationPermission;
 import javax.security.auth.kerberos.ServicePermission;
 
 public class PolicyUtil {
-    private static final Pattern CODEBASE_ALIAS_CLASSIFIER_PATTERN = Pattern.compile(".*-(?:\\d+(?:\\.)?)+(?:-SNAPSHOT)?(-.+)?\\.jar");
+    private static final Pattern CODEBASE_ALIAS_CLASSIFIER_PATTERN = Pattern.compile(".*(-(?:darwin|linux|windows)-.*)\\.jar");
 
     // this object is checked by reference, so the value in the list does not matter
     static final List<String> ALLOW_ALL_NAMES = List.of("ALLOW ALL NAMES SENTINEL");

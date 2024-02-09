@@ -366,7 +366,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         final GeoIpDownloader geoIpDownloader = this.getCurrentTask();
         persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, ActionListener.runAfter(listener, () -> {
             if (geoIpDownloader != null) {
-                geoIpDownloader.deleteIndex();
+                threadPool.generic().execute(geoIpDownloader::deleteIndex);
             }
         }));
     }

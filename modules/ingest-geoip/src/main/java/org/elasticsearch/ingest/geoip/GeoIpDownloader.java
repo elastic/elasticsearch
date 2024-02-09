@@ -126,7 +126,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     // visible for testing
-    void updateDatabases() throws IOException {
+    synchronized void updateDatabases() throws IOException {
         var clusterState = clusterService.state();
         var geoipIndex = clusterState.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
         if (geoipIndex != null) {
@@ -327,7 +327,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         stats = stats.expiredDatabases((int) expiredDatabases);
     }
 
-    public void deleteIndex() {
+    synchronized void deleteIndex() {
         IndexAbstraction databasesAbstraction = clusterService.state().metadata().getIndicesLookup().get(DATABASES_INDEX);
         if (databasesAbstraction != null) {
             // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index

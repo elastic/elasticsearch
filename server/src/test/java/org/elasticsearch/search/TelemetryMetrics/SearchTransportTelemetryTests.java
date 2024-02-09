@@ -91,6 +91,7 @@ public class SearchTransportTelemetryTests extends ESSingleNodeTestCase {
         resetMeter();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103810")
     public void testSearchTransportMetricsScroll() throws InterruptedException {
         assertScrollResponsesAndHitCount(
             client(),

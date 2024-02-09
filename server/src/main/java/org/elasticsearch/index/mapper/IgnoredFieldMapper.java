@@ -50,7 +50,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> getInstance(c.indexVersionCreated()));
 
-    public static MetadataFieldMapper getInstance(IndexVersion indexVersion) {
+    private static MetadataFieldMapper getInstance(IndexVersion indexVersion) {
         return indexVersion.onOrAfter(AGGS_SUPPORT_VERSION) ? INSTANCE : LEGACY_INSTANCE;
     }
 
@@ -124,14 +124,9 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) {
-        MappedFieldType mappedFieldType = fieldType();
         for (String ignoredField : context.getIgnoredFields()) {
-            if (mappedFieldType.hasDocValues()) {
-                context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(ignoredField)));
-            }
-            if (mappedFieldType.isIndexed()) {
-                context.doc().add(new StringField(fieldType().name(), ignoredField, Field.Store.NO));
-            }
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(ignoredField)));
+            context.doc().add(new StringField(fieldType().name(), ignoredField, Field.Store.NO));
         }
     }
 

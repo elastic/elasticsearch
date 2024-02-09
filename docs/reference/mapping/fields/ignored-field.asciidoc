@@ -44,7 +44,7 @@ GET _search
 }
 --------------------------------------------------
 
-Since 8.12.0, the `_ignored` field supports aggregations as well.
+Since 8.13.0, the `_ignored` field supports aggregations as well.
 For example, the below query finds all fields that got ignored:
 
 [source,console]

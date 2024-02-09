@@ -1,5 +1,5 @@
 pr: 105362
 summary: Redirect shard-level bulk failures to a failure store if applicable
-area: "Data streams, CRUD"
+area: "Data streams"
 type: feature
 issues: []

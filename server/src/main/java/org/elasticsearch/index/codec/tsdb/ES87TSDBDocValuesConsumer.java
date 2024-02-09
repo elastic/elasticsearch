@@ -242,27 +242,6 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             meta.writeInt(maxLength);
 
             blockWriter.writeMetaData();
-//            if (maxLength > minLength) {
-//                start = data.getFilePointer();
-//                meta.writeLong(start);
-//                meta.writeVInt(ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
-//
-//                final DirectMonotonicWriter writer = DirectMonotonicWriter.getInstance(
-//                    meta,
-//                    data,
-//                    numDocsWithField + 1,
-//                    ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
-//                );
-//                long addr = 0;
-//                writer.add(addr);
-//                values = valuesProducer.getBinary(field);
-//                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-//                    addr += values.binaryValue().length;
-//                    writer.add(addr);
-//                }
-//                writer.finish();
-//                meta.writeLong(data.getFilePointer() - start);
-//            }
         }
     }
 

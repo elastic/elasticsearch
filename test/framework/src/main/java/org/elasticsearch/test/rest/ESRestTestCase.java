@@ -813,7 +813,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws Exception {
-        // Ensure that all cluster updates have been processed
         logger.info("Waiting for all cluster updates up to this moment to be processed");
         assertOK(adminClient().performRequest(new Request("GET", "_cluster/health?wait_for_events=languid")));
 

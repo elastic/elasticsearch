@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.InferenceResults;
@@ -155,6 +156,10 @@ public class BulkShardRequestInferenceProvider {
             );
             listener.onResponse(newBulkShardRequest);
         };
+        TriConsumer<BulkItemRequest, Integer, Exception> onBulkItemFailureWithIndex = (bulkItemRequest, i, e) -> {
+            failedItems.add(i);
+            onBulkItemFailure.accept(bulkItemRequest, e);
+        };
         try (var bulkItemReqRef = new RefCountingRunnable(onInferenceComplete)) {
             BulkItemRequest[] items = bulkShardRequest.items();
             for (int i = 0; i < items.length; i++) {
@@ -165,8 +170,7 @@ public class BulkShardRequestInferenceProvider {
                         bulkItemRequest,
                         fieldsForModels,
                         i,
-                        onBulkItemFailure,
-                        failedItems,
+                        onBulkItemFailureWithIndex,
                         bulkItemReqRef.acquire()
                     );
                 }
@@ -174,12 +178,12 @@ public class BulkShardRequestInferenceProvider {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void performInferenceOnBulkItemRequest(
         BulkItemRequest bulkItemRequest,
         Map<String, Set<String>> fieldsForModels,
         Integer itemIndex,
-        BiConsumer<BulkItemRequest, Exception> onBulkItemFailure,
-        Set<Integer> failedItems,
+        TriConsumer<BulkItemRequest, Integer, Exception> onBulkItemFailure,
         Releasable releaseOnFinish
     ) {
 
@@ -210,46 +214,69 @@ public class BulkShardRequestInferenceProvider {
             releaseOnFinish.close();
         })) {
 
-            for (Map.Entry<String, Set<String>> fieldModelsEntrySet : fieldsForModels.entrySet()) {
-                String modelId = fieldModelsEntrySet.getKey();
-
-                @SuppressWarnings("unchecked")
-                Map<String, Object> rootInferenceFieldMap = (Map<String, Object>) docMap.computeIfAbsent(
+            Map<String, Object> rootInferenceFieldMap;
+            try {
+                rootInferenceFieldMap = (Map<String, Object>) docMap.computeIfAbsent(
                     ROOT_INFERENCE_FIELD,
                     k -> new HashMap<String, Object>()
                 );
+            } catch (ClassCastException e) {
+                onBulkItemFailure.apply(
+                    bulkItemRequest,
+                    itemIndex,
+                    new IllegalArgumentException("Inference result field [" + ROOT_INFERENCE_FIELD + "] is not an object")
+                );
+                return;
+            }
 
+            for (Map.Entry<String, Set<String>> fieldModelsEntrySet : fieldsForModels.entrySet()) {
+                String modelId = fieldModelsEntrySet.getKey();
                 List<String> inferenceFieldNames = getFieldNamesForInference(fieldModelsEntrySet, docMap);
-
                 if (inferenceFieldNames.isEmpty()) {
                     continue;
                 }
 
                 InferenceProvider inferenceProvider = inferenceProvidersMap.get(modelId);
                 if (inferenceProvider == null) {
-                    failedItems.add(itemIndex);
-                    onBulkItemFailure.accept(
+                    onBulkItemFailure.apply(
                         bulkItemRequest,
+                        itemIndex,
                         new IllegalArgumentException("No inference provider found for model ID " + modelId)
                     );
-                    continue;
+                    return;
                 }
                 ActionListener<InferenceServiceResults> inferenceResultsListener = new ActionListener<>() {
                     @Override
                     public void onResponse(InferenceServiceResults results) {
-
                         if (results == null) {
-                            throw new IllegalArgumentException(
-                                "No inference retrieved for model ID " + modelId + " in document " + docWriteRequest.id()
+                            onBulkItemFailure.apply(
+                                bulkItemRequest,
+                                itemIndex,
+                                new IllegalArgumentException(
+                                    "No inference results retrieved for model ID " + modelId + " in document " + docWriteRequest.id()
+                                )
                             );
                         }
 
                         int i = 0;
                         for (InferenceResults inferenceResults : results.transformToLegacyFormat()) {
                             String fieldName = inferenceFieldNames.get(i++);
-                            @SuppressWarnings("unchecked")
-                            List<Map<String, Object>> inferenceFieldResultList = (List<Map<String, Object>>) rootInferenceFieldMap
-                                .computeIfAbsent(fieldName, k -> new ArrayList<>());
+                            List<Map<String, Object>> inferenceFieldResultList;
+                            try {
+                                inferenceFieldResultList = (List<Map<String, Object>>) rootInferenceFieldMap.computeIfAbsent(
+                                    fieldName,
+                                    k -> new ArrayList<>()
+                                );
+                            } catch (ClassCastException e) {
+                                onBulkItemFailure.apply(
+                                    bulkItemRequest,
+                                    itemIndex,
+                                    new IllegalArgumentException(
+                                        "Inference result field [" + ROOT_INFERENCE_FIELD + "." + fieldName + "] is not an object"
+                                    )
+                                );
+                                return;
+                            }
                             // Remove previous inference results if any
                             inferenceFieldResultList.clear();
 
@@ -266,8 +293,7 @@ public class BulkShardRequestInferenceProvider {
 
                     @Override
                     public void onFailure(Exception e) {
-                        failedItems.add(itemIndex);
-                        onBulkItemFailure.accept(bulkItemRequest, e);
+                        onBulkItemFailure.apply(bulkItemRequest, itemIndex, e);
                     }
                 };
                 inferenceProvider.service()

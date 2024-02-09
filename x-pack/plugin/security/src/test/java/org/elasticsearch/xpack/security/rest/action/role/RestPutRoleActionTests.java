@@ -34,7 +34,6 @@ public class RestPutRoleActionTests extends ESTestCase {
         final Settings securityDisabledSettings = Settings.builder().put(NativeRolesStore.NATIVE_ROLES_ENABLED, false).build();
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
-        final RestPutRoleAction action = new RestPutRoleAction(securityDisabledSettings, licenseState, null, null, null);
         final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY) //
             .withParams(Map.of("name", "dice"))
             .withContent(new BytesArray("{ }"), XContentType.JSON)
@@ -43,6 +42,7 @@ public class RestPutRoleActionTests extends ESTestCase {
 
         try (var threadPool = createThreadPool()) {
             final var nodeClient = new NoOpNodeClient(threadPool);
+            final RestPutRoleAction action = new RestPutRoleAction(securityDisabledSettings, licenseState, mock(), mock(), mock());
             action.handleRequest(request, channel, nodeClient);
         }
 

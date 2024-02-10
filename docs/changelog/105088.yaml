@@ -1,0 +1,5 @@
+pr: 105088
+summary: "ESQL: Speed up reading many nulls"
+area: ES|QL
+type: enhancement
+issues: []

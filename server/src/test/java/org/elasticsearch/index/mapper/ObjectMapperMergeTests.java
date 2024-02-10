@@ -318,12 +318,10 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                 new KeywordFieldMapper.Builder("grandchild", IndexVersion.current())
             )
         ).build(MapperBuilderContext.root(false, false));
+
         ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
         ObjectMapper child = (ObjectMapper) merged.getMapper("child");
-        KeywordFieldMapper keywordFieldMapper = (KeywordFieldMapper) child.getMapper("grandchild");
-
         assertNull(child);
-        assertNull(keywordFieldMapper);
     }
 
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {

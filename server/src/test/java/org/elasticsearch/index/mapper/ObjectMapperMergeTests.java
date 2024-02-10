@@ -325,6 +325,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         assertNull(child);
         assertNull(keywordFieldMapper);
     }
+
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {
         FieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
         FieldMapper fieldMapper = fieldBuilder.build(MapperBuilderContext.root(false, false));

@@ -550,7 +550,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return newMapper;
         }
         this.mapper = newMapper;
-        assert assertSerialization(newMapper);
+        assertSerialization(newMapper);
         return newMapper;
     }
 

@@ -354,7 +354,7 @@ Parto          |Bamford        |1.83           |6.004230000000001
 // end::evalUnnamedColumn-result[]
 ;
 
-docsEvalUnnamedColumnStats
+docsEvalUnnamedColumnStats#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
 // tag::evalUnnamedColumnStats[]
 FROM employees
 | EVAL height * 3.281

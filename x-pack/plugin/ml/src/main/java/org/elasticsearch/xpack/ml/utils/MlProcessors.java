@@ -66,9 +66,9 @@ public final class MlProcessors {
             if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
                 Processors nodeProcessors = get(node, allocatedProcessorScale);
                 // Round down before summing, because ML only uses whole processors
-                total += nodeProcessors.roundDown();
+                total += nodeProcessors.roundUp();
             }
         }
-        return Processors.of((double) total);
+        return total == 0 ? Processors.ZERO : Processors.of((double) total);
     }
 }

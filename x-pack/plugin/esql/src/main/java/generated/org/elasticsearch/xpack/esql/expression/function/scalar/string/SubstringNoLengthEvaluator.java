@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -16,40 +17,43 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Substring}.
  * This class is generated. Do not edit it.
  */
 public final class SubstringNoLengthEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator str;
 
   private final EvalOperator.ExpressionEvaluator start;
 
   private final DriverContext driverContext;
 
-  public SubstringNoLengthEvaluator(EvalOperator.ExpressionEvaluator str,
+  public SubstringNoLengthEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator start, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.str = str;
     this.start = start;
     this.driverContext = driverContext;
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref strRef = str.eval(page)) {
-      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
-      try (Block.Ref startRef = start.eval(page)) {
-        IntBlock startBlock = (IntBlock) startRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      try (IntBlock startBlock = (IntBlock) start.eval(page)) {
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, startBlock));
+          return eval(page.getPositionCount(), strBlock, startBlock);
         }
         IntVector startVector = startBlock.asVector();
         if (startVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, startBlock));
+          return eval(page.getPositionCount(), strBlock, startBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), strVector, startVector).asBlock());
+        return eval(page.getPositionCount(), strVector, startVector).asBlock();
       }
     }
   }
@@ -58,11 +62,25 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+        if (strBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (startBlock.isNull(p) || startBlock.getValueCount(p) != 1) {
+        if (strBlock.getValueCount(p) != 1) {
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (startBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (startBlock.getValueCount(p) != 1) {
+          if (startBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -93,19 +111,22 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
     private final EvalOperator.ExpressionEvaluator.Factory str;
 
     private final EvalOperator.ExpressionEvaluator.Factory start;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
         EvalOperator.ExpressionEvaluator.Factory start) {
+      this.source = source;
       this.str = str;
       this.start = start;
     }
 
     @Override
     public SubstringNoLengthEvaluator get(DriverContext context) {
-      return new SubstringNoLengthEvaluator(str.get(context), start.get(context), context);
+      return new SubstringNoLengthEvaluator(source, str.get(context), start.get(context), context);
     }
 
     @Override

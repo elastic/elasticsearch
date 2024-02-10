@@ -18,13 +18,13 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -277,7 +277,7 @@ class ClientTransformIndexer extends TransformIndexer {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             request,
             responseListener
         );
@@ -288,13 +288,13 @@ class ClientTransformIndexer extends TransformIndexer {
         SchemaUtil.getDestinationFieldMappings(client, getConfig().getDestination().getIndex(), fieldMappingsListener);
     }
 
-    void validate(ActionListener<Void> listener) {
+    void validate(ActionListener<ValidateTransformAction.Response> listener) {
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
             ValidateTransformAction.INSTANCE,
             new ValidateTransformAction.Request(transformConfig, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
-            ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
+            listener
         );
     }
 
@@ -357,7 +357,7 @@ class ClientTransformIndexer extends TransformIndexer {
                             + statsExc.getMessage()
                     );
 
-                    if (failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings()) == false) {
+                    if (failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings())) {
                         // get the current seqNo and primary term, however ignore the stored state
                         transformsConfigManager.getTransformStoredDoc(
                             transformConfig.getId(),
@@ -433,7 +433,7 @@ class ClientTransformIndexer extends TransformIndexer {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            ClosePointInTimeAction.INSTANCE,
+            TransportClosePointInTimeAction.TYPE,
             closePitRequest,
             ActionListener.wrap(response -> {
                 logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit);
@@ -449,8 +449,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ActionListener<Tuple<String, SearchRequest>> listener
     ) {
         SearchRequest searchRequest = namedSearchRequest.v2();
-        // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
-        if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
+        if (disablePit || searchRequest.indices().length == 0) {
             listener.onResponse(namedSearchRequest);
             return;
         }
@@ -464,12 +463,14 @@ class ClientTransformIndexer extends TransformIndexer {
 
         // no pit, create a new one
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(searchRequest.indices()).keepAlive(PIT_KEEP_ALIVE);
+        // use index filter for better performance
+        pitRequest.indexFilter(transformConfig.getSource().getQueryConfig().getQuery());
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            OpenPointInTimeAction.INSTANCE,
+            TransportOpenPointInTimeAction.TYPE,
             pitRequest,
             ActionListener.wrap(response -> {
                 PointInTimeBuilder newPit = new PointInTimeBuilder(response.getPointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
@@ -517,22 +518,29 @@ class ClientTransformIndexer extends TransformIndexer {
 
     void doSearch(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
         String name = namedSearchRequest.v1();
-        SearchRequest searchRequest = namedSearchRequest.v2();
+        SearchRequest originalRequest = namedSearchRequest.v2();
         // We want to treat a request to search 0 indices as a request to do nothing, not a request to search all indices
-        if (searchRequest.indices().length == 0) {
-            logger.debug("[{}] Search request [{}] optimized to noop; searchRequest [{}]", getJobId(), name, searchRequest);
+        if (originalRequest.indices().length == 0) {
+            logger.debug("[{}] Search request [{}] optimized to noop; searchRequest [{}]", getJobId(), name, originalRequest);
             listener.onResponse(null);
             return;
         }
-        logger.trace("searchRequest: [{}]", searchRequest);
 
-        PointInTimeBuilder pit = searchRequest.pointInTimeBuilder();
+        final SearchRequest searchRequest;
+        PointInTimeBuilder pit = originalRequest.pointInTimeBuilder();
+        if (pit != null) {
+            // remove the indices from the request, they will be derived from the provided pit
+            searchRequest = new SearchRequest(originalRequest).indices(new String[0]).indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
+        } else {
+            searchRequest = originalRequest;
+        }
+        logger.trace("searchRequest: [{}]", searchRequest);
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.wrap(response -> {
                 // did the pit change?
@@ -553,13 +561,13 @@ class ClientTransformIndexer extends TransformIndexer {
                         e
                     );
                     namedPits.remove(name);
-                    searchRequest.source().pointInTimeBuilder(null);
+                    originalRequest.source().pointInTimeBuilder(null);
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
-                        SearchAction.INSTANCE,
-                        searchRequest,
+                        TransportSearchAction.TYPE,
+                        originalRequest,
                         listener
                     );
                     return;
@@ -572,13 +580,13 @@ class ClientTransformIndexer extends TransformIndexer {
                      * Note: Due to BWC this needs to be kept until CCS support for < 8.1 is dropped
                      */
                     namedPits.remove(name);
-                    searchRequest.source().pointInTimeBuilder(null);
+                    originalRequest.source().pointInTimeBuilder(null);
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
-                        SearchAction.INSTANCE,
-                        searchRequest,
+                        TransportSearchAction.TYPE,
+                        originalRequest,
                         listener
                     );
                     return;

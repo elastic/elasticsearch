@@ -57,15 +57,28 @@ final class RemoteClusterConnection implements Closeable {
      * @param settings the nodes settings object
      * @param clusterAlias the configured alias of the cluster to connect to
      * @param transportService the local nodes transport service
-     * @param credentialsProtected Whether the remote cluster is protected by a credentials, i.e. it has a credentials configured
-     *                             via secure setting. This means the remote cluster uses the new configurable access RCS model
-     *                             (as opposed to the basic model).
+     * @param credentialsManager object to lookup remote cluster credentials by cluster alias. If a cluster is protected by a credential,
+     *                           i.e. it has a credential configured via secure setting.
+     *                           This means the remote cluster uses the advances RCS model (as opposed to the basic model).
      */
-    RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService, boolean credentialsProtected) {
+    RemoteClusterConnection(
+        Settings settings,
+        String clusterAlias,
+        TransportService transportService,
+        RemoteClusterCredentialsManager credentialsManager
+    ) {
         this.transportService = transportService;
         this.clusterAlias = clusterAlias;
-        ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings, credentialsProtected);
-        this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, createConnectionManager(profile, transportService));
+        ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(
+            clusterAlias,
+            settings,
+            credentialsManager.hasCredentials(clusterAlias)
+        );
+        this.remoteConnectionManager = new RemoteConnectionManager(
+            clusterAlias,
+            credentialsManager,
+            createConnectionManager(profile, transportService)
+        );
         this.connectionStrategy = RemoteConnectionStrategy.buildStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
         this.remoteConnectionManager.addListener(transportService);

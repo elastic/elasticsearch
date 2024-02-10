@@ -73,6 +73,28 @@ public abstract class StoredFieldLoader {
     }
 
     /**
+     * Creates a new StoredFieldLoader using a StoredFieldsSpec that is optimized
+     * for loading documents in order.
+     */
+    public static StoredFieldLoader fromSpecSequential(StoredFieldsSpec spec) {
+        if (spec.noRequirements()) {
+            return StoredFieldLoader.empty();
+        }
+        List<String> fieldsToLoad = fieldsToLoad(spec.requiresSource(), spec.requiredStoredFields());
+        return new StoredFieldLoader() {
+            @Override
+            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
+                return new ReaderStoredFieldLoader(sequentialReader(ctx), spec.requiresSource(), spec.requiredStoredFields());
+            }
+
+            @Override
+            public List<String> fieldsToLoad() {
+                return fieldsToLoad;
+            }
+        };
+    }
+
+    /**
      * Creates a StoredFieldLoader tuned for sequential reads of _source
      */
     public static StoredFieldLoader sequentialSource() {

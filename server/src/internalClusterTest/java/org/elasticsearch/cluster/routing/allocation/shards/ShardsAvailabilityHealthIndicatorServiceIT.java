@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -132,7 +133,10 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 states.add(
-                    new RoutingNodesAndHealth(event.state().getRoutingNodes(), service.calculate(false, 1, new HealthInfo(Map.of())))
+                    new RoutingNodesAndHealth(
+                        event.state().getRoutingNodes(),
+                        service.calculate(false, 1, new HealthInfo(Map.of(), DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of()))
+                    )
                 );
             }
         };

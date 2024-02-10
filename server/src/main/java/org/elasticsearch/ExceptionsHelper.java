@@ -264,8 +264,13 @@ public final class ExceptionsHelper {
 
     /**
      * Deduplicate the failures by exception message and index.
+     * @param failures array to deduplicate
+     * @return deduplicated array; if failures is null or empty, it will be returned without modification
      */
     public static ShardOperationFailedException[] groupBy(ShardOperationFailedException[] failures) {
+        if (failures == null || failures.length == 0) {
+            return failures;
+        }
         List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
         Set<GroupBy> reasons = new HashSet<>();
         for (ShardOperationFailedException failure : failures) {

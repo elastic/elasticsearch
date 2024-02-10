@@ -8,14 +8,17 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -23,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -30,20 +34,23 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testDifferentInnerObjectTokenFailure() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> defaultMapper.parse(new SourceToParse("1", new BytesArray("""
-            {
-                 "object": {
-                   "array":[
-                   {
-                     "object": { "value": "value" }
-                   },
-                   {
-                     "object":"value"
-                   }
-                   ]
-                 },
-                 "value":"value"
-               }""".indent(1)), XContentType.JSON)));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> defaultMapper.parse(new SourceToParse("1", new BytesArray("""
+                {
+                     "object": {
+                       "array":[
+                       {
+                         "object": { "value": "value" }
+                       },
+                       {
+                         "object":"value"
+                       }
+                       ]
+                     },
+                     "value":"value"
+                   }""".indent(1)), XContentType.JSON))
+        );
         assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.array.object] with an object mapping"));
     }
 
@@ -120,7 +127,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             "_doc",
             new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict"))))
         );
-        Mapping merged = mapper.mapping().merge(mergeWith, reason);
+        Mapping merged = mapper.mapping().merge(mergeWith, reason, Long.MAX_VALUE);
         assertEquals(Dynamic.STRICT, merged.getRoot().dynamic());
     }
 
@@ -400,7 +407,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals(
-            "Failed to parse mapping: Tried to add nested object [time] to object [service] which does not support subobjects",
+            "Failed to parse mapping: Tried to add subobject [time] to object [service] which does not support subobjects",
             exception.getMessage()
         );
     }
@@ -450,7 +457,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals(
-            "Failed to parse mapping: Tried to add nested object [metrics.service] to object [_doc] which does not support subobjects",
+            "Failed to parse mapping: Tried to add subobject [metrics.service] to object [_doc] which does not support subobjects",
             exception.getMessage()
         );
     }
@@ -465,7 +472,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         }))));
         MapperException exception = expectThrows(
             MapperException.class,
-            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)
+            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
         );
         assertEquals("the [subobjects] parameter can't be updated for the object mapping [field]", exception.getMessage());
     }
@@ -479,7 +486,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         }))));
         MapperException exception = expectThrows(
             MapperException.class,
-            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)
+            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
         );
         assertEquals("the [subobjects] parameter can't be updated for the object mapping [_doc]", exception.getMessage());
     }
@@ -521,5 +528,51 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
         assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
         assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+    }
+
+    public void testNestedObjectWithMultiFieldsgetTotalFieldsCount() {
+        ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("child_size_2", Explicit.IMPLICIT_TRUE).add(
+                new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers()).addMultiField(
+                    new KeywordFieldMapper.Builder("multi_field_size_4", IndexVersion.current())
+                )
+                    .addMultiField(
+                        new TextFieldMapper.Builder("grand_child_size_5", createDefaultIndexAnalyzers()).addMultiField(
+                            new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", IndexVersion.current())
+                        )
+                    )
+            )
+        );
+        assertThat(mapperBuilder.build(MapperBuilderContext.root(false, false)).getTotalFieldsCount(), equalTo(6));
+    }
+
+    public void testWithoutMappers() throws IOException {
+        ObjectMapper shallowObject = createObjectMapperWithAllParametersSet(b -> {});
+        ObjectMapper object = createObjectMapperWithAllParametersSet(b -> {
+            b.startObject("keyword");
+            {
+                b.field("type", "keyword");
+            }
+            b.endObject();
+        });
+        assertThat(object.withoutMappers().toString(), equalTo(shallowObject.toString()));
+    }
+
+    private ObjectMapper createObjectMapperWithAllParametersSet(CheckedConsumer<XContentBuilder, IOException> propertiesBuilder)
+        throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("object");
+            {
+                b.field("type", "object");
+                b.field("subobjects", false);
+                b.field("enabled", false);
+                b.field("dynamic", false);
+                b.startObject("properties");
+                propertiesBuilder.accept(b);
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        return (ObjectMapper) mapper.mapping().getRoot().getMapper("object");
     }
 }

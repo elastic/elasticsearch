@@ -21,14 +21,14 @@ import java.util.List;
  * Inverse cosine trigonometric function.
  */
 public class Atan extends AbstractTrigonometricFunction {
-    @FunctionInfo(returnType = "double")
-    public Atan(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+    @FunctionInfo(returnType = "double", description = "Inverse tangent trigonometric function.")
+    public Atan(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 
     @Override
     protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
-        return new AtanEvaluator.Factory(field);
+        return new AtanEvaluator.Factory(source(), field);
     }
 
     @Override

@@ -54,6 +54,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
         String defaultRouting = request.param("routing");
         String defaultPipeline = request.param("pipeline");
         Boolean defaultRequireAlias = request.paramAsBoolean("require_alias", null);
+        Boolean defaultRequireDataStream = request.paramAsBoolean("require_data_stream", null);
         Boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", null);
 
         String waitForActiveShards = request.param("wait_for_active_shards");
@@ -69,6 +70,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
             null,
             defaultPipeline,
             defaultRequireAlias,
+            defaultRequireDataStream,
             defaultListExecutedPipelines,
             true,
             request.getXContentType(),

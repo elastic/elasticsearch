@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -90,16 +89,17 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+
 public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
     public void testSourceIncomplete() throws IOException {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+        ShardRouting shardRouting = shardRoutingBuilder(
             new ShardId("index", "_na_", 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE).build();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -123,7 +123,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(new ShardGeneration(-1L));
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
@@ -165,7 +165,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
             SnapshotId snapshotId = new SnapshotId("test", "test");
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
@@ -196,7 +196,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             SnapshotId snapshotId = new SnapshotId("test_1", "test_1");
 
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
@@ -227,7 +227,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             SnapshotId snapshotId = new SnapshotId("test_2", "test_2");
 
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
@@ -289,7 +289,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(shard.getThreadPool(), () -> {
                 repository.snapshotShard(
                     new SnapshotShardContext(
@@ -306,7 +306,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     )
                 );
                 future.actionGet();
-                final PlainActionFuture<SnapshotInfo> finFuture = PlainActionFuture.newFuture();
+                final PlainActionFuture<SnapshotInfo> finFuture = new PlainActionFuture<>();
                 final ShardGenerations shardGenerations = ShardGenerations.builder()
                     .put(indexId, 0, indexShardSnapshotStatus.generation())
                     .build();
@@ -351,18 +351,19 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
         }
         shard.refresh("test");
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+        ShardRouting shardRouting = shardRoutingBuilder(
             new ShardId("index", "_na_", 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 new Snapshot("src_only", snapshotId),
                 IndexVersion.current(),
                 indexId
             )
-        );
+        ).build();
         IndexMetadata metadata = runAsSnapshot(
             threadPool,
             () -> repository.getSnapshotIndexMetaData(
@@ -382,7 +383,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("node_g");
         restoredShard.markAsRecovering("test from snap", new RecoveryState(restoredShard.routingEntry(), discoveryNode, null));
         runAsSnapshot(shard.getThreadPool(), () -> {
-            final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
             restoredShard.restoreFromRepository(repository, future);
             assertTrue(future.actionGet());
         });
@@ -445,13 +446,12 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     }
 
     public IndexShard reindex(DirectoryReader reader, MappingMetadata mapping) throws IOException {
-        ShardRouting targetShardRouting = TestShardRouting.newShardRouting(
+        ShardRouting targetShardRouting = shardRoutingBuilder(
             new ShardId("target", "_na_", 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE).build();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)

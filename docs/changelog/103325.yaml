@@ -1,0 +1,6 @@
+pr: 103325
+summary: Added Duplicate Word Check Feature to Analysis Nori
+area: Search
+type: feature
+issues:
+ - 103321

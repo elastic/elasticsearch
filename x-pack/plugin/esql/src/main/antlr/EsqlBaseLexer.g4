@@ -1,24 +1,23 @@
 lexer grammar EsqlBaseLexer;
 
-DISSECT : 'dissect' -> pushMode(EXPRESSION);
-DROP : 'drop' -> pushMode(SOURCE_IDENTIFIERS);
-ENRICH : 'enrich' -> pushMode(SOURCE_IDENTIFIERS);
-EVAL : 'eval' -> pushMode(EXPRESSION);
-EXPLAIN : 'explain' -> pushMode(EXPLAIN_MODE);
-FROM : 'from' -> pushMode(SOURCE_IDENTIFIERS);
-GROK : 'grok' -> pushMode(EXPRESSION);
-INLINESTATS : 'inlinestats' -> pushMode(EXPRESSION);
-KEEP : 'keep' -> pushMode(SOURCE_IDENTIFIERS);
-LIMIT : 'limit' -> pushMode(EXPRESSION);
-MV_EXPAND : 'mv_expand' -> pushMode(SOURCE_IDENTIFIERS);
-PROJECT : 'project' -> pushMode(SOURCE_IDENTIFIERS);
-RENAME : 'rename' -> pushMode(SOURCE_IDENTIFIERS);
-ROW : 'row' -> pushMode(EXPRESSION);
-SHOW : 'show' -> pushMode(EXPRESSION);
-SORT : 'sort' -> pushMode(EXPRESSION);
-STATS : 'stats' -> pushMode(EXPRESSION);
-WHERE : 'where' -> pushMode(EXPRESSION);
-UNKNOWN_CMD : ~[ \r\n\t[\]/]+ -> pushMode(EXPRESSION);
+DISSECT : 'dissect'           -> pushMode(EXPRESSION_MODE);
+DROP : 'drop'                 -> pushMode(PROJECT_MODE);
+ENRICH : 'enrich'             -> pushMode(ENRICH_MODE);
+EVAL : 'eval'                 -> pushMode(EXPRESSION_MODE);
+EXPLAIN : 'explain'           -> pushMode(EXPLAIN_MODE);
+FROM : 'from'                 -> pushMode(FROM_MODE);
+GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
+INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
+KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
+LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
+MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
+RENAME : 'rename'             -> pushMode(RENAME_MODE);
+ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
+SHOW : 'show'                 -> pushMode(SHOW_MODE);
+SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
+STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
+WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
+UNKNOWN_CMD : ~[ \r\n\t[\]/]+ -> pushMode(EXPRESSION_MODE);
 
 LINE_COMMENT
     : '//' ~[\r\n]* '\r'? '\n'? -> channel(HIDDEN)
@@ -31,16 +30,20 @@ MULTILINE_COMMENT
 WS
     : [ \r\n\t]+ -> channel(HIDDEN)
     ;
-
-
+//
+// Explain
+//
 mode EXPLAIN_MODE;
-EXPLAIN_OPENING_BRACKET : '[' -> type(OPENING_BRACKET), pushMode(DEFAULT_MODE);
-EXPLAIN_PIPE : '|' -> type(PIPE), popMode;
+EXPLAIN_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(DEFAULT_MODE);
+EXPLAIN_PIPE : PIPE -> type(PIPE), popMode;
 EXPLAIN_WS : WS -> channel(HIDDEN);
 EXPLAIN_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);
 EXPLAIN_MULTILINE_COMMENT : MULTILINE_COMMENT -> channel(HIDDEN);
 
-mode EXPRESSION;
+//
+// Expression - used by most command
+//
+mode EXPRESSION_MODE;
 
 PIPE : '|' -> popMode;
 
@@ -62,6 +65,27 @@ fragment UNESCAPED_CHARS
 
 fragment EXPONENT
     : [Ee] [+-]? DIGIT+
+    ;
+
+fragment ASPERAND
+    : '@'
+    ;
+
+fragment BACKQUOTE
+    : '`'
+    ;
+
+fragment BACKQUOTE_BLOCK
+    : ~'`'
+    | '``'
+    ;
+
+fragment UNDERSCORE
+    : '_'
+    ;
+
+fragment UNQUOTED_ID_BODY
+    : (LETTER | DIGIT | UNDERSCORE)
     ;
 
 STRING
@@ -103,10 +127,9 @@ PARAM: '?';
 RLIKE: 'rlike';
 RP : ')';
 TRUE : 'true';
-INFO : 'info';
-FUNCTIONS : 'functions';
 
 EQ  : '==';
+CIEQ  : '=~';
 NEQ : '!=';
 LT  : '<';
 LTE : '<=';
@@ -124,19 +147,18 @@ PERCENT : '%';
 // mode. Thus, the two popModes on CLOSING_BRACKET. The other way could as
 // the start of a multivalued field constant. To line up with the double pop
 // the explain mode needs, we double push when we see that.
-OPENING_BRACKET : '[' -> pushMode(EXPRESSION), pushMode(EXPRESSION);
+OPENING_BRACKET : '[' -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE);
 CLOSING_BRACKET : ']' -> popMode, popMode;
 
-
 UNQUOTED_IDENTIFIER
-    : LETTER (LETTER | DIGIT | '_')*
+    : LETTER UNQUOTED_ID_BODY*
     // only allow @ at beginning of identifier to keep the option to allow @ as infix operator in the future
     // also, single `_` and `@` characters are not valid identifiers
-    | ('_' | '@') (LETTER | DIGIT | '_')+
+    | (UNDERSCORE | ASPERAND) UNQUOTED_ID_BODY+
     ;
 
 QUOTED_IDENTIFIER
-    : '`' ( ~'`' | '``' )* '`'
+    : BACKQUOTE BACKQUOTE_BLOCK+ BACKQUOTE
     ;
 
 EXPR_LINE_COMMENT
@@ -150,42 +172,241 @@ EXPR_MULTILINE_COMMENT
 EXPR_WS
     : WS -> channel(HIDDEN)
     ;
+//
+// FROM command
+//
+mode FROM_MODE;
+FROM_PIPE : PIPE -> type(PIPE), popMode;
+FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
+FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
+FROM_COMMA : COMMA -> type(COMMA);
+FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 
-
-
-mode SOURCE_IDENTIFIERS;
-
-SRC_PIPE : '|' -> type(PIPE), popMode;
-SRC_OPENING_BRACKET : '[' -> type(OPENING_BRACKET), pushMode(SOURCE_IDENTIFIERS), pushMode(SOURCE_IDENTIFIERS);
-SRC_CLOSING_BRACKET : ']' -> popMode, popMode, type(CLOSING_BRACKET);
-SRC_COMMA : ',' -> type(COMMA);
-SRC_ASSIGN : '=' -> type(ASSIGN);
-AS : 'as';
 METADATA: 'metadata';
-ON : 'on';
-WITH : 'with';
 
-SRC_UNQUOTED_IDENTIFIER
-    : SRC_UNQUOTED_IDENTIFIER_PART+
-    ;
-
-fragment SRC_UNQUOTED_IDENTIFIER_PART
-    : ~[=`|,[\]/ \t\r\n]+
+fragment FROM_UNQUOTED_IDENTIFIER_PART
+    : ~[=`|,[\]/ \t\r\n]
     | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
     ;
 
-SRC_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER
+FROM_UNQUOTED_IDENTIFIER
+    : FROM_UNQUOTED_IDENTIFIER_PART+
     ;
 
-SRC_LINE_COMMENT
+FROM_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+    ;
+
+FROM_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
     ;
 
-SRC_MULTILINE_COMMENT
+FROM_MULTILINE_COMMENT
     : MULTILINE_COMMENT -> channel(HIDDEN)
     ;
 
-SRC_WS
+FROM_WS
     : WS -> channel(HIDDEN)
     ;
+//
+// DROP, KEEP
+//
+mode PROJECT_MODE;
+PROJECT_PIPE : PIPE -> type(PIPE), popMode;
+PROJECT_DOT: DOT -> type(DOT);
+PROJECT_COMMA : COMMA -> type(COMMA);
+
+fragment UNQUOTED_ID_BODY_WITH_PATTERN
+    : (LETTER | DIGIT | UNDERSCORE | ASTERISK)
+    ;
+
+UNQUOTED_ID_PATTERN
+    : (LETTER | ASTERISK) UNQUOTED_ID_BODY_WITH_PATTERN*
+    | (UNDERSCORE | ASPERAND) UNQUOTED_ID_BODY_WITH_PATTERN+
+    ;
+
+PROJECT_UNQUOTED_IDENTIFIER
+    : UNQUOTED_ID_PATTERN -> type(UNQUOTED_ID_PATTERN)
+    ;
+
+PROJECT_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+    ;
+
+PROJECT_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+PROJECT_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+PROJECT_WS
+    : WS -> channel(HIDDEN)
+    ;
+//
+// | RENAME a.b AS x, c AS y
+//
+mode RENAME_MODE;
+RENAME_PIPE : PIPE -> type(PIPE), popMode;
+RENAME_ASSIGN : ASSIGN -> type(ASSIGN);
+RENAME_COMMA : COMMA -> type(COMMA);
+RENAME_DOT: DOT -> type(DOT);
+
+AS : 'as';
+
+RENAME_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+    ;
+
+// use the unquoted pattern to let the parser invalidate fields with *
+RENAME_UNQUOTED_IDENTIFIER
+    : UNQUOTED_ID_PATTERN -> type(UNQUOTED_ID_PATTERN)
+    ;
+
+RENAME_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+RENAME_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+RENAME_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+// | ENRICH ON key WITH fields
+mode ENRICH_MODE;
+ENRICH_PIPE : PIPE -> type(PIPE), popMode;
+ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(SETTING_MODE);
+
+ON : 'on'     -> pushMode(ENRICH_FIELD_MODE);
+WITH : 'with' -> pushMode(ENRICH_FIELD_MODE);
+
+// similar to that of an index
+// see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
+fragment ENRICH_POLICY_NAME_BODY
+    : ~[\\/?"<>| ,#\t\r\n:]
+    ;
+
+ENRICH_POLICY_NAME
+    // allow prefix for the policy to specify its resolution
+    : (ENRICH_POLICY_NAME_BODY+ COLON)? ENRICH_POLICY_NAME_BODY+
+    ;
+
+ENRICH_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+    ;
+
+ENRICH_MODE_UNQUOTED_VALUE
+    : ENRICH_POLICY_NAME -> type(ENRICH_POLICY_NAME)
+    ;
+
+ENRICH_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+ENRICH_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+ENRICH_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+// submode for Enrich to allow different lexing between policy identifier (loose) and field identifiers
+mode ENRICH_FIELD_MODE;
+ENRICH_FIELD_PIPE : PIPE -> type(PIPE), popMode, popMode;
+ENRICH_FIELD_ASSIGN : ASSIGN -> type(ASSIGN);
+ENRICH_FIELD_COMMA : COMMA -> type(COMMA);
+ENRICH_FIELD_DOT: DOT -> type(DOT);
+
+ENRICH_FIELD_WITH : WITH -> type(WITH) ;
+
+ENRICH_FIELD_UNQUOTED_IDENTIFIER
+    : UNQUOTED_ID_PATTERN -> type(UNQUOTED_ID_PATTERN)
+    ;
+
+ENRICH_FIELD_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+    ;
+
+ENRICH_FIELD_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+ENRICH_FIELD_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+ENRICH_FIELD_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+mode MVEXPAND_MODE;
+MVEXPAND_PIPE : PIPE -> type(PIPE), popMode;
+MVEXPAND_DOT: DOT -> type(DOT);
+
+MVEXPAND_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+    ;
+
+MVEXPAND_UNQUOTED_IDENTIFIER
+    : UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER)
+    ;
+
+MVEXPAND_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+MVEXPAND_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+MVEXPAND_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+//
+// SHOW INFO
+//
+mode SHOW_MODE;
+SHOW_PIPE : PIPE -> type(PIPE), popMode;
+
+INFO : 'info';
+FUNCTIONS : 'functions';
+
+SHOW_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SHOW_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SHOW_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+mode SETTING_MODE;
+SETTING_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode;
+
+COLON : ':';
+
+SETTING
+    : (ASPERAND | DIGIT| DOT | LETTER | UNDERSCORE)+
+    ;
+
+SETTING_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SETTTING_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SETTING_WS
+    : WS -> channel(HIDDEN)
+    ;
+

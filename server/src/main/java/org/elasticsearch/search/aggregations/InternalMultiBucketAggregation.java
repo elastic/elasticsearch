@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.io.IOException;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,18 @@ import java.util.function.Function;
 public abstract class InternalMultiBucketAggregation<
     A extends InternalMultiBucketAggregation,
     B extends InternalMultiBucketAggregation.InternalBucket> extends InternalAggregation implements MultiBucketsAggregation {
+
+    /**
+     * When we pre-count the empty buckets we report them periodically
+     * because you can configure the date_histogram to create an astounding
+     * number of buckets. It'd take a while to count that high only to abort.
+     * So we report every couple thousand buckets. It's be simpler to report
+     * every single bucket we plan to allocate one at a time but that'd cause
+     * needless overhead on the circuit breakers. Counting a couple thousand
+     * buckets is plenty fast to fail this quickly in pathological cases and
+     * plenty large to keep the overhead minimal.
+     */
+    protected static final int REPORT_EMPTY_EVERY = 10_000;
 
     public InternalMultiBucketAggregation(String name, Map<String, Object> metadata) {
         super(name, metadata);
@@ -59,11 +72,24 @@ public abstract class InternalMultiBucketAggregation<
      */
     public abstract B createBucket(InternalAggregations aggregations, B prototype);
 
-    /**
-     * Reduce a list of same-keyed buckets (from multiple shards) to a single bucket. This
-     * requires all buckets to have the same key.
-     */
-    protected abstract B reduceBucket(List<B> buckets, AggregationReduceContext context);
+    /** Helps to lazily construct the aggregation list for reduction */
+    protected static class BucketAggregationList<B extends Bucket> extends AbstractList<InternalAggregations> {
+        private final List<B> buckets;
+
+        public BucketAggregationList(List<B> buckets) {
+            this.buckets = buckets;
+        }
+
+        @Override
+        public InternalAggregations get(int index) {
+            return buckets.get(index).getAggregations();
+        }
+
+        @Override
+        public int size() {
+            return buckets.size();
+        }
+    }
 
     @Override
     public abstract List<B> getBuckets();
@@ -156,7 +182,7 @@ public abstract class InternalMultiBucketAggregation<
         boolean modified = false;
         List<B> newBuckets = new ArrayList<>();
         for (B bucket : getBuckets()) {
-            InternalAggregations rewritten = rewriter.apply((InternalAggregations) bucket.getAggregations());
+            InternalAggregations rewritten = rewriter.apply(bucket.getAggregations());
             if (rewritten == null) {
                 newBuckets.add(bucket);
                 continue;
@@ -176,7 +202,7 @@ public abstract class InternalMultiBucketAggregation<
     @Override
     public void forEachBucket(Consumer<InternalAggregations> consumer) {
         for (B bucket : getBuckets()) {
-            consumer.accept((InternalAggregations) bucket.getAggregations());
+            consumer.accept(bucket.getAggregations());
         }
     }
 
@@ -199,7 +225,7 @@ public abstract class InternalMultiBucketAggregation<
             if (path.isEmpty()) {
                 return this;
             }
-            Aggregations aggregations = getAggregations();
+            InternalAggregations aggregations = getAggregations();
             String aggName = path.get(0);
             if (aggName.equals("_count")) {
                 if (path.size() > 1) {

@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -32,7 +34,15 @@ public class StartsWith extends ScalarFunction implements EvaluatorMapper {
     private final Expression str;
     private final Expression prefix;
 
-    public StartsWith(Source source, Expression str, Expression prefix) {
+    @FunctionInfo(
+        returnType = "boolean",
+        description = "Returns a boolean that indicates whether a keyword string starts with another string"
+    )
+    public StartsWith(
+        Source source,
+        @Param(name = "str", type = { "keyword", "text" }) Expression str,
+        @Param(name = "prefix", type = { "keyword", "text" }) Expression prefix
+    ) {
         super(source, Arrays.asList(str, prefix));
         this.str = str;
         this.prefix = prefix;
@@ -91,6 +101,6 @@ public class StartsWith extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return new StartsWithEvaluator.Factory(toEvaluator.apply(str), toEvaluator.apply(prefix));
+        return new StartsWithEvaluator.Factory(source(), toEvaluator.apply(str), toEvaluator.apply(prefix));
     }
 }

@@ -117,7 +117,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         ingestStats = in.readOptionalWriteable(IngestStats::read);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             repositoriesStats = in.readOptionalWriteable(RepositoriesStats::new);
         } else {
             repositoriesStats = null;
@@ -294,7 +294,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
         out.writeOptionalWriteable(indexingPressureStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(repositoriesStats);
         }
     }
@@ -304,7 +304,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
         return Iterators.concat(
 
-            Iterators.single((builder, params) -> {
+            singleChunk((builder, params) -> {
                 builder.field("name", getNode().getName());
                 builder.field("transport_address", getNode().getAddress().toString());
                 builder.field("host", getNode().getHostName());
@@ -329,7 +329,9 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
             ifPresent(getIndices()).toXContentChunked(outerParams),
 
-            singleChunk(ifPresent(getOs()), ifPresent(getProcess()), ifPresent(getJvm())),
+            singleChunk(
+                (builder, p) -> builder.value(ifPresent(getOs()), p).value(ifPresent(getProcess()), p).value(ifPresent(getJvm()), p)
+            ),
 
             ifPresent(getThreadPool()).toXContentChunked(outerParams),
             singleChunk(ifPresent(getFs())),
@@ -341,8 +343,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
             ifPresent(getIngestStats()).toXContentChunked(outerParams),
             singleChunk(ifPresent(getAdaptiveSelectionStats())),
             ifPresent(getScriptCacheStats()).toXContentChunked(outerParams),
-            singleChunk(ifPresent(getIndexingPressureStats())),
-            singleChunk(ifPresent(getRepositoriesStats()))
+            singleChunk((builder, p) -> builder.value(ifPresent(getIndexingPressureStats()), p).value(ifPresent(getRepositoriesStats()), p))
         );
     }
 

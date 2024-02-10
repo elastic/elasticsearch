@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,6 +18,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -34,6 +36,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
     private final String sessionId;
     private final EsqlConfiguration configuration;
+    private final String clusterAlias;
     private final List<ShardId> shardIds;
     private final Map<Index, AliasFilter> aliasFilters;
     private final PhysicalPlan plan;
@@ -43,12 +46,14 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
     DataNodeRequest(
         String sessionId,
         EsqlConfiguration configuration,
+        String clusterAlias,
         List<ShardId> shardIds,
         Map<Index, AliasFilter> aliasFilters,
         PhysicalPlan plan
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
+        this.clusterAlias = clusterAlias;
         this.shardIds = shardIds;
         this.aliasFilters = aliasFilters;
         this.plan = plan;
@@ -58,6 +63,11 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         super(in);
         this.sessionId = in.readString();
         this.configuration = new EsqlConfiguration(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CLUSTER_ALIAS)) {
+            this.clusterAlias = in.readString();
+        } else {
+            this.clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        }
         this.shardIds = in.readCollectionAsList(ShardId::new);
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
         this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), configuration).readPhysicalPlanNode();
@@ -68,6 +78,9 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         super.writeTo(out);
         out.writeString(sessionId);
         configuration.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CLUSTER_ALIAS)) {
+            out.writeString(clusterAlias);
+        }
         out.writeCollection(shardIds);
         out.writeMap(aliasFilters);
         new PlanStreamOutput(out, planNameRegistry).writePhysicalPlanNode(plan);
@@ -117,6 +130,10 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         return configuration.pragmas();
     }
 
+    String clusterAlias() {
+        return clusterAlias;
+    }
+
     List<ShardId> shardIds() {
         return shardIds;
     }
@@ -149,6 +166,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
         DataNodeRequest request = (DataNodeRequest) o;
         return sessionId.equals(request.sessionId)
             && configuration.equals(request.configuration)
+            && clusterAlias.equals(request.clusterAlias)
             && shardIds.equals(request.shardIds)
             && aliasFilters.equals(request.aliasFilters)
             && plan.equals(request.plan)
@@ -157,6 +175,6 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest.R
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, configuration, shardIds, aliasFilters, plan);
+        return Objects.hash(sessionId, configuration, clusterAlias, shardIds, aliasFilters, plan);
     }
 }

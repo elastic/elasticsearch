@@ -45,6 +45,13 @@ Use `synonyms_set` configuration option to provide a synonym set created via Syn
   }
 ----
 
+[WARNING]
+======
+Synonyms sets must exist before they can be added to indices.
+If an index is created referencing a nonexistent synonyms set, the index will remain in a partially created and inoperable state.
+The only way to recover from this scenario is to ensure the synonyms set exists then either delete and re-create the index, or close and re-open the index.
+======
+
 Use `synonyms_path` to provide a synonym file :
 
 [source,JSON]

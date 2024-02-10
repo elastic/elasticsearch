@@ -1,10 +1,28 @@
 [discrete]
 [[esql-mv_dedupe]]
 === `MV_DEDUPE`
+
+*Syntax*
+
 [.text-center]
 image::esql/functions/signature/mv_dedupe.svg[Embedded,opts=inline]
 
-Removes duplicates from a multivalued field. For example:
+*Parameters*
+
+`v`::
+Multivalue expression.
+
+*Description*
+
+Removes duplicates from a multivalue expression.
+
+NOTE: `MV_DEDUPE` may, but won't always, sort the values in the column.
+
+*Supported types*
+
+include::types/mv_dedupe.asciidoc[]
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -14,9 +32,3 @@ include::{esql-specs}/string.csv-spec[tag=mv_dedupe]
 |===
 include::{esql-specs}/string.csv-spec[tag=mv_dedupe-result]
 |===
-
-Supported types:
-
-include::types/mv_dedupe.asciidoc[]
-
-NOTE: `MV_DEDUPE` may, but won't always, sort the values in the field.

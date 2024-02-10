@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
@@ -43,19 +42,19 @@ import static java.lang.String.format;
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
 
+    private final RerouteService rerouteService;
     private final FeatureService featureService;
-    private final DesiredNodesSettingsValidator settingsValidator;
     private final MasterServiceTaskQueue<UpdateDesiredNodesTask> taskQueue;
 
     @Inject
     public TransportUpdateDesiredNodesAction(
         TransportService transportService,
         ClusterService clusterService,
+        RerouteService rerouteService,
         FeatureService featureService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DesiredNodesSettingsValidator settingsValidator,
         AllocationService allocationService
     ) {
         super(
@@ -70,12 +69,12 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             UpdateDesiredNodesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.rerouteService = rerouteService;
         this.featureService = featureService;
-        this.settingsValidator = settingsValidator;
         this.taskQueue = clusterService.createTaskQueue(
             "update-desired-nodes",
             Priority.URGENT,
-            new UpdateDesiredNodesExecutor(clusterService.getRerouteService(), allocationService)
+            new UpdateDesiredNodesExecutor(rerouteService, allocationService)
         );
     }
 
@@ -91,10 +90,14 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<UpdateDesiredNodesResponse> responseListener
     ) throws Exception {
-        ActionListener.run(responseListener, listener -> {
-            settingsValidator.validate(request.getNodes());
-            taskQueue.submitTask("update-desired-nodes", new UpdateDesiredNodesTask(request, listener), request.masterNodeTimeout());
-        });
+        ActionListener.run(
+            responseListener,
+            listener -> taskQueue.submitTask(
+                "update-desired-nodes",
+                new UpdateDesiredNodesTask(request, listener),
+                request.masterNodeTimeout()
+            )
+        );
     }
 
     @Override

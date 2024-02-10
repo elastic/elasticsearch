@@ -20,6 +20,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -57,7 +59,8 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Map.of(
                 REPO_TYPE,
@@ -109,7 +112,7 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
+            prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
         }
         indicesAdmin().prepareFlush(indexName).get();
 
@@ -134,9 +137,9 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
         logger.info("--> run a search");
-        var searchResponse = client.prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("text", "sometext")).get();
-
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
-        assertThat(COUNTS.intValue(), greaterThan(0));
+        assertResponse(client.prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("text", "sometext")), searchResponse -> {
+            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+            assertThat(COUNTS.intValue(), greaterThan(0));
+        });
     }
 }

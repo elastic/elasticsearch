@@ -244,7 +244,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
         private final HyperLogLog hll;
         int pos;
-        long start;
+        final long start;
         private byte value;
 
         HyperLogLogIterator(HyperLogLog hll, long bucket) {

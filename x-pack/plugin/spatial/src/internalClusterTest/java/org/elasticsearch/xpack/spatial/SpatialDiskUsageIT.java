@@ -86,7 +86,7 @@ public class SpatialDiskUsageIT extends ESIntegTestCase {
                 .field("coordinates", new double[] { GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude() })
                 .endObject()
                 .endObject();
-            client().prepareIndex(index).setId("id-" + i).setSource(doc).get();
+            prepareIndex(index).setId("id-" + i).setSource(doc).get();
         }
         AnalyzeIndexDiskUsageResponse resp = client().execute(
             AnalyzeIndexDiskUsageAction.INSTANCE,

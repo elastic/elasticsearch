@@ -382,6 +382,14 @@ public final class DataTypeConverter {
         return (int) x;
     }
 
+    public static int safeToInt(double x) {
+        if (x > Integer.MAX_VALUE || x < Integer.MIN_VALUE) {
+            throw new InvalidArgumentException("[{}] out of [integer] range", x);
+        }
+        // cast is safe, double can represent all of int's range
+        return (int) Math.round(x);
+    }
+
     public static long safeDoubleToLong(double x) {
         if (x > Long.MAX_VALUE || x < Long.MIN_VALUE) {
             throw new InvalidArgumentException("[{}] out of [long] range", x);

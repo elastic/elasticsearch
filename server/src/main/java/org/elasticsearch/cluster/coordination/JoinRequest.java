@@ -60,7 +60,7 @@ public class JoinRequest extends TransportRequest {
         long minimumTerm,
         Optional<Join> optionalJoin
     ) {
-        assert optionalJoin.isPresent() == false || optionalJoin.get().getSourceNode().equals(sourceNode);
+        assert optionalJoin.isPresent() == false || optionalJoin.get().votingNode().equals(sourceNode);
         this.sourceNode = sourceNode;
         this.compatibilityVersions = compatibilityVersions;
         this.features = features;
@@ -76,9 +76,12 @@ public class JoinRequest extends TransportRequest {
         } else {
             // there's a 1-1 mapping from Version to TransportVersion before 8.8.0
             // no known mapping versions here
-            compatibilityVersions = new CompatibilityVersions(TransportVersion.fromId(sourceNode.getVersion().id), Map.of());
+            compatibilityVersions = new CompatibilityVersions(
+                TransportVersion.fromId(sourceNode.getPre811VersionId().getAsInt()),
+                Map.of()
+            );
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             features = in.readCollectionAsSet(StreamInput::readString);
         } else {
             features = Set.of();
@@ -94,7 +97,7 @@ public class JoinRequest extends TransportRequest {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             compatibilityVersions.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeCollection(features, StreamOutput::writeString);
         }
         out.writeLong(minimumTerm);
@@ -121,7 +124,7 @@ public class JoinRequest extends TransportRequest {
         // If the join is also present then its term will normally equal the corresponding term, but we do not require callers to
         // obtain the term and the join in a synchronized fashion so it's possible that they disagree. Also older nodes do not share the
         // minimum term, so for BWC we can take it from the join if present.
-        return Math.max(minimumTerm, optionalJoin.map(Join::getTerm).orElse(0L));
+        return Math.max(minimumTerm, optionalJoin.map(Join::term).orElse(0L));
     }
 
     public Optional<Join> getOptionalJoin() {

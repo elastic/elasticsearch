@@ -32,7 +32,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
     public static final String NAME = "cluster:admin/xpack/ml/inference/put";
 
     private PutTrainedModelAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

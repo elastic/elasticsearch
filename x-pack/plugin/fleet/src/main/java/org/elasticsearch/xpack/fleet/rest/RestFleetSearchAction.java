@@ -8,17 +8,18 @@
 package org.elasticsearch.xpack.fleet.rest;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.usage.SearchUsageHolder;
 
@@ -36,9 +37,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestFleetSearchAction extends BaseRestHandler {
 
     private final SearchUsageHolder searchUsageHolder;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
-    public RestFleetSearchAction(SearchUsageHolder searchUsageHolder) {
+    public RestFleetSearchAction(SearchUsageHolder searchUsageHolder, NamedWriteableRegistry namedWriteableRegistry) {
         this.searchUsageHolder = searchUsageHolder;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
@@ -68,14 +71,7 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(parser -> {
-            RestSearchAction.parseSearchRequest(
-                searchRequest,
-                request,
-                parser,
-                client.getNamedWriteableRegistry(),
-                setSize,
-                searchUsageHolder
-            );
+            RestSearchAction.parseSearchRequest(searchRequest, request, parser, namedWriteableRegistry, setSize, searchUsageHolder);
             String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);
             final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
             for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
@@ -96,7 +92,7 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(SearchAction.INSTANCE, searchRequest, new RestChunkedToXContentListener<>(channel));
+            cancelClient.execute(TransportSearchAction.TYPE, searchRequest, new RestRefCountedChunkedToXContentListener<>(channel));
         };
     }
 

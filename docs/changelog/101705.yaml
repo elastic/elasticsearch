@@ -1,6 +1,0 @@
-pr: 101705
-summary: Respect regional AWS STS endpoints
-area: Snapshot/Restore
-type: bug
-issues:
- - 89175

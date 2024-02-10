@@ -10,7 +10,6 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -52,8 +51,8 @@ final class BooleanBlockHash extends BlockHash {
                     addInput.add(0, groupIds);
                 }
             } else {
-                try (IntBlock groupIds = add(booleanVector).asBlock()) {
-                    addInput.add(0, groupIds.asVector());
+                try (IntVector groupIds = add(booleanVector)) {
+                    addInput.add(0, groupIds);
                 }
             }
         }
@@ -70,7 +69,7 @@ final class BooleanBlockHash extends BlockHash {
     }
 
     private IntBlock add(BooleanBlock block) {
-        return new MultivalueDedupeBoolean(Block.Ref.floating(block)).hash(everSeen);
+        return new MultivalueDedupeBoolean(block).hash(blockFactory, everSeen);
     }
 
     @Override
@@ -101,6 +100,7 @@ final class BooleanBlockHash extends BlockHash {
         }
     }
 
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         BitArray seen = new BitArray(everSeen.length, bigArrays);
         for (int i = 0; i < everSeen.length; i++) {

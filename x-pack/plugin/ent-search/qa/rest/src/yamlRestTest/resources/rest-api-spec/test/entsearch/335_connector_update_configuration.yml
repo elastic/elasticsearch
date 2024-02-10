@@ -1,0 +1,264 @@
+setup:
+  - skip:
+      version: " - 8.11.99"
+      reason: Introduced in 8.12.0
+
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+---
+"Update Connector Configuration":
+  - do:
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration:
+            some_field:
+              default_value: null
+              depends_on:
+                - field: some_field
+                  value: 31
+              display: numeric
+              label: Very important field
+              options: [ ]
+              order: 4
+              required: true
+              sensitive: false
+              tooltip: Wow, this tooltip is useful.
+              type: str
+              ui_restrictions: [ ]
+              validations:
+                - constraint: 0
+                  type: greater_than
+              value: 123
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { configuration.some_field.value: 123 }
+  - match: { configuration.some_field.sensitive: false }
+  - match: { configuration.some_field.display: numeric }
+  - match: { status: configured }
+
+
+  - do:
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration:
+            some_new_field:
+              default_value: null
+              depends_on:
+                - field: some_field
+                  value: 31
+              display: numeric
+              label: Very important field
+              options: [ ]
+              order: 4
+              required: true
+              sensitive: false
+              tooltip: Wow, this tooltip is useful.
+              type: str
+              ui_restrictions: [ ]
+              validations:
+                - constraint: [123, 456, 789]
+                  type: included_in
+                - constraint: ["string 1", "string 2", "string 3"]
+                  type: included_in
+                - constraint: 0
+                  type: greater_than
+                - constraint: 42
+                  type: less_than
+                - constraint: int
+                  type: list_type
+                - constraint: "\\d+"
+                  type: regex
+              value: 456
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - is_false:  configuration.some_field  # configuration.some_field doesn't exist
+
+  - match: { configuration.some_new_field.value: 456 }
+  - match: { status: configured }
+  - match: { configuration.some_new_field.validations.0.constraint: [123, 456, 789] }
+  - match: { configuration.some_new_field.validations.0.type: included_in }
+  - match: { configuration.some_new_field.validations.1.constraint: ["string 1", "string 2", "string 3"] }
+  - match: { configuration.some_new_field.validations.1.type: included_in }
+  - match: { configuration.some_new_field.validations.2.constraint: 0 }
+  - match: { configuration.some_new_field.validations.2.type: greater_than }
+  - match: { configuration.some_new_field.validations.3.constraint: 42 }
+  - match: { configuration.some_new_field.validations.3.type: less_than }
+  - match: { configuration.some_new_field.validations.4.constraint: int }
+  - match: { configuration.some_new_field.validations.4.type: list_type }
+  - match: { configuration.some_new_field.validations.5.constraint: "\\d+" }
+  - match: { configuration.some_new_field.validations.5.type: regex }
+
+---
+"Update Connector Configuration with null tooltip":
+  - do:
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration:
+            some_field:
+              default_value: null
+              depends_on:
+                - field: some_field
+                  value: 31
+              display: numeric
+              label: Very important field
+              options: [ ]
+              order: 4
+              required: true
+              sensitive: false
+              tooltip: null
+              type: str
+              ui_restrictions: [ ]
+              validations:
+                - constraint: 0
+                  type: greater_than
+              value: 123
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { configuration.some_field.tooltip: null }
+
+---
+"Update Connector Configuration - Connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.update_configuration:
+        connector_id: test-non-existent-connector
+        body:
+          configuration:
+            some_field:
+              default_value: null
+              depends_on:
+                - field: some_field
+                  value: 31
+              display: numeric
+              label: Very important field
+              options: [ ]
+              order: 4
+              required: true
+              sensitive: false
+              tooltip: Wow, this tooltip is useful.
+              type: str
+              ui_restrictions: [ ]
+              validations:
+                - constraint: 0
+                  type: greater_than
+              value: 123
+
+---
+"Update Connector Configuration - Required fields are missing":
+  - do:
+      catch: "bad_request"
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration:
+            some_field:
+              default_value: null
+              depends_on:
+                - field: some_field
+                  value: 31
+              display: numeric
+
+---
+"Update Connector Configuration - Unknown field type":
+  - do:
+      catch: "bad_request"
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration:
+            some_field:
+              default_value: null
+              depends_on:
+                - field: some_field
+                  value: 31
+              display: some_display_type
+              label: Very important field
+              options: [ ]
+              order: 4
+              required: true
+              sensitive: false
+              tooltip: Wow, this tooltip is useful.
+              type: str
+              ui_restrictions: [ ]
+              validations:
+                - constraint: 0
+                  type: greater_than
+              value: 123
+
+---
+"Update Connector Configuration - Unknown constraint":
+  - do:
+      catch: "bad_request"
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration:
+            some_field:
+              default_value: null
+              depends_on:
+                - field: some_field
+                  value: 31
+              display: numeric
+              label: Very important field
+              options: [ ]
+              order: 4
+              required: true
+              sensitive: false
+              tooltip: Wow, this tooltip is useful.
+              type: str
+              ui_restrictions: [ ]
+              validations:
+                - constraint: 0
+                  type: unknown_constraint
+              value: 123
+
+---
+"Update Connector Configuration - Crawler configuration":
+  - do:
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration:
+            nextSyncConfig:
+              label: nextSyncConfig
+              value:
+                max_crawl_depth: 3
+                sitemap_discovery_disabled: false
+                seed_urls:
+                  - https://elastic.co/
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { configuration.nextSyncConfig.value.max_crawl_depth: 3 }

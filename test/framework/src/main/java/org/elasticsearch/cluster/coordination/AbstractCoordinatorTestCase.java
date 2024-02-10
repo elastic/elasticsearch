@@ -68,6 +68,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
@@ -952,6 +953,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private AckedFakeThreadPoolMasterService masterService;
             private DisruptableClusterApplierService clusterApplierService;
             private ClusterService clusterService;
+            private FeatureService featureService;
             TransportService transportService;
             private MasterHistoryService masterHistoryService;
             CoordinationDiagnosticsService coordinationDiagnosticsService;
@@ -1114,6 +1116,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     threadPool
                 );
                 clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
+                featureService = new FeatureService(List.of());
                 masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
                 clusterService.setNodeConnectionsService(
                     new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService)
@@ -1152,7 +1155,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     coordinationServices.getLeaderHeartbeatService(),
                     coordinationServices.getPreVoteCollectorFactory(),
                     CompatibilityVersionsUtils.staticCurrent(),
-                    Set.of()
+                    featureService
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,
@@ -1178,8 +1181,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     transportService.getTaskManager(),
                     localNode::getId,
                     transportService.getLocalNodeConnection(),
-                    null,
-                    getNamedWriteableRegistry()
+                    null
                 );
                 stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService);
                 masterService.setClusterStatePublisher(coordinator);

@@ -13,6 +13,8 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -39,10 +41,16 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
     private final Expression field;
     private final Expression format;
 
-    public DateFormat(Source source, Expression first, Expression second, Configuration configuration) {
-        super(source, second != null ? List.of(first, second) : List.of(first), configuration);
-        this.field = second != null ? second : first;
-        this.format = second != null ? first : null;
+    @FunctionInfo(returnType = "keyword", description = "Returns a string representation of a date, in the provided format.")
+    public DateFormat(
+        Source source,
+        @Param(optional = true, name = "format", type = { "keyword" }, description = "A valid date pattern") Expression format,
+        @Param(name = "date", type = { "date" }, description = "Date expression") Expression date,
+        Configuration configuration
+    ) {
+        super(source, date != null ? List.of(format, date) : List.of(format), configuration);
+        this.field = date != null ? date : format;
+        this.format = date != null ? format : null;
     }
 
     @Override
@@ -94,17 +102,18 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return dvrCtx -> new DateFormatConstantEvaluator(fieldEvaluator.get(dvrCtx), UTC_DATE_TIME_FORMATTER, dvrCtx);
+            return dvrCtx -> new DateFormatConstantEvaluator(source(), fieldEvaluator.get(dvrCtx), UTC_DATE_TIME_FORMATTER, dvrCtx);
         }
         if (format.dataType() != DataTypes.KEYWORD) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
         if (format.foldable()) {
             DateFormatter formatter = toFormatter(format.fold(), ((EsqlConfiguration) configuration()).locale());
-            return dvrCtx -> new DateFormatConstantEvaluator(fieldEvaluator.get(dvrCtx), formatter, dvrCtx);
+            return dvrCtx -> new DateFormatConstantEvaluator(source(), fieldEvaluator.get(dvrCtx), formatter, dvrCtx);
         }
         var formatEvaluator = toEvaluator.apply(format);
         return dvrCtx -> new DateFormatEvaluator(
+            source(),
             fieldEvaluator.get(dvrCtx),
             formatEvaluator.get(dvrCtx),
             ((EsqlConfiguration) configuration()).locale(),

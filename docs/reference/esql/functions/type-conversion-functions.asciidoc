@@ -9,22 +9,30 @@
 
 // tag::type_list[]
 * <<esql-to_boolean>>
+* <<esql-to_cartesianpoint>>
+* <<esql-to_cartesianshape>>
 * <<esql-to_datetime>>
 * <<esql-to_degrees>>
 * <<esql-to_double>>
+* <<esql-to_geopoint>>
+* <<esql-to_geoshape>>
 * <<esql-to_integer>>
 * <<esql-to_ip>>
 * <<esql-to_long>>
 * <<esql-to_radians>>
 * <<esql-to_string>>
-* <<esql-to_unsigned_long>>
+* experimental:[] <<esql-to_unsigned_long>>
 * <<esql-to_version>>
 // end::type_list[]
 
 include::to_boolean.asciidoc[]
+include::to_cartesianpoint.asciidoc[]
+include::to_cartesianshape.asciidoc[]
 include::to_datetime.asciidoc[]
 include::to_degrees.asciidoc[]
 include::to_double.asciidoc[]
+include::to_geopoint.asciidoc[]
+include::to_geoshape.asciidoc[]
 include::to_integer.asciidoc[]
 include::to_ip.asciidoc[]
 include::to_long.asciidoc[]

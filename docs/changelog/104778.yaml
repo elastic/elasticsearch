@@ -1,0 +1,5 @@
+pr: 104778
+summary: Adding a `RequestBuilder` interface
+area: Ingest Node
+type: enhancement
+issues: []

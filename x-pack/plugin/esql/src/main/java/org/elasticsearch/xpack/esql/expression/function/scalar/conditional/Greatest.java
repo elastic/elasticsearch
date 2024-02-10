@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -37,6 +38,10 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 public class Greatest extends ScalarFunction implements EvaluatorMapper, OptionalArgument {
     private DataType dataType;
 
+    @FunctionInfo(
+        returnType = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" },
+        description = "Returns the maximum value from many columns."
+    )
     public Greatest(
         Source source,
         @Param(name = "first", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) Expression first,
@@ -106,20 +111,22 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        // force datatype initialization
+        var dataType = dataType();
         ExpressionEvaluator.Factory[] factories = children().stream()
             .map(e -> toEvaluator.apply(new MvMax(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);
         if (dataType == DataTypes.BOOLEAN) {
-            return new GreatestBooleanEvaluator.Factory(factories);
+            return new GreatestBooleanEvaluator.Factory(source(), factories);
         }
         if (dataType == DataTypes.DOUBLE) {
-            return new GreatestDoubleEvaluator.Factory(factories);
+            return new GreatestDoubleEvaluator.Factory(source(), factories);
         }
         if (dataType == DataTypes.INTEGER) {
-            return new GreatestIntEvaluator.Factory(factories);
+            return new GreatestIntEvaluator.Factory(source(), factories);
         }
         if (dataType == DataTypes.LONG) {
-            return new GreatestLongEvaluator.Factory(factories);
+            return new GreatestLongEvaluator.Factory(source(), factories);
         }
         if (dataType == DataTypes.KEYWORD
             || dataType == DataTypes.TEXT
@@ -127,7 +134,7 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
             || dataType == DataTypes.VERSION
             || dataType == DataTypes.UNSUPPORTED) {
 
-            return new GreatestBytesRefEvaluator.Factory(factories);
+            return new GreatestBytesRefEvaluator.Factory(source(), factories);
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }

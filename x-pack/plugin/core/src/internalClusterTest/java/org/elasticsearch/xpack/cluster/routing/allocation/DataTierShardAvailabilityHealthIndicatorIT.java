@@ -171,7 +171,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName).setSource("field", "value");
+            builders[i] = prepareIndex(indexName).setSource("field", "value");
         }
         // we want to test both full divergent copies of the shard in terms of segments, and
         // a case where they are the same (using sync flush), index Random does all this goodness

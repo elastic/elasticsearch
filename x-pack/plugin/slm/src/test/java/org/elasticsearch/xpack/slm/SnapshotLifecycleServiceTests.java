@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -184,7 +185,6 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
      * Test new policies getting scheduled correctly, updated policies also being scheduled,
      * and deleted policies having their schedules cancelled.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44997")
     public void testPolicyCRUD() throws Exception {
         ClockMock clock = new ClockMock();
         final AtomicInteger triggerCount = new AtomicInteger(0);
@@ -279,7 +279,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             clock.fastForwardSeconds(2);
 
             // The existing job should be cancelled and no longer trigger
-            assertThat(triggerCount.get(), equalTo(currentCount2));
+            assertBusy(() -> assertThat(triggerCount.get(), equalTo(currentCount2)));
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
 
             // When the service is no longer master, all jobs should be automatically cancelled
@@ -454,13 +454,13 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                 )
             )
         );
-        final SetOnce<ClusterStateUpdateTask> task = new SetOnce<>();
+        final SetOnce<OperationModeUpdateTask> task = new SetOnce<>();
         ClusterService fakeService = new ClusterService(Settings.EMPTY, clusterSettings, threadPool, null) {
             @Override
             public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
                 logger.info("--> got task: [source: {}]: {}", source, updateTask);
-                if (updateTask instanceof OperationModeUpdateTask) {
-                    task.set(updateTask);
+                if (updateTask instanceof OperationModeUpdateTask operationModeUpdateTask) {
+                    task.set(operationModeUpdateTask);
                 }
             }
         };
@@ -476,7 +476,9 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             true
         );
         service.clusterChanged(new ClusterChangedEvent("blah", state, ClusterState.EMPTY_STATE));
-        assertThat(task.get(), equalTo(OperationModeUpdateTask.slmMode(OperationMode.STOPPED)));
+        assertEquals(task.get().priority(), Priority.IMMEDIATE);
+        assertNull(task.get().getILMOperationMode());
+        assertEquals(task.get().getSLMOperationMode(), OperationMode.STOPPED);
         threadPool.shutdownNow();
     }
 

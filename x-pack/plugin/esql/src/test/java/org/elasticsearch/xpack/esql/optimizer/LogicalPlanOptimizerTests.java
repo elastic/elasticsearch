@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
@@ -30,14 +30,19 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -86,6 +91,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -94,10 +100,13 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
@@ -118,29 +127,31 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static Analyzer analyzer;
     private static LogicalPlanOptimizer logicalOptimizer;
     private static Map<String, EsField> mapping;
+    private static Map<String, EsField> mappingAirports;
+    private static Analyzer analyzerAirports;
+    private static EnrichResolution enrichResolution;
 
     @BeforeClass
     public static void init() {
         parser = new EsqlParser();
-
-        mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping);
-        IndexResolution getIndexResult = IndexResolution.valid(test);
-
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
-        EnrichPolicyResolution policy = AnalyzerTestUtils.loadEnrichPolicyResolution(
-            "languages_idx",
-            "id",
-            "languages_idx",
-            "mapping-languages.json"
-        );
+        enrichResolution = AnalyzerTestUtils.loadEnrichPolicyResolution("languages_idx", "id", "languages_idx", "mapping-languages.json");
+
+        // Most tests used data from the test index, so we load it here, and use it in the plan() function.
+        mapping = loadMapping("mapping-basic.json");
+        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
+        IndexResolution getIndexResult = IndexResolution.valid(test);
         analyzer = new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                getIndexResult,
-                new EnrichResolution(Set.of(policy), Set.of("languages_idx", "something"))
-            ),
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
+            TEST_VERIFIER
+        );
+
+        // Some tests use data from the airports index, so we load it here, and use it in the plan_airports() function.
+        mappingAirports = loadMapping("mapping-airports.json");
+        EsIndex airports = new EsIndex("airports", mappingAirports, Set.of("airports"));
+        IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
+        analyzerAirports = new Analyzer(
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
             TEST_VERIFIER
         );
     }
@@ -224,6 +235,28 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(agg.groupings()), contains("last_name", "first_name"));
     }
 
+    /**
+     * Project[[s{r}#4 AS d, s{r}#4, last_name{f}#21, first_name{f}#18]]
+     * \_Limit[500[INTEGER]]
+     *   \_Aggregate[[last_name{f}#21, first_name{f}#18],[SUM(salary{f}#22) AS s, last_name{f}#21, first_name{f}#18]]
+     *     \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     */
+    public void testCombineProjectionWithDuplicateAggregation() {
+        var plan = plan("""
+            from test
+            | stats s = sum(salary), d = sum(salary), c = sum(salary) by last_name, first_name
+            | keep d, s, last_name, first_name
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("d", "s", "last_name", "first_name"));
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("s", "last_name", "first_name"));
+        assertThat(Alias.unwrap(agg.aggregates().get(0)), instanceOf(Sum.class));
+        assertThat(Expressions.names(agg.groupings()), contains("last_name", "first_name"));
+    }
+
     public void testQlComparisonOptimizationsApply() {
         var plan = plan("""
             from test
@@ -259,6 +292,62 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var group = as(agg.groupings().get(0), Attribute.class);
         assertThat(group, is(alias.toAttribute()));
         var from = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[f{r}#7],[SUM(emp_no{f}#15) AS s, COUNT(first_name{f}#16) AS c, first_name{f}#16 AS f]]
+     *   \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     */
+    public void testCombineProjectionWithAggregationFirstAndAliasedGroupingUsedInAgg() {
+        var plan = plan("""
+            from test
+            | rename emp_no as e, first_name as f
+            | stats s = sum(e), c = count(f) by f
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("s", "c", "f"));
+        Alias as = as(aggs.get(0), Alias.class);
+        var sum = as(as.child(), Sum.class);
+        assertThat(Expressions.name(sum.field()), is("emp_no"));
+        as = as(aggs.get(1), Alias.class);
+        var count = as(as.child(), Count.class);
+        assertThat(Expressions.name(count.field()), is("first_name"));
+
+        as = as(aggs.get(2), Alias.class);
+        assertThat(Expressions.name(as.child()), is("first_name"));
+
+        assertThat(Expressions.names(agg.groupings()), contains("f"));
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[f{r}#7],[SUM(emp_no{f}#15) AS s, first_name{f}#16 AS f]]
+     *   \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     */
+    public void testCombineProjectionWithAggregationFirstAndAliasedGroupingUnused() {
+        var plan = plan("""
+            from test
+            | rename emp_no as e, first_name as f, last_name as l
+            | stats s = sum(e) by f
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("s", "f"));
+        Alias as = as(aggs.get(0), Alias.class);
+        var aggFunc = as(as.child(), AggregateFunction.class);
+        assertThat(Expressions.name(aggFunc.field()), is("emp_no"));
+        as = as(aggs.get(1), Alias.class);
+        assertThat(Expressions.name(as.child()), is("first_name"));
+
+        assertThat(Expressions.names(agg.groupings()), contains("f"));
     }
 
     /**
@@ -301,7 +390,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limitWithMinimum = randomIntBetween(0, numberOfLimits - 1);
 
         var fa = getFieldAttribute("a", INTEGER);
-        var relation = localSource(BlockFactory.getNonBreakingInstance(), singletonList(fa), singletonList(1));
+        var relation = localSource(TestBlockFactory.getNonBreakingInstance(), singletonList(fa), singletonList(1));
         LogicalPlan plan = relation;
 
         for (int i = 0; i < numberOfLimits; i++) {
@@ -780,7 +869,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort salary""");
 
         var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary"));
         as(topN.child(), EsRelation.class);
     }
 
@@ -792,7 +881,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort x""");
 
         var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("x", "emp_no"));
+        assertThat(orderNames(topN), contains("x"));
         var eval = as(topN.child(), Eval.class);
         as(eval.child(), EsRelation.class);
     }
@@ -806,7 +895,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort z""");
 
         var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("z", "emp_no"));
+        assertThat(orderNames(topN), contains("z"));
         var eval = as(topN.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("x", "y", "z"));
         as(eval.child(), EsRelation.class);
@@ -820,7 +909,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort x""");
 
         var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("x", "emp_no"));
+        assertThat(orderNames(topN), contains("x"));
         var dissect = as(topN.child(), Dissect.class);
         as(dissect.child(), EsRelation.class);
     }
@@ -833,7 +922,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort x""");
 
         var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("x", "emp_no"));
+        assertThat(orderNames(topN), contains("x"));
         var grok = as(topN.child(), Grok.class);
         as(grok.child(), EsRelation.class);
     }
@@ -847,7 +936,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(orderNames(topN), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary"));
         as(topN.child(), EsRelation.class);
     }
 
@@ -862,7 +951,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(orderNames(topN), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary"));
         var eval = as(topN.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("e"));
         as(eval.child(), EsRelation.class);
@@ -878,7 +967,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(orderNames(topN), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary"));
         as(topN.child(), EsRelation.class);
     }
 
@@ -890,7 +979,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort salary""");
 
         var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary"));
         var filter = as(topN.child(), Filter.class);
         as(filter.child(), EsRelation.class);
     }
@@ -998,7 +1087,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var keep = as(plan, EsqlProject.class);
         var topN = as(keep.child(), TopN.class);
         assertThat(topN.limit().fold(), equalTo(5));
-        assertThat(orderNames(topN), contains("salary", "first_name"));
+        assertThat(orderNames(topN), contains("salary"));
         var limit = as(topN.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(5));
         var mvExp = as(limit.child(), MvExpand.class);
@@ -1313,10 +1402,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(orderNames(topN), contains("emp_no", "first_name"));
+        assertThat(orderNames(topN), contains("emp_no"));
         var filter = as(topN.child(), Filter.class);
         var topN2 = as(filter.child(), TopN.class);
-        assertThat(orderNames(topN2), contains("salary", "emp_no"));
+        assertThat(orderNames(topN2), contains("salary"));
         as(topN2.child(), EsRelation.class);
     }
 
@@ -1357,12 +1446,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
                     Order.OrderDirection.DESC,
                     Order.NullsPosition.FIRST
-                ),
-                new Order(
-                    EMPTY,
-                    new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
-                    Order.OrderDirection.ASC,
-                    Order.NullsPosition.LAST
                 )
             )
         );
@@ -1406,12 +1489,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
                     Order.OrderDirection.DESC,
                     Order.NullsPosition.LAST
-                ),
-                new Order(
-                    EMPTY,
-                    new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
-                    Order.OrderDirection.DESC,
-                    Order.NullsPosition.LAST
                 )
             )
         );
@@ -1436,12 +1513,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
-                ),
-                new Order(
-                    EMPTY,
-                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
-                    Order.OrderDirection.DESC,
-                    Order.NullsPosition.FIRST
                 )
             )
         );
@@ -1730,11 +1801,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         var aggs = agg.aggregates();
         var a = as(aggs.get(0), Alias.class);
-        assertThat(a.name(), startsWith("__a_SUM@"));
+        assertThat(a.name(), startsWith("$$SUM$a$"));
         var sum = as(a.child(), Sum.class);
 
         a = as(aggs.get(1), Alias.class);
-        assertThat(a.name(), startsWith("__a_COUNT@"));
+        assertThat(a.name(), startsWith("$$COUNT$a$"));
         var count = as(a.child(), Count.class);
 
         assertThat(Expressions.names(agg.groupings()), contains("last_name"));
@@ -1755,7 +1826,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """);
 
         assertThat(Expressions.names(plan.output()), contains("a", "c", "s", "last_name"));
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
         var f = eval.fields();
         assertThat(f, hasSize(1));
@@ -1791,7 +1862,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         var aggs = agg.aggregates();
         var a = as(aggs.get(0), Alias.class);
-        assertThat(a.name(), startsWith("__a_COUNT@"));
+        assertThat(a.name(), startsWith("$$COUNT$a$0"));
         var sum = as(a.child(), Count.class);
 
         a = as(aggs.get(1), Alias.class);
@@ -2472,6 +2543,73 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var row = as(expand.child(), Row.class);
     }
 
+    /**
+     * Expected
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[a{r}#2],[COUNT([2a][KEYWORD]) AS bar]]
+     *   \_Row[[1[INTEGER] AS a]]
+     */
+    public void testRenameStatsDropGroup() {
+        LogicalPlan plan = optimizedPlan("""
+            row a = 1
+            | rename a AS foo
+            | stats bar = count(*) by foo
+            | drop foo""");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("a"));
+        var row = as(agg.child(), Row.class);
+    }
+
+    /**
+     * Expected
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[a{r}#2, bar{r}#8],[COUNT([2a][KEYWORD]) AS baz, b{r}#4 AS bar]]
+     *   \_Row[[1[INTEGER] AS a, 2[INTEGER] AS b]]
+     */
+    public void testMultipleRenameStatsDropGroup() {
+        LogicalPlan plan = optimizedPlan("""
+            row a = 1, b = 2
+            | rename a AS foo, b as bar
+            | stats baz = count(*) by foo, bar
+            | drop foo""");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("a", "bar"));
+        var row = as(agg.child(), Row.class);
+    }
+
+    /**
+     * Expected
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[emp_no{f}#11, bar{r}#4],[MAX(salary{f}#16) AS baz, gender{f}#13 AS bar]]
+     *   \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     */
+    public void testMultipleRenameStatsDropGroupMultirow() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | rename emp_no AS foo, gender as bar
+            | stats baz = max(salary) by foo, bar
+            | drop foo""");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("emp_no", "bar"));
+        var row = as(agg.child(), EsRelation.class);
+    }
+
+    public void testLimitZeroUsesLocalRelation() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | stats count=count(*)
+            | sort count desc
+            | limit 0""");
+
+        assertThat(plan, instanceOf(LocalRelation.class));
+    }
+
     private <T> T aliased(Expression exp, Class<T> clazz) {
         var alias = as(exp, Alias.class);
         return as(alias.child(), clazz);
@@ -2485,12 +2623,631 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(name, is(fieldName));
     }
 
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[],[SUM(emp_no{f}#4) AS sum(emp_no)]]
+     *   \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
+     */
+    public void testIsNotNullConstraintForStatsWithoutGrouping() {
+        var plan = optimizedPlan("""
+            from test
+            | stats sum(emp_no)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), is(empty()));
+        assertThat(Expressions.names(agg.aggregates()), contains("sum(emp_no)"));
+        var from = as(agg.child(), EsRelation.class);
+    }
+
+    public void testIsNotNullConstraintForStatsWithGrouping() {
+        var plan = optimizedPlan("""
+            from test
+            | stats sum(emp_no) by salary
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("salary"));
+        assertThat(Expressions.names(agg.aggregates()), contains("sum(emp_no)", "salary"));
+        var from = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[salary{f}#1185],[SUM(salary{f}#1185) AS sum(salary), salary{f}#1185]]
+     *   \_EsRelation[test][_meta_field{f}#1186, emp_no{f}#1180, first_name{f}#..]
+     */
+    public void testIsNotNullConstraintForStatsWithAndOnGrouping() {
+        var plan = optimizedPlan("""
+            from test
+            | stats sum(salary) by salary
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("salary"));
+        assertThat(Expressions.names(agg.aggregates()), contains("sum(salary)", "salary"));
+        var from = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[x{r}#4],[SUM(salary{f}#13) AS sum(salary), salary{f}#13 AS x]]
+     *   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testIsNotNullConstraintForStatsWithAndOnGroupingAlias() {
+        var plan = optimizedPlan("""
+            from test
+            | eval x = salary
+            | stats sum(salary) by x
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("x"));
+        assertThat(Expressions.names(agg.aggregates()), contains("sum(salary)", "x"));
+        var from = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[salary{f}#13],[SUM(emp_no{f}#8) AS sum(x), salary{f}#13]]
+     *   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testIsNotNullConstraintSkippedForStatsWithAlias() {
+        var plan = optimizedPlan("""
+            from test
+            | eval x = emp_no
+            | stats sum(x) by salary
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("salary"));
+        assertThat(Expressions.names(agg.aggregates()), contains("sum(x)", "salary"));
+
+        // non null filter for stats
+        var from = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[],[SUM(emp_no{f}#8) AS a, MIN(salary{f}#13) AS b]]
+     *   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testIsNotNullConstraintForStatsWithMultiAggWithoutGrouping() {
+        var plan = optimizedPlan("""
+            from test
+            | stats a = sum(emp_no), b = min(salary)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("a", "b"));
+
+        var from = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[gender{f}#11],[SUM(emp_no{f}#9) AS a, MIN(salary{f}#14) AS b, gender{f}#11]]
+     *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testIsNotNullConstraintForStatsWithMultiAggWithGrouping() {
+        var plan = optimizedPlan("""
+            from test
+            | stats a = sum(emp_no), b = min(salary) by gender
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("a", "b", "gender"));
+
+        var from = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[emp_no{f}#9],[SUM(emp_no{f}#9) AS a, MIN(salary{f}#14) AS b, emp_no{f}#9]]
+     *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testIsNotNullConstraintForStatsWithMultiAggWithAndOnGrouping() {
+        var plan = optimizedPlan("""
+            from test
+            | stats a = sum(emp_no), b = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("a", "b", "emp_no"));
+
+        var from = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[w{r}#14, g{r}#16],[COUNT(b{r}#24) AS c, w{r}#14, gender{f}#32 AS g]]
+     *   \_Eval[[emp_no{f}#30 / 10[INTEGER] AS x, x{r}#4 + salary{f}#35 AS y, y{r}#8 / 4[INTEGER] AS z, z{r}#11 * 2[INTEGER] +
+     *  3[INTEGER] AS w, salary{f}#35 + 4[INTEGER] / 2[INTEGER] AS a, a{r}#21 + 3[INTEGER] AS b]]
+     *     \_EsRelation[test][_meta_field{f}#36, emp_no{f}#30, first_name{f}#31, ..]
+     */
+    public void testIsNotNullConstraintForAliasedExpressions() {
+        var plan = optimizedPlan("""
+            from test
+            | eval x = emp_no / 10
+            | eval y = x + salary
+            | eval z = y / 4
+            | eval w = z * 2 + 3
+            | rename gender as g, salary as s
+            | eval a = (s + 4) / 2
+            | eval b = a + 3
+            | stats c = count(b) by w, g
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("c", "w", "g"));
+        var eval = as(agg.child(), Eval.class);
+        var from = as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[],[SPATIALCENTROID(location{f}#9) AS centroid]]
+     *   \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]
+     */
+    public void testSpatialTypesAndStatsUseDocValues() {
+        var plan = planAirports("""
+            from test
+            | stats centroid = st_centroid(location)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("centroid"));
+        assertTrue("Expected GEO_POINT aggregation for STATS", agg.aggregates().stream().allMatch(aggExp -> {
+            var alias = as(aggExp, Alias.class);
+            var aggFunc = as(alias.child(), AggregateFunction.class);
+            var aggField = as(aggFunc.field(), FieldAttribute.class);
+            return aggField.dataType() == GEO_POINT;
+        }));
+
+        var from = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[emp_no%2{r}#6],[COUNT(salary{f}#12) AS c, emp_no%2{r}#6]]
+     *   \_Eval[[emp_no{f}#7 % 2[INTEGER] AS emp_no%2]]
+     *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testNestedExpressionsInGroups() {
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(salary) by emp_no % 2
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var groupings = agg.groupings();
+        var aggs = agg.aggregates();
+        var ref = as(groupings.get(0), ReferenceAttribute.class);
+        assertThat(aggs.get(1), is(ref));
+        var eval = as(agg.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).toAttribute(), is(ref));
+        assertThat(eval.fields().get(0).name(), is("emp_no % 2"));
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[emp_no{f}#6],[COUNT(__c_COUNT@1bd45f36{r}#16) AS c, emp_no{f}#6]]
+     *   \_Eval[[salary{f}#11 + 1[INTEGER] AS __c_COUNT@1bd45f36]]
+     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testNestedExpressionsInAggs() {
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(salary + 1) by emp_no
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        var count = aliased(aggs.get(0), Count.class);
+        var ref = as(count.field(), ReferenceAttribute.class);
+        var eval = as(agg.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(fields, hasSize(1));
+        assertThat(fields.get(0).toAttribute(), is(ref));
+        var add = aliased(fields.get(0), Add.class);
+        assertThat(Expressions.name(add.left()), is("salary"));
+    }
+
+    /**
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[emp_no%2{r}#7],[COUNT(__c_COUNT@fb7855b0{r}#18) AS c, emp_no%2{r}#7]]
+     *   \_Eval[[emp_no{f}#8 % 2[INTEGER] AS emp_no%2, 100[INTEGER] / languages{f}#11 + salary{f}#13 + 1[INTEGER] AS __c_COUNT
+     * @fb7855b0]]
+     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testNestedExpressionsInBothAggsAndGroups() {
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(salary + 1 + 100 / languages) by emp_no % 2
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var groupings = agg.groupings();
+        var aggs = agg.aggregates();
+        var gRef = as(groupings.get(0), ReferenceAttribute.class);
+        assertThat(aggs.get(1), is(gRef));
+
+        var count = aliased(aggs.get(0), Count.class);
+        var aggRef = as(count.field(), ReferenceAttribute.class);
+        var eval = as(agg.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(fields, hasSize(2));
+        assertThat(fields.get(0).toAttribute(), is(gRef));
+        assertThat(fields.get(1).toAttribute(), is(aggRef));
+
+        var mod = aliased(fields.get(0), Mod.class);
+        assertThat(Expressions.name(mod.left()), is("emp_no"));
+        var refs = Expressions.references(singletonList(fields.get(1)));
+        assertThat(Expressions.names(refs), containsInAnyOrder("languages", "salary"));
+    }
+
+    public void testNestedMultiExpressionsInGroupingAndAggs() {
+        var plan = optimizedPlan("""
+            from test
+            | stats count(salary + 1), max(salary   +  23) by languages   + 1, emp_no %  3
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.output()), contains("count(salary + 1)", "max(salary   +  23)", "languages   + 1", "emp_no %  3"));
+    }
+
+    public void testLogicalPlanOptimizerVerifier() {
+        var plan = plan("""
+            from test
+            | eval bucket_start = 1, bucket_end = 100000
+            | eval auto_bucket(salary, 10, bucket_start, bucket_end)
+            """);
+        var ab = as(plan, Eval.class);
+        assertTrue(ab.optimized());
+    }
+
+    public void testLogicalPlanOptimizerVerificationException() {
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+            from test
+            | eval bucket_end = 100000
+            | eval auto_bucket(salary, 10, emp_no, bucket_end)
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        final String header = "Found 1 problem\nline ";
+        assertEquals(
+            "3:8: third argument of [auto_bucket(salary, 10, emp_no, bucket_end)] must be a constant, received [emp_no]",
+            e.getMessage().substring(header.length())
+        );
+    }
+
+    /**
+     * Expects
+     * Project[[x{r}#5]]
+     * \_Eval[[____x_AVG@9efc3cf3_SUM@daf9f221{r}#18 / ____x_AVG@9efc3cf3_COUNT@53cd08ed{r}#19 AS __x_AVG@9efc3cf3, __x_AVG@
+     * 9efc3cf3{r}#16 / 2[INTEGER] + __x_MAX@475d0e4d{r}#17 AS x]]
+     *   \_Limit[500[INTEGER]]
+     *     \_Aggregate[[],[SUM(salary{f}#11) AS ____x_AVG@9efc3cf3_SUM@daf9f221, COUNT(salary{f}#11) AS ____x_AVG@9efc3cf3_COUNT@53cd0
+     * 8ed, MAX(salary{f}#11) AS __x_MAX@475d0e4d]]
+     *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testStatsExpOverAggs() {
+        var plan = optimizedPlan("""
+            from test
+            | stats x = avg(salary) /2 + max(salary)
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("x"));
+        var eval = as(project.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(Expressions.name(fields.get(1)), is("x"));
+        // sum/count to compute avg
+        var div = as(fields.get(0).child(), Div.class);
+        // avg + max
+        var add = as(fields.get(1).child(), Add.class);
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(aggs, hasSize(3));
+        var sum = as(Alias.unwrap(aggs.get(0)), Sum.class);
+        assertThat(Expressions.name(sum.field()), is("salary"));
+        var count = as(Alias.unwrap(aggs.get(1)), Count.class);
+        assertThat(Expressions.name(count.field()), is("salary"));
+        var max = as(Alias.unwrap(aggs.get(2)), Max.class);
+        assertThat(Expressions.name(max.field()), is("salary"));
+    }
+
+    /**
+     * Expects
+     * Project[[x{r}#5, y{r}#9, z{r}#12]]
+     * \_Eval[[$$SUM$$$AVG$avg(salary_%_3)>$0$0{r}#29 / $$COUNT$$$AVG$avg(salary_%_3)>$0$1{r}#30 AS $$AVG$avg(salary_%_3)>$0,
+     *   $$AVG$avg(salary_%_3)>$0{r}#23 + $$MAX$avg(salary_%_3)>$1{r}#24 AS x,
+     *   $$MIN$min(emp_no_/_3)>$2{r}#25 + 10[INTEGER] - $$MEDIAN$min(emp_no_/_3)>$3{r}#26 AS y]]
+     *   \_Limit[500[INTEGER]]
+     *     \_Aggregate[[z{r}#12],[SUM($$salary_%_3$AVG$0{r}#27) AS $$SUM$$$AVG$avg(salary_%_3)>$0$0,
+     *     COUNT($$salary_%_3$AVG$0{r}#27) AS $$COUNT$$$AVG$avg(salary_%_3)>$0$1,
+     *     MAX(emp_no{f}#13) AS $$MAX$avg(salary_%_3)>$1,
+     *     MIN($$emp_no_/_3$MIN$1{r}#28) AS $$MIN$min(emp_no_/_3)>$2,
+     *     PERCENTILE(salary{f}#18,50[INTEGER]) AS $$MEDIAN$min(emp_no_/_3)>$3, z{r}#12]]
+     *       \_Eval[[languages{f}#16 % 2[INTEGER] AS z,
+     *       salary{f}#18 % 3[INTEGER] AS $$salary_%_3$AVG$0,
+     *       emp_no{f}#13 / 3[INTEGER] AS $$emp_no_/_3$MIN$1]]
+     *         \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     */
+    public void testStatsExpOverAggsMulti() {
+        var plan = optimizedPlan("""
+            from test
+            | stats x = avg(salary % 3) + max(emp_no), y = min(emp_no / 3) + 10 - median(salary) by z = languages % 2
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("x", "y", "z"));
+        var eval = as(project.child(), Eval.class);
+        var fields = eval.fields();
+        // avg = Sum/Count
+        assertThat(Expressions.name(fields.get(0)), containsString("AVG"));
+        assertThat(Alias.unwrap(fields.get(0)), instanceOf(Div.class));
+        // avg + max
+        assertThat(Expressions.name(fields.get(1)), containsString("x"));
+        assertThat(Alias.unwrap(fields.get(1)), instanceOf(Add.class));
+        // min + 10 - median
+        assertThat(Expressions.name(fields.get(2)), containsString("y"));
+        assertThat(Alias.unwrap(fields.get(2)), instanceOf(Sub.class));
+
+        var limit = as(eval.child(), Limit.class);
+
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        var sum = as(Alias.unwrap(aggs.get(0)), Sum.class);
+        var count = as(Alias.unwrap(aggs.get(1)), Count.class);
+        var max = as(Alias.unwrap(aggs.get(2)), Max.class);
+        var min = as(Alias.unwrap(aggs.get(3)), Min.class);
+        var percentile = as(Alias.unwrap(aggs.get(4)), Percentile.class);
+
+        eval = as(agg.child(), Eval.class);
+        fields = eval.fields();
+        assertThat(Expressions.name(fields.get(0)), is("z"));
+        assertThat(Expressions.name(fields.get(1)), containsString("AVG"));
+        assertThat(Expressions.name(Alias.unwrap(fields.get(1))), containsString("salary"));
+        assertThat(Expressions.name(fields.get(2)), containsString("MIN"));
+        assertThat(Expressions.name(Alias.unwrap(fields.get(2))), containsString("emp_no"));
+    }
+
+    /**
+     * Expects
+     * Project[[x{r}#5, y{r}#9, z{r}#12]]
+     * \_Eval[[$$SUM$$$AVG$CONCAT(TO_STRIN>$0$0{r}#29 / $$COUNT$$$AVG$CONCAT(TO_STRIN>$0$1{r}#30 AS $$AVG$CONCAT(TO_STRIN>$0,
+     *        CONCAT(TOSTRING($$AVG$CONCAT(TO_STRIN>$0{r}#23),TOSTRING($$MAX$CONCAT(TO_STRIN>$1{r}#24)) AS x,
+     *        $$MIN$(MIN(emp_no_/_3>$2{r}#25 + 3.141592653589793[DOUBLE] - $$MEDIAN$(MIN(emp_no_/_3>$3{r}#26 / 2.718281828459045[DOUBLE]
+     *         AS y]]
+     *   \_Limit[500[INTEGER]]
+     *     \_Aggregate[[z{r}#12],[SUM($$salary_%_3$AVG$0{r}#27) AS $$SUM$$$AVG$CONCAT(TO_STRIN>$0$0,
+     *      COUNT($$salary_%_3$AVG$0{r}#27) AS $$COUNT$$$AVG$CONCAT(TO_STRIN>$0$1,
+     *      MAX(emp_no{f}#13) AS $$MAX$CONCAT(TO_STRIN>$1,
+     *      MIN($$emp_no_/_3$MIN$1{r}#28) AS $$MIN$(MIN(emp_no_/_3>$2,
+     *      PERCENTILE(salary{f}#18,50[INTEGER]) AS $$MEDIAN$(MIN(emp_no_/_3>$3, z{r}#12]]
+     *       \_Eval[[languages{f}#16 % 2[INTEGER] AS z,
+     *       salary{f}#18 % 3[INTEGER] AS $$salary_%_3$AVG$0,
+     *       emp_no{f}#13 / 3[INTEGER] AS $$emp_no_/_3$MIN$1]]
+     *         \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     */
+    public void testStatsExpOverAggsWithScalars() {
+        var plan = optimizedPlan("""
+            from test
+            | stats x = CONCAT(TO_STRING(AVG(salary % 3)), TO_STRING(MAX(emp_no))),
+                    y = (MIN(emp_no / 3) + PI() - MEDIAN(salary))/E()
+                    by z = languages % 2
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("x", "y", "z"));
+        var eval = as(project.child(), Eval.class);
+        var fields = eval.fields();
+        // avg = Sum/Count
+        assertThat(Expressions.name(fields.get(0)), containsString("AVG"));
+        assertThat(Alias.unwrap(fields.get(0)), instanceOf(Div.class));
+        // concat(to_string(avg)
+        assertThat(Expressions.name(fields.get(1)), containsString("x"));
+        var concat = as(Alias.unwrap(fields.get(1)), Concat.class);
+        var toString = as(concat.children().get(0), ToString.class);
+        toString = as(concat.children().get(1), ToString.class);
+        // min + 10 - median/e
+        assertThat(Expressions.name(fields.get(2)), containsString("y"));
+        assertThat(Alias.unwrap(fields.get(2)), instanceOf(Div.class));
+
+        var limit = as(eval.child(), Limit.class);
+
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        var sum = as(Alias.unwrap(aggs.get(0)), Sum.class);
+        var count = as(Alias.unwrap(aggs.get(1)), Count.class);
+        var max = as(Alias.unwrap(aggs.get(2)), Max.class);
+        var min = as(Alias.unwrap(aggs.get(3)), Min.class);
+        var percentile = as(Alias.unwrap(aggs.get(4)), Percentile.class);
+        assertThat(Expressions.name(aggs.get(5)), is("z"));
+
+        eval = as(agg.child(), Eval.class);
+        fields = eval.fields();
+        assertThat(Expressions.name(fields.get(0)), is("z"));
+        assertThat(Expressions.name(fields.get(1)), containsString("AVG"));
+        assertThat(Expressions.name(Alias.unwrap(fields.get(1))), containsString("salary"));
+        assertThat(Expressions.name(fields.get(2)), containsString("MIN"));
+        assertThat(Expressions.name(Alias.unwrap(fields.get(2))), containsString("emp_no"));
+    }
+
+    /**
+     * Expects
+     * Project[[a{r}#5, b{r}#9, $$max(salary)_+_3>$COUNT$2{r}#46 AS d, $$count(salary)_->$MIN$3{r}#47 AS e, $$avg(salary)_+_m
+     * >$MAX$1{r}#45 AS g]]
+     * \_Eval[[$$$$avg(salary)_+_m>$AVG$0$SUM$0{r}#48 / $$max(salary)_+_3>$COUNT$2{r}#46 AS $$avg(salary)_+_m>$AVG$0, $$avg(
+     * salary)_+_m>$AVG$0{r}#44 + $$avg(salary)_+_m>$MAX$1{r}#45 AS a, $$avg(salary)_+_m>$MAX$1{r}#45 + 3[INTEGER] +
+     * 3.141592653589793[DOUBLE] + $$max(salary)_+_3>$COUNT$2{r}#46 AS b]]
+     *   \_Limit[500[INTEGER]]
+     *     \_Aggregate[[w{r}#28],[SUM(salary{f}#39) AS $$$$avg(salary)_+_m>$AVG$0$SUM$0, MAX(salary{f}#39) AS $$avg(salary)_+_m>$MAX$1
+     * , COUNT(salary{f}#39) AS $$max(salary)_+_3>$COUNT$2, MIN(salary{f}#39) AS $$count(salary)_->$MIN$3]]
+     *       \_Eval[[languages{f}#37 % 2[INTEGER] AS w]]
+     *         \_EsRelation[test][_meta_field{f}#40, emp_no{f}#34, first_name{f}#35, ..]
+     */
+    public void testStatsExpOverAggsWithScalarAndDuplicateAggs() {
+        var plan = optimizedPlan("""
+            from test
+            | stats a = avg(salary) + max(salary),
+                    b = max(salary) + 3 + PI() + count(salary),
+                    c = count(salary) - min(salary),
+                    d = count(salary),
+                    e = min(salary),
+                    f = max(salary),
+                    g = max(salary)
+                    by w = languages % 2
+            | keep a, b, d, e, g
+            """);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("a", "b", "d", "e", "g"));
+        var refA = Alias.unwrap(projections.get(0));
+        var refB = Alias.unwrap(projections.get(1));
+        var refD = Alias.unwrap(projections.get(2));
+        var refE = Alias.unwrap(projections.get(3));
+        var refG = Alias.unwrap(projections.get(4));
+
+        var eval = as(project.child(), Eval.class);
+        var fields = eval.fields();
+        // avg = Sum/Count
+        assertThat(Expressions.name(fields.get(0)), containsString("AVG"));
+        assertThat(Alias.unwrap(fields.get(0)), instanceOf(Div.class));
+        // avg + max
+        assertThat(Expressions.name(fields.get(1)), is("a"));
+        var add = as(Alias.unwrap(fields.get(1)), Add.class);
+        var max_salary = add.right();
+        assertThat(Expressions.attribute(fields.get(1)), is(Expressions.attribute(refA)));
+
+        assertThat(Expressions.name(fields.get(2)), is("b"));
+        assertThat(Expressions.attribute(fields.get(2)), is(Expressions.attribute(refB)));
+
+        add = as(Alias.unwrap(fields.get(2)), Add.class);
+        add = as(add.left(), Add.class);
+        add = as(add.left(), Add.class);
+        assertThat(Expressions.attribute(max_salary), is(Expressions.attribute(add.left())));
+
+        var limit = as(eval.child(), Limit.class);
+
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        var sum = as(Alias.unwrap(aggs.get(0)), Sum.class);
+
+        assertThat(Expressions.attribute(aggs.get(1)), is(Expressions.attribute(max_salary)));
+        var max = as(Alias.unwrap(aggs.get(1)), Max.class);
+        var count = as(Alias.unwrap(aggs.get(2)), Count.class);
+        var min = as(Alias.unwrap(aggs.get(3)), Min.class);
+
+        eval = as(agg.child(), Eval.class);
+        fields = eval.fields();
+        assertThat(Expressions.name(fields.get(0)), is("w"));
+    }
+
+    /**
+     * Expects
+     * Project[[a{r}#5, a{r}#5 AS b, w{r}#12]]
+     * \_Limit[500[INTEGER]]
+     *   \_Aggregate[[w{r}#12],[SUM($$salary_/_2_+_la>$SUM$0{r}#26) AS a, w{r}#12]]
+     *     \_Eval[[emp_no{f}#16 % 2[INTEGER] AS w, salary{f}#21 / 2[INTEGER] + languages{f}#19 AS $$salary_/_2_+_la>$SUM$0]]
+     *       \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     */
+    public void testStatsWithCanonicalAggregate() throws Exception {
+        var plan = optimizedPlan("""
+            from test
+            | stats a = sum(salary / 2 + languages),
+                    b = sum(languages + salary / 2)
+                    by w = emp_no % 2
+            | keep a, b, w
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("a", "b", "w"));
+        assertThat(Expressions.name(Alias.unwrap(project.projections().get(1))), is("a"));
+        var limit = as(project.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var aggregates = aggregate.aggregates();
+        assertThat(Expressions.names(aggregates), contains("a", "w"));
+        var unwrapped = Alias.unwrap(aggregates.get(0));
+        var sum = as(unwrapped, Sum.class);
+        var sum_argument = sum.field();
+        var grouping = aggregates.get(1);
+
+        var eval = as(aggregate.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(Expressions.attribute(fields.get(0)), is(Expressions.attribute(grouping)));
+        assertThat(Expressions.attribute(fields.get(1)), is(Expressions.attribute(sum_argument)));
+    }
+
+    public void testEmptyMappingIndex() {
+        EsIndex empty = new EsIndex("empty_test", emptyMap(), emptySet());
+        IndexResolution getIndexResultAirports = IndexResolution.valid(empty);
+        var analyzer = new Analyzer(
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
+            TEST_VERIFIER
+        );
+
+        var plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test")));
+        as(plan, LocalRelation.class);
+        assertThat(plan.output(), equalTo(NO_FIELDS));
+
+        plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test metadata _id | eval x = 1")));
+        as(plan, LocalRelation.class);
+        assertThat(Expressions.names(plan.output()), contains("_id", "x"));
+
+        plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test metadata _id, _version | limit 5")));
+        as(plan, LocalRelation.class);
+        assertThat(Expressions.names(plan.output()), contains("_id", "_version"));
+
+        plan = logicalOptimizer.optimize(
+            analyzer.analyze(parser.createStatement("from empty_test | eval x = \"abc\" | enrich languages_idx on x"))
+        );
+        LocalRelation local = as(plan, LocalRelation.class);
+        assertThat(Expressions.names(local.output()), contains(NO_FIELDS.get(0).name(), "x", "language_code", "language_name"));
+    }
+
     private LogicalPlan optimizedPlan(String query) {
         return plan(query);
     }
 
     private LogicalPlan plan(String query) {
         var analyzed = analyzer.analyze(parser.createStatement(query));
+        // System.out.println(analyzed);
+        var optimized = logicalOptimizer.optimize(analyzed);
+        // System.out.println(optimized);
+        return optimized;
+    }
+
+    private LogicalPlan planAirports(String query) {
+        var analyzed = analyzerAirports.analyze(parser.createStatement(query));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);

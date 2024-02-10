@@ -47,22 +47,26 @@ public class IndexRequestBuilderTests extends ESTestCase {
      * test setting the source for the request with different available setters
      */
     public void testSetSource() throws Exception {
-        IndexRequestBuilder indexRequestBuilder = new IndexRequestBuilder(this.testClient, IndexAction.INSTANCE);
+        IndexRequestBuilder indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         Map<String, String> source = new HashMap<>();
         source.put("SomeKey", "SomeValue");
         indexRequestBuilder.setSource(source);
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         indexRequestBuilder.setSource(source, XContentType.JSON);
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         indexRequestBuilder.setSource("SomeKey", "SomeValue");
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
         // force the Object... setter
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         indexRequestBuilder.setSource((Object) "SomeKey", "SomeValue");
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         ByteArrayOutputStream docOut = new ByteArrayOutputStream();
         XContentBuilder doc = XContentFactory.jsonBuilder(docOut).startObject().field("SomeKey", "SomeValue").endObject();
         doc.close();
@@ -72,6 +76,7 @@ public class IndexRequestBuilderTests extends ESTestCase {
             XContentHelper.convertToJson(indexRequestBuilder.request().source(), true, indexRequestBuilder.request().getContentType())
         );
 
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         doc = XContentFactory.jsonBuilder().startObject().field("SomeKey", "SomeValue").endObject();
         doc.close();
         indexRequestBuilder.setSource(doc);

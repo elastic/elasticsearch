@@ -8,6 +8,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.util.json.Jackson;
 
 import org.apache.lucene.util.SetOnce;
@@ -22,8 +23,9 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -49,6 +51,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
                 // ClientConfiguration clinit has some classloader problems
                 // TODO: fix that
                 Class.forName("com.amazonaws.ClientConfiguration");
+                // Pre-load region metadata to avoid looking them up dynamically without privileges enabled
+                RegionUtils.initialize();
             } catch (final ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
@@ -57,7 +61,6 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private final SetOnce<S3Service> service = new SetOnce<>();
-    private final SetOnce<MeterRegistry> meterRegistry = new SetOnce<>();
     private final Settings settings;
 
     public S3RepositoryPlugin(Settings settings) {
@@ -74,21 +77,21 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final NamedXContentRegistry registry,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final RepositoriesMetrics repositoriesMetrics
     ) {
-        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, meterRegistry.get());
+        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, repositoriesMetrics);
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        service.set(s3Service(services.environment(), services.clusterService().getSettings()));
+        service.set(s3Service(services.environment(), services.clusterService().getSettings(), services.resourceWatcherService()));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
-        meterRegistry.set(services.telemetryProvider().getMeterRegistry());
         return List.of(service);
     }
 
-    S3Service s3Service(Environment environment, Settings nodeSettings) {
-        return new S3Service(environment, nodeSettings);
+    S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
+        return new S3Service(environment, nodeSettings, resourceWatcherService);
     }
 
     @Override
@@ -97,11 +100,12 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final NamedXContentRegistry registry,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics
     ) {
         return Collections.singletonMap(
             S3Repository.TYPE,
-            metadata -> createRepository(metadata, registry, clusterService, bigArrays, recoverySettings)
+            metadata -> createRepository(metadata, registry, clusterService, bigArrays, recoverySettings, repositoriesMetrics)
         );
     }
 
@@ -116,6 +120,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.PROTOCOL_SETTING,
             S3ClientSettings.PROXY_HOST_SETTING,
             S3ClientSettings.PROXY_PORT_SETTING,
+            S3ClientSettings.PROXY_SCHEME_SETTING,
             S3ClientSettings.PROXY_USERNAME_SETTING,
             S3ClientSettings.PROXY_PASSWORD_SETTING,
             S3ClientSettings.READ_TIMEOUT_SETTING,
@@ -141,9 +146,5 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     @Override
     public void close() throws IOException {
         getService().close();
-    }
-
-    protected MeterRegistry getMeterRegistry() {
-        return meterRegistry.get();
     }
 }

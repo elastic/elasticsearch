@@ -12,6 +12,8 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -27,8 +29,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
  * Removes leading and trailing whitespaces from a string.
  */
 public final class Trim extends UnaryScalarFunction implements EvaluatorMapper {
-
-    public Trim(Source source, Expression str) {
+    @FunctionInfo(returnType = { "keyword", "text" }, description = "Removes leading and trailing whitespaces from a string.")
+    public Trim(Source source, @Param(name = "str", type = { "keyword", "text" }) Expression str) {
         super(source, str);
     }
 
@@ -49,7 +51,7 @@ public final class Trim extends UnaryScalarFunction implements EvaluatorMapper {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var field = toEvaluator.apply(field());
-        return new TrimEvaluator.Factory(field);
+        return new TrimEvaluator.Factory(source(), field);
     }
 
     @Override

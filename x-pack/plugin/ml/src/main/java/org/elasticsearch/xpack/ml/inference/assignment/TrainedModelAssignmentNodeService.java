@@ -34,12 +34,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -65,8 +67,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_ACTION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_TYPE;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.NODE_IS_SHUTTING_DOWN;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_PYTORCH_MODEL_INFERENCE_FEATURE;
-import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.NODE_IS_SHUTTING_DOWN;
 
 public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
@@ -289,10 +291,12 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         NlpInferenceInput input,
         boolean skipQueue,
         TimeValue timeout,
+        TrainedModelPrefixStrings.PrefixType prefixType,
         CancellableTask parentActionTask,
+        boolean chunkResponse,
         ActionListener<InferenceResults> listener
     ) {
-        deploymentManager.infer(task, config, input, skipQueue, timeout, parentActionTask, listener);
+        deploymentManager.infer(task, config, input, skipQueue, timeout, prefixType, parentActionTask, chunkResponse, listener);
     }
 
     public Optional<ModelStats> modelStats(TrainedModelDeploymentTask task) {
@@ -367,9 +371,14 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     }
 
                     if (shouldLoadModel(routingInfo, trainedModelAssignment.getDeploymentId(), isResetMode)) {
-                        prepareModelToLoad(
-                            createStartTrainedModelDeploymentTaskParams(trainedModelAssignment, routingInfo.getCurrentAllocations())
+                        StartTrainedModelDeploymentAction.TaskParams params = createStartTrainedModelDeploymentTaskParams(
+                            trainedModelAssignment,
+                            routingInfo.getCurrentAllocations()
                         );
+                        // Loading the model is done by a separate task, so needs a new trace context
+                        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                            prepareModelToLoad(params);
+                        }
                     }
                 }
 

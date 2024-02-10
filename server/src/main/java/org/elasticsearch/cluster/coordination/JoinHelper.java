@@ -33,6 +33,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -62,6 +63,12 @@ import java.util.function.ObjLongConsumer;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
+/**
+ * Handler for cluster join commands. A master-eligible node running for election will
+ * send a {@link StartJoinRequest} to each voting node in the cluster. A node that becomes
+ * aware of a new term and master will send a {@link Join} request to the new master, to
+ * re-form the cluster around the new master node.
+ */
 public class JoinHelper {
 
     private static final Logger logger = LogManager.getLogger(JoinHelper.class);
@@ -100,12 +107,12 @@ public class JoinHelper {
         Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection,
         ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier,
         CompatibilityVersions compatibilityVersions,
-        Set<String> features
+        FeatureService featureService
     ) {
         this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
             Priority.URGENT,
-            new NodeJoinExecutor(allocationService, rerouteService, maybeReconfigureAfterMasterElection)
+            new NodeJoinExecutor(allocationService, rerouteService, featureService, maybeReconfigureAfterMasterElection)
         );
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
@@ -115,7 +122,7 @@ public class JoinHelper {
         this.joinReasonService = joinReasonService;
         this.latestStoredStateSupplier = latestStoredStateSupplier;
         this.compatibilityVersions = compatibilityVersions;
-        this.features = features;
+        this.features = featureService.getNodeFeatures().keySet();
 
         transportService.registerRequestHandler(
             JOIN_ACTION_NAME,
@@ -136,7 +143,7 @@ public class JoinHelper {
             false,
             StartJoinRequest::new,
             (request, channel, task) -> {
-                final DiscoveryNode destination = request.getSourceNode();
+                final DiscoveryNode destination = request.getMasterCandidateNode();
                 sendJoinRequest(destination, currentTermSupplier.getAsLong(), Optional.of(joinLeaderInTerm.apply(request)));
                 channel.sendResponse(Empty.INSTANCE);
             }
@@ -169,7 +176,7 @@ public class JoinHelper {
         }
 
         logger.debug("releasing [{}] connections on successful cluster state application", releasables.size());
-        releasables.forEach(Releasables::close);
+        Releasables.close(releasables);
     }
 
     private void registerConnection(DiscoveryNode destination, Releasable connectionReference) {
@@ -310,7 +317,7 @@ public class JoinHelper {
                                     TransportRequestOptions.of(null, TransportRequestOptions.Type.PING),
                                     new TransportResponseHandler.Empty() {
                                         @Override
-                                        public Executor executor(ThreadPool threadPool) {
+                                        public Executor executor() {
                                             return TransportResponseHandler.TRANSPORT_WORKER;
                                         }
 
@@ -368,11 +375,11 @@ public class JoinHelper {
     }
 
     void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
-        assert startJoinRequest.getSourceNode().isMasterNode()
-            : "sending start-join request for master-ineligible " + startJoinRequest.getSourceNode();
+        assert startJoinRequest.getMasterCandidateNode().isMasterNode()
+            : "sending start-join request for master-ineligible " + startJoinRequest.getMasterCandidateNode();
         transportService.sendRequest(destination, START_JOIN_ACTION_NAME, startJoinRequest, new TransportResponseHandler.Empty() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 

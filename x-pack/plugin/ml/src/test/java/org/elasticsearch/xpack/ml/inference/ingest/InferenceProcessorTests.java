@@ -12,6 +12,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionFeatureImportance;
@@ -306,6 +307,7 @@ public class InferenceProcessorTests extends ESTestCase {
         var request = processor.buildRequest(document);
         assertThat(request.getObjectsToInfer().get(0), equalTo(source));
         assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
+        assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
 
         Map<String, Object> ingestMetadata = Collections.singletonMap("_value", 3);
         document = TestIngestDocument.ofIngestWithNullableVersion(source, ingestMetadata);
@@ -316,6 +318,7 @@ public class InferenceProcessorTests extends ESTestCase {
         request = processor.buildRequest(document);
         assertThat(request.getObjectsToInfer().get(0), equalTo(expected));
         assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
+        assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
     }
 
     public void testGenerateWithMapping() {
@@ -354,6 +357,7 @@ public class InferenceProcessorTests extends ESTestCase {
         var request = processor.buildRequest(document);
         assertThat(request.getObjectsToInfer().get(0), equalTo(expectedMap));
         assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
+        assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
 
         Map<String, Object> ingestMetadata = Collections.singletonMap("_value", "baz");
         document = TestIngestDocument.ofIngestWithNullableVersion(source, ingestMetadata);
@@ -363,6 +367,7 @@ public class InferenceProcessorTests extends ESTestCase {
         request = processor.buildRequest(document);
         assertThat(request.getObjectsToInfer().get(0), equalTo(expectedMap));
         assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
+        assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
     }
 
     public void testGenerateWithMappingNestedFields() {
@@ -415,7 +420,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
         IngestDocument document = TestIngestDocument.emptyIngestDocument();
 
-        assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(false));
+        assertThat(inferenceProcessor.buildRequest(document).getPreviouslyLicensed(), is(false));
 
         InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)),
@@ -427,7 +432,7 @@ public class InferenceProcessorTests extends ESTestCase {
             assertThat(ex, is(nullValue()));
         });
 
-        assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(true));
+        assertThat(inferenceProcessor.buildRequest(document).getPreviouslyLicensed(), is(true));
 
         response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)),
@@ -440,7 +445,7 @@ public class InferenceProcessorTests extends ESTestCase {
             assertThat(ex, is(nullValue()));
         });
 
-        assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(true));
+        assertThat(inferenceProcessor.buildRequest(document).getPreviouslyLicensed(), is(true));
 
         inferenceProcessor.handleResponse(response, document, (doc, ex) -> {
             assertThat(doc, is(not(nullValue())));
@@ -603,10 +608,11 @@ public class InferenceProcessorTests extends ESTestCase {
         document.setFieldValue("unrelated", "text");
 
         var request = inferenceProcessor.buildRequest(document);
-        assertTrue(request.getObjectsToInfer().isEmpty());
-        var requestInputs = request.getTextInput();
+        assertNull(request.getObjectsToInfer());
+        var requestInputs = request.getInputs();
         assertThat(requestInputs, contains("body_text", "title_text"));
         assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
+        assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
     }
 
     public void testBuildRequestWithInputFields_WrongType() {
@@ -677,7 +683,7 @@ public class InferenceProcessorTests extends ESTestCase {
             document.setFieldValue("unrelated", 1.0);
 
             var request = inferenceProcessor.buildRequest(document);
-            var requestInputs = request.getTextInput();
+            var requestInputs = request.getInputs();
             assertThat(requestInputs, contains("body_text", ""));
         }
     }

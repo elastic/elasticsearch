@@ -1,3 +1,23 @@
+height
+// tag::height[]
+FROM employees
+| DROP height
+// end::height[]
+| LIMIT 0;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean
+;
+
+heightWithWildcard
+// tag::heightWithWildcard[]
+FROM employees 
+| DROP height*
+// end::heightWithWildcard[]
+| LIMIT 0;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean
+;
+
 sortWithLimitOne_DropHeight
 from employees | sort languages, emp_no | limit 1 | drop height*;
 
@@ -52,5 +72,38 @@ from employees | keep height | drop height | eval x = 1 | stats c=count(x), mi=m
 
 c:l|mi:i|s:l
 0  |null|null
+;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102121
+dropGrouping#[skip:-8.11.99, reason:planning bug fixed in v8.12]
+row a = 1 | rename a AS foo | stats bar = count(*) by foo | drop foo;
+
+bar:long
+1
+;
+
+dropGroupingMulti#[skip:-8.11.99]
+row a = 1, b = 2 | rename a AS foo, b as bar | stats baz = count(*) by foo, bar | drop foo;
+
+baz:long  | bar:integer
+1         | 2
+;
+
+dropGroupingMulti2#[skip:-8.11.99]
+row a = 1, b = 2 | rename a AS foo, b as bar | stats baz = count(*) by foo, bar | drop foo, bar;
+
+baz:long
+1
+;
+
+
+dropGroupingMultirow#[skip:-8.11.99]
+from employees | rename gender AS foo | stats bar = count(*) by foo | drop foo | sort bar;
+
+bar:long
+10
+33
+57
 ;
 

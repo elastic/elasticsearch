@@ -11,9 +11,9 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.xpack.esql.analysis.VerificationException;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -24,14 +24,13 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
-public class NegTests extends AbstractScalarFunctionTestCase {
+public class NegTests extends AbstractFunctionTestCase {
 
     public NegTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -39,33 +38,64 @@ public class NegTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Integer", () -> {
-            // Ensure we don't have an overflow
-            int arg = randomIntBetween((Integer.MIN_VALUE + 1), Integer.MAX_VALUE);
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.INTEGER, "arg")),
-                "NegIntsEvaluator[v=Attribute[channel=0]]",
-                DataTypes.INTEGER,
-                equalTo(Math.negateExact(arg))
-            );
-        }), new TestCaseSupplier("Long", () -> {
-            // Ensure we don't have an overflow
-            long arg = randomLongBetween((Long.MIN_VALUE + 1), Long.MAX_VALUE);
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.LONG, "arg")),
-                "NegLongsEvaluator[v=Attribute[channel=0]]",
-                DataTypes.LONG,
-                equalTo(Math.negateExact(arg))
-            );
-        }), new TestCaseSupplier("Double", () -> {
-            double arg = randomDouble();
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.DOUBLE, "arg")),
-                "NegDoublesEvaluator[v=Attribute[channel=0]]",
-                DataTypes.DOUBLE,
-                equalTo(-arg)
-            );
-        }), new TestCaseSupplier("Duration", () -> {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        TestCaseSupplier.forUnaryInt(
+            suppliers,
+            "NegIntsEvaluator[v=Attribute[channel=0]]",
+            DataTypes.INTEGER,
+            Math::negateExact,
+            Integer.MIN_VALUE + 1,
+            Integer.MAX_VALUE,
+            List.of()
+        );
+        // out of bounds integer
+        TestCaseSupplier.forUnaryInt(
+            suppliers,
+            "NegIntsEvaluator[v=Attribute[channel=0]]",
+            DataTypes.INTEGER,
+            z -> null,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE,
+            List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.ArithmeticException: integer overflow"
+            )
+        );
+        TestCaseSupplier.forUnaryLong(
+            suppliers,
+            "NegLongsEvaluator[v=Attribute[channel=0]]",
+            DataTypes.LONG,
+            Math::negateExact,
+            Long.MIN_VALUE + 1,
+            Long.MAX_VALUE,
+            List.of()
+        );
+        // out of bounds long
+        TestCaseSupplier.forUnaryLong(
+            suppliers,
+            "NegLongsEvaluator[v=Attribute[channel=0]]",
+            DataTypes.LONG,
+            z -> null,
+            Long.MIN_VALUE,
+            Long.MIN_VALUE,
+            List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.ArithmeticException: long overflow"
+            )
+        );
+        TestCaseSupplier.forUnaryDouble(
+            suppliers,
+            "NegDoublesEvaluator[v=Attribute[channel=0]]",
+            DataTypes.DOUBLE,
+            // TODO: Probably we don't want to allow negative zeros
+            d -> -d,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            List.of()
+        );
+
+        // TODO: Wire up edge case generation functions for these
+        suppliers.addAll(List.of(new TestCaseSupplier("Duration", List.of(EsqlDataTypes.TIME_DURATION), () -> {
             Duration arg = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.TIME_DURATION, "arg")),
@@ -73,7 +103,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
                 EsqlDataTypes.TIME_DURATION,
                 equalTo(arg.negated())
             );
-        }), new TestCaseSupplier("Period", () -> {
+        }), new TestCaseSupplier("Period", List.of(EsqlDataTypes.DATE_PERIOD), () -> {
             Period arg = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.DATE_PERIOD, "arg")),
@@ -82,6 +112,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
                 equalTo(arg.negated())
             );
         })));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }
 
     @Override
@@ -89,57 +120,10 @@ public class NegTests extends AbstractScalarFunctionTestCase {
         return new Neg(source, args.get(0));
     }
 
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        // More precisely: numerics without unsigned longs; however, `Neg::resolveType` uses `numeric`.
-        List<DataType> types = new ArrayList<>(Arrays.asList(numerics()));
-        types.add(EsqlDataTypes.DATE_PERIOD);
-        types.add(EsqlDataTypes.TIME_DURATION);
-        return List.of(required(types.toArray(DataType[]::new)));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return argTypes.get(0);
-    }
-
     public void testEdgeCases() {
         // Run the assertions for the current test cases type only to avoid running the same assertions multiple times.
+        // TODO: These remaining cases should get rolled into generation functions for periods and durations
         DataType testCaseType = testCase.getData().get(0).type();
-        if (testCaseType.equals(DataTypes.INTEGER)) {
-            assertEquals(null, process(Integer.MIN_VALUE));
-            assertCriticalWarnings(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: integer overflow"
-            );
-
-            return;
-        }
-        if (testCaseType.equals(DataTypes.LONG)) {
-            assertEquals(null, process(Long.MIN_VALUE));
-            assertCriticalWarnings(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: long overflow"
-            );
-
-            return;
-        }
-        if (testCaseType.equals(DataTypes.DOUBLE)) {
-            var negMaxValue = -Double.MAX_VALUE;
-            assertEquals(negMaxValue, process(Double.MAX_VALUE));
-            assertEquals(Double.MAX_VALUE, process(negMaxValue));
-
-            var negMinValue = -Double.MIN_VALUE;
-            assertEquals(negMinValue, process(Double.MIN_VALUE));
-            assertEquals(Double.MIN_VALUE, process(negMinValue));
-
-            assertEquals(Double.NEGATIVE_INFINITY, process(Double.POSITIVE_INFINITY));
-            assertEquals(Double.POSITIVE_INFINITY, process(Double.NEGATIVE_INFINITY));
-
-            assertEquals(Double.NaN, process(Double.NaN));
-
-            return;
-        }
         if (testCaseType == EsqlDataTypes.DATE_PERIOD) {
             Period maxPeriod = Period.of(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
             Period negatedMaxPeriod = Period.of(-Integer.MAX_VALUE, -Integer.MAX_VALUE, -Integer.MAX_VALUE);
@@ -152,10 +136,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
                 () -> process(minPeriod)
             );
             assertEquals(e.getMessage(), "arithmetic exception in expression []: [integer overflow]");
-
-            return;
-        }
-        if (testCaseType == EsqlDataTypes.TIME_DURATION) {
+        } else if (testCaseType == EsqlDataTypes.TIME_DURATION) {
             Duration maxDuration = Duration.ofSeconds(Long.MAX_VALUE, 0);
             Duration negatedMaxDuration = Duration.ofSeconds(-Long.MAX_VALUE, 0);
             assertEquals(negatedMaxDuration, process(maxDuration));
@@ -170,18 +151,14 @@ public class NegTests extends AbstractScalarFunctionTestCase {
                 e.getMessage(),
                 "arithmetic exception in expression []: [Exceeds capacity of Duration: 9223372036854775808000000000]"
             );
-
-            return;
         }
-
-        throw new AssertionError("Edge cases not tested for negation with type [" + testCaseType.typeName() + "]");
     }
 
     private Object process(Object val) {
         if (testCase.allTypesAreRepresentable()) {
             Neg neg = new Neg(Source.EMPTY, field("val", typeOf(val)));
-            try (Block.Ref ref = evaluator(neg).get(driverContext()).eval(row(List.of(val)))) {
-                return toJavaObject(ref.block(), 0);
+            try (Block block = evaluator(neg).get(driverContext()).eval(row(List.of(val)))) {
+                return toJavaObject(block, 0);
             }
         } else { // just fold if type is not representable
             Neg neg = new Neg(Source.EMPTY, new Literal(Source.EMPTY, val, typeOf(val)));

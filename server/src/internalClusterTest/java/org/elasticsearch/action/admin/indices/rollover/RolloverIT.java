@@ -15,8 +15,8 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -53,6 +53,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.is;
@@ -155,7 +156,7 @@ public class RolloverIT extends ESIntegTestCase {
         }
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareRolloverIndex("alias").dryRun(randomBoolean()).get()
+            indicesAdmin().prepareRolloverIndex("alias").dryRun(randomBoolean())
         );
         assertThat(exception.getMessage(), equalTo("rollover target [alias] does not point to a write index"));
     }
@@ -270,6 +271,34 @@ public class RolloverIT extends ESIntegTestCase {
         assertTrue(oldIndex.getAliases().containsKey("test_alias"));
         final IndexMetadata newIndex = state.metadata().index("test_index-000002");
         assertNull(newIndex);
+    }
+
+    public void testRolloverLazy() throws Exception {
+        if (randomBoolean()) {
+            PutIndexTemplateRequestBuilder putTemplate = indicesAdmin().preparePutTemplate("test_index")
+                .setPatterns(List.of("test_index-*"))
+                .setOrder(-1)
+                .setSettings(Settings.builder().put(AutoExpandReplicas.SETTING.getKey(), "0-all"));
+            assertAcked(putTemplate.get());
+        }
+        assertAcked(prepareCreate("test_index-1").addAlias(new Alias("test_alias")).get());
+        indexDoc("test_index-1", "1", "field", "value");
+        flush("test_index-1");
+        ensureGreen();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            RolloverConditions.Builder rolloverConditionsBuilder = RolloverConditions.newBuilder();
+            if (randomBoolean()) {
+                rolloverConditionsBuilder.addMaxIndexDocsCondition(1L);
+            }
+            indicesAdmin().prepareRolloverIndex("test_alias")
+                .dryRun(randomBoolean())
+                .lazy(true)
+                .setConditions(rolloverConditionsBuilder)
+                .get();
+        });
+        assertThat(exception.getMessage(), containsString("can be applied only on a data stream"));
+
     }
 
     public void testRolloverConditionsNotMet() throws Exception {
@@ -590,7 +619,7 @@ public class RolloverIT extends ESIntegTestCase {
         ensureYellow("logs-write");
         final IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareRolloverIndex("logs-write").get()
+            indicesAdmin().prepareRolloverIndex("logs-write")
         );
         assertThat(
             error.getMessage(),
@@ -777,14 +806,14 @@ public class RolloverIT extends ESIntegTestCase {
         });
 
         // We should *NOT* have a third index, it should have rolled over *exactly* once
-        expectThrows(Exception.class, () -> indicesAdmin().prepareGetIndex().addIndices(writeIndexPrefix + "000003").get());
+        expectThrows(Exception.class, indicesAdmin().prepareGetIndex().addIndices(writeIndexPrefix + "000003"));
     }
 
     public void testRolloverConcurrently() throws Exception {
         int numOfThreads = 5;
         int numberOfRolloversPerThread = 20;
 
-        var putTemplateRequest = new PutComposableIndexTemplateAction.Request("my-template");
+        var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("my-template");
         var template = new Template(
             Settings.builder()
                 // Avoid index check, which gets randomly inserted by test framework. This slows down the test a bit.
@@ -794,8 +823,10 @@ public class RolloverIT extends ESIntegTestCase {
             null,
             null
         );
-        putTemplateRequest.indexTemplate(new ComposableIndexTemplate(List.of("test-*"), template, null, 100L, null, null));
-        assertAcked(client().execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet());
+        putTemplateRequest.indexTemplate(
+            ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).template(template).priority(100L).build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet());
 
         final CyclicBarrier barrier = new CyclicBarrier(numOfThreads);
         final Thread[] threads = new Thread[numOfThreads];

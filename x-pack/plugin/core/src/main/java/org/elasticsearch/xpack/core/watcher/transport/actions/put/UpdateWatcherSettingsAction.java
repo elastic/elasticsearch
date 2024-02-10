@@ -32,7 +32,7 @@ public class UpdateWatcherSettingsAction extends ActionType<AcknowledgedResponse
     );
 
     public UpdateWatcherSettingsAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -43,7 +43,7 @@ public class UpdateWatcherSettingsAction extends ActionType<AcknowledgedResponse
         }
 
         public Request(StreamInput in) throws IOException {
-            this.settings = in.readMap();
+            this.settings = in.readGenericMap();
         }
 
         @Override

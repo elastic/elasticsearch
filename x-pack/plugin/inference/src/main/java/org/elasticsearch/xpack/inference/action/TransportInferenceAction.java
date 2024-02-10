@@ -16,11 +16,11 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.inference.UnparsedModel;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
 public class TransportInferenceAction extends HandledTransportAction<InferenceAction.Request, InferenceAction.Response> {
 
@@ -42,23 +42,23 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     @Override
     protected void doExecute(Task task, InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
 
-        ActionListener<ModelRegistry.ModelConfigMap> getModelListener = ActionListener.wrap(modelConfigMap -> {
-            var unparsedModel = UnparsedModel.unparsedModelFromMap(modelConfigMap.config(), modelConfigMap.secrets());
+        ActionListener<ModelRegistry.UnparsedModel> getModelListener = listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
-                listener.onFailure(
+                delegate.onFailure(
                     new ElasticsearchStatusException(
                         "Unknown service [{}] for model [{}]. ",
                         RestStatus.INTERNAL_SERVER_ERROR,
                         unparsedModel.service(),
-                        unparsedModel.modelId()
+                        unparsedModel.inferenceEntityId()
                     )
                 );
                 return;
             }
 
-            if (request.getTaskType() != unparsedModel.taskType()) {
-                listener.onFailure(
+            if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
+                // not the wildcard task type and not the model task type
+                delegate.onFailure(
                     new ElasticsearchStatusException(
                         "Incompatible task_type, the requested type [{}] does not match the model type [{}]",
                         RestStatus.BAD_REQUEST,
@@ -70,11 +70,16 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
             }
 
             var model = service.get()
-                .parsePersistedConfig(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings(), unparsedModel.secrets());
-            inferOnService(model, request, service.get(), listener);
-        }, listener::onFailure);
+                .parsePersistedConfigWithSecrets(
+                    unparsedModel.inferenceEntityId(),
+                    unparsedModel.taskType(),
+                    unparsedModel.settings(),
+                    unparsedModel.secrets()
+                );
+            inferOnService(model, request, service.get(), delegate);
+        });
 
-        modelRegistry.getUnparsedModelMap(request.getModelId(), getModelListener);
+        modelRegistry.getModelWithSecrets(request.getInferenceEntityId(), getModelListener);
     }
 
     private void inferOnService(
@@ -83,8 +88,12 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         InferenceService service,
         ActionListener<InferenceAction.Response> listener
     ) {
-        service.infer(model, request.getInput(), request.getTaskSettings(), ActionListener.wrap(inferenceResult -> {
-            listener.onResponse(new InferenceAction.Response(inferenceResult));
-        }, listener::onFailure));
+        service.infer(
+            model,
+            request.getInput(),
+            request.getTaskSettings(),
+            request.getInputType(),
+            listener.delegateFailureAndWrap((l, inferenceResults) -> l.onResponse(new InferenceAction.Response(inferenceResults)))
+        );
     }
 }

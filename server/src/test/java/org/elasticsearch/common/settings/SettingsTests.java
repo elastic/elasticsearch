@@ -507,8 +507,10 @@ public class SettingsTests extends ESTestCase {
         builder.startObject();
         settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(Settings.FLAT_SETTINGS_PARAM, "" + flatSettings)));
         builder.endObject();
-        XContentParser parser = createParser(builder);
-        Settings build = Settings.fromXContent(parser);
+        Settings build;
+        try (XContentParser parser = createParser(builder)) {
+            build = Settings.fromXContent(parser);
+        }
         assertEquals(5, build.size());
         assertEquals(Arrays.asList("1", "2", "3"), build.getAsList("foo.bar.baz"));
         assertEquals(2, build.getAsInt("foo.foobar", 0).intValue());

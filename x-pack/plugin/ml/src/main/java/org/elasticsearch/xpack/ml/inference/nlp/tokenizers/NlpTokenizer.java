@@ -33,6 +33,9 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.V
  * Base tokenization class for NLP models
  */
 public abstract class NlpTokenizer implements Releasable {
+
+    public static final int CALC_DEFAULT_SPAN_VALUE = -2;
+
     abstract int clsTokenId();
 
     abstract int sepTokenId();
@@ -41,7 +44,11 @@ public abstract class NlpTokenizer implements Releasable {
 
     abstract boolean isWithSpecialTokens();
 
+    abstract int numExtraTokensForSingleSequence();
+
     abstract int getNumExtraTokensForSeqPair();
+
+    abstract int defaultSpanForChunking(int maxWindowSize);
 
     public abstract TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations);
 
@@ -54,35 +61,51 @@ public abstract class NlpTokenizer implements Releasable {
      * each input string grouped into a {@link Tokenization}.
      *
      * @param seq Text to tokenize
+     * @param truncate
+     * @param span
+     * @param sequenceId
+     * @param windowSize
      * @return A list of {@link Tokenization}
      */
-    public List<TokenizationResult.Tokens> tokenize(String seq, Tokenization.Truncate truncate, int span, int sequenceId) {
+    public final List<TokenizationResult.Tokens> tokenize(
+        String seq,
+        Tokenization.Truncate truncate,
+        int span,
+        int sequenceId,
+        Integer windowSize
+    ) {
+        if (windowSize == null) {
+            windowSize = maxSequenceLength();
+        }
         var innerResult = innerTokenize(seq);
         List<? extends DelimitedToken.Encoded> tokenIds = innerResult.tokens();
         List<Integer> tokenPositionMap = innerResult.tokenPositionMap();
-        int numTokens = isWithSpecialTokens() ? tokenIds.size() + 2 : tokenIds.size();
+        int numTokens = isWithSpecialTokens() ? tokenIds.size() + numExtraTokensForSingleSequence() : tokenIds.size();
         boolean isTruncated = false;
 
-        if (numTokens > maxSequenceLength()) {
+        if (numTokens > windowSize) {
             switch (truncate) {
                 case FIRST, SECOND -> {
                     isTruncated = true;
-                    tokenIds = tokenIds.subList(0, isWithSpecialTokens() ? maxSequenceLength() - 2 : maxSequenceLength());
-                    tokenPositionMap = tokenPositionMap.subList(0, isWithSpecialTokens() ? maxSequenceLength() - 2 : maxSequenceLength());
+                    tokenIds = tokenIds.subList(0, isWithSpecialTokens() ? windowSize - numExtraTokensForSingleSequence() : windowSize);
+                    tokenPositionMap = tokenPositionMap.subList(
+                        0,
+                        isWithSpecialTokens() ? windowSize - numExtraTokensForSingleSequence() : windowSize
+                    );
                 }
                 case NONE -> {
                     if (span == -1) {
                         throw ExceptionsHelper.badRequestException(
                             "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
                             numTokens,
-                            maxSequenceLength()
+                            windowSize
                         );
                     }
                 }
             }
         }
 
-        if (numTokens <= maxSequenceLength() || span == -1) {
+        if (numTokens <= windowSize || span == -1) {
             return List.of(
                 createTokensBuilder(clsTokenId(), sepTokenId(), isWithSpecialTokens()).addSequence(
                     tokenIds.stream().map(DelimitedToken.Encoded::getEncoding).collect(Collectors.toList()),
@@ -91,13 +114,17 @@ public abstract class NlpTokenizer implements Releasable {
             );
         }
 
+        if (span == CALC_DEFAULT_SPAN_VALUE) {
+            span = defaultSpanForChunking(windowSize);
+        }
+
         List<TokenizationResult.Tokens> toReturn = new ArrayList<>();
         int splitEndPos = 0;
         int splitStartPos = 0;
         int spanPrev = -1;
         while (splitEndPos < tokenIds.size()) {
             splitEndPos = Math.min(
-                splitStartPos + (isWithSpecialTokens() ? maxSequenceLength() - 2 : maxSequenceLength()),
+                splitStartPos + (isWithSpecialTokens() ? windowSize - numExtraTokensForSingleSequence() : windowSize),
                 tokenIds.size()
             );
             // Make sure we do not end on a word

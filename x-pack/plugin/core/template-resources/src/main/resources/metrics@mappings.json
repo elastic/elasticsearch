@@ -12,10 +12,18 @@
           }
         },
         {
-          "double_metrics": {
+          "float_metrics": {
             "match_mapping_type": "double",
             "mapping": {
               "type": "float",
+              "index": false
+            }
+          }
+        },
+        {
+          "double_metrics": {
+            "mapping": {
+              "type": "double",
               "index": false
             }
           }
@@ -53,5 +61,6 @@
     "description": "default mappings for the metrics index template installed by x-pack",
     "managed": true
   },
-  "version": ${xpack.stack.template.version}
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
 }

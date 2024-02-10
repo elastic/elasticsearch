@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepos
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -47,10 +46,10 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -80,7 +79,6 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
@@ -196,9 +194,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static void assertFileCount(Path dir, int expectedCount) throws IOException {
+        final List<Path> found = getAllFilesInDirectoryAndDescendants(dir);
+        assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
+    }
+
+    protected static List<Path> getAllFilesInDirectoryAndDescendants(Path dir) throws IOException {
         final List<Path> found = new ArrayList<>();
         forEachFileRecursively(dir, ((path, basicFileAttributes) -> found.add(path)));
-        assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
+        return found;
     }
 
     protected void stopNode(final String node) throws IOException {
@@ -400,24 +403,25 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             oldVersionString = currentVersionString.replace(",\"index_version\":" + IndexVersion.current(), "")
                 .replace(",\"version\":\"8.11.0\"", ",\"version\":\"" + Version.fromId(version.id()) + "\"");
         }
-        final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(
-            JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, oldVersionString),
-            repositoryData.getGenId(),
-            randomBoolean()
-        );
+        final RepositoryData downgradedRepoData;
+        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, oldVersionString)) {
+            downgradedRepoData = RepositoryData.snapshotsFromXContent(parser, repositoryData.getGenId(), randomBoolean());
+        }
         Files.write(
             repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
             BytesReference.toBytes(BytesReference.bytes(downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
             StandardOpenOption.TRUNCATE_EXISTING
         );
-        final SnapshotInfo downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(
-            repoName,
-            JsonXContent.jsonXContent.createParser(
+        final SnapshotInfo downgradedSnapshotInfo;
+        try (
+            var parser = JsonXContent.jsonXContent.createParser(
                 XContentParserConfiguration.EMPTY,
                 Strings.toString(snapshotInfo, ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS)
                     .replace(IndexVersion.current().toString(), version.toString())
             )
-        );
+        ) {
+            downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(repoName, parser);
+        }
         final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);
         PlainActionFuture.get(
             f -> blobStoreRepository.threadPool()
@@ -489,7 +493,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(index).setId(Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = prepareIndex(index).setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh(index);
@@ -497,9 +501,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected long getCountForIndex(String indexName) {
-        return client().search(
-            new SearchRequest(new SearchRequest(indexName).source(new SearchSourceBuilder().size(0).trackTotalHits(true)))
-        ).actionGet().getHits().getTotalHits().value;
+        return SearchResponseUtils.getTotalHitsValue(
+            prepareSearch(indexName).setSource(new SearchSourceBuilder().size(0).trackTotalHits(true))
+        );
     }
 
     protected void assertDocCount(String index, long count) {
@@ -577,18 +581,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         );
     }
 
-    protected void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
-        awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
-    }
-
-    public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate) throws Exception {
-        awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
-    }
-
-    public static void awaitClusterState(Logger logger, String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
-        ClusterServiceUtils.awaitClusterState(logger, statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
-    }
-
     protected ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String snapshotName, String repoName, String dataNode)
         throws Exception {
         blockDataNode(repoName, dataNode);
@@ -659,7 +651,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected static void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
@@ -704,7 +696,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static List<String> createNSnapshots(Logger logger, String repoName, int count) throws Exception {
-        final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
+        final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = new PlainActionFuture<>();
         final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(count, allSnapshotsDone);
         final List<String> snapshotNames = new ArrayList<>(count);
         final String prefix = RANDOM_SNAPSHOT_NAME_PREFIX + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";

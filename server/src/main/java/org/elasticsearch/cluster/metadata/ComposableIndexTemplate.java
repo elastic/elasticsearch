@@ -111,59 +111,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return new Builder();
     }
 
-    /**
-     * @deprecated use {@link Builder} instead
-     */
-    @Deprecated(forRemoval = true)
-    public ComposableIndexTemplate(
-        List<String> indexPatterns,
-        @Nullable Template template,
-        @Nullable List<String> componentTemplates,
-        @Nullable Long priority,
-        @Nullable Long version,
-        @Nullable Map<String, Object> metadata
-    ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, null, null, null, null);
-    }
-
-    /**
-     * @deprecated use {@link Builder} instead
-     */
-    @Deprecated(forRemoval = true)
-    public ComposableIndexTemplate(
-        List<String> indexPatterns,
-        @Nullable Template template,
-        @Nullable List<String> componentTemplates,
-        @Nullable Long priority,
-        @Nullable Long version,
-        @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamTemplate dataStreamTemplate
-    ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null, null, null);
-    }
-
-    /**
-     * @deprecated use {@link Builder} instead
-     */
-    @Deprecated(forRemoval = true)
-    public ComposableIndexTemplate(
-        List<String> indexPatterns,
-        @Nullable Template template,
-        @Nullable List<String> componentTemplates,
-        @Nullable Long priority,
-        @Nullable Long version,
-        @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamTemplate dataStreamTemplate,
-        @Nullable Boolean allowAutoCreate
-    ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, allowAutoCreate, null, null);
-    }
-
-    /**
-     * @deprecated use {@link Builder} instead
-     */
-    @Deprecated(forRemoval = true)
-    public ComposableIndexTemplate(
+    private ComposableIndexTemplate(
         List<String> indexPatterns,
         @Nullable Template template,
         @Nullable List<String> componentTemplates,
@@ -197,7 +145,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.componentTemplates = in.readOptionalStringCollectionAsList();
         this.priority = in.readOptionalVLong();
         this.version = in.readOptionalVLong();
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
@@ -205,7 +153,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         } else {
             this.ignoreMissingComponentTemplates = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.deprecated = in.readOptionalBoolean();
         } else {
             this.deprecated = null;
@@ -304,7 +252,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalBoolean(deprecated);
         }
     }
@@ -416,28 +364,42 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         private static final ParseField HIDDEN = new ParseField("hidden");
         private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
+        private static final ParseField FAILURE_STORE = new ParseField("failure_store");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            args -> new DataStreamTemplate(args[0] != null && (boolean) args[0], args[1] != null && (boolean) args[1])
+            args -> new DataStreamTemplate(
+                args[0] != null && (boolean) args[0],
+                args[1] != null && (boolean) args[1],
+                DataStream.isFailureStoreEnabled() && args[2] != null && (boolean) args[2]
+            )
         );
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
+            if (DataStream.isFailureStoreEnabled()) {
+                PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
+            }
         }
 
         private final boolean hidden;
         private final boolean allowCustomRouting;
+        private final boolean failureStore;
 
         public DataStreamTemplate() {
-            this(false, false);
+            this(false, false, false);
         }
 
         public DataStreamTemplate(boolean hidden, boolean allowCustomRouting) {
+            this(hidden, allowCustomRouting, false);
+        }
+
+        public DataStreamTemplate(boolean hidden, boolean allowCustomRouting, boolean failureStore) {
             this.hidden = hidden;
             this.allowCustomRouting = allowCustomRouting;
+            this.failureStore = failureStore;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
@@ -454,6 +416,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 // (this used to be an optional enum, so just need to (de-)serialize a false boolean value here)
                 boolean value = in.readBoolean();
                 assert value == false : "expected false, because this used to be an optional enum that never got set";
+            }
+            if (in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
+                failureStore = in.readBoolean();
+            } else {
+                failureStore = false;
             }
         }
 
@@ -483,6 +450,10 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return allowCustomRouting;
         }
 
+        public boolean hasFailureStore() {
+            return failureStore;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
@@ -493,6 +464,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 // See comment in constructor.
                 out.writeBoolean(false);
             }
+            if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
+                out.writeBoolean(failureStore);
+            }
         }
 
         @Override
@@ -500,6 +474,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             builder.startObject();
             builder.field("hidden", hidden);
             builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
+            if (DataStream.isFailureStoreEnabled()) {
+                builder.field(FAILURE_STORE.getPreferredName(), failureStore);
+            }
             builder.endObject();
             return builder;
         }
@@ -509,12 +486,12 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting;
+            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting && failureStore == that.failureStore;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hidden, allowCustomRouting);
+            return Objects.hash(hidden, allowCustomRouting, failureStore);
         }
     }
 

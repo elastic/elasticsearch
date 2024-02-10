@@ -12,18 +12,29 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
+
+    private RestClient client;
+
+    @Before
+    public void setup() throws Exception {
+        client = client();
+        waitForLogs(client);
+    }
 
     @After
     public void cleanUp() throws IOException {
@@ -32,9 +43,6 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDefaultLogsSettingAndMapping() throws Exception {
-        RestClient client = client();
-        waitForLogs(client);
-
         String dataStreamName = "logs-generic-default";
         createDataStream(client, dataStreamName);
         String backingIndex = getWriteBackingIndex(client, dataStreamName);
@@ -104,9 +112,6 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     @SuppressWarnings("unchecked")
     public void testCustomMapping() throws Exception {
-        RestClient client = client();
-        waitForLogs(client);
-
         {
             Request request = new Request("POST", "/_component_template/logs@custom");
             request.setJsonEntity("""
@@ -182,9 +187,6 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLogsDefaultPipeline() throws Exception {
-        RestClient client = client();
-        waitForLogs(client);
-
         {
             Request request = new Request("POST", "/_component_template/logs@custom");
             request.setJsonEntity("""
@@ -284,9 +286,6 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLogsMessagePipeline() throws Exception {
-        RestClient client = client();
-        waitForLogs(client);
-
         {
             Request request = new Request("PUT", "/_ingest/pipeline/logs@custom");
             request.setJsonEntity("""
@@ -412,8 +411,6 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     @SuppressWarnings("unchecked")
     public void testNoSubobjects() throws Exception {
-        RestClient client = client();
-        waitForLogs(client);
         {
             Request request = new Request("POST", "/_component_template/logs-test-subobjects-mappings");
             request.setJsonEntity("""
@@ -631,6 +628,141 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         assertThat(getValueFromPath(properties, List.of("socket.ip", "type")), is("ip"));
         assertThat(getValueFromPath(properties, List.of("socket.remote_ip", "type")), is("ip"));
 
+    }
+
+    public void testAllFieldsAreSearchableByDefault() throws Exception {
+        final String dataStreamName = "logs-generic-default";
+        createDataStream(client, dataStreamName);
+
+        // index a doc with "message" field and an additional one that will be mapped to a "match_only_text" type
+        indexDoc(client, dataStreamName, """
+            {
+              "@timestamp": "2023-04-18",
+              "message": "Hello world",
+              "another.message": "Hi world"
+            }
+            """);
+
+        // verify that both fields are searchable when not querying specific fields
+        List<Object> results = searchDocs(client, dataStreamName, """
+            {
+              "query": {
+                "simple_query_string": {
+                  "query": "Hello"
+                }
+              }
+            }
+            """);
+        assertEquals(1, results.size());
+
+        results = searchDocs(client, dataStreamName, """
+            {
+              "query": {
+                "simple_query_string": {
+                  "query": "Hi"
+                }
+              }
+            }
+            """);
+        assertEquals(1, results.size());
+    }
+
+    public void testDefaultFieldCustomization() throws Exception {
+        Request request = new Request("POST", "/_component_template/logs@custom");
+        request.setJsonEntity("""
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "query": {
+                      "default_field": ["message"]
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        assertOK(client.performRequest(request));
+
+        final String dataStreamName = "logs-generic-default";
+        createDataStream(client, dataStreamName);
+
+        indexDoc(client, dataStreamName, """
+            {
+              "@timestamp": "2023-04-18",
+              "message": "Hello world",
+              "another.message": "Hi world"
+            }
+            """);
+
+        List<Object> results = searchDocs(client, dataStreamName, """
+            {
+              "query": {
+                "simple_query_string": {
+                  "query": "Hello"
+                }
+              }
+            }
+            """);
+        assertEquals(1, results.size());
+
+        results = searchDocs(client, dataStreamName, """
+            {
+              "query": {
+                "simple_query_string": {
+                  "query": "Hi"
+                }
+              }
+            }
+            """);
+        assertEquals(0, results.size());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testIgnoreDynamicBeyondLimit() throws Exception {
+        Request request = new Request("POST", "/_component_template/logs@custom");
+        request.setJsonEntity("""
+            {
+              "template": {
+                "settings": {
+                  "index.mapping.total_fields.limit": 10
+                }
+              }
+            }
+            """);
+        assertOK(client.performRequest(request));
+
+        final String dataStreamName = "logs-generic-default";
+        createDataStream(client, dataStreamName);
+
+        indexDoc(client, dataStreamName, """
+            {
+              "@timestamp": "2023-04-18",
+              "field1": "foo",
+              "field2": "foo",
+              "field3": "foo",
+              "field4": "foo",
+              "field5": "foo",
+              "field6": "foo",
+              "field7": "foo",
+              "field8": "foo",
+              "field9": "foo",
+              "field10": "foo"
+            }
+            """);
+
+        List<Object> results = searchDocs(client, dataStreamName, """
+            {
+              "query": {
+                "match_all": { }
+              },
+              "fields": ["*"]
+            }
+            """);
+        assertEquals(1, results.size());
+        List<String> ignored = (List<String>) ((Map<String, ?>) results.get(0)).get("_ignored");
+        assertThat(ignored, not(empty()));
+        assertThat(ignored.stream().filter(i -> i.startsWith("field") == false).toList(), empty());
     }
 
     static void waitForLogs(RestClient client) throws Exception {

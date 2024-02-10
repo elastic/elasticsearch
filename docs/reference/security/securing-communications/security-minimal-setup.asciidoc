@@ -111,7 +111,7 @@ you created earlier. {kib} performs some background tasks that require use of th
 This account is not meant for individual users and does not have permission to log in
 to {kib} from a browser. Instead, you'll log in to {kib} as the `elastic` superuser.
 
-. Add the `elasticsearch.username` setting to the `KIB_PATH_CONF/kibana.yml`
+. Add the `elasticsearch.username` setting to the `KBN_PATH_CONF/kibana.yml`
 file and set the value to the `kibana_system` user:
 +
 [source,yaml]
@@ -119,7 +119,7 @@ file and set the value to the `kibana_system` user:
 elasticsearch.username: "kibana_system"
 ----
 +
-NOTE: The `KIB_PATH_CONF` variable is the path for the {kib}
+NOTE: The `KBN_PATH_CONF` variable is the path for the {kib}
 configuration files. If you installed {kib} using archive distributions
 (`zip` or `tar.gz`), the variable defaults to `KIB_HOME/config`. If you used
 package distributions (Debian or RPM), the variable defaults to `/etc/kibana`.

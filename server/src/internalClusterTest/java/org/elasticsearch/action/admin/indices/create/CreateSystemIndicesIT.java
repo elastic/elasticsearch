@@ -16,8 +16,8 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -66,7 +66,12 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     @After
     public void afterEach() throws Exception {
         assertAcked(indicesAdmin().prepareDeleteTemplate("*").get());
-        assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, new DeleteComposableIndexTemplateAction.Request("*")));
+        assertAcked(
+            client().execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("*")
+            )
+        );
     }
 
     @Override
@@ -194,22 +199,24 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     }
 
     private void createIndexWithComposableTemplates(String indexName, String primaryIndexName) throws Exception {
-        ComposableIndexTemplate cit = new ComposableIndexTemplate(
-            Collections.singletonList(indexName + "*"),
-            new Template(
-                null,
-                null,
-                Map.of(indexName + "-composable-alias", AliasMetadata.builder(indexName + "-composable-alias").build())
-            ),
-            Collections.emptyList(),
-            4L,
-            5L,
-            Collections.emptyMap()
-        );
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(indexName + "*"))
+            .template(
+                new Template(
+                    null,
+                    null,
+                    Map.of(indexName + "-composable-alias", AliasMetadata.builder(indexName + "-composable-alias").build())
+                )
+            )
+            .componentTemplates(Collections.emptyList())
+            .priority(4L)
+            .version(5L)
+            .metadata(Collections.emptyMap())
+            .build();
         assertAcked(
             client().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
             )
         );
 
@@ -227,8 +234,8 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
         assertAcked(
             client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("test-composable-template")
             )
         );
     }
@@ -254,8 +261,8 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
         assertAcked(
             client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("test-composable-template")
             )
         );
     }

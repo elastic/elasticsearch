@@ -134,7 +134,7 @@ public class BucketScriptIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int docs = 0; docs < numDocs; docs++) {
-            builders.add(client().prepareIndex("idx").setSource(newDocBuilder()));
+            builders.add(prepareIndex("idx").setSource(newDocBuilder()));
         }
 
         indexRandom(true, builders);
@@ -657,10 +657,10 @@ public class BucketScriptIT extends ESIntegTestCase {
             .field("lang", CustomScriptPlugin.NAME)
             .endObject()
             .endObject();
-        BucketScriptPipelineAggregationBuilder bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(
-            createParser(content),
-            "seriesArithmetic"
-        );
+        BucketScriptPipelineAggregationBuilder bucketScriptAgg;
+        try (var parser = createParser(content)) {
+            bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(parser, "seriesArithmetic");
+        }
 
         assertNoFailuresAndResponse(
             prepareSearch("idx", "idx_unmapped").addAggregation(
@@ -703,10 +703,10 @@ public class BucketScriptIT extends ESIntegTestCase {
             .field("lang", CustomScriptPlugin.NAME)
             .endObject()
             .endObject();
-        BucketScriptPipelineAggregationBuilder bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(
-            createParser(content),
-            "seriesArithmetic"
-        );
+        BucketScriptPipelineAggregationBuilder bucketScriptAgg;
+        try (var parser = createParser(content)) {
+            bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(parser, "seriesArithmetic");
+        }
 
         assertNoFailuresAndResponse(
             prepareSearch("idx", "idx_unmapped").addAggregation(
@@ -761,10 +761,10 @@ public class BucketScriptIT extends ESIntegTestCase {
             .field("lang", CustomScriptPlugin.NAME)
             .endObject()
             .endObject();
-        BucketScriptPipelineAggregationBuilder bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(
-            createParser(content),
-            "seriesArithmetic"
-        );
+        BucketScriptPipelineAggregationBuilder bucketScriptAgg;
+        try (var parser = createParser(content)) {
+            bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(parser, "seriesArithmetic");
+        }
 
         assertNoFailuresAndResponse(
             prepareSearch("idx", "idx_unmapped").addAggregation(

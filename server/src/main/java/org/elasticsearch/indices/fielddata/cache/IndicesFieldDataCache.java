@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.shard.ShardUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.ToLongBiFunction;
 
 public final class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable {
@@ -48,6 +50,11 @@ public final class IndicesFieldDataCache implements RemovalListener<IndicesField
         ByteSizeValue.MINUS_ONE,
         Property.NodeScope
     );
+    public static final Setting<TimeValue> INDICES_FIELDDATA_CACHE_EXPIRE = Setting.positiveTimeSetting(
+        "indices.fielddata.cache.expire",
+        new TimeValue(1, TimeUnit.HOURS),
+        Property.NodeScope
+    );
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
 
@@ -57,6 +64,10 @@ public final class IndicesFieldDataCache implements RemovalListener<IndicesField
         CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.<Key, Accountable>builder().removalListener(this);
         if (sizeInBytes > 0) {
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
+        }
+        final TimeValue expire = INDICES_FIELDDATA_CACHE_EXPIRE.get(settings);
+        if (expire != null && expire.getNanos() > 0) {
+            cacheBuilder.setExpireAfterAccess(expire);
         }
         cache = cacheBuilder.build();
     }

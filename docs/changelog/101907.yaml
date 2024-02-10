@@ -1,6 +1,0 @@
-pr: 101907
-summary: Fail listener on exception in `TcpTransport#openConnection`
-area: Network
-type: bug
-issues:
- - 100510

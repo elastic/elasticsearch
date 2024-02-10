@@ -48,9 +48,9 @@ public class MlPlatformArchitecturesUtil {
         ExecutorService executor,
         ActionListener<Set<String>> architecturesListener
     ) {
-        return ActionListener.wrap(nodesInfoResponse -> {
-            executor.execute(() -> { architecturesListener.onResponse(getArchitecturesSetFromNodesInfoResponse(nodesInfoResponse)); });
-        }, architecturesListener::onFailure);
+        return architecturesListener.delegateFailureAndWrap(
+            (l, nodesInfoResponse) -> executor.execute(() -> l.onResponse(getArchitecturesSetFromNodesInfoResponse(nodesInfoResponse)))
+        );
     }
 
     static NodesInfoRequestBuilder getNodesInfoBuilderWithMlNodeArchitectureInfo(Client client) {
@@ -77,10 +77,10 @@ public class MlPlatformArchitecturesUtil {
         String modelID = configToReturn.getModelId();
         String modelPlatformArchitecture = configToReturn.getPlatformArchitecture();
 
-        ActionListener<Set<String>> architecturesListener = ActionListener.wrap((architectures) -> {
+        ActionListener<Set<String>> architecturesListener = successOrFailureListener.delegateFailureAndWrap((l, architectures) -> {
             verifyMlNodesAndModelArchitectures(architectures, modelPlatformArchitecture, modelID);
-            successOrFailureListener.onResponse(configToReturn);
-        }, successOrFailureListener::onFailure);
+            l.onResponse(configToReturn);
+        });
 
         getMlNodesArchitecturesSet(architecturesListener, client, executor);
     }

@@ -45,7 +45,7 @@ run it using Gradle:
 
 ==== Launching and debugging from an IDE
 
-If you want to run Elasticsearch from your IDE, the `./gradlew run` task
+If you want to run and debug Elasticsearch from your IDE, the `./gradlew run` task
 supports a remote debugging option. Run the following from your terminal:
 
 ---------------------------------------------------------------------------
@@ -55,7 +55,7 @@ supports a remote debugging option. Run the following from your terminal:
 Next start the "Debug Elasticsearch" run configuration in IntelliJ. This will enable the IDE to connect to the process and allow debug functionality.
 
 
-As such the IDE needs to be instructed to listen for connections on this port.
+As such the IDE needs to be instructed to listen for connections on the debug port.
 Since we might run multiple JVMs as part of configuring and starting the cluster it's
 recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option
 is called "Auto restart" and needs to be checked.
@@ -63,6 +63,22 @@ is called "Auto restart" and needs to be checked.
 NOTE: If you have imported the project into IntelliJ according to the instructions in
 link:/CONTRIBUTING.md#importing-the-project-into-intellij-idea[CONTRIBUTING.md] then a debug run configuration
 named "Debug Elasticsearch" will be created for you and configured appropriately.
+
+===== Debugging the CLI launcher
+
+The gradle task does not start the Elasticsearch server process directly; like in the Elasticsearch distribution,
+the job of starting the server process is delegated to a launcher CLI tool. If you need to debug the launcher itself,
+add the following option to the `run` task:
+---------------------------------------------------------------------------
+./gradlew run --debug-cli-jvm
+---------------------------------------------------------------------------
+This option can be specified in isolation or combined with `--debug-jvm`. Since the CLI launcher lifespan may overlap
+with the server process lifespan, the CLI launcher process will be started on a different port (5107 for the first node,
+5108 and following for additional cluster nodes).
+
+As with the `--debug-jvm` command, the IDE needs to be instructed to listen for connections on the debug port.
+You need to configure and start an appropriate Remote JVM Debug configuration, e.g. by cloning and editing
+the "Debug Elasticsearch" run configuration to point to the correct debug port.
 
 ==== Disabling assertions
 
@@ -103,7 +119,8 @@ password: `elastic-password`.
 - In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
 - In order to use a custom data directory: `--data-dir=/tmp/foo`
 - In order to preserve data in between executions: `--preserve-data`
-- In order to remotely attach a debugger to the process: `--debug-jvm`
+- In order to remotely attach a debugger to the server process: `--debug-jvm`
+- In order to remotely attach a debugger to the CLI launcher process: `--debug-cli-jvm`
 - In order to set a different keystore password: `--keystore-password`
 - In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
 - In order to pass a JVM setting, e.g. to disable assertions: `-Dtests.jvm.argline="-da"`

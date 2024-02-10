@@ -5,52 +5,18 @@
 <titleabbrev>Getting started</titleabbrev>
 ++++
 
-This guide shows how you can use {esql} to query and aggregate your data.
+preview::["Do not use {esql} on production environments. This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
-TIP: To get started with {esql} without setting up your own deployment, visit
-the public {esql} demo environment at
-https://esql.demo.elastic.co/[esql.demo.elastic.co]. It comes with preloaded
-data sets and sample queries.
+This guide shows how you can use {esql} to query and aggregate your data.
 
 [discrete]
 [[esql-getting-started-prerequisites]]
 === Prerequisites
 
-To follow along with the queries in this getting started guide, first ingest
-some sample data using the following requests:
+To follow along with the queries in this guide, you can either set up your own
+deployment, or use Elastic's public {esql} demo environment.
 
-[source,console]
-----
-PUT sample_data
-{
-  "mappings": {
-    "properties": {
-      "client.ip": {
-        "type": "ip"
-      },
-      "message": {
-        "type": "keyword"
-      }
-    }
-  }
-}
-
-PUT sample_data/_bulk
-{"index": {}}
-{"@timestamp": "2023-10-23T12:15:03.360Z", "client.ip": "172.21.2.162", "message": "Connected to 10.1.0.3", "event.duration": 3450233}
-{"index": {}}
-{"@timestamp": "2023-10-23T12:27:28.948Z", "client.ip": "172.21.2.113", "message": "Connected to 10.1.0.2", "event.duration": 2764889}
-{"index": {}}
-{"@timestamp": "2023-10-23T13:33:34.937Z", "client.ip": "172.21.0.5", "message": "Disconnected", "event.duration": 1232382}
-{"index": {}}
-{"@timestamp": "2023-10-23T13:51:54.732Z", "client.ip": "172.21.3.15", "message": "Connection error", "event.duration": 725448}
-{"index": {}}
-{"@timestamp": "2023-10-23T13:52:55.015Z", "client.ip": "172.21.3.15", "message": "Connection error", "event.duration": 8268153}
-{"index": {}}
-{"@timestamp": "2023-10-23T13:53:55.832Z", "client.ip": "172.21.3.15", "message": "Connection error", "event.duration": 5033755}
-{"index": {}}
-{"@timestamp": "2023-10-23T13:55:01.543Z", "client.ip": "172.21.3.15", "message": "Connected to 10.1.0.1", "event.duration": 1756467}
-----
+include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-sample-data.asciidoc[]
 
 [discrete]
 [[esql-getting-started-running-queries]]
@@ -58,7 +24,7 @@ PUT sample_data/_bulk
 
 In {kib}, you can use Console or Discover to run {esql} queries:
 
-include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget.asciidoc[]
+include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-discover-console.asciidoc[]
 
 [discrete]
 [[esql-getting-started-first-query]]
@@ -75,7 +41,7 @@ This query returns up to 500 documents from the `sample_data` index:
 
 [source,esql]
 ----
-FROM sample_data
+include::{esql-specs}/docs.csv-spec[tag=gs-from]
 ----
 
 Each column corresponds to a field, and can be accessed by the name of that
@@ -88,7 +54,7 @@ previous one:
 
 [source,esql]
 ----
-from sample_data
+include::{esql-specs}/docs.csv-spec[tag=gs-from-lowercase]
 ----
 ====
 
@@ -109,8 +75,7 @@ that are returned, up to a maximum of 10,000 rows:
 
 [source,esql]
 ----
-FROM sample_data
-| LIMIT 3
+include::{esql-specs}/docs.csv-spec[tag=gs-limit]
 ----
 
 [TIP]
@@ -120,7 +85,7 @@ have to. The following query is identical to the previous one:
 
 [source,esql]
 ----
-FROM sample_data | LIMIT 3
+include::{esql-specs}/docs.csv-spec[tag=gs-limit-one-line]
 ----
 ====
 
@@ -136,8 +101,7 @@ sort rows on one or more columns:
 
 [source,esql]
 ----
-FROM sample_data
-| SORT @timestamp DESC
+include::{esql-specs}/docs.csv-spec[tag=gs-sort]
 ----
 
 [discrete]
@@ -149,16 +113,14 @@ events with a duration longer than 5ms:
 
 [source,esql]
 ----
-FROM sample_data
-| WHERE event.duration > 5000000
+include::{esql-specs}/where.csv-spec[tag=gs-where]
 ----
 
 `WHERE` supports several <<esql-operators,operators>>. For example, you can use <<esql-like-operator>> to run a wildcard query against the `message` column:
 
 [source,esql]
 ----
-FROM sample_data
-| WHERE message LIKE "Connected*"
+include::{esql-specs}/where-like.csv-spec[tag=gs-like]
 ----
 
 [discrete]
@@ -185,9 +147,7 @@ result set to 3 rows:
 
 [source,esql]
 ----
-FROM sample_data
-| SORT @timestamp DESC
-| LIMIT 3
+include::{esql-specs}/docs.csv-spec[tag=gs-chaining]
 ----
 
 NOTE: The order of processing commands is important. First limiting the result
@@ -200,13 +160,12 @@ is different than this example, where the sorting comes before the limit.
 
 Use the <<esql-eval>> command to append columns to a table, with calculated
 values. For example, the following query appends a `duration_ms` column. The
-values in the column are computed by dividing `event.duration` by 1,000,000. In
-other words: `event.duration` converted from nanoseconds to milliseconds.
+values in the column are computed by dividing `event_duration` by 1,000,000. In
+other words: `event_duration` converted from nanoseconds to milliseconds.
 
 [source,esql]
 ----
-FROM sample_data
-| EVAL duration_ms = event.duration / 1000000.0
+include::{esql-specs}/eval.csv-spec[tag=gs-eval]
 ----
 
 `EVAL` supports several <<esql-functions,functions>>. For example, to round a
@@ -215,8 +174,7 @@ number to the closest number with the specified number of digits, use the
 
 [source,esql]
 ----
-FROM sample_data
-| EVAL duration_ms = ROUND(event.duration / 1000000.0, 1)
+include::{esql-specs}/eval.csv-spec[tag=gs-round]
 ----
 
 [discrete]
@@ -229,16 +187,14 @@ example, the median duration:
 
 [source,esql]
 ----
-FROM sample_data
-| STATS median_duration = MEDIAN(event.duration)
+include::{esql-specs}/stats.csv-spec[tag=gs-stats]
 ----
 
 You can calculate multiple stats with one command:
 
 [source,esql]
 ----
-FROM sample_data
-| STATS median_duration = MEDIAN(event.duration), max_duration = MAX(event.duration)
+include::{esql-specs}/stats.csv-spec[tag=gs-two-stats]
 ----
 
 Use `BY` to group calculated stats by one or more columns. For example, to
@@ -246,8 +202,32 @@ calculate the median duration per client IP:
 
 [source,esql]
 ----
-FROM sample_data
-| STATS median_duration = MEDIAN(event.duration) BY client.ip
+include::{esql-specs}/stats.csv-spec[tag=gs-stats-by]
+----
+
+[discrete]
+[[esql-getting-started-access-columns]]
+=== Access columns
+
+You can access columns by their name. If a name contains special characters,
+<<esql-identifiers,it needs to be quoted>> with backticks (+{backtick}+).
+
+Assigning an explicit name to a column created by `EVAL` or `STATS` is optional.
+If you don't provide a name, the new column name is equal to the function
+expression. For example:
+
+[source,esql]
+----
+include::{esql-specs}/eval.csv-spec[tag=gs-eval-no-column-name]
+----
+
+In this query, `EVAL` adds a new column named `event_duration/1000000.0`.
+Because its name contains special characters, to access this column, quote it
+with backticks:
+
+[source,esql]
+----
+include::{esql-specs}/eval.csv-spec[tag=gs-eval-stats-backticks]
 ----
 
 [discrete]
@@ -263,9 +243,7 @@ For example, to create hourly buckets for the data on October 23rd:
 
 [source,esql]
 ----
-FROM sample_data
-| KEEP @timestamp
-| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket]
 ----
 
 Combine `AUTO_BUCKET` with <<esql-stats-by>> to create a histogram. For example,
@@ -273,20 +251,14 @@ to count the number of events per hour:
 
 [source,esql]
 ----
-FROM sample_data
-| KEEP @timestamp, event.duration
-| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
-| STATS COUNT(*) BY bucket
+include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket-stats-by]
 ----
 
 Or the median duration per hour:
 
 [source,esql]
 ----
-FROM sample_data
-| KEEP @timestamp, event.duration
-| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
-| STATS median_duration = MEDIAN(event.duration) BY bucket
+include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket-stats-by-median]
 ----
 
 [discrete]
@@ -300,67 +272,16 @@ image::images/esql/esql-enrich.png[align="center"]
 
 Before you can use `ENRICH`, you first need to
 <<esql-create-enrich-policy,create>> and <<esql-execute-enrich-policy,execute>>
-an <<esql-enrich-policy,enrich policy>>. The following requests create and
-execute a policy that links an IP address to an environment ("Development",
-"QA", or "Production"):
+an <<esql-enrich-policy,enrich policy>>. 
 
-[source,console]
-----
-PUT clientips
-{
-  "mappings": {
-    "properties": {
-      "client.ip": {
-        "type": "keyword"
-      },
-      "env": {
-        "type": "keyword"
-      }
-    }
-  }
-}
-
-PUT clientips/_bulk
-{ "index" : {}}
-{ "client.ip": "172.21.0.5", "env": "Development" }
-{ "index" : {}}
-{ "client.ip": "172.21.2.113", "env": "QA" }
-{ "index" : {}}
-{ "client.ip": "172.21.2.162", "env": "QA" }
-{ "index" : {}}
-{ "client.ip": "172.21.3.15", "env": "Production" }
-{ "index" : {}}
-{ "client.ip": "172.21.3.16", "env": "Production" }
-
-PUT /_enrich/policy/clientip_policy
-{
-  "match": {
-    "indices": "clientips",
-    "match_field": "client.ip",
-    "enrich_fields": ["env"]
-  }
-}
-
-PUT /_enrich/policy/clientip_policy/_execute
-----
-
-////
-[source,console]
-----
-DELETE /_enrich/policy/clientip_policy
-----
-// TEST[continued]
-////
+include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-enrich-policy.asciidoc[]
 
 After creating and executing a policy, you can use it with the `ENRICH`
 command:
 
 [source,esql]
 ----
-FROM sample_data
-| KEEP @timestamp, client.ip, event.duration
-| EVAL client.ip = TO_STRING(client.ip)
-| ENRICH clientip_policy ON client.ip WITH env
+include::{esql-specs}/enrich.csv-spec[tag=gs-enrich]
 ----
 
 You can use the new `env` column that's added by the `ENRICH` command in
@@ -369,11 +290,7 @@ environment:
 
 [source,esql]
 ----
-FROM sample_data
-| KEEP @timestamp, client.ip, event.duration
-| EVAL client.ip = TO_STRING(client.ip)
-| ENRICH clientip_policy ON client.ip WITH env
-| STATS median_duration = MEDIAN(event.duration) BY env
+include::{esql-specs}/enrich.csv-spec[tag=gs-enrich-stats-by]
 ----
 
 For more about data enrichment with {esql}, refer to <<esql-enrich-data>>.
@@ -405,23 +322,19 @@ string, you can use the following `DISSECT` command:
 
 [source,esql]
 ----
-FROM sample_data
-| DISSECT message "Connected to %{server.ip}"
+include::{esql-specs}/dissect.csv-spec[tag=gs-dissect]
 ----
 
-This adds a `server.ip` column to those rows that have a `message` that matches
-this pattern. For other rows, the value of `server.ip` is `null`.
+This adds a `server_ip` column to those rows that have a `message` that matches
+this pattern. For other rows, the value of `server_ip` is `null`.
 
-You can use the new `server.ip` column that's added by the `DISSECT` command in
+You can use the new `server_ip` column that's added by the `DISSECT` command in
 subsequent commands. For example, to determine how many connections each server
 has accepted:
 
 [source,esql]
 ----
-FROM sample_data
-| WHERE STARTS_WITH(message, "Connected to")
-| DISSECT message "Connected to %{server.ip}"
-| STATS COUNT(*) BY server.ip
+include::{esql-specs}/dissect.csv-spec[tag=gs-dissect-stats-by]
 ----
 
 For more about data processing with {esql}, refer to

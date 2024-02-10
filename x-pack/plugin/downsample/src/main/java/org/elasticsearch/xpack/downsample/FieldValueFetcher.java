@@ -37,7 +37,7 @@ class FieldValueFetcher {
         this.name = name;
         this.fieldType = fieldType;
         this.fieldData = fieldData;
-        this.fieldProducer = createieldProducer();
+        this.fieldProducer = createFieldProducer();
     }
 
     public String name() {
@@ -53,7 +53,7 @@ class FieldValueFetcher {
         return fieldProducer;
     }
 
-    private AbstractDownsampleFieldProducer createieldProducer() {
+    private AbstractDownsampleFieldProducer createFieldProducer() {
         if (fieldType.getMetricType() != null) {
             return switch (fieldType.getMetricType()) {
                 case GAUGE -> new MetricFieldProducer.GaugeMetricFieldProducer(name());

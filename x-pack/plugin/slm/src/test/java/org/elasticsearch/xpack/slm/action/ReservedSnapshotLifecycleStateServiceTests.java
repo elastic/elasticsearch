@@ -277,6 +277,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
+            null,
             List.of(new ReservedClusterSettingsAction(clusterSettings), new ReservedRepositoryAction(repositoriesService))
         );
 
@@ -347,6 +348,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         controller = new ReservedClusterStateService(
             clusterService,
+            null,
             List.of(
                 new ReservedClusterSettingsAction(clusterSettings),
                 new ReservedSnapshotAction(),

@@ -16,20 +16,16 @@ import org.elasticsearch.common.util.LongHash;
 $endif$
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-$if(int)$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+$if(int)$
 import org.elasticsearch.compute.data.IntBlock;
 
 $elseif(long)$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
 $else$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntBlock;
 
@@ -50,20 +46,16 @@ $if(BytesRef)$
     private static final int ALWAYS_COPY_MISSING = 20;  // TODO BytesRef should try adding to the hash *first* and then comparing.
 $elseif(double)$
     private static final int ALWAYS_COPY_MISSING = 110;
-$elseif(int)$
-    private static final int ALWAYS_COPY_MISSING = 300;
-$elseif(long)$
+$else$
     private static final int ALWAYS_COPY_MISSING = 300;
 $endif$
 
-    private final Block.Ref ref;
     private final $Type$Block block;
     private $type$[] work = new $type$[ArrayUtil.oversize(2, $BYTES$)];
     private int w;
 
-    public MultivalueDedupe$Type$(Block.Ref ref) {
-        this.ref = ref;
-        this.block = ($Type$Block) ref.block();
+    public MultivalueDedupe$Type$($Type$Block block) {
+        this.block = block;
 $if(BytesRef)$
         // TODO very large numbers might want a hash based implementation - and for BytesRef that might not be that big
         fillWork(0, work.length);
@@ -74,11 +66,12 @@ $endif$
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public Block.Ref dedupeToBlockAdaptive(BlockFactory blockFactory) {
+    public $Type$Block dedupeToBlockAdaptive(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
-            return ref;
+            block.incRef();
+            return block;
         }
-        try (ref; $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -117,7 +110,7 @@ $endif$
                     }
                 }
             }
-            return Block.Ref.floating(builder.build());
+            return builder.build();
         }
     }
 
@@ -127,11 +120,12 @@ $endif$
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public Block.Ref dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
+    public $Type$Block dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
-            return ref;
+            block.incRef();
+            return block;
         }
-        try (ref; $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -148,7 +142,7 @@ $endif$
                     }
                 }
             }
-            return Block.Ref.floating(builder.build());
+            return builder.build();
         }
     }
 
@@ -160,11 +154,12 @@ $endif$
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public Block.Ref dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
+    public $Type$Block dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
-            return ref;
+            block.incRef();
+            return block;
         }
-        try (ref; $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -181,7 +176,7 @@ $endif$
                     }
                 }
             }
-            return Block.Ref.floating(builder.build());
+            return builder.build();
         }
     }
 
@@ -190,11 +185,11 @@ $endif$
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
 $if(BytesRef)$
-    public MultivalueDedupe.HashResult hash(BytesRefHash hash) {
+    public MultivalueDedupe.HashResult hash(BlockFactory blockFactory, BytesRefHash hash) {
 $else$
-    public MultivalueDedupe.HashResult hash(LongHash hash) {
+    public MultivalueDedupe.HashResult hash(BlockFactory blockFactory, LongHash hash) {
 $endif$
-        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount())) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);

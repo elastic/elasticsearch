@@ -223,7 +223,7 @@ public class ClusterConnectionManager implements ConnectionManager {
                             IOUtils.closeWhileHandlingException(conn);
                         } else {
                             logger.debug("connected to node [{}]", node);
-                            managerRefs.incRef();
+                            managerRefs.mustIncRef();
                             try {
                                 connectionListener.onNodeConnected(node, conn);
                             } finally {

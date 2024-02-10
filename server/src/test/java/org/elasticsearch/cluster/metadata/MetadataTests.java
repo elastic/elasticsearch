@@ -155,6 +155,95 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
+    public void testFindDataStreamAliases() {
+        Metadata.Builder builder = Metadata.builder();
+
+        addDataStream("d1", builder);
+        addDataStream("d2", builder);
+        addDataStream("d3", builder);
+        addDataStream("d4", builder);
+
+        builder.put("alias1", "d1", null, null);
+        builder.put("alias2", "d2", null, null);
+        builder.put("alias2-part2", "d2", null, null);
+
+        Metadata metadata = builder.build();
+
+        {
+            GetAliasesRequest request = new GetAliasesRequest();
+            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), Strings.EMPTY_ARRAY);
+            assertThat(aliases, anEmptyMap());
+        }
+
+        {
+            GetAliasesRequest request = new GetAliasesRequest().aliases("alias1");
+            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index" });
+            assertThat(aliases, anEmptyMap());
+        }
+
+        {
+            GetAliasesRequest request = new GetAliasesRequest().aliases("alias1");
+            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(
+                request.aliases(),
+                new String[] { "index", "d1", "d2" }
+            );
+            assertEquals(1, aliases.size());
+            List<DataStreamAlias> found = aliases.get("d1");
+            assertThat(found, transformedItemsMatch(DataStreamAlias::getAlias, contains("alias1")));
+        }
+
+        {
+            GetAliasesRequest request = new GetAliasesRequest().aliases("ali*");
+            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index", "d2" });
+            assertEquals(1, aliases.size());
+            List<DataStreamAlias> found = aliases.get("d2");
+            assertThat(found, transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
+        }
+
+        // test exclusion
+        {
+            GetAliasesRequest request = new GetAliasesRequest().aliases("*");
+            Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(
+                request.aliases(),
+                new String[] { "index", "d1", "d2", "d3", "d4" }
+            );
+            assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
+            assertThat(aliases.get("d1"), transformedItemsMatch(DataStreamAlias::getAlias, contains("alias1")));
+
+            request.aliases("*", "-alias1");
+            aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index", "d1", "d2", "d3", "d4" });
+            assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
+            assertNull(aliases.get("d1"));
+        }
+    }
+
+    public void testDataStreamAliasesByDataStream() {
+        Metadata.Builder builder = Metadata.builder();
+
+        addDataStream("d1", builder);
+        addDataStream("d2", builder);
+        addDataStream("d3", builder);
+        addDataStream("d4", builder);
+
+        builder.put("alias1", "d1", null, null);
+        builder.put("alias2", "d2", null, null);
+        builder.put("alias2-part2", "d2", null, null);
+
+        Metadata metadata = builder.build();
+
+        var aliases = metadata.dataStreamAliasesByDataStream();
+
+        assertTrue(aliases.containsKey("d1"));
+        assertTrue(aliases.containsKey("d2"));
+        assertFalse(aliases.containsKey("d3"));
+        assertFalse(aliases.containsKey("d4"));
+
+        assertEquals(1, aliases.get("d1").size());
+        assertEquals(2, aliases.get("d2").size());
+
+        assertThat(aliases.get("d2"), transformedItemsMatch(DataStreamAlias::getAlias, containsInAnyOrder("alias2", "alias2-part2")));
+    }
+
     public void testFindAliasWithExclusion() {
         Metadata metadata = Metadata.builder()
             .put(
@@ -2279,30 +2368,23 @@ public class MetadataTests extends ESTestCase {
         // Settings in component template:
         {
             var componentTemplate = new ComponentTemplate(template, null, null);
-            var indexTemplate = new ComposableIndexTemplate(
-                List.of("test-*"),
-                null,
-                List.of("component_template_1"),
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate()
-            );
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
             Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
             assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
         }
         // Settings in composable index template:
         {
             var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
-            var indexTemplate = new ComposableIndexTemplate(
-                List.of("test-*"),
-                template,
-                List.of("component_template_1"),
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate()
-            );
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .template(template)
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
             Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
             assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
         }

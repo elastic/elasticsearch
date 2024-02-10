@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,8 +39,9 @@ public class GetAliasesResponse extends ActionResponse {
 
     /**
      * NB prior to 8.12 get-aliases was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until we no
-     * longer need to support {@link org.elasticsearch.TransportVersions#CLUSTER_FEATURES_ADDED} and earlier.
+     * longer need to support calling this action remotely.
      */
+    @UpdateForV9 // replace this implementation with TransportAction.localOnly()
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(aliases, StreamOutput::writeCollection);

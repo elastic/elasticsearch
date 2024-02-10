@@ -16,7 +16,9 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Nullability;
@@ -41,7 +43,23 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 public class Coalesce extends ScalarFunction implements EvaluatorMapper, OptionalArgument {
     private DataType dataType;
 
-    public Coalesce(Source source, Expression first, List<Expression> rest) {
+    @FunctionInfo(
+        returnType = { "boolean", "text", "integer", "keyword", "long" },
+        description = "Returns the first of its arguments that is not null."
+    )
+    public Coalesce(
+        Source source,
+        @Param(
+            name = "expression",
+            type = { "boolean", "text", "integer", "keyword", "long" },
+            description = "Expression to evaluate"
+        ) Expression first,
+        @Param(
+            name = "expressionX",
+            type = { "boolean", "text", "integer", "keyword", "long" },
+            description = "Other expression to evaluate"
+        ) List<Expression> rest
+    ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
 
@@ -127,7 +145,7 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
             public ExpressionEvaluator get(DriverContext context) {
                 return new CoalesceEvaluator(
                     context,
-                    LocalExecutionPlanner.toElementType(dataType()),
+                    PlannerUtils.toElementType(dataType()),
                     childEvaluators.stream().map(x -> x.get(context)).toList()
                 );
             }
@@ -143,7 +161,7 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
         implements
             EvalOperator.ExpressionEvaluator {
         @Override
-        public Block.Ref eval(Page page) {
+        public Block eval(Page page) {
             /*
              * We have to evaluate lazily so any errors or warnings that would be
              * produced by the right hand side are avoided. And so if anything
@@ -163,9 +181,9 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
                     );
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (EvalOperator.ExpressionEvaluator eval : evaluators) {
-                            try (Block.Ref ref = eval.eval(limited)) {
-                                if (false == ref.block().isNull(0)) {
-                                    result.copyFrom(ref.block(), 0, 1);
+                            try (Block block = eval.eval(limited)) {
+                                if (false == block.isNull(0)) {
+                                    result.copyFrom(block, 0, 1);
                                     continue position;
                                 }
                             }
@@ -173,7 +191,7 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
                         result.appendNull();
                     }
                 }
-                return Block.Ref.floating(result.build());
+                return result.build();
             }
         }
 

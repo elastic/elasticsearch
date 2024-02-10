@@ -326,6 +326,7 @@ case the search request would fail with a version conflict error.
 
 The search response returned is identical as in the previous example.
 
+
 ==== Percolate query and highlighting
 
 The `percolate` query is handled in a special way when it comes to highlighting. The queries hits are used
@@ -548,6 +549,136 @@ The slightly different response:
 
 <1> The highlight fields have been prefixed with the document slot they belong to,
     in order to know which highlight field belongs to what document.
+
+==== Named queries within percolator queries
+
+If a stored percolator query is a complex query, and you want to track which
+its sub-queries matched a percolated document, then you can use the `\_name`
+parameter for its sub-queries. In this case, in a response, each hit together with
+a `_percolator_document_slot` field contains
+`_percolator_document_slot_<slotNumber>_matched_queries` fields that show
+which sub-queries matched each percolated document.
+
+For example:
+
+[source,console]
+--------------------------------------------------
+PUT /my-index-000001/_doc/5?refresh
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "match": {
+            "message": {
+              "query": "Japanese art",
+              "_name": "query1"
+            }
+          }
+        },
+        {
+          "match": {
+            "message": {
+              "query": "Holand culture",
+              "_name": "query2"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+[source,console]
+--------------------------------------------------
+GET /my-index-000001/_search
+{
+  "query": {
+    "percolate": {
+      "field": "query",
+      "documents": [
+        {
+          "message": "Japanse art"
+        },
+        {
+          "message": "Holand culture"
+        },
+        {
+          "message": "Japanese art and Holand culture"
+        },
+        {
+          "message": "no-match"
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+[source,console-result]
+--------------------------------------------------
+{
+  "took": 55,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped" : 0,
+    "failed": 0
+  },
+  "hits": {
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 1.1181908,
+    "hits": [
+      {
+        "_index": "my-index-000001",
+        "_id": "5",
+        "_score": 1.1181908,
+        "_source": {
+          "query": {
+            "bool": {
+              "should": [
+                {
+                  "match": {
+                    "message": {
+                      "query": "Japanese art",
+                      "_name": "query1"
+                    }
+                  }
+                },
+                {
+                  "match": {
+                    "message": {
+                      "query": "Holand culture",
+                      "_name": "query2"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0, 1, 2],
+          "_percolator_document_slot_0_matched_queries" : ["query1"], <1>
+          "_percolator_document_slot_1_matched_queries" : ["query2"], <2>
+          "_percolator_document_slot_2_matched_queries" : ["query1", "query2"] <3>
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 55,/"took": "$body.took",/]
+<1> The first document matched only the first sub-query.
+<2> The second document matched only the second sub-query.
+<3> The third document matched both sub-queries.
 
 ==== Specifying multiple percolate queries
 

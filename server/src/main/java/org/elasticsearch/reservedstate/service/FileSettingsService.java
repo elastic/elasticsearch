@@ -113,7 +113,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      */
     @Override
     protected void processFileChanges() throws ExecutionException, InterruptedException, IOException {
-        PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> completion = new PlainActionFuture<>();
         logger.info("processing path [{}] for [{}]", watchedFile(), NAMESPACE);
         try (
             var fis = Files.newInputStream(watchedFile());

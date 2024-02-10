@@ -10,13 +10,11 @@ package org.elasticsearch.xpack.apmdata;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101929")
 public class APMYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
@@ -26,6 +24,7 @@ public class APMYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("ingest-common")
         .module("ingest-geoip")
         .module("ingest-user-agent")
+        .module("lang-mustache")
         .module("mapper-extras")
         .module("wildcard")
         .module("x-pack-analytics")

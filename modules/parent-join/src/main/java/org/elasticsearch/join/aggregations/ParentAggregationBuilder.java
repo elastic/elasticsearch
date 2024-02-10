@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<ParentAggregationBuilder> {
 
@@ -90,7 +91,7 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
     }
 
     @Override
-    public boolean supportsParallelCollection() {
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
         return false;
     }
 

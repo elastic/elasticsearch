@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.document.RestBulkAction;
@@ -61,6 +61,7 @@ public final class BulkRequestParser {
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
     private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
+    private static final ParseField REQUIRE_DATA_STREAM = new ParseField(DocWriteRequest.REQUIRE_DATA_STREAM);
     private static final ParseField LIST_EXECUTED_PIPELINES = new ParseField(DocWriteRequest.LIST_EXECUTED_PIPELINES);
     private static final ParseField DYNAMIC_TEMPLATES = new ParseField("dynamic_templates");
 
@@ -127,6 +128,7 @@ public final class BulkRequestParser {
         @Nullable FetchSourceContext defaultFetchSourceContext,
         @Nullable String defaultPipeline,
         @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultRequireDataStream,
         @Nullable Boolean defaultListExecutedPipelines,
         boolean allowExplicitIndex,
         XContentType xContentType,
@@ -209,6 +211,7 @@ public final class BulkRequestParser {
                 int retryOnConflict = 0;
                 String pipeline = defaultPipeline;
                 boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
+                boolean requireDataStream = defaultRequireDataStream != null && defaultRequireDataStream;
                 boolean listExecutedPipelines = defaultListExecutedPipelines != null && defaultListExecutedPipelines;
                 Map<String, String> dynamicTemplates = Map.of();
 
@@ -263,6 +266,8 @@ public final class BulkRequestParser {
                                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
                             } else if (REQUIRE_ALIAS.match(currentFieldName, parser.getDeprecationHandler())) {
                                 requireAlias = parser.booleanValue();
+                            } else if (REQUIRE_DATA_STREAM.match(currentFieldName, parser.getDeprecationHandler())) {
+                                requireDataStream = parser.booleanValue();
                             } else if (LIST_EXECUTED_PIPELINES.match(currentFieldName, parser.getDeprecationHandler())) {
                                 listExecutedPipelines = parser.booleanValue();
                             } else {
@@ -349,6 +354,7 @@ public final class BulkRequestParser {
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
                                     .setDynamicTemplates(dynamicTemplates)
                                     .setRequireAlias(requireAlias)
+                                    .setRequireDataStream(requireDataStream)
                                     .setListExecutedPipelines(listExecutedPipelines),
                                 type
                             );
@@ -365,6 +371,7 @@ public final class BulkRequestParser {
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
                                     .setDynamicTemplates(dynamicTemplates)
                                     .setRequireAlias(requireAlias)
+                                    .setRequireDataStream(requireDataStream)
                                     .setListExecutedPipelines(listExecutedPipelines),
                                 type
                             );
@@ -382,6 +389,7 @@ public final class BulkRequestParser {
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
                                 .setDynamicTemplates(dynamicTemplates)
                                 .setRequireAlias(requireAlias)
+                                .setRequireDataStream(requireDataStream)
                                 .setListExecutedPipelines(listExecutedPipelines),
                             type
                         );
@@ -389,6 +397,12 @@ public final class BulkRequestParser {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException(
                                 "Update requests do not support versioning. " + "Please use `if_seq_no` and `if_primary_term` instead"
+                            );
+                        }
+                        if (requireDataStream) {
+                            throw new IllegalArgumentException(
+                                "Update requests do not support the `require_data_stream` flag, "
+                                    + "as data streams do not support update operations"
                             );
                         }
                         // TODO: support dynamic_templates in update requests
@@ -430,32 +444,32 @@ public final class BulkRequestParser {
         }
     }
 
+    @UpdateForV9
+    // Warnings will need to be replaced with XContentEOFException from 9.x
+    private static void warnBulkActionNotProperlyClosed(String message) {
+        deprecationLogger.compatibleCritical(STRICT_ACTION_PARSING_WARNING_KEY, message);
+    }
+
     private static void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
         XContentParser.Token token;
         try {
             token = parser.nextToken();
         } catch (XContentEOFException ignore) {
-            assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
-            deprecationLogger.compatibleCritical(
-                STRICT_ACTION_PARSING_WARNING_KEY,
+            warnBulkActionNotProperlyClosed(
                 "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be "
                     + "rejected in a future version."
             );
             return;
         }
         if (token != XContentParser.Token.END_OBJECT) {
-            assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
-            deprecationLogger.compatibleCritical(
-                STRICT_ACTION_PARSING_WARNING_KEY,
+            warnBulkActionNotProperlyClosed(
                 "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
                     + "future version."
             );
             return;
         }
         if (parser.nextToken() != null) {
-            assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
-            deprecationLogger.compatibleCritical(
-                STRICT_ACTION_PARSING_WARNING_KEY,
+            warnBulkActionNotProperlyClosed(
                 "A bulk action contained trailing data after the closing brace. This is currently ignored but will be rejected in a "
                     + "future version."
             );

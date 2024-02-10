@@ -11,7 +11,8 @@
   "ignore_missing_component_templates": ["profiling-ilm@custom"],
   "priority": 100,
   "_meta": {
-    "description": "Template for profiling-hosts"
+    "description": "Index template for profiling-hosts",
+    "managed": true
   },
   "version": ${xpack.profiling.template.version}
 }

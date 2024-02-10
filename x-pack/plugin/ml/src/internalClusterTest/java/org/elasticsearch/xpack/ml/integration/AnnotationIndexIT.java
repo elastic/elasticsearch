@@ -323,8 +323,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex()
             .setIndices(AnnotationIndex.LATEST_INDEX_NAME)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
-            .execute()
-            .actionGet();
+            .get();
         return Arrays.asList(getIndexResponse.getIndices()).contains(expectedName);
     }
 

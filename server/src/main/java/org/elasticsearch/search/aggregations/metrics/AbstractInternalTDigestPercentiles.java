@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,7 +22,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -101,7 +101,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     @Override
     public Iterable<String> valueNames() {
-        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).toList();
+        return Arrays.stream(getKeys()).mapToObj(String::valueOf).toList();
     }
 
     public abstract double value(double key);
@@ -132,22 +132,26 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     }
 
     @Override
-    public AbstractInternalTDigestPercentiles reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        TDigestState merged = null;
-        for (InternalAggregation aggregation : aggregations) {
-            final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
-            if (percentiles.state == null) {
-                continue;
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            TDigestState merged = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
+                if (percentiles.state != null) {
+                    if (merged == null) {
+                        merged = TDigestState.createUsingParamsFrom(percentiles.state);
+                    }
+                    merged = merge(merged, percentiles.state);
+                }
             }
-            if (merged == null) {
-                merged = TDigestState.createUsingParamsFrom(percentiles.state);
+
+            @Override
+            public InternalAggregation get() {
+                return createReduced(getName(), keys, merged == null ? EMPTY_HISTOGRAM : merged, keyed, getMetadata());
             }
-            merged = merge(merged, percentiles.state);
-        }
-        if (merged == null) {
-            merged = EMPTY_HISTOGRAM;
-        }
-        return createReduced(getName(), keys, merged, keyed, getMetadata());
+        };
     }
 
     /**
@@ -188,9 +192,9 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         TDigestState state = getState();
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
-            for (int i = 0; i < keys.length; ++i) {
-                String key = String.valueOf(keys[i]);
-                double value = value(keys[i]);
+            for (double v : keys) {
+                String key = String.valueOf(v);
+                double value = value(v);
                 builder.field(key, state.size() == 0 ? null : value);
                 if (format != DocValueFormat.RAW && state.size() > 0) {
                     builder.field(key + "_as_string", format.format(value).toString());
@@ -199,10 +203,10 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             builder.endObject();
         } else {
             builder.startArray(CommonFields.VALUES.getPreferredName());
-            for (int i = 0; i < keys.length; i++) {
-                double value = value(keys[i]);
+            for (double key : keys) {
+                double value = value(key);
                 builder.startObject();
-                builder.field(CommonFields.KEY.getPreferredName(), keys[i]);
+                builder.field(CommonFields.KEY.getPreferredName(), key);
                 builder.field(CommonFields.VALUE.getPreferredName(), state.size() == 0 ? null : value);
                 if (format != DocValueFormat.RAW && state.size() > 0) {
                     builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value).toString());

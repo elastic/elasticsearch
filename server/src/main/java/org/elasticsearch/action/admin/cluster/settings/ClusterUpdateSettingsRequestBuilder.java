@@ -23,8 +23,8 @@ public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuil
     ClusterUpdateSettingsResponse,
     ClusterUpdateSettingsRequestBuilder> {
 
-    public ClusterUpdateSettingsRequestBuilder(ElasticsearchClient client, ClusterUpdateSettingsAction action) {
-        super(client, action, new ClusterUpdateSettingsRequest());
+    public ClusterUpdateSettingsRequestBuilder(ElasticsearchClient client) {
+        super(client, ClusterUpdateSettingsAction.INSTANCE, new ClusterUpdateSettingsRequest());
     }
 
     /**

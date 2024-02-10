@@ -12,9 +12,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.TransportResponse;
+
+import java.util.concurrent.Executor;
 
 /**
  * A {@linkplain Client} that sets the parent task on all requests that it makes. Use this to conveniently implement actions that cause
@@ -57,5 +61,21 @@ public class ParentTaskAssigningClient extends FilterClient {
     ) {
         request.setParentTask(parentTask);
         super.doExecute(action, request, listener);
+    }
+
+    @Override
+    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
+        final var delegate = super.getRemoteClusterClient(clusterAlias, responseExecutor);
+        return new RemoteClusterClient() {
+            @Override
+            public <Request extends ActionRequest, Response extends TransportResponse> void execute(
+                RemoteClusterActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                request.setParentTask(parentTask);
+                delegate.execute(action, request, listener);
+            }
+        };
     }
 }

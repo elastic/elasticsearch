@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.sort.MinAndMax;
@@ -25,11 +24,7 @@ public final class CanMatchShardResponse extends SearchPhaseResult {
     public CanMatchShardResponse(StreamInput in) throws IOException {
         super(in);
         this.canMatch = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            estimatedMinAndMax = in.readOptionalWriteable(MinAndMax::new);
-        } else {
-            estimatedMinAndMax = null;
-        }
+        estimatedMinAndMax = in.readOptionalWriteable(MinAndMax::new);
     }
 
     public CanMatchShardResponse(boolean canMatch, MinAndMax<?> estimatedMinAndMax) {
@@ -40,9 +35,7 @@ public final class CanMatchShardResponse extends SearchPhaseResult {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(canMatch);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            out.writeOptionalWriteable(estimatedMinAndMax);
-        }
+        out.writeOptionalWriteable(estimatedMinAndMax);
     }
 
     public boolean canMatch() {

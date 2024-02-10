@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -203,7 +203,7 @@ public class TransformIndexTests extends ESTestCase {
         TransformIndex.setUpDestinationAliases(client, config, ActionTestUtils.assertNoFailureListener(Assert::assertTrue));
 
         ArgumentCaptor<IndicesAliasesRequest> indicesAliasesRequestCaptor = ArgumentCaptor.forClass(IndicesAliasesRequest.class);
-        verify(client).execute(eq(IndicesAliasesAction.INSTANCE), indicesAliasesRequestCaptor.capture(), any());
+        verify(client).execute(eq(TransportIndicesAliasesAction.TYPE), indicesAliasesRequestCaptor.capture(), any());
         verify(client, atLeastOnce()).threadPool();
         verifyNoMoreInteractions(client);
 

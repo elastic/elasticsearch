@@ -11,10 +11,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Settings;
@@ -23,8 +23,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -590,7 +590,7 @@ public class RollupJobTaskTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         Client client = mock(Client.class);
         doAnswer(invocationOnMock -> {
-            RefreshResponse r = new RefreshResponse(2, 2, 0, Collections.emptyList());
+            BroadcastResponse r = new BroadcastResponse(2, 2, 0, Collections.emptyList());
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
@@ -608,10 +608,10 @@ public class RollupJobTaskTests extends ESTestCase {
             assertTrue(threadContext.getHeaders().isEmpty());
             SearchResponse r = mock(SearchResponse.class);
             when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
-            CompositeAggregation compositeAgg = mock(CompositeAggregation.class);
+            InternalComposite compositeAgg = mock(InternalComposite.class);
             when(compositeAgg.getBuckets()).thenReturn(Collections.emptyList());
             when(compositeAgg.getName()).thenReturn(RollupField.NAME);
-            Aggregations aggs = new Aggregations(Collections.singletonList(compositeAgg));
+            InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(compositeAgg));
             when(r.getAggregations()).thenReturn(aggs);
 
             // Wait before progressing
@@ -619,7 +619,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
@@ -697,7 +697,7 @@ public class RollupJobTaskTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), headers);
         Client client = mock(Client.class);
         doAnswer(invocationOnMock -> {
-            RefreshResponse r = new RefreshResponse(2, 2, 0, Collections.emptyList());
+            BroadcastResponse r = new BroadcastResponse(2, 2, 0, Collections.emptyList());
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
@@ -717,10 +717,10 @@ public class RollupJobTaskTests extends ESTestCase {
 
             SearchResponse r = mock(SearchResponse.class);
             when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
-            CompositeAggregation compositeAgg = mock(CompositeAggregation.class);
+            InternalComposite compositeAgg = mock(InternalComposite.class);
             when(compositeAgg.getBuckets()).thenReturn(Collections.emptyList());
             when(compositeAgg.getName()).thenReturn(RollupField.NAME);
-            Aggregations aggs = new Aggregations(Collections.singletonList(compositeAgg));
+            InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(compositeAgg));
             when(r.getAggregations()).thenReturn(aggs);
 
             // Wait before progressing
@@ -728,7 +728,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
@@ -806,7 +806,7 @@ public class RollupJobTaskTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), headers);
         Client client = mock(Client.class);
         doAnswer(invocationOnMock -> {
-            RefreshResponse r = new RefreshResponse(2, 2, 0, Collections.emptyList());
+            BroadcastResponse r = new BroadcastResponse(2, 2, 0, Collections.emptyList());
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
@@ -827,10 +827,10 @@ public class RollupJobTaskTests extends ESTestCase {
 
             SearchResponse r = mock(SearchResponse.class);
             when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
-            CompositeAggregation compositeAgg = mock(CompositeAggregation.class);
+            InternalComposite compositeAgg = mock(InternalComposite.class);
             when(compositeAgg.getBuckets()).thenReturn(Collections.emptyList());
             when(compositeAgg.getName()).thenReturn(RollupField.NAME);
-            Aggregations aggs = new Aggregations(Collections.singletonList(compositeAgg));
+            InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(compositeAgg));
             when(r.getAggregations()).thenReturn(aggs);
 
             // Wait before progressing
@@ -838,7 +838,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         RollupJobStatus status = new RollupJobStatus(IndexerState.STOPPED, null);

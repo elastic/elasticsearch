@@ -14,10 +14,6 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
  */
 public class AckWatchRequestBuilder extends ActionRequestBuilder<AckWatchRequest, AckWatchResponse> {
 
-    public AckWatchRequestBuilder(ElasticsearchClient client) {
-        super(client, AckWatchAction.INSTANCE, new AckWatchRequest());
-    }
-
     public AckWatchRequestBuilder(ElasticsearchClient client, String id) {
         super(client, AckWatchAction.INSTANCE, new AckWatchRequest(id));
     }

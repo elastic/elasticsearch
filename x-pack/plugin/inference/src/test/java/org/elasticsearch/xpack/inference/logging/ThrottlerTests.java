@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -52,7 +52,7 @@ public class ThrottlerTests extends ESTestCase {
         var logger = mock(Logger.class);
 
         try (
-            var throttled = new Throttler(
+            var throttler = new Throttler(
                 TimeValue.timeValueDays(1),
                 TimeValue.timeValueSeconds(10),
                 Clock.fixed(Instant.now(), ZoneId.systemDefault()),
@@ -60,11 +60,11 @@ public class ThrottlerTests extends ESTestCase {
                 new ConcurrentHashMap<>()
             )
         ) {
-            throttled.warn(logger, "test", new IllegalArgumentException("failed"));
+            throttler.execute("test", logger::warn);
 
-            verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
+            verify(logger, times(1)).warn(eq("test"));
 
-            throttled.warn(logger, "test", new IllegalArgumentException("failed"));
+            throttler.execute("test", logger::warn);
             verifyNoMoreInteractions(logger);
         }
     }
@@ -77,7 +77,7 @@ public class ThrottlerTests extends ESTestCase {
         var clock = mock(Clock.class);
 
         try (
-            var throttled = new Throttler(
+            var throttler = new Throttler(
                 TimeValue.timeValueDays(1),
                 TimeValue.timeValueSeconds(10),
                 clock,
@@ -88,17 +88,17 @@ public class ThrottlerTests extends ESTestCase {
             when(clock.instant()).thenReturn(now);
 
             // The first call is always logged
-            throttled.warn(logger, "test", new IllegalArgumentException("failed"));
+            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
             verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
 
             when(clock.instant()).thenReturn(now.plus(Duration.ofMinutes(1)));
             // This call should be allowed because the clock thinks it's after the duration period
-            throttled.warn(logger, "test", new IllegalArgumentException("failed"));
+            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
             verify(logger, times(2)).warn(eq("test"), any(Throwable.class));
 
             when(clock.instant()).thenReturn(now);
             // This call should not be allowed because the clock doesn't think it's pasted the wait period
-            throttled.warn(logger, "test", new IllegalArgumentException("failed"));
+            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
             verifyNoMoreInteractions(logger);
         }
     }
@@ -109,7 +109,7 @@ public class ThrottlerTests extends ESTestCase {
         var clock = mock(Clock.class);
 
         try (
-            var throttled = new Throttler(
+            var throttler = new Throttler(
                 TimeValue.timeValueDays(1),
                 TimeValue.timeValueSeconds(10),
                 clock,
@@ -117,10 +117,10 @@ public class ThrottlerTests extends ESTestCase {
                 new ConcurrentHashMap<>()
             )
         ) {
-            throttled.warn(logger, "test", new IllegalArgumentException("failed"));
-            verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
+            throttler.execute("test", logger::warn);
+            verify(logger, times(1)).warn(eq("test"));
 
-            throttled.warn(logger, "a different message", new IllegalArgumentException("failed"));
+            throttler.execute("a different message", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
             verify(logger, times(1)).warn(eq("a different message"), any(Throwable.class));
         }
     }
@@ -133,7 +133,7 @@ public class ThrottlerTests extends ESTestCase {
         var clock = mock(Clock.class);
 
         try (
-            var throttled = new Throttler(
+            var throttler = new Throttler(
                 TimeValue.timeValueDays(1),
                 TimeValue.timeValueSeconds(10),
                 clock,
@@ -143,16 +143,16 @@ public class ThrottlerTests extends ESTestCase {
         ) {
             when(clock.instant()).thenReturn(now);
             // first message is allowed
-            throttled.warn(logger, "test", new IllegalArgumentException("failed"));
-            verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
+            throttler.execute("test", logger::warn);
+            verify(logger, times(1)).warn(eq("test"));
 
             when(clock.instant()).thenReturn(now); // don't allow this message because duration hasn't expired
-            throttled.warn(logger, "test", new IllegalArgumentException("failed"));
-            verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
+            throttler.execute("test", logger::warn);
+            verify(logger, times(1)).warn(eq("test"));
 
             when(clock.instant()).thenReturn(now.plus(Duration.ofMinutes(1))); // allow this message by faking expired duration
-            throttled.warn(logger, "test", new IllegalArgumentException("failed"));
-            verify(logger, times(1)).warn(eq("test, repeated 1 time"), any(Throwable.class));
+            throttler.execute("test", logger::warn);
+            verify(logger, times(1)).warn(eq("test, repeated 1 time"));
         }
     }
 
@@ -164,7 +164,7 @@ public class ThrottlerTests extends ESTestCase {
         var clock = mock(Clock.class);
 
         try (
-            var throttled = new Throttler(
+            var throttler = new Throttler(
                 TimeValue.timeValueDays(1),
                 TimeValue.timeValueSeconds(10),
                 clock,
@@ -174,16 +174,16 @@ public class ThrottlerTests extends ESTestCase {
         ) {
             when(clock.instant()).thenReturn(now);
             // message allowed because it is the first one
-            throttled.warn(logger, "test", new IllegalArgumentException("failed"));
+            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
             verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
 
             when(clock.instant()).thenReturn(now); // don't allow these messages because duration hasn't expired
-            throttled.warn(logger, "test", new IllegalArgumentException("failed"));
-            throttled.warn(logger, "test", new IllegalArgumentException("failed"));
+            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
+            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
             verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
 
             when(clock.instant()).thenReturn(now.plus(Duration.ofMinutes(1))); // allow this message by faking the duration completion
-            throttled.warn(logger, "test", new IllegalArgumentException("failed"));
+            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
             verify(logger, times(1)).warn(eq("test, repeated 2 times"), any(Throwable.class));
         }
     }
@@ -214,7 +214,7 @@ public class ThrottlerTests extends ESTestCase {
 
         var clock = mock(Clock.class);
 
-        var throttled = new Throttler(
+        var throttler = new Throttler(
             TimeValue.timeValueDays(1),
             TimeValue.timeValueSeconds(10),
             clock,
@@ -222,8 +222,8 @@ public class ThrottlerTests extends ESTestCase {
             new ConcurrentHashMap<>()
         );
 
-        throttled.close();
-        throttled.warn(logger, "test", new IllegalArgumentException("failed"));
+        throttler.close();
+        throttler.execute("test", logger::warn);
         verifyNoMoreInteractions(logger);
     }
 }

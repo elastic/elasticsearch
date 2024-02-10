@@ -179,7 +179,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
         for (int i = 0; i < intentSize; i++) {
             ratedDocs.add(new RatedDocument(in));
         }
-        this.params = in.readMap();
+        this.params = in.readGenericMap();
         int summaryFieldsSize = in.readInt();
         summaryFields = new ArrayList<>(summaryFieldsSize);
         for (int i = 0; i < summaryFieldsSize; i++) {

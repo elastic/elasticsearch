@@ -105,7 +105,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                 .execute(() -> importModel(client, taskManager, request, modelImporter, listener, downloadTask));
         } catch (Exception e) {
             taskManager.unregister(downloadTask);
-            throw e;
+            listener.onFailure(e);
+            return;
         }
 
         if (request.isWaitForCompletion() == false) {

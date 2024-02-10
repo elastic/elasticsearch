@@ -1,0 +1,6 @@
+pr: 103610
+summary: "ESQL: allow `null` in date math"
+area: ES|QL
+type: bug
+issues:
+ - 103085

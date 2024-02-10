@@ -143,6 +143,27 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         assertTrue(LinearizabilityChecker.isLinearizable(registerSpec, history));
     }
 
+    public void testRegisterHistoryVisualisation() {
+        final History history = new History();
+        int write0 = history.invoke(42); // invoke write(42)
+        history.respond(history.invoke(null), 42); // read, returns 42
+        history.respond(write0, null); // write(42) succeeds
+
+        int write1 = history.invoke(24); // invoke write 24
+        history.respond(history.invoke(null), 42); // read returns 42
+        history.respond(history.invoke(null), 24); // subsequent read returns 24
+        history.respond(write1, null); // write(24) succeeds
+
+        assertEquals("""
+            Partition 0
+                                   42   XXX   null  (0)
+                                  null   X   42  (1)
+                                       24   XXXXX   null  (2)
+                                      null   X   42  (3)
+                                        null   X   24  (4)
+            """, LinearizabilityChecker.visualize(registerSpec, history, o -> { throw new AssertionError("history was complete"); }));
+    }
+
     public void testRegisterWithNonLinearizableHistory() throws LinearizabilityCheckAborted {
         final History history = new History();
         int call0 = history.invoke(42); // 0: invoke write 42

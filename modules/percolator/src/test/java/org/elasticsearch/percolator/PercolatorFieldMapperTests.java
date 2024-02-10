@@ -81,6 +81,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DummyQueryParserPlugin;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -268,76 +269,79 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExtractRanges() throws Exception {
-        SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
-        addQueryFieldMappings();
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        Query rangeQuery1 = mapperService.fieldType("number_field1").rangeQuery(10, 20, true, true, null, null, null, context);
-        bq.add(rangeQuery1, Occur.MUST);
-        Query rangeQuery2 = mapperService.fieldType("number_field1").rangeQuery(15, 20, true, true, null, null, null, context);
-        bq.add(rangeQuery2, Occur.MUST);
+        try (SearchContext searchContext = createSearchContext(indexService)) {
+            SearchExecutionContext context = searchContext.getSearchExecutionContext();
+            addQueryFieldMappings();
+            BooleanQuery.Builder bq = new BooleanQuery.Builder();
+            Query rangeQuery1 = mapperService.fieldType("number_field1").rangeQuery(10, 20, true, true, null, null, null, context);
+            bq.add(rangeQuery1, Occur.MUST);
+            Query rangeQuery2 = mapperService.fieldType("number_field1").rangeQuery(15, 20, true, true, null, null, null, context);
+            bq.add(rangeQuery2, Occur.MUST);
 
-        DocumentMapper documentMapper = mapperService.documentMapper();
-        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
-        DocumentParserContext documentParserContext = new TestDocumentParserContext();
-        fieldMapper.processQuery(bq.build(), documentParserContext);
-        LuceneDocument document = documentParserContext.doc();
+            DocumentMapper documentMapper = mapperService.documentMapper();
+            PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
+            DocumentParserContext documentParserContext = new TestDocumentParserContext();
+            fieldMapper.processQuery(bq.build(), documentParserContext);
+            LuceneDocument document = documentParserContext.doc();
 
-        PercolatorFieldMapper.PercolatorFieldType percolatorFieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
-        assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
-        List<IndexableField> fields = new ArrayList<>(document.getFields(percolatorFieldType.rangeField.name()));
-        fields.sort(Comparator.comparing(IndexableField::binaryValue));
-        assertThat(
-            fields,
-            transformedItemsMatch(
-                b -> b.binaryValue().bytes,
-                contains(
-                    allOf(
-                        transformedMatch(b -> IntPoint.decodeDimension(b, 12), equalTo(10)),
-                        transformedMatch(b -> IntPoint.decodeDimension(b, 28), equalTo(20))
-                    ),
-                    allOf(
-                        transformedMatch(b -> IntPoint.decodeDimension(b, 12), equalTo(15)),
-                        transformedMatch(b -> IntPoint.decodeDimension(b, 28), equalTo(20))
+            PercolatorFieldMapper.PercolatorFieldType percolatorFieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper
+                .fieldType();
+            assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+            List<IndexableField> fields = new ArrayList<>(document.getFields(percolatorFieldType.rangeField.name()));
+            fields.sort(Comparator.comparing(IndexableField::binaryValue));
+            assertThat(
+                fields,
+                transformedItemsMatch(
+                    b -> b.binaryValue().bytes,
+                    contains(
+                        allOf(
+                            transformedMatch(b -> IntPoint.decodeDimension(b, 12), equalTo(10)),
+                            transformedMatch(b -> IntPoint.decodeDimension(b, 28), equalTo(20))
+                        ),
+                        allOf(
+                            transformedMatch(b -> IntPoint.decodeDimension(b, 12), equalTo(15)),
+                            transformedMatch(b -> IntPoint.decodeDimension(b, 28), equalTo(20))
+                        )
                     )
                 )
-            )
-        );
+            );
 
-        fields = new ArrayList<>(document.getFields(percolatorFieldType.minimumShouldMatchField.name()));
-        assertThat(fields, transformedItemsMatch(IndexableField::numericValue, contains(1L)));
+            fields = new ArrayList<>(document.getFields(percolatorFieldType.minimumShouldMatchField.name()));
+            assertThat(fields, transformedItemsMatch(IndexableField::numericValue, contains(1L)));
 
-        // Range queries on different fields:
-        bq = new BooleanQuery.Builder();
-        bq.add(rangeQuery1, Occur.MUST);
-        rangeQuery2 = mapperService.fieldType("number_field2").rangeQuery(15, 20, true, true, null, null, null, context);
-        bq.add(rangeQuery2, Occur.MUST);
+            // Range queries on different fields:
+            bq = new BooleanQuery.Builder();
+            bq.add(rangeQuery1, Occur.MUST);
+            rangeQuery2 = mapperService.fieldType("number_field2").rangeQuery(15, 20, true, true, null, null, null, context);
+            bq.add(rangeQuery2, Occur.MUST);
 
-        documentParserContext = new TestDocumentParserContext();
-        fieldMapper.processQuery(bq.build(), documentParserContext);
-        document = documentParserContext.doc();
+            documentParserContext = new TestDocumentParserContext();
+            fieldMapper.processQuery(bq.build(), documentParserContext);
+            document = documentParserContext.doc();
 
-        assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
-        fields = new ArrayList<>(document.getFields(percolatorFieldType.rangeField.name()));
-        fields.sort(Comparator.comparing(IndexableField::binaryValue));
-        assertThat(
-            fields,
-            transformedItemsMatch(
-                b -> b.binaryValue().bytes,
-                contains(
-                    allOf(
-                        transformedMatch(b -> IntPoint.decodeDimension(b, 12), equalTo(10)),
-                        transformedMatch(b -> IntPoint.decodeDimension(b, 28), equalTo(20))
-                    ),
-                    allOf(
-                        transformedMatch(b -> LongPoint.decodeDimension(b, 8), equalTo(15L)),
-                        transformedMatch(b -> LongPoint.decodeDimension(b, 24), equalTo(20L))
+            assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+            fields = new ArrayList<>(document.getFields(percolatorFieldType.rangeField.name()));
+            fields.sort(Comparator.comparing(IndexableField::binaryValue));
+            assertThat(
+                fields,
+                transformedItemsMatch(
+                    b -> b.binaryValue().bytes,
+                    contains(
+                        allOf(
+                            transformedMatch(b -> IntPoint.decodeDimension(b, 12), equalTo(10)),
+                            transformedMatch(b -> IntPoint.decodeDimension(b, 28), equalTo(20))
+                        ),
+                        allOf(
+                            transformedMatch(b -> LongPoint.decodeDimension(b, 8), equalTo(15L)),
+                            transformedMatch(b -> LongPoint.decodeDimension(b, 24), equalTo(20L))
+                        )
                     )
                 )
-            )
-        );
+            );
 
-        fields = new ArrayList<>(document.getFields(percolatorFieldType.minimumShouldMatchField.name()));
-        assertThat(fields, transformedItemsMatch(IndexableField::numericValue, contains(2L)));
+            fields = new ArrayList<>(document.getFields(percolatorFieldType.minimumShouldMatchField.name()));
+            assertThat(fields, transformedItemsMatch(IndexableField::numericValue, contains(2L)));
+        }
     }
 
     public void testExtractTermsAndRanges_failed() throws Exception {
@@ -616,7 +620,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testQueryWithRewrite() throws Exception {
         addQueryFieldMappings();
-        client().prepareIndex("remote").setId("1").setSource("field", "value").get();
+        prepareIndex("remote").setId("1").setSource("field", "value").get();
         QueryBuilder queryBuilder = termsLookupQuery("field", new TermsLookup("remote", "1", "field"));
         ParsedDocument doc = mapperService.documentMapper()
             .parse(

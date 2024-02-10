@@ -96,7 +96,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
     private static final Logger logger = LogManager.getLogger(RepositoryAnalyzeAction.class);
 
-    public static final ActionType<RepositoryAnalyzeAction.Response> INSTANCE = ActionType.localOnly("cluster:admin/repository/analyze");
+    public static final ActionType<RepositoryAnalyzeAction.Response> INSTANCE = new ActionType<>("cluster:admin/repository/analyze");
 
     static final String UNCONTENDED_REGISTER_NAME_PREFIX = "test-register-uncontended-";
     static final String CONTENDED_REGISTER_NAME_PREFIX = "test-register-contended-";
@@ -422,6 +422,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         }
 
         private void fail(Exception e) {
+            logger.trace(() -> Strings.format("repository analysis in [%s] failed", blobPath), e);
             if (setFirstFailure(e) == false) {
                 if (innerFailures.tryAcquire()) {
                     final Throwable cause = ExceptionsHelper.unwrapCause(e);
@@ -488,7 +489,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                         )
                     )
                 ) {
-                    final int registerOperations = Math.max(nodes.size(), request.getConcurrency());
+                    final int registerOperations = Math.max(nodes.size(), request.getRegisterOperationCount());
                     for (int i = 0; i < registerOperations; i++) {
                         final ContendedRegisterAnalyzeAction.Request registerAnalyzeRequest = new ContendedRegisterAnalyzeAction.Request(
                             request.getRepositoryName(),
@@ -503,7 +504,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     }
                 }
 
-                if (minClusterTransportVersion.onOrAfter(TransportVersions.UNCONTENDED_REGISTER_ANALYSIS_ADDED)) {
+                if (minClusterTransportVersion.onOrAfter(TransportVersions.V_8_12_0)) {
                     new UncontendedRegisterAnalysis(new Random(random.nextLong()), nodes, contendedRegisterAnalysisComplete).run();
                 }
             }
@@ -730,23 +731,47 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     return;
                 }
 
-                // complete at least request.getConcurrency() steps, but we may as well keep running for longer too
-                if (currentValue > request.getConcurrency() && otherAnalysisComplete.get()) {
-                    return;
+                if (currentValue <= request.getRegisterOperationCount() || otherAnalysisComplete.get() == false) {
+                    // complete at least request.getRegisterOperationCount() steps, but we may as well keep running for longer too
+                    logger.trace("[{}] incrementing uncontended register [{}] from [{}]", blobPath, registerName, currentValue);
+                    transportService.sendChildRequest(
+                        nodes.get(currentValue < nodes.size() ? currentValue : random.nextInt(nodes.size())),
+                        UncontendedRegisterAnalyzeAction.NAME,
+                        new UncontendedRegisterAnalyzeAction.Request(request.getRepositoryName(), blobPath, registerName, currentValue),
+                        task,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(
+                            ActionListener.releaseAfter(stepListener, requestRefs.acquire()),
+                            in -> ActionResponse.Empty.INSTANCE,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        )
+                    );
+                } else {
+                    logger.trace("[{}] resetting uncontended register [{}] from [{}]", blobPath, registerName, currentValue);
+                    transportService.getThreadPool()
+                        .executor(ThreadPool.Names.SNAPSHOT)
+                        .execute(
+                            ActionRunnable.<Void>wrap(
+                                ActionListener.releaseAfter(
+                                    ActionListener.wrap(
+                                        r -> logger.trace("[{}] uncontended register [{}] analysis succeeded", blobPath, registerName),
+                                        AsyncAction.this::fail
+                                    ),
+                                    requestRefs.acquire()
+                                ),
+                                l -> UncontendedRegisterAnalyzeAction.verifyFinalValue(
+                                    new UncontendedRegisterAnalyzeAction.Request(
+                                        request.getRepositoryName(),
+                                        blobPath,
+                                        registerName,
+                                        currentValue
+                                    ),
+                                    repository,
+                                    l
+                                )
+                            )
+                        );
                 }
-
-                transportService.sendChildRequest(
-                    nodes.get(currentValue < nodes.size() ? currentValue : random.nextInt(nodes.size())),
-                    UncontendedRegisterAnalyzeAction.NAME,
-                    new UncontendedRegisterAnalyzeAction.Request(request.getRepositoryName(), blobPath, registerName, currentValue),
-                    task,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(
-                        ActionListener.releaseAfter(stepListener, requestRefs.acquire()),
-                        in -> ActionResponse.Empty.INSTANCE,
-                        TransportResponseHandler.TRANSPORT_WORKER
-                    )
-                );
             }
         }
 
@@ -865,6 +890,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
         private int blobCount = 100;
         private int concurrency = 10;
+        private int registerOperationCount = 10;
         private int readNodeCount = 10;
         private int earlyReadNodeCount = 2;
         private long seed = 0L;
@@ -887,6 +913,11 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             rareActionProbability = in.readDouble();
             blobCount = in.readVInt();
             concurrency = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                registerOperationCount = in.readVInt();
+            } else {
+                registerOperationCount = concurrency;
+            }
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
             timeout = in.readTimeValue();
@@ -914,6 +945,15 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             out.writeDouble(rareActionProbability);
             out.writeVInt(blobCount);
             out.writeVInt(concurrency);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                out.writeVInt(registerOperationCount);
+            } else if (registerOperationCount != concurrency) {
+                throw new IllegalArgumentException(
+                    "cannot send request with registerOperationCount != concurrency on transport version ["
+                        + out.getTransportVersion()
+                        + "]"
+                );
+            }
             out.writeVInt(readNodeCount);
             out.writeVInt(earlyReadNodeCount);
             out.writeTimeValue(timeout);
@@ -924,7 +964,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeBoolean(abortWritePermitted);
             } else if (abortWritePermitted) {
-                throw new IllegalStateException(
+                throw new IllegalArgumentException(
                     "cannot send abortWritePermitted request on transport version [" + out.getTransportVersion() + "]"
                 );
             }
@@ -951,6 +991,13 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 throw new IllegalArgumentException("concurrency must be >0, but was [" + concurrency + "]");
             }
             this.concurrency = concurrency;
+        }
+
+        public void registerOperationCount(int registerOperationCount) {
+            if (registerOperationCount <= 0) {
+                throw new IllegalArgumentException("registerOperationCount must be >0, but was [" + registerOperationCount + "]");
+            }
+            this.registerOperationCount = registerOperationCount;
         }
 
         public void seed(long seed) {
@@ -985,6 +1032,10 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
         public int getConcurrency() {
             return concurrency;
+        }
+
+        public int getRegisterOperationCount() {
+            return registerOperationCount;
         }
 
         public String getRepositoryName() {

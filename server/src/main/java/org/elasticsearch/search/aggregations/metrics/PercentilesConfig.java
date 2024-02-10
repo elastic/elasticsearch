@@ -46,19 +46,6 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         return method.configFromStream(in);
     }
 
-    /**
-     * Deprecated: construct a {@link PercentilesConfig} directly instead
-     */
-    @Deprecated
-    public static PercentilesConfig fromLegacy(PercentilesMethod method, double compression, int numberOfSignificantDigits) {
-        if (method.equals(PercentilesMethod.TDIGEST)) {
-            return new TDigest(compression);
-        } else if (method.equals(PercentilesMethod.HDR)) {
-            return new Hdr(numberOfSignificantDigits);
-        }
-        throw new IllegalArgumentException("Unsupported percentiles algorithm [" + method + "]");
-    }
-
     public PercentilesMethod getMethod() {
         return method;
     }
@@ -143,7 +130,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         TDigest(StreamInput in) throws IOException {
             this(
                 in.readDouble(),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
                     ? in.readOptionalWriteable(TDigestExecutionHint::readFrom)
                     : TDigestExecutionHint.HIGH_ACCURACY
             );
@@ -248,7 +235,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeDouble(compression);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(executionHint);
             }
         }

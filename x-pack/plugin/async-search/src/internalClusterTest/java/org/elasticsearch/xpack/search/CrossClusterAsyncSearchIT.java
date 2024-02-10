@@ -11,9 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -50,10 +48,10 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
@@ -158,11 +156,12 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             request.getSearchRequest().searchType(SearchType.DFS_QUERY_THEN_FETCH);
         }
 
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
-        assertTrue(response.isRunning());
-
-        {
+        final String responseId;
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            responseId = response.getId();
+            assertNotNull(response.getSearchResponse());
+            assertTrue(response.isRunning());
             SearchResponse.Clusters clusters = response.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
             assertTrue("search cluster results should be marked as partial", clusters.hasPartialResults());
@@ -174,14 +173,16 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(remoteClusterSearchInfo);
             assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+        } finally {
+            response.decRef();
         }
 
         SearchListenerPlugin.waitSearchStarted();
         SearchListenerPlugin.allowQueryPhase();
 
         waitForSearchTasksToFinish();
-        {
-            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        final AsyncSearchResponse finishedResponse = getAsyncSearch(responseId);
+        try {
             assertFalse(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
@@ -212,11 +213,13 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
             assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
+        } finally {
+            finishedResponse.decRef();
         }
 
         // check that the async_search/status response includes the same cluster details
         {
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            AsyncStatusResponse statusResponse = getAsyncStatus(responseId);
             assertFalse(statusResponse.isPartial());
 
             SearchResponse.Clusters clusters = statusResponse.getClusters();
@@ -277,11 +280,12 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(request.getSearchRequest());
 
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
-        assertTrue(response.isRunning());
-
-        {
+        final String responseId;
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            responseId = response.getId();
+            assertNotNull(response.getSearchResponse());
+            assertTrue(response.isRunning());
             SearchResponse.Clusters clusters = response.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
             assertTrue("search cluster results should be marked as partial", clusters.hasPartialResults());
@@ -293,14 +297,16 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(remoteClusterSearchInfo);
             assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+        } finally {
+            response.decRef();
         }
 
         SearchListenerPlugin.waitSearchStarted();
         SearchListenerPlugin.allowQueryPhase();
 
         waitForSearchTasksToFinish();
-        {
-            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        final AsyncSearchResponse finishedResponse = getAsyncSearch(responseId);
+        try {
             assertNotNull(finishedResponse);
             assertFalse(finishedResponse.isPartial());
 
@@ -342,9 +348,11 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
             assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThanOrEqualTo(0L));
+        } finally {
+            finishedResponse.decRef();
         }
         {
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            AsyncStatusResponse statusResponse = getAsyncStatus(responseId);
             assertNotNull(statusResponse);
             assertFalse(statusResponse.isPartial());
 
@@ -414,13 +422,17 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(request.getSearchRequest());
 
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
-
-        waitForSearchTasksToFinish();
-
-        {
-            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        final String responseId;
+        try {
+            assertNotNull(response.getSearchResponse());
+            waitForSearchTasksToFinish();
+            responseId = response.getId();
+        } finally {
+            response.decRef();
+        }
+        final AsyncSearchResponse finishedResponse = getAsyncSearch(responseId);
+        try {
             assertTrue(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
@@ -448,6 +460,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 : SearchResponse.Cluster.Status.FAILED;
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
             assertAllShardsFailed(minimizeRoundtrips, remoteClusterSearchInfo, remoteNumShards);
+        } finally {
+            finishedResponse.decRef();
         }
         // check that the async_search/status response includes the same cluster details
         {
@@ -506,11 +520,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), 0);
         request.getSearchRequest().source(new SearchSourceBuilder().query(queryBuilder).size(10));
 
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
-        assertTrue(response.isRunning());
-
-        {
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            assertNotNull(response.getSearchResponse());
+            assertTrue(response.isRunning());
             SearchResponse.Clusters clusters = response.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
             assertTrue("search cluster results should be marked as partial", clusters.hasPartialResults());
@@ -522,6 +535,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(remoteClusterSearchInfo);
             assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+        } finally {
+            response.decRef();
         }
 
         SearchListenerPlugin.waitSearchStarted();
@@ -529,8 +544,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         waitForSearchTasksToFinish();
 
-        {
-            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        final AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        try {
             assertTrue(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
@@ -564,6 +579,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
             ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
             assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        } finally {
+            finishedResponse.decRef();
         }
         // check that the async_search/status response includes the same cluster details
         {
@@ -636,10 +653,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(request.getSearchRequest());
 
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
-        assertTrue(response.isRunning());
-        {
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            assertNotNull(response.getSearchResponse());
+            assertTrue(response.isRunning());
             SearchResponse.Clusters clusters = response.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
             assertTrue("search cluster results should be marked as partial", clusters.hasPartialResults());
@@ -651,6 +668,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(remoteClusterSearchInfo);
             assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+        } finally {
+            response.decRef();
         }
 
         SearchListenerPlugin.waitSearchStarted();
@@ -658,8 +677,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         waitForSearchTasksToFinish();
 
-        {
-            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        final AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        try {
             assertTrue(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
@@ -708,6 +727,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertFalse(remoteClusterSearchInfo.isTimedOut());
             ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
             assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        } finally {
+            finishedResponse.decRef();
         }
         // check that the async_search/status response includes the same cluster details
         {
@@ -781,15 +802,16 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             request.getSearchRequest().searchType(SearchType.DFS_QUERY_THEN_FETCH);
         }
 
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
-        assertTrue(response.isRunning());
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            assertNotNull(response.getSearchResponse());
+            assertTrue(response.isRunning());
 
-        boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(request.getSearchRequest());
+            boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(request.getSearchRequest());
 
-        assertNotNull(response.getSearchResponse());
-        assertTrue(response.isRunning());
-        {
+            assertNotNull(response.getSearchResponse());
+            assertTrue(response.isRunning());
+
             SearchResponse.Clusters clusters = response.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
             assertTrue("search cluster results should be marked as partial", clusters.hasPartialResults());
@@ -801,6 +823,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(remoteClusterSearchInfo);
             assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+        } finally {
+            response.decRef();
         }
 
         SearchListenerPlugin.waitSearchStarted();
@@ -808,8 +832,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         waitForSearchTasksToFinish();
 
-        {
-            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        final AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        try {
             assertFalse(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
@@ -840,6 +864,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
             assertNotNull(remoteClusterSearchInfo.getTook());
             assertFalse(remoteClusterSearchInfo.isTimedOut());
+        } finally {
+            finishedResponse.decRef();
         }
         // check that the async_search/status response includes the same cluster details
         {
@@ -903,13 +929,18 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             request.getSearchRequest().searchType(SearchType.DFS_QUERY_THEN_FETCH);
         }
 
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
+        final String responseId;
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            assertNotNull(response.getSearchResponse());
+            waitForSearchTasksToFinish();
+            responseId = response.getId();
+        } finally {
+            response.decRef();
+        }
 
-        waitForSearchTasksToFinish();
-
-        {
-            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        final AsyncSearchResponse finishedResponse = getAsyncSearch(responseId);
+        try {
             assertTrue(finishedResponse.getSearchResponse().isTimedOut());
             assertTrue(finishedResponse.isPartial());
 
@@ -944,10 +975,12 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThanOrEqualTo(0L));
             assertTrue(remoteClusterSearchInfo.isTimedOut());
+        } finally {
+            finishedResponse.decRef();
         }
         // check that the async_search/status response includes the same cluster details
         {
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            AsyncStatusResponse statusResponse = getAsyncStatus(responseId);
             assertTrue(statusResponse.isPartial());
 
             SearchResponse.Clusters clusters = statusResponse.getClusters();
@@ -1007,13 +1040,19 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
         request.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
 
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
+        final String responseId;
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            assertNotNull(response.getSearchResponse());
+            responseId = response.getId();
+        } finally {
+            response.decRef();
+        }
 
         waitForSearchTasksToFinish();
 
-        {
-            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        final AsyncSearchResponse finishedResponse = getAsyncSearch(responseId);
+        try {
             assertFalse(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
@@ -1036,11 +1075,13 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
             assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
+        } finally {
+            finishedResponse.decRef();
         }
 
         // check that the async_search/status response includes the same cluster details
         {
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            AsyncStatusResponse statusResponse = getAsyncStatus(responseId);
             assertFalse(statusResponse.isPartial());
 
             SearchResponse.Clusters clusters = statusResponse.getClusters();
@@ -1090,13 +1131,16 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), 0);
         request.getSearchRequest().source(new SearchSourceBuilder().query(queryBuilder).size(10));
 
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
-
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            assertNotNull(response.getSearchResponse());
+        } finally {
+            response.decRef();
+        }
         waitForSearchTasksToFinish();
 
-        {
-            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        final AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        try {
             assertTrue(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
@@ -1120,6 +1164,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
             ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
             assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        } finally {
+            finishedResponse.decRef();
         }
         // check that the async_search/status response includes the same cluster details
         {
@@ -1178,12 +1224,16 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(request.getSearchRequest());
 
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            assertNotNull(response.getSearchResponse());
+        } finally {
+            response.decRef();
+        }
 
         waitForSearchTasksToFinish();
-        {
-            AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        final AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+        try {
             assertTrue(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
@@ -1208,6 +1258,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 : SearchResponse.Cluster.Status.FAILED;
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
             assertAllShardsFailed(minimizeRoundtrips, remoteClusterSearchInfo, remoteNumShards);
+        } finally {
+            finishedResponse.decRef();
         }
         // check that the async_search/status response includes the same cluster details
         {
@@ -1238,7 +1290,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100957")
     public void testCancelViaTasksAPI() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
@@ -1256,18 +1307,22 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         request.getSearchRequest().allowPartialSearchResults(false);
         request.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
 
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
-        assertTrue(response.isRunning());
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            assertNotNull(response.getSearchResponse());
+        } finally {
+            response.decRef();
+            assertTrue(response.isRunning());
+        }
 
         SearchListenerPlugin.waitSearchStarted();
 
-        ActionFuture<CancelTasksResponse> cancelFuture;
+        ActionFuture<ListTasksResponse> cancelFuture;
         try {
             ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> tasks = listTasksResponse.getTasks();
             assertThat(tasks.size(), equalTo(1));
@@ -1281,7 +1336,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                     .get()
                     .getTasks()
                     .stream()
-                    .filter(t -> t.action().contains(SearchAction.NAME))
+                    .filter(t -> t.action().contains(TransportSearchAction.TYPE.name()))
                     .collect(Collectors.toList());
                 assertThat(remoteSearchTasks.size(), greaterThan(0));
                 remoteClusterSearchTasks.set(remoteSearchTasks);
@@ -1299,7 +1354,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 for (TransportService transportService : transportServices) {
                     Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
                     for (CancellableTask cancellableTask : cancellableTasks) {
-                        if (cancellableTask.getAction().contains(SearchAction.INSTANCE.name())) {
+                        if (cancellableTask.getAction().contains(TransportSearchAction.TYPE.name())) {
                             assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
                         }
                     }
@@ -1312,26 +1367,28 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 .get()
                 .getTasks()
                 .stream()
-                .filter(t -> t.action().contains(SearchAction.INSTANCE.name()))
+                .filter(t -> t.action().contains(TransportSearchAction.TYPE.name()))
                 .toList();
             for (TaskInfo taskInfo : remoteSearchTasksAfterCancellation) {
                 assertTrue(taskInfo.description(), taskInfo.cancelled());
             }
 
             // check async search status before allowing query to continue but after cancellation
-            AsyncSearchResponse searchResponseAfterCancellation = getAsyncSearch(response.getId());
-            assertTrue(searchResponseAfterCancellation.isPartial());
-            assertTrue(searchResponseAfterCancellation.isRunning());
-            assertFalse(searchResponseAfterCancellation.getSearchResponse().isTimedOut());
-            assertThat(searchResponseAfterCancellation.getSearchResponse().getClusters().getTotal(), equalTo(2));
-            assertThat(searchResponseAfterCancellation.getSearchResponse().getFailedShards(), equalTo(0));
+            final AsyncSearchResponse searchResponseAfterCancellation = getAsyncSearch(response.getId());
+            try {
+                assertTrue(searchResponseAfterCancellation.isPartial());
+                assertTrue(searchResponseAfterCancellation.isRunning());
+                assertFalse(searchResponseAfterCancellation.getSearchResponse().isTimedOut());
+                assertThat(searchResponseAfterCancellation.getSearchResponse().getClusters().getTotal(), equalTo(2));
 
-            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
-            assertTrue(statusResponse.isPartial());
-            assertTrue(statusResponse.isRunning());
-            assertThat(statusResponse.getClusters().getTotal(), equalTo(2));
-            assertThat(statusResponse.getFailedShards(), equalTo(0));
-            assertNull(statusResponse.getCompletionStatus());
+                AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+                assertTrue(statusResponse.isPartial());
+                assertTrue(statusResponse.isRunning());
+                assertThat(statusResponse.getClusters().getTotal(), equalTo(2));
+                assertNull(statusResponse.getCompletionStatus());
+            } finally {
+                searchResponseAfterCancellation.decRef();
+            }
 
         } finally {
             SearchListenerPlugin.allowQueryPhase();
@@ -1345,24 +1402,24 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertTrue(statusResponseAfterCompletion.isPartial());
         assertFalse(statusResponseAfterCompletion.isRunning());
         assertThat(statusResponseAfterCompletion.getClusters().getTotal(), equalTo(2));
-        assertThat(statusResponseAfterCompletion.getFailedShards(), greaterThan(0));
         assertThat(statusResponseAfterCompletion.getCompletionStatus(), equalTo(RestStatus.BAD_REQUEST));
 
-        AsyncSearchResponse searchResponseAfterCompletion = getAsyncSearch(response.getId());
-        assertTrue(searchResponseAfterCompletion.isPartial());
-        assertFalse(searchResponseAfterCompletion.isRunning());
-        assertFalse(searchResponseAfterCompletion.getSearchResponse().isTimedOut());
-        assertThat(searchResponseAfterCompletion.getSearchResponse().getClusters().getTotal(), equalTo(2));
-        assertThat(searchResponseAfterCompletion.getSearchResponse().getFailedShards(), greaterThan(0));
-        Throwable cause = ExceptionsHelper.unwrap(searchResponseAfterCompletion.getFailure(), TaskCancelledException.class);
-        assertNotNull("TaskCancelledException should be in the causal chain", cause);
-        ShardSearchFailure[] shardFailures = searchResponseAfterCompletion.getSearchResponse().getShardFailures();
-        assertThat(shardFailures.length, greaterThan(0));
-        String json = Strings.toString(
-            ChunkedToXContent.wrapAsToXContent(searchResponseAfterCompletion)
-                .toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
-        );
-        assertThat(json, matchesRegex(".*task (was)?\s*cancelled.*"));
+        final AsyncSearchResponse searchResponseAfterCompletion = getAsyncSearch(response.getId());
+        try {
+            assertTrue(searchResponseAfterCompletion.isPartial());
+            assertFalse(searchResponseAfterCompletion.isRunning());
+            assertFalse(searchResponseAfterCompletion.getSearchResponse().isTimedOut());
+            assertThat(searchResponseAfterCompletion.getSearchResponse().getClusters().getTotal(), equalTo(2));
+            Throwable cause = ExceptionsHelper.unwrap(searchResponseAfterCompletion.getFailure(), TaskCancelledException.class);
+            assertNotNull("TaskCancelledException should be in the causal chain", cause);
+            String json = Strings.toString(
+                ChunkedToXContent.wrapAsToXContent(searchResponseAfterCompletion)
+                    .toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
+            );
+            assertThat(json, matchesRegex(".*task (was)?\s*cancelled.*"));
+        } finally {
+            searchResponseAfterCompletion.decRef();
+        }
     }
 
     public void testCancelViaAsyncSearchDelete() throws Exception {
@@ -1382,9 +1439,13 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         request.getSearchRequest().allowPartialSearchResults(false);
         request.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
 
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
-        assertTrue(response.isRunning());
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            assertNotNull(response.getSearchResponse());
+            assertTrue(response.isRunning());
+        } finally {
+            response.decRef();
+        }
 
         SearchListenerPlugin.waitSearchStarted();
 
@@ -1392,7 +1453,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> tasks = listTasksResponse.getTasks();
             assertThat(tasks.size(), equalTo(1));
@@ -1405,7 +1466,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                     .get()
                     .getTasks()
                     .stream()
-                    .filter(t -> t.action().contains(SearchAction.NAME))
+                    .filter(t -> t.action().contains(TransportSearchAction.TYPE.name()))
                     .collect(Collectors.toList());
                 assertThat(remoteSearchTasks.size(), greaterThan(0));
                 remoteClusterSearchTasks.set(remoteSearchTasks);
@@ -1423,7 +1484,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 for (TransportService transportService : transportServices) {
                     Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
                     for (CancellableTask cancellableTask : cancellableTasks) {
-                        if (cancellableTask.getAction().contains(SearchAction.INSTANCE.name())) {
+                        if (cancellableTask.getAction().contains(TransportSearchAction.TYPE.name())) {
                             assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
                         }
                     }
@@ -1436,7 +1497,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 .get()
                 .getTasks()
                 .stream()
-                .filter(t -> t.action().contains(SearchAction.INSTANCE.name()))
+                .filter(t -> t.action().contains(TransportSearchAction.TYPE.name()))
                 .toList();
             for (TaskInfo taskInfo : remoteSearchTasksAfterCancellation) {
                 assertTrue(taskInfo.description(), taskInfo.cancelled());
@@ -1452,7 +1513,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertTrue(statusResponse.isPartial());
             assertTrue(statusResponse.isRunning());
             assertThat(statusResponse.getClusters().getTotal(), equalTo(2));
-            assertThat(statusResponse.getFailedShards(), equalTo(0));
             assertNull(statusResponse.getCompletionStatus());
         } finally {
             SearchListenerPlugin.allowQueryPhase();
@@ -1486,9 +1546,13 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         request.setKeepOnCompletion(true);
 
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
-        assertTrue(response.isRunning());
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            assertNotNull(response.getSearchResponse());
+            assertTrue(response.isRunning());
+        } finally {
+            response.decRef();
+        }
 
         SearchListenerPlugin.waitSearchStarted();
 
@@ -1497,7 +1561,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> tasks = listTasksResponse.getTasks();
             assertThat(tasks.size(), equalTo(1));
@@ -1510,7 +1574,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                     .get()
                     .getTasks()
                     .stream()
-                    .filter(t -> t.action().contains(SearchAction.NAME))
+                    .filter(t -> t.action().contains(TransportSearchAction.TYPE.name()))
                     .collect(Collectors.toList());
                 assertThat(remoteSearchTasks.size(), greaterThan(0));
                 remoteClusterSearchTasks.set(remoteSearchTasks);
@@ -1532,7 +1596,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> tasks = listTasksResponse.getTasks();
             assertThat(tasks.size(), equalTo(0));
@@ -1540,7 +1604,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ListTasksResponse remoteTasksResponse = client(REMOTE_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> remoteTasks = remoteTasksResponse.getTasks();
             assertThat(remoteTasks.size(), equalTo(0));
@@ -1562,7 +1626,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> tasks = listTasksResponse.getTasks();
             assertThat(tasks.size(), equalTo(0));
@@ -1570,7 +1634,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ListTasksResponse remoteTasksResponse = client(REMOTE_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> remoteTasks = remoteTasksResponse.getTasks();
             assertThat(remoteTasks.size(), equalTo(0));
@@ -1617,7 +1681,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     }
 
     protected AcknowledgedResponse deleteAsyncSearch(String id) throws ExecutionException, InterruptedException {
-        return client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(id)).get();
+        return client().execute(TransportDeleteAsyncResultAction.TYPE, new DeleteAsyncResultRequest(id)).get();
     }
 
     private Map<String, Object> setupTwoClusters() {

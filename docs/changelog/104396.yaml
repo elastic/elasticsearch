@@ -1,0 +1,5 @@
+pr: 104396
+summary: Report current master in `PeerFinder`
+area: Cluster Coordination
+type: enhancement
+issues: []

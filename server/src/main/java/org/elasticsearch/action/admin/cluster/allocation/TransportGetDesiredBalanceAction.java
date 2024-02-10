@@ -9,6 +9,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -42,6 +43,7 @@ import java.util.OptionalLong;
 
 public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAction<DesiredBalanceRequest, DesiredBalanceResponse> {
 
+    public static final ActionType<DesiredBalanceResponse> TYPE = new ActionType<>("cluster:admin/desired_balance/get");
     @Nullable
     private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator;
     private final ClusterInfoService clusterInfoService;
@@ -59,7 +61,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         WriteLoadForecaster writeLoadForecaster
     ) {
         super(
-            GetDesiredBalanceAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

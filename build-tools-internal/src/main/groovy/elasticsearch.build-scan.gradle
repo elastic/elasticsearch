@@ -98,7 +98,8 @@ buildScan {
       def branch = System.getenv('BUILDKITE_PULL_REQUEST_BASE_BRANCH') ?: System.getenv('BUILDKITE_BRANCH')
       def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
       def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"
-      def jobName = (System.getenv('BUILDKITE_LABEL') ?: '').replaceAll(/[^a-zA-Z0-9_\-]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
+      def jobLabel = System.getenv('BUILDKITE_LABEL') ?: ''
+      def jobName = safeName(jobLabel)
 
       tag 'CI'
       link 'CI Build', "${buildKiteUrl}#${System.getenv('BUILDKITE_JOB_ID')}"
@@ -111,6 +112,11 @@ buildScan {
 
       value 'Job Name', jobName
       tag jobName
+      if (jobLabel.contains("/")) {
+        jobLabel.split("/").collect {safeName(it) }.each {matrix ->
+          tag matrix
+        }
+      }
 
       if (branch) {
         tag branch
@@ -132,6 +138,7 @@ buildScan {
       }
 
       buildFinished { result ->
+
         buildScanPublished { scan ->
           // Attach build scan link as build metadata
           // See: https://buildkite.com/docs/pipelines/build-meta-data
@@ -142,22 +149,25 @@ buildScan {
           // Add a build annotation
           // See: https://buildkite.com/docs/agent/v3/cli-annotate
           def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: ${result.failure ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
-          new ProcessBuilder(
+          def process = [
             'buildkite-agent',
             'annotate',
             '--context',
             result.failure ? 'gradle-build-scans-failed' : 'gradle-build-scans',
             '--append',
             '--style',
-            result.failure ? 'error' : 'info',
-            body
-          )
-            .start()
-            .waitFor()
+            result.failure ? 'error' : 'info'
+          ].execute()
+          process.withWriter { it.write(body) } // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
+          process.waitFor()
         }
       }
     } else {
       tag 'LOCAL'
     }
   }
+}
+
+static def safeName(String string) {
+  return string.replaceAll(/[^a-zA-Z0-9_\-\.]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
 }

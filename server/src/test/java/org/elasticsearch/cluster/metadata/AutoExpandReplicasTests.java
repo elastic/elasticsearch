@@ -8,11 +8,9 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -211,79 +208,6 @@ public class AutoExpandReplicasTests extends ESTestCase {
                     assertTrue("Shard should be active: " + shardRouting, shardRouting.active());
                 }
             });
-        } finally {
-            terminate(threadPool);
-        }
-    }
-
-    public void testOnlyAutoExpandAllocationFilteringAfterAllNodesUpgraded() {
-        final ThreadPool threadPool = new TestThreadPool(getClass().getName());
-        final ClusterStateChanges cluster = new ClusterStateChanges(xContentRegistry(), threadPool);
-
-        try {
-            List<DiscoveryNode> allNodes = new ArrayList<>();
-            DiscoveryNode localNode = createNode(
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_1),
-                DiscoveryNodeRole.MASTER_ROLE,
-                DiscoveryNodeRole.DATA_ROLE
-            ); // local node is the master
-            DiscoveryNode oldNode = createNode(
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_1),
-                DiscoveryNodeRole.DATA_ROLE
-            ); // local node is the master
-            allNodes.add(localNode);
-            allNodes.add(oldNode);
-            ClusterState state = ClusterStateCreationUtils.state(
-                localNode,
-                localNode,
-                allNodes.toArray(new DiscoveryNode[0]),
-                TransportVersions.V_7_0_0
-            );
-
-            CreateIndexRequest request = new CreateIndexRequest(
-                "index",
-                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_AUTO_EXPAND_REPLICAS, "0-all").build()
-            ).waitForActiveShards(ActiveShardCount.NONE);
-            state = cluster.createIndex(state, request);
-            assertTrue(state.metadata().hasIndex("index"));
-            while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
-                logger.info(state);
-                state = cluster.applyStartedShards(
-                    state,
-                    state.routingTable().index("index").shard(0).shardsWithState(ShardRoutingState.INITIALIZING)
-                );
-                state = cluster.reroute(state, new ClusterRerouteRequest());
-            }
-
-            DiscoveryNode newNode = createNode(Version.V_7_6_0, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local node
-                                                                                                                             // is the
-                                                                                                                             // master
-
-            state = cluster.addNode(state, newNode, TransportVersions.V_7_6_0);
-
-            // use allocation filtering
-            state = cluster.updateSettings(
-                state,
-                new UpdateSettingsRequest("index").settings(
-                    Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", oldNode.getName()).build()
-                )
-            );
-
-            while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
-                logger.info(state);
-                state = cluster.applyStartedShards(
-                    state,
-                    state.routingTable().index("index").shard(0).shardsWithState(ShardRoutingState.INITIALIZING)
-                );
-                state = cluster.reroute(state, new ClusterRerouteRequest());
-            }
-
-            // check that presence of old node means that auto-expansion does not take allocation filtering into account
-            assertThat(state.routingTable().index("index").shard(0).size(), equalTo(3));
-
-            // remove old node and check that auto-expansion takes allocation filtering into account
-            state = cluster.removeNodes(state, Collections.singletonList(oldNode));
-            assertThat(state.routingTable().index("index").shard(0).size(), equalTo(2));
         } finally {
             terminate(threadPool);
         }

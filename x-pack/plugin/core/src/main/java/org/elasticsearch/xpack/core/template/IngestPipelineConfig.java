@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -22,6 +23,7 @@ public abstract class IngestPipelineConfig {
     protected final String resource;
     protected final int version;
     protected final String versionProperty;
+    protected final Map<String, String> variables;
 
     /**
      * A list of this pipeline's dependencies, for example - such referred to through a pipeline processor.
@@ -35,11 +37,23 @@ public abstract class IngestPipelineConfig {
     }
 
     public IngestPipelineConfig(String id, String resource, int version, String versionProperty, List<String> dependencies) {
+        this(id, resource, version, versionProperty, dependencies, Map.of());
+    }
+
+    public IngestPipelineConfig(
+        String id,
+        String resource,
+        int version,
+        String versionProperty,
+        List<String> dependencies,
+        Map<String, String> variables
+    ) {
         this.id = Objects.requireNonNull(id);
         this.resource = Objects.requireNonNull(resource);
         this.version = version;
         this.versionProperty = Objects.requireNonNull(versionProperty);
         this.dependencies = dependencies;
+        this.variables = Objects.requireNonNull(variables);
     }
 
     public String getId() {

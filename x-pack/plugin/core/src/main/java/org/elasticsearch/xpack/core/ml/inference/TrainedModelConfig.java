@@ -100,13 +100,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
     public static final ParseField LOCATION = new ParseField("location");
     public static final ParseField MODEL_PACKAGE = new ParseField("model_package");
+    public static final ParseField PREFIX_STRINGS = new ParseField("prefix_strings");
 
     public static final ParseField PER_DEPLOYMENT_MEMORY_BYTES = new ParseField("per_deployment_memory_bytes");
     public static final ParseField PER_ALLOCATION_MEMORY_BYTES = new ParseField("per_allocation_memory_bytes");
     public static final ParseField PLATFORM_ARCHITECTURE = new ParseField("platform_architecture");
 
     public static final TransportVersion VERSION_3RD_PARTY_CONFIG_ADDED = TransportVersions.V_8_0_0;
-    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersions.V_8_500_064;
+    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersions.V_8_11_X;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -170,6 +171,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             MODEL_PACKAGE
         );
         parser.declareString(TrainedModelConfig.Builder::setPlatformArchitecture, PLATFORM_ARCHITECTURE);
+        parser.declareObject(
+            TrainedModelConfig.Builder::setPrefixStrings,
+            (p, c) -> TrainedModelPrefixStrings.fromXContent(p, ignoreUnknownFields),
+            PREFIX_STRINGS
+        );
 
         return parser;
     }
@@ -198,6 +204,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final ModelPackageConfig modelPackageConfig;
     private Boolean fullDefinition;
     private String platformArchitecture;
+    private TrainedModelPrefixStrings prefixStrings;
 
     TrainedModelConfig(
         String modelId,
@@ -217,7 +224,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         InferenceConfig inferenceConfig,
         TrainedModelLocation location,
         ModelPackageConfig modelPackageConfig,
-        String platformArchitecture
+        String platformArchitecture,
+        TrainedModelPrefixStrings prefixStrings
     ) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.modelType = modelType;
@@ -245,6 +253,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.location = location;
         this.modelPackageConfig = modelPackageConfig;
         this.platformArchitecture = platformArchitecture;
+        this.prefixStrings = prefixStrings;
     }
 
     private static TrainedModelInput handleDefaultInput(TrainedModelInput input, TrainedModelType modelType) {
@@ -262,7 +271,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         createTime = in.readInstant();
         definition = in.readOptionalWriteable(LazyModelDefinition::fromStreamInput);
         tags = in.readCollectionAsImmutableList(StreamInput::readString);
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
         input = new TrainedModelInput(in);
         modelSize = in.readVLong();
         estimatedOperations = in.readVLong();
@@ -284,10 +293,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             modelPackageConfig = null;
             fullDefinition = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             platformArchitecture = in.readOptionalString();
         } else {
             platformArchitecture = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
         }
     }
 
@@ -435,6 +447,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return platformArchitecture;
     }
 
+    public TrainedModelPrefixStrings getPrefixStrings() {
+        return prefixStrings;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
@@ -466,8 +482,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             out.writeOptionalBoolean(fullDefinition);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             out.writeOptionalString(platformArchitecture);
+        }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeOptionalWriteable(prefixStrings);
         }
     }
 
@@ -531,6 +551,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (location != null) {
             writeNamedObject(builder, params, LOCATION.getPreferredName(), location);
         }
+        if (prefixStrings != null) {
+            builder.field(PREFIX_STRINGS.getPreferredName(), prefixStrings);
+        }
         if (params.paramAsBoolean(DEFINITION_STATUS, false) && fullDefinition != null) {
             builder.field("fully_defined", fullDefinition);
         }
@@ -565,7 +588,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             && Objects.equals(inferenceConfig, that.inferenceConfig)
             && Objects.equals(metadata, that.metadata)
             && Objects.equals(location, that.location)
-            && Objects.equals(platformArchitecture, that.platformArchitecture);
+            && Objects.equals(platformArchitecture, that.platformArchitecture)
+            && Objects.equals(prefixStrings, that.prefixStrings);
     }
 
     @Override
@@ -588,7 +612,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             inferenceConfig,
             defaultFieldMap,
             location,
-            platformArchitecture
+            platformArchitecture,
+            prefixStrings
         );
     }
 
@@ -614,6 +639,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private Long perDeploymentMemoryBytes;
         private Long perAllocationMemoryBytes;
         private String platformArchitecture;
+        private TrainedModelPrefixStrings prefixStrings;
 
         public Builder() {}
 
@@ -636,6 +662,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             this.location = config.location;
             this.modelPackageConfig = config.modelPackageConfig;
             this.platformArchitecture = config.platformArchitecture;
+            this.prefixStrings = config.prefixStrings;
         }
 
         public Builder setModelId(String modelId) {
@@ -730,6 +757,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         public Builder setPlatformArchitecture(String platformArchitecture) {
             this.platformArchitecture = platformArchitecture;
+            return this;
+        }
+
+        public Builder setPrefixStrings(TrainedModelPrefixStrings prefixStrings) {
+            this.prefixStrings = prefixStrings;
             return this;
         }
 
@@ -1053,7 +1085,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 inferenceConfig,
                 location,
                 modelPackageConfig,
-                platformArchitecture
+                platformArchitecture,
+                prefixStrings
             );
         }
     }

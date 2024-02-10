@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -37,7 +36,7 @@ public class FloorTests extends AbstractFunctionTestCase {
             suppliers,
             read,
             DataTypes.UNSIGNED_LONG,
-            ul -> NumericUtils.asLongUnsigned(ul),
+            ul -> ul,
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
             List.of()

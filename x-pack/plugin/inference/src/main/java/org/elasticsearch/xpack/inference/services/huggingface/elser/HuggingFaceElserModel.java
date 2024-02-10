@@ -7,20 +7,43 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
-import org.elasticsearch.inference.Model;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionVisitor;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 
-public class HuggingFaceElserModel extends Model {
+import java.net.URI;
+import java.util.Map;
+
+public class HuggingFaceElserModel extends HuggingFaceModel {
     public HuggingFaceElserModel(
-        String modelId,
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        Map<String, Object> serviceSettings,
+        @Nullable Map<String, Object> secrets
+    ) {
+        this(
+            inferenceEntityId,
+            taskType,
+            service,
+            HuggingFaceElserServiceSettings.fromMap(serviceSettings),
+            HuggingFaceElserSecretSettings.fromMap(secrets)
+        );
+    }
+
+    HuggingFaceElserModel(
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         HuggingFaceElserServiceSettings serviceSettings,
-        HuggingFaceElserSecretSettings secretSettings
+        @Nullable HuggingFaceElserSecretSettings secretSettings
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings), new ModelSecrets(secretSettings));
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings), new ModelSecrets(secretSettings));
     }
 
     @Override
@@ -31,5 +54,25 @@ public class HuggingFaceElserModel extends Model {
     @Override
     public HuggingFaceElserSecretSettings getSecretSettings() {
         return (HuggingFaceElserSecretSettings) super.getSecretSettings();
+    }
+
+    @Override
+    public ExecutableAction accept(HuggingFaceActionVisitor creator) {
+        return creator.create(this);
+    }
+
+    @Override
+    public URI getUri() {
+        return getServiceSettings().uri();
+    }
+
+    @Override
+    public SecureString getApiKey() {
+        return getSecretSettings().apiKey();
+    }
+
+    @Override
+    public Integer getTokenLimit() {
+        return getServiceSettings().maxInputTokens();
     }
 }

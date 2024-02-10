@@ -11,7 +11,6 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -52,15 +51,11 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
     }
 
     public void testMountFullCopyAndRecoversCorrectly() throws Exception {
-        final Storage storage = Storage.FULL_COPY;
-        assumeVersion(Version.V_7_10_0, storage);
-
-        executeMountAndRecoversCorrectlyTestCase(storage, 6789L);
+        executeMountAndRecoversCorrectlyTestCase(Storage.FULL_COPY, 6789L);
     }
 
     public void testMountPartialCopyAndRecoversCorrectly() throws Exception {
         final Storage storage = Storage.SHARED_CACHE;
-        assumeVersion(Version.V_7_12_0, Storage.SHARED_CACHE);
 
         if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
             assertBusy(() -> {
@@ -116,15 +111,11 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
     }
 
     public void testBlobStoreCacheWithFullCopyInMixedVersions() throws Exception {
-        final Storage storage = Storage.FULL_COPY;
-        assumeVersion(Version.V_7_10_0, storage);
-
-        executeBlobCacheCreationTestCase(storage, 9876L);
+        executeBlobCacheCreationTestCase(Storage.FULL_COPY, 9876L);
     }
 
     public void testBlobStoreCacheWithPartialCopyInMixedVersions() throws Exception {
         final Storage storage = Storage.SHARED_CACHE;
-        assumeVersion(Version.V_7_12_0, Storage.SHARED_CACHE);
 
         executeBlobCacheCreationTestCase(storage, 8765L);
     }
@@ -168,13 +159,13 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
 
             final var newVersionNodes = nodesIdsAndVersions.entrySet()
                 .stream()
-                .filter(node -> UPGRADE_FROM_VERSION.equals(node.getValue()) == false)
+                .filter(node -> isOriginalCluster(node.getValue()) == false)
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
 
             final var originalVersionNodes = nodesIdsAndVersions.entrySet()
                 .stream()
-                .filter(node -> UPGRADE_FROM_VERSION.equals(node.getValue()))
+                .filter(node -> isOriginalCluster(node.getValue()))
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
 
@@ -296,27 +287,22 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             assertHitCount(index, equalTo(numberOfDocs * 2L));
             deleteIndex(index);
 
-            if (isOriginalClusterVersionAtLeast(Version.V_7_13_0)) {
-                final Request request = new Request(
-                    "GET",
-                    "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference"
-                );
-                request.setOptions(
-                    expectWarnings(
-                        "this request accesses system indices: [.snapshot-blob-cache], but in a future major "
-                            + "version, direct access to system indices will be prevented by default"
-                    )
-                );
-                request.addParameter("flat_settings", "true");
+            final Request request = new Request("GET", "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference");
+            request.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.snapshot-blob-cache], but in a future major "
+                        + "version, direct access to system indices will be prevented by default"
+                )
+            );
+            request.addParameter("flat_settings", "true");
 
-                final Map<String, ?> snapshotBlobCacheSettings = entityAsMap(adminClient().performRequest(request));
-                assertThat(snapshotBlobCacheSettings, notNullValue());
-                final String tierPreference = (String) extractValue(
-                    ".snapshot-blob-cache.settings.index.routing.allocation.include._tier_preference",
-                    snapshotBlobCacheSettings
-                );
-                assertThat(tierPreference, equalTo("data_content,data_hot"));
-            }
+            final Map<String, ?> snapshotBlobCacheSettings = entityAsMap(adminClient().performRequest(request));
+            assertThat(snapshotBlobCacheSettings, notNullValue());
+            final String tierPreference = (String) extractValue(
+                ".snapshot-blob-cache.settings.index.routing.allocation.include._tier_preference",
+                snapshotBlobCacheSettings
+            );
+            assertThat(tierPreference, equalTo("data_content,data_hot"));
 
         } else if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
             for (String snapshot : snapshots) {
@@ -324,13 +310,6 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             }
             deleteRepository(repository);
         }
-    }
-
-    private static void assumeVersion(Version minSupportedVersion, Storage storageType) {
-        assumeTrue(
-            "Searchable snapshots with storage type [" + storageType + "] is supported since version [" + minSupportedVersion + ']',
-            isOriginalClusterVersionAtLeast(minSupportedVersion)
-        );
     }
 
     private static void indexDocs(String indexName, long numberOfDocs) throws IOException {
@@ -390,11 +369,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         Settings indexSettings
     ) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repositoryName + '/' + snapshotName + "/_mount");
-        if (isOriginalClusterVersionAtLeast(Version.V_7_12_0)) {
-            request.addParameter("storage", storage.storageName());
-        } else {
-            assertThat("Parameter 'storage' was introduced in 7.12.0 with " + Storage.SHARED_CACHE, storage, equalTo(Storage.FULL_COPY));
-        }
+        request.addParameter("storage", storage.storageName());
         request.setJsonEntity(Strings.format("""
             {
               "index": "%s",

@@ -30,10 +30,10 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -418,7 +418,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         logger.info("migrating index [{}] from feature [{}] to new index [{}]", oldIndexName, migrationInfo.getFeatureName(), newIndexName);
         ActionListener<BulkByScrollResponse> innerListener = ActionListener.wrap(listener::accept, this::markAsFailed);
         try {
-            createIndex(migrationInfo, ActionListener.wrap(shardsAcknowledgedResponse -> {
+            createIndex(migrationInfo, innerListener.delegateFailureAndWrap((delegate, shardsAcknowledgedResponse) -> {
                 logger.debug(
                     "while migrating [{}] , got create index response: [{}]",
                     oldIndexName,
@@ -427,45 +427,45 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 setWriteBlock(
                     oldIndex,
                     true,
-                    ActionListener.wrap(setReadOnlyResponse -> reindex(migrationInfo, ActionListener.wrap(bulkByScrollResponse -> {
-                        logger.debug(
-                            "while migrating [{}], got reindex response: [{}]",
-                            oldIndexName,
-                            Strings.toString(bulkByScrollResponse)
-                        );
-                        if ((bulkByScrollResponse.getBulkFailures() != null && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
-                            || (bulkByScrollResponse.getSearchFailures() != null
-                                && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
-                            removeReadOnlyBlockOnReindexFailure(
-                                oldIndex,
-                                innerListener,
-                                logAndThrowExceptionForFailures(bulkByScrollResponse)
-                            );
-                        } else {
-                            // Successful completion of reindexing - remove read only and delete old index
-                            setWriteBlock(
-                                oldIndex,
-                                false,
-                                ActionListener.wrap(
-                                    setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse, innerListener),
-                                    innerListener::onFailure
-                                )
-                            );
-                        }
-                    }, e -> {
-                        logger.error(
-                            () -> format(
-                                "error occurred while reindexing index [%s] from feature [%s] to destination index [%s]",
+                    delegate.delegateFailureAndWrap(
+                        (delegate2, setReadOnlyResponse) -> reindex(migrationInfo, ActionListener.wrap(bulkByScrollResponse -> {
+                            logger.debug(
+                                "while migrating [{}], got reindex response: [{}]",
                                 oldIndexName,
-                                migrationInfo.getFeatureName(),
-                                newIndexName
-                            ),
-                            e
-                        );
-                        removeReadOnlyBlockOnReindexFailure(oldIndex, innerListener, e);
-                    })), innerListener::onFailure)
+                                Strings.toString(bulkByScrollResponse)
+                            );
+                            if ((bulkByScrollResponse.getBulkFailures() != null
+                                && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
+                                || (bulkByScrollResponse.getSearchFailures() != null
+                                    && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
+                                removeReadOnlyBlockOnReindexFailure(
+                                    oldIndex,
+                                    delegate2,
+                                    logAndThrowExceptionForFailures(bulkByScrollResponse)
+                                );
+                            } else {
+                                // Successful completion of reindexing - remove read only and delete old index
+                                setWriteBlock(
+                                    oldIndex,
+                                    false,
+                                    delegate2.delegateFailureAndWrap(setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse))
+                                );
+                            }
+                        }, e -> {
+                            logger.error(
+                                () -> format(
+                                    "error occurred while reindexing index [%s] from feature [%s] to destination index [%s]",
+                                    oldIndexName,
+                                    migrationInfo.getFeatureName(),
+                                    newIndexName
+                                ),
+                                e
+                            );
+                            removeReadOnlyBlockOnReindexFailure(oldIndex, delegate2, e);
+                        }))
+                    )
                 );
-            }, innerListener::onFailure));
+            }));
         } catch (Exception ex) {
             logger.error(
                 () -> format(
@@ -501,10 +501,9 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         metadataCreateIndexService.createIndex(createRequest, listener);
     }
 
-    private CheckedConsumer<AcknowledgedResponse, Exception> setAliasAndRemoveOldIndex(
+    private CheckedBiConsumer<ActionListener<BulkByScrollResponse>, AcknowledgedResponse, Exception> setAliasAndRemoveOldIndex(
         SystemIndexMigrationInfo migrationInfo,
-        BulkByScrollResponse bulkByScrollResponse,
-        ActionListener<BulkByScrollResponse> listener
+        BulkByScrollResponse bulkByScrollResponse
     ) {
         final IndicesAliasesRequestBuilder aliasesRequest = migrationInfo.createClient(baseClient).admin().indices().prepareAliases();
         aliasesRequest.removeIndex(migrationInfo.getCurrentIndexName());
@@ -526,7 +525,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
 
         // Technically this callback might have a different cluster state, but it shouldn't matter - these indices shouldn't be changing
         // while we're trying to migrate them.
-        return unsetReadOnlyResponse -> aliasesRequest.execute(
+        return (listener, unsetReadOnlyResponse) -> aliasesRequest.execute(
             listener.delegateFailureAndWrap((l, deleteIndexResponse) -> l.onResponse(bulkByScrollResponse))
         );
     }

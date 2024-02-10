@@ -43,7 +43,7 @@ public class PendingReplicationActionsTests extends ESTestCase {
 
     public void testAllocationIdActionCanBeRun() {
         String allocationId = UUIDs.randomBase64UUID();
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         pendingReplication.acceptNewTrackedAllocationIds(Collections.singleton(allocationId));
         TestAction action = new TestAction(future);
         pendingReplication.addPendingAction(allocationId, action);
@@ -54,7 +54,7 @@ public class PendingReplicationActionsTests extends ESTestCase {
 
     public void testMissingAllocationIdActionWillBeCancelled() {
         String allocationId = UUIDs.randomBase64UUID();
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         TestAction action = new TestAction(future);
         pendingReplication.addPendingAction(allocationId, action);
         expectThrows(IndexShardClosedException.class, future::actionGet);
@@ -62,7 +62,7 @@ public class PendingReplicationActionsTests extends ESTestCase {
 
     public void testAllocationIdActionWillBeCancelledIfTrackedAllocationChanges() {
         String allocationId = UUIDs.randomBase64UUID();
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         pendingReplication.acceptNewTrackedAllocationIds(Collections.singleton(allocationId));
         TestAction action = new TestAction(future, false);
         pendingReplication.addPendingAction(allocationId, action);
@@ -73,7 +73,7 @@ public class PendingReplicationActionsTests extends ESTestCase {
 
     public void testAllocationIdActionWillBeCancelledOnClose() {
         String allocationId = UUIDs.randomBase64UUID();
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         pendingReplication.acceptNewTrackedAllocationIds(Collections.singleton(allocationId));
         TestAction action = new TestAction(future, false);
         pendingReplication.addPendingAction(allocationId, action);

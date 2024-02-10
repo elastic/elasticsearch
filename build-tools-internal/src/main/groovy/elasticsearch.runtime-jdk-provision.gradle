@@ -47,15 +47,6 @@ configure(allprojects) {
             }
         }
     }
-
-    project.plugins.withType(RestTestBasePlugin) {
-      tasks.withType(StandaloneRestIntegTestTask).configureEach {
-        if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
-          nonInputProperties.systemProperty("tests.runtime.java", "${-> launcher.map { it.metadata.installationPath.asFile.path }.get()}")
-        }
-      }
-    }
-
     project.plugins.withType(ThirdPartyAuditPrecommitPlugin) {
       project.getTasks().withType(ThirdPartyAuditTask.class).configureEach {
         if (BuildParams.getIsRuntimeJavaHomeSet() == false) {

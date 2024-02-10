@@ -11,9 +11,9 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.ParsingException;
@@ -131,7 +131,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         // Get request, to pull the query ruleset from the system index using clientWithOrigin
         if (method.getDeclaringClass().equals(ElasticsearchClient.class)
             && method.getName().equals("execute")
-            && args[0] instanceof GetAction) {
+            && args[0] == TransportGetAction.TYPE) {
 
             GetRequest getRequest = (GetRequest) args[1];
             assertThat(getRequest.index(), Matchers.equalTo(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME));

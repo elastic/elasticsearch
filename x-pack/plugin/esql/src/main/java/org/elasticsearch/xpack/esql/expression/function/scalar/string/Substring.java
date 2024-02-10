@@ -12,6 +12,8 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -35,7 +37,16 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
 
     private final Expression str, start, length;
 
-    public Substring(Source source, Expression str, Expression start, Expression length) {
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Returns a substring of a string, specified by a start position and an optional length"
+    )
+    public Substring(
+        Source source,
+        @Param(name = "str", type = { "keyword", "text" }) Expression str,
+        @Param(name = "start", type = { "integer" }) Expression start,
+        @Param(optional = true, name = "length", type = { "integer" }) Expression length
+    ) {
         super(source, length == null ? Arrays.asList(str, start) : Arrays.asList(str, start, length));
         this.str = str;
         this.start = start;
@@ -135,9 +146,9 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
         var strFactory = toEvaluator.apply(str);
         var startFactory = toEvaluator.apply(start);
         if (length == null) {
-            return new SubstringNoLengthEvaluator.Factory(strFactory, startFactory);
+            return new SubstringNoLengthEvaluator.Factory(source(), strFactory, startFactory);
         }
         var lengthFactory = toEvaluator.apply(length);
-        return new SubstringEvaluator.Factory(strFactory, startFactory, lengthFactory);
+        return new SubstringEvaluator.Factory(source(), strFactory, startFactory, lengthFactory);
     }
 }

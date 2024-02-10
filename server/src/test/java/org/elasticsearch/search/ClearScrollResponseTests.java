@@ -9,9 +9,12 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,8 +24,29 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class ClearScrollResponseTests extends ESTestCase {
+
+    private static final ConstructingObjectParser<ClosePointInTimeResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "clear_scroll",
+        true,
+        a -> new ClosePointInTimeResponse((boolean) a[0], (int) a[1])
+    );
+    static {
+        PARSER.declareField(
+            constructorArg(),
+            (parser, context) -> parser.booleanValue(),
+            ClearScrollResponse.SUCCEEDED,
+            ObjectParser.ValueType.BOOLEAN
+        );
+        PARSER.declareField(
+            constructorArg(),
+            (parser, context) -> parser.intValue(),
+            ClearScrollResponse.NUMFREED,
+            ObjectParser.ValueType.INT
+        );
+    }
 
     public void testToXContent() throws IOException {
         ClearScrollResponse clearScrollResponse = new ClearScrollResponse(true, 10);
@@ -39,7 +63,7 @@ public class ClearScrollResponseTests extends ESTestCase {
         BytesReference originalBytes = toShuffledXContent(originalResponse, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
         ClearScrollResponse parsedResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parsedResponse = ClearScrollResponse.fromXContent(parser);
+            parsedResponse = PARSER.parse(parser, null);
         }
         assertEquals(originalResponse.isSucceeded(), parsedResponse.isSucceeded());
         assertEquals(originalResponse.getNumFreed(), parsedResponse.getNumFreed());

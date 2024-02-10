@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -22,11 +21,13 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.ql.analyzer.TableInfo;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
+import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
@@ -50,7 +52,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.util.Holder;
 
-import java.util.HashSet;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -148,32 +150,40 @@ public class EsqlSession {
 
     private <T> void preAnalyze(LogicalPlan parsed, BiFunction<IndexResolution, EnrichResolution, T> action, ActionListener<T> listener) {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
-        Set<String> policyNames = new HashSet<>(preAnalysis.policyNames);
-        EnrichResolution resolution = new EnrichResolution(ConcurrentCollections.newConcurrentSet(), enrichPolicyResolver.allPolicyNames());
-
-        ActionListener<Void> groupedListener = listener.delegateFailureAndWrap((l, unused) -> {
-            assert resolution.resolvedPolicies().size() == policyNames.size()
-                : resolution.resolvedPolicies().size() + " != " + policyNames.size();
-
+        var unresolvedPolicies = preAnalysis.enriches.stream()
+            .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
+            .collect(Collectors.toSet());
+        final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
+            preAnalysis.indices.stream()
+                .flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index())))
+                .toArray(String[]::new)
+        ).keySet();
+        enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, listener.delegateFailureAndWrap((l, enrichResolution) -> {
             // first we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
-            var matchFields = resolution.resolvedPolicies()
+            var matchFields = enrichResolution.resolvedEnrichPolicies()
                 .stream()
-                .filter(p -> p.index().isValid()) // only if the policy by the specified name was found; later the Verifier will be
-                                                  // triggered
-                .map(p -> p.policy().getMatchField())
+                .map(ResolvedEnrichPolicy::matchField)
                 .collect(Collectors.toSet());
-
-            preAnalyzeIndices(
-                parsed,
-                ActionListener.wrap(indexResolution -> l.onResponse(action.apply(indexResolution, resolution)), listener::onFailure),
-                matchFields
-            );
-        });
-        try (RefCountingListener refs = new RefCountingListener(groupedListener)) {
-            for (String policyName : policyNames) {
-                enrichPolicyResolver.resolvePolicy(policyName, refs.acquire(resolution.resolvedPolicies()::add));
-            }
-        }
+            preAnalyzeIndices(parsed, l.delegateFailureAndWrap((ll, indexResolution) -> {
+                if (indexResolution.isValid()) {
+                    Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
+                        indexResolution.get().concreteIndices().toArray(String[]::new)
+                    ).keySet();
+                    // If new clusters appear when resolving the main indices, we need to resolve the enrich policies again
+                    // or exclude main concrete indices. Since this is rare, it's simpler to resolve the enrich policies again.
+                    // TODO: add a test for this
+                    if (targetClusters.containsAll(newClusters) == false) {
+                        enrichPolicyResolver.resolvePolicies(
+                            newClusters,
+                            unresolvedPolicies,
+                            ll.map(newEnrichResolution -> action.apply(indexResolution, newEnrichResolution))
+                        );
+                        return;
+                    }
+                }
+                ll.onResponse(action.apply(indexResolution, enrichResolution));
+            }), matchFields);
+        }));
     }
 
     private <T> void preAnalyzeIndices(LogicalPlan parsed, ActionListener<IndexResolution> listener, Set<String> enrichPolicyMatchFields) {
@@ -185,12 +195,8 @@ public class EsqlSession {
         } else if (preAnalysis.indices.size() == 1) {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
-            var fieldNames = fieldNames(parsed);
+            var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
 
-            if (enrichPolicyMatchFields.isEmpty() == false && fieldNames != IndexResolver.ALL_FIELDS) {
-                fieldNames.addAll(enrichPolicyMatchFields);
-                fieldNames.addAll(subfields(enrichPolicyMatchFields));
-            }
             indexResolver.resolveAsMergedMapping(
                 table.index(),
                 fieldNames,
@@ -198,7 +204,10 @@ public class EsqlSession {
                 Map.of(),
                 listener,
                 EsqlSession::specificValidity,
-                IndexResolver.PRESERVE_PROPERTIES
+                IndexResolver.PRESERVE_PROPERTIES,
+                // TODO no matter what metadata fields are asked in a query, the "allowedMetadataFields" is always _index, does it make
+                // sense to reflect the actual list of metadata fields instead?
+                IndexResolver.INDEX_METADATA_FIELD
             );
         } else {
             try {
@@ -210,7 +219,7 @@ public class EsqlSession {
         }
     }
 
-    static Set<String> fieldNames(LogicalPlan parsed) {
+    static Set<String> fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields) {
         if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
             // no explicit columns selection, for example "from employees"
             return IndexResolver.ALL_FIELDS;
@@ -242,6 +251,12 @@ public class EsqlSession {
                 for (Attribute extracted : re.extractedFields()) {
                     references.removeIf(attr -> matchByName(attr, extracted.qualifiedName(), false));
                 }
+            } else if (p instanceof Enrich) {
+                AttributeSet enrichRefs = p.references();
+                // Enrich adds an EmptyAttribute if no match field is specified
+                // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
+                enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
+                references.addAll(enrichRefs);
             } else {
                 references.addAll(p.references());
                 if (p instanceof Keep) {
@@ -266,10 +281,13 @@ public class EsqlSession {
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
         references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.qualifiedName()));
         Set<String> fieldNames = references.names();
-        if (fieldNames.isEmpty()) {
-            return IndexResolver.ALL_FIELDS;
+        if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
+            // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
+            return IndexResolver.INDEX_METADATA_FIELD;
         } else {
             fieldNames.addAll(subfields(fieldNames));
+            fieldNames.addAll(enrichPolicyMatchFields);
+            fieldNames.addAll(subfields(enrichPolicyMatchFields));
             return fieldNames;
         }
     }

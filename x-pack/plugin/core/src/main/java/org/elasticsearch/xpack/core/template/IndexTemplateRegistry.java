@@ -14,10 +14,10 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -47,7 +47,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,6 +65,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -71,18 +73,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * Abstracts the logic of managing versioned index templates, ingest pipelines and lifecycle policies for plugins that require such things.
  */
 public abstract class IndexTemplateRegistry implements ClusterStateListener {
-    public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
-
-    /**
-     * Check if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set to {@code true}, indicating that
-     * we're running in a cluster configuration that is only expecting to use data streams lifecycles.
-     *
-     * @param settings the node settings
-     * @return true if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set
-     */
-    public static boolean isDataStreamsLifecycleOnlyMode(final Settings settings) {
-        return settings.getAsBoolean(DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, false);
-    }
 
     private static final Logger logger = LogManager.getLogger(IndexTemplateRegistry.class);
 
@@ -121,7 +111,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     /**
      * Returns the configured configurations for the lifecycle policies. Subclasses should provide
      * the ILM configurations and they will be loaded if we're not running data stream only mode (controlled via
-     * {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME}).
+     * {@link org.elasticsearch.cluster.metadata.DataStreamLifecycle#DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME}).
      *
      * The loaded lifecycle configurations will be installed if returned by {@link #getLifecyclePolicies()}. Child classes
      * have a chance to override {@link #getLifecyclePolicies()} in case they want additional control over if these
@@ -546,9 +536,8 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     ) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
-            PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(templateName).indexTemplate(
-                indexTemplate
-            );
+            TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(templateName)
+                .indexTemplate(indexTemplate);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
@@ -579,7 +568,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutTemplateFailure(templateName, e);
                     }
                 },
-                (req, listener) -> client.execute(PutComposableIndexTemplateAction.INSTANCE, req, listener)
+                (req, listener) -> client.execute(TransportPutComposableIndexTemplateAction.TYPE, req, listener)
             );
         });
     }
@@ -625,7 +614,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     private void putPolicy(final LifecyclePolicy policy, final AtomicBoolean creationCheck) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
-            PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
+            PutLifecycleRequest request = new PutLifecycleRequest(policy);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
@@ -650,17 +639,15 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutPolicyFailure(policy, e);
                     }
                 },
-                (req, listener) -> client.execute(PutLifecycleAction.INSTANCE, req, listener)
+                (req, listener) -> client.execute(ILMActions.PUT, req, listener)
             );
         });
     }
 
     protected static Map<String, ComposableIndexTemplate> parseComposableTemplates(IndexTemplateConfig... config) {
         return Arrays.stream(config).collect(Collectors.toUnmodifiableMap(IndexTemplateConfig::getTemplateName, indexTemplateConfig -> {
-            try {
-                return ComposableIndexTemplate.parse(
-                    JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, indexTemplateConfig.loadBytes())
-                );
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, indexTemplateConfig.loadBytes())) {
+                return ComposableIndexTemplate.parse(parser);
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -767,7 +754,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutPipelineFailure(pipelineConfig.getId(), e);
                     }
                 },
-                (req, listener) -> client.execute(PutPipelineAction.INSTANCE, req, listener)
+                (req, listener) -> client.execute(PutPipelineTransportAction.TYPE, req, listener)
             );
         });
     }
@@ -821,12 +808,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 );
                 for (String rolloverTarget : rolloverTargets) {
                     logger.info(
-                        "rolling over data stream [{}] as a followup to the upgrade of the [{}] index template [{}]",
+                        "rolling over data stream [{}] lazily as a followup to the upgrade of the [{}] index template [{}]",
                         rolloverTarget,
                         getOrigin(),
                         templateName
                     );
                     RolloverRequest request = new RolloverRequest(rolloverTarget, null);
+                    request.lazy(true);
                     request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
                     executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),

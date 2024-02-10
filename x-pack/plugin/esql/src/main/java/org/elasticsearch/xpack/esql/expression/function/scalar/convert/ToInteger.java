@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeDoubleToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
@@ -27,7 +27,9 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToInteger extends AbstractConvertFunction {
 
@@ -36,12 +38,17 @@ public class ToInteger extends AbstractConvertFunction {
         Map.entry(BOOLEAN, ToIntegerFromBooleanEvaluator.Factory::new),
         Map.entry(DATETIME, ToIntegerFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToIntegerFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToIntegerFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToIntegerFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToIntegerFromUnsignedLongEvaluator.Factory::new),
         Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new)
     );
 
-    public ToInteger(Source source, Expression field) {
+    @FunctionInfo(returnType = "integer", description = "Converts an input value to an integer value.")
+    public ToInteger(
+        Source source,
+        @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+    ) {
         super(source, field);
     }
 
@@ -70,7 +77,7 @@ public class ToInteger extends AbstractConvertFunction {
         return bool ? 1 : 0;
     }
 
-    @ConvertEvaluator(extraName = "FromString", warnExceptions = { NumberFormatException.class })
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { InvalidArgumentException.class, NumberFormatException.class })
     static int fromKeyword(BytesRef in) {
         String asString = in.utf8ToString();
         try {
@@ -84,17 +91,22 @@ public class ToInteger extends AbstractConvertFunction {
         }
     }
 
-    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
+    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class })
     static int fromDouble(double dbl) {
-        return fromLong(safeDoubleToLong(dbl));
+        return safeToInt(dbl);
     }
 
-    @ConvertEvaluator(extraName = "FromUnsignedLong", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
-    static int fromUnsignedLong(long lng) {
-        return fromLong(ToLong.fromUnsignedLong(lng));
+    @ConvertEvaluator(extraName = "FromUnsignedLong", warnExceptions = { InvalidArgumentException.class })
+    static int fromUnsignedLong(long ul) {
+        Number n = unsignedLongAsNumber(ul);
+        int i = n.intValue();
+        if (i != n.longValue()) {
+            throw new InvalidArgumentException("[{}] out of [integer] range", n);
+        }
+        return i;
     }
 
-    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
+    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { InvalidArgumentException.class })
     static int fromLong(long lng) {
         return safeToInt(lng);
     }

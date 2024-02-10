@@ -15,7 +15,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -52,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1, supportsDedicatedMasters = false)
 public class DownsampleTransportFailureIT extends ESIntegTestCase {
@@ -228,12 +228,15 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
     }
 
     private void assertDocumentsExist(final String nodeName, final String indexName) {
-        final SearchResponse searchResponse = client(nodeName).prepareSearch(indexName)
-            .setQuery(new MatchAllQueryBuilder())
-            .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
-            .setSize(DOCUMENTS.size())
-            .get();
-        assertEquals(DOCUMENTS.size(), searchResponse.getHits().getHits().length);
+        assertResponse(
+            client(nodeName).prepareSearch(indexName)
+                .setQuery(new MatchAllQueryBuilder())
+                .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
+                .setSize(DOCUMENTS.size()),
+            searchResponse -> {
+                assertEquals(DOCUMENTS.size(), searchResponse.getHits().getHits().length);
+            }
+        );
     }
 
     private void assertIndexExists(final String nodeName, final String indexName) {

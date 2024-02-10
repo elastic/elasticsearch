@@ -54,7 +54,7 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
 
     @Override
     protected DataType[] supportedTypes() {
-        return representable();
+        return representableTypes();
     }
 
     @SuppressWarnings("unchecked")

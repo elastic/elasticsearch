@@ -21,6 +21,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -160,6 +162,11 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         assertFalse(ExceptionRootCauseFinder.isExceptionIrrecoverable(new TaskCancelledException("cancelled task")));
         assertFalse(
             ExceptionRootCauseFinder.isExceptionIrrecoverable(
+                new SearchContextMissingException(new ShardSearchContextId("session-id", 123, null))
+            )
+        );
+        assertFalse(
+            ExceptionRootCauseFinder.isExceptionIrrecoverable(
                 new CircuitBreakingException("circuit broken", CircuitBreaker.Durability.TRANSIENT)
             )
         );
@@ -175,5 +182,4 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         assertEquals(t.getClass(), expectedClass);
         assertEquals(t.getMessage(), message);
     }
-
 }

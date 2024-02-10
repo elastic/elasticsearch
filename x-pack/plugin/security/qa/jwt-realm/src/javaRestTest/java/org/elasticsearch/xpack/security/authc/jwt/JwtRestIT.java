@@ -23,6 +23,7 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -31,11 +32,13 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -81,34 +84,46 @@ public class JwtRestIT extends ESRestTestCase {
         ]}""".replaceAll("\\s", "");
     public static final String HMAC_PASSPHRASE = "test-HMAC/secret passphrase-value";
     private static final String VALID_SHARED_SECRET = "test-secret";
+    private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider() {
+        {
+            put("xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret", VALID_SHARED_SECRET);
+        }
+    };
+    private static final String KEYSTORE_PASSWORD = "keystore-password";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(2)
         .distribution(DistributionType.DEFAULT)
+        .keystorePassword(KEYSTORE_PASSWORD)
         .configFile("http.key", Resource.fromClasspath("ssl/http.key"))
         .configFile("http.crt", Resource.fromClasspath("ssl/http.crt"))
         .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+        .configFile("ca-transport.crt", Resource.fromClasspath("ssl/ca-transport.crt"))
+        .configFile("transport.key", Resource.fromClasspath("ssl/transport.key"))
+        .configFile("transport.crt", Resource.fromClasspath("ssl/transport.crt"))
         .configFile("rsa.jwkset", Resource.fromClasspath("jwk/rsa-public-jwkset.json"))
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.http.ssl.enabled", "true")
-        .setting("xpack.security.transport.ssl.enabled", "false")
+        .setting("xpack.security.transport.ssl.enabled", "true")
+        .setting("xpack.security.transport.ssl.certificate", "transport.crt")
+        .setting("xpack.security.transport.ssl.key", "transport.key")
+        .setting("xpack.security.transport.ssl.certificate_authorities", "ca-transport.crt")
         .setting("xpack.security.authc.token.enabled", "true")
         .setting("xpack.security.authc.api_key.enabled", "true")
-
         .setting("xpack.security.http.ssl.enabled", "true")
         .setting("xpack.security.http.ssl.certificate", "http.crt")
         .setting("xpack.security.http.ssl.key", "http.key")
-        .setting("xpack.security.http.ssl.key_passphrase", "http-password")
         .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
         .setting("xpack.security.http.ssl.client_authentication", "optional")
         .settings(JwtRestIT::realmSettings)
-        .keystore("xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret", VALID_SHARED_SECRET)
         .keystore("xpack.security.authc.realms.jwt.jwt2.hmac_key", HMAC_PASSPHRASE)
         .keystore("xpack.security.authc.realms.jwt.jwt3.hmac_jwkset", HMAC_JWKSET)
+        .keystore("xpack.security.http.ssl.secure_key_passphrase", "http-password")
+        .keystore("xpack.security.transport.ssl.secure_key_passphrase", "transport-password")
         .keystore("xpack.security.authc.realms.jwt.jwt3.client_authentication.shared_secret", VALID_SHARED_SECRET)
+        .keystore(keystoreSettings)
         .user("admin_user", "admin-password")
         .user("test_file_user", "test-password", "viewer", false)
         .build();
@@ -149,7 +164,15 @@ public class JwtRestIT extends ESRestTestCase {
         settings.put("xpack.security.authc.realms.jwt.jwt2.fallback_claims.sub", "email");
         settings.put("xpack.security.authc.realms.jwt.jwt2.fallback_claims.aud", "scope");
         settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_issuer", "my-issuer");
-        settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_subjects", SERVICE_SUBJECT.get());
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_subjects", SERVICE_SUBJECT.get());
+            } else {
+                settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_subject_patterns", SERVICE_SUBJECT.get());
+            }
+        } else {
+            settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_subject_patterns", "service_*@app?.example.com");
+        }
         settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_audiences", "es01,es02,es03");
         settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_signature_algorithms", "HS256,HS384");
         // Both email or sub works because of fallback
@@ -162,6 +185,7 @@ public class JwtRestIT extends ESRestTestCase {
         settings.put("xpack.security.authc.realms.jwt.jwt2.required_claims.token_use", "access");
         settings.put("xpack.security.authc.realms.jwt.jwt2.authorization_realms", "lookup_native");
         settings.put("xpack.security.authc.realms.jwt.jwt2.client_authentication.type", "shared_secret");
+        settings.put("xpack.security.authc.realms.jwt.jwt2.client_authentication.rotation_grace_period", "0s");
 
         // Place PKI realm after JWT realm to verify realm chain fall-through
         settings.put("xpack.security.authc.realms.pki.pki_realm.order", "4");
@@ -489,6 +513,61 @@ public class JwtRestIT extends ESRestTestCase {
         } finally {
             deleteUser(username);
         }
+    }
+
+    public void testReloadClientSecret() throws Exception {
+        final String principal = SERVICE_SUBJECT.get();
+        final String username = getUsernameFromPrincipal(principal);
+        final List<String> roles = randomRoles();
+        createUser(username, roles, Map.of());
+
+        try {
+            getSecurityClient(buildAndSignJwtForRealm2(principal), Optional.of(VALID_SHARED_SECRET)).authenticate();
+
+            // secret not updated yet, so authentication fails
+            final String newValidSharedSecret = "new-valid-secret";
+            assertThat(
+                expectThrows(
+                    ResponseException.class,
+                    () -> getSecurityClient(buildAndSignJwtForRealm2(principal), Optional.of(newValidSharedSecret)).authenticate()
+                ).getResponse(),
+                hasStatusCode(RestStatus.UNAUTHORIZED)
+            );
+
+            writeSettingToKeystoreThenReload(
+                "xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret",
+                newValidSharedSecret
+            );
+
+            // secret updated, so authentication succeeds
+            getSecurityClient(buildAndSignJwtForRealm2(principal), Optional.of(newValidSharedSecret)).authenticate();
+
+            // removing setting should not work since it can
+            // lead to inconsistency in realm's configuration
+            // and eventual authentication failures
+            writeSettingToKeystoreThenReload("xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret", null);
+            getSecurityClient(buildAndSignJwtForRealm2(principal), Optional.of(newValidSharedSecret)).authenticate();
+
+        } finally {
+            // Restore setting for other tests
+            writeSettingToKeystoreThenReload(
+                "xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret",
+                VALID_SHARED_SECRET
+            );
+            deleteUser(username);
+        }
+    }
+
+    private void writeSettingToKeystoreThenReload(String setting, @Nullable String value) throws IOException {
+        if (value == null) {
+            keystoreSettings.remove(setting);
+        } else {
+            keystoreSettings.put(setting, value);
+        }
+        cluster.updateStoredSecureSettings();
+        final var reloadRequest = new Request("POST", "/_nodes/reload_secure_settings");
+        reloadRequest.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
+        assertOK(adminClient().performRequest(reloadRequest));
     }
 
     public void testFailureOnInvalidClientAuthentication() throws Exception {

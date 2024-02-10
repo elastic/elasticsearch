@@ -443,7 +443,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<tokenization-properties>> to review the properties of the 
+Refer to <<tokenization-properties>> to review the properties of the
 `tokenization` object.
 =====
 
@@ -469,7 +469,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<tokenization-properties>> to review the 
+Refer to <<tokenization-properties>> to review the
 properties of the `tokenization` object.
 =====
 
@@ -488,7 +488,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<tokenization-properties>> to review the properties of the 
+Refer to <<tokenization-properties>> to review the properties of the
 `tokenization` object.
 =====
 
@@ -514,7 +514,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 Recommended to set `max_sentence_length` to `386` with `128` of `span` and set
 `truncate` to `none`.
 +
-Refer to <<tokenization-properties>> to review the properties of the 
+Refer to <<tokenization-properties>> to review the properties of the
 `tokenization` object.
 =====
 
@@ -546,7 +546,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-classific
 
 `num_top_classes`::::
 (Optional, integer)
-Specifies the number of top class predictions to return. Defaults to all classes 
+Specifies the number of top class predictions to return. Defaults to all classes
 (-1).
 
 `results_field`::::
@@ -557,7 +557,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<tokenization-properties>> to review the properties of the 
+Refer to <<tokenization-properties>> to review the properties of the
 `tokenization` object.
 =====
 
@@ -580,7 +580,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<tokenization-properties>> to review the properties of the 
+Refer to <<tokenization-properties>> to review the properties of the
 `tokenization` object.
 =====
 
@@ -599,7 +599,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarit
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<tokenization-properties>> to review the properties of the 
+Refer to <<tokenization-properties>> to review the properties of the
 `tokenization` object.
 =====
 
@@ -634,7 +634,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<tokenization-properties>> to review the properties of the 
+Refer to <<tokenization-properties>> to review the properties of the
 `tokenization` object.
 =====
 ====
@@ -701,6 +701,36 @@ the platform identifiers used by Elasticsearch, so one of, `linux-x86_64`,
 For portable models (those that work independent of processor architecture or
 OS features), leave this field unset.
 
+//Begin prefix_strings
+`prefix_strings`::
+(Optional, object)
+Certain NLP models are trained in such a way that a prefix string should
+be applied to the input text before the input is evaluated. The prefix
+may be different depending on the intention. For asymmetric tasks such
+as infromation retrieval the prefix applied to a passage as it is indexed
+can be different to the prefix applied when searching those passages.
++
+--
+`prefix_strings` has 2 options, a prefix string that is always applied
+in the search context and one that is always applied when ingesting the
+docs. Both are optional.
+--
++
+.Properties of `prefix_strings`
+[%collapsible%open]
+====
+`search`:::
+(Optional, string)
+The prefix string to prepend to the input text for requests
+originating from a search query.
+
+`ingest`:::
+(Optional, string)
+The prefix string to prepend to the input text for requests
+at ingest where the {infer} ingest processor is used.
+// TODO is there a shortcut for Inference ingest processor?
+====
+//End prefix_strings
 
 `tags`::
 (Optional, string)

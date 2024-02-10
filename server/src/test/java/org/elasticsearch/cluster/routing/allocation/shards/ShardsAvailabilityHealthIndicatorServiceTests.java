@@ -85,13 +85,9 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAl
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_CHECK_ALLOCATION_EXPLAIN_API;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_INDEX_ROUTING_ALLOCATION;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_TIERS_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_NODE_CAPACITY;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA;
@@ -1115,7 +1111,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is not allowed due to data tier filter
@@ -1125,11 +1121,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_ENABLE_TIERS_LOOKUP.get(DataTier.DATA_HOT)));
+        assertThat(actions, contains(service.getAddNodesWithRoleAction(DataTier.DATA_HOT)));
     }
 
     public void testDiagnoseIncreaseShardLimitIndexSettingInTier() {
@@ -1173,7 +1170,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -1184,11 +1181,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState
+            clusterState,
+            null
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(DataTier.DATA_HOT)));
+        assertThat(actions, contains(service.getIncreaseShardLimitIndexSettingAction(DataTier.DATA_HOT)));
     }
 
     public void testDiagnoseIncreaseShardLimitClusterSettingInTier() {
@@ -1237,7 +1235,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -1248,11 +1246,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState
+            clusterState,
+            null
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(DataTier.DATA_HOT)));
+        assertThat(actions, contains(service.getIncreaseShardLimitClusterSettingAction(DataTier.DATA_HOT)));
     }
 
     public void testDiagnoseIncreaseShardLimitIndexSettingInGeneral() {
@@ -1296,7 +1295,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -1307,7 +1306,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState
+            clusterState,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1360,7 +1360,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -1371,7 +1371,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState
+            clusterState,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1395,7 +1396,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because of allocation filters
@@ -1407,7 +1408,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1431,7 +1433,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because of allocation filters
@@ -1443,7 +1445,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1466,7 +1469,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because of allocation filters
@@ -1478,7 +1481,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         // checkDataTierRelatedIssues will leave list empty. Diagnosis methods upstream will add "Check allocation explain" action.
@@ -1501,7 +1505,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.
@@ -1517,11 +1521,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(DataTier.DATA_HOT)));
+        assertThat(actions, contains(service.getIncreaseNodeWithRoleCapacityAction(DataTier.DATA_HOT)));
     }
 
     public void testDiagnoseIncreaseNodeCapacity() {
@@ -1540,7 +1545,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.
@@ -1556,7 +1561,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1808,15 +1814,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             featureDataStreamName,
                             "description",
                             SystemDataStreamDescriptor.Type.EXTERNAL,
-                            new ComposableIndexTemplate(
-                                List.of(systemDataStreamPattern),
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                new ComposableIndexTemplate.DataStreamTemplate()
-                            ),
+                            ComposableIndexTemplate.builder()
+                                .indexPatterns(List.of(systemDataStreamPattern))
+                                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                                .build(),
                             Map.of(),
                             List.of("test"),
                             new ExecutorNames(
@@ -1879,17 +1880,22 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             DIAGNOSIS_WAIT_FOR_INITIALIZATION.getUniqueId(),
             equalTo("elasticsearch:health:shards_availability:diagnosis:initializing_shards")
         );
+        var service = new ShardsAvailabilityHealthIndicatorService(
+            mock(ClusterService.class),
+            mock(AllocationService.class),
+            mock(SystemIndices.class)
+        );
         for (String tier : List.of("data_content", "data_hot", "data_warm", "data_cold", "data_frozen")) {
             assertThat(
-                ACTION_ENABLE_TIERS_LOOKUP.get(tier).getUniqueId(),
+                service.getAddNodesWithRoleAction(tier).getUniqueId(),
                 equalTo("elasticsearch:health:shards_availability:diagnosis:enable_data_tiers:tier:" + tier)
             );
             assertThat(
-                ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(tier).getUniqueId(),
+                service.getIncreaseShardLimitIndexSettingAction(tier).getUniqueId(),
                 equalTo("elasticsearch:health:shards_availability:diagnosis:increase_shard_limit_index_setting:tier:" + tier)
             );
             assertThat(
-                ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(tier).getUniqueId(),
+                service.getIncreaseShardLimitClusterSettingAction(tier).getUniqueId(),
                 equalTo("elasticsearch:health:shards_availability:diagnosis:increase_shard_limit_cluster_setting:tier:" + tier)
             );
             assertThat(
@@ -1901,7 +1907,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 equalTo("elasticsearch:health:shards_availability:diagnosis:migrate_data_tiers_include_data:tier:" + tier)
             );
             assertThat(
-                ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(tier).getUniqueId(),
+                service.getIncreaseNodeWithRoleCapacityAction(tier).getUniqueId(),
                 equalTo("elasticsearch:health:shards_availability:diagnosis:increase_tier_capacity_for_allocations:tier:" + tier)
             );
         }

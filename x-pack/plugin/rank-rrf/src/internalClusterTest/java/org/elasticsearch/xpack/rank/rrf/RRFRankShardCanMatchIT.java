@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +30,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 3)
 @ESIntegTestCase.SuiteScopeTestCase
@@ -129,13 +129,13 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
         int shardB = -1;
 
         for (int i = 0; i < 10; i++) {
-            DocWriteResponse ir = client().prepareIndex("value_index").setSource("value", "" + i).setRouting("a").get();
+            DocWriteResponse ir = prepareIndex("value_index").setSource("value", "" + i).setRouting("a").get();
             int a = ir.getShardId().id();
             assertTrue(shardA == a || shardA == -1);
             shardA = a;
         }
         for (int i = 10; i < 20; i++) {
-            DocWriteResponse ir = client().prepareIndex("value_index").setSource("value", "" + i).setRouting("b").get();
+            DocWriteResponse ir = prepareIndex("value_index").setSource("value", "" + i).setRouting("b").get();
             int b = ir.getShardId().id();
             assertTrue(shardB == b || shardB == -1);
             shardB = b;
@@ -144,98 +144,108 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
         indicesAdmin().prepareRefresh("value_index").get();
 
         // match 2 separate shard with no overlap in queries
-        SearchResponse response = prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreFilterShardSize(1)
-            .setRankBuilder(new RRFRankBuilder(20, 1))
-            .setTrackTotalHits(false)
-            .setSubSearches(
-                List.of(
-                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "9")),
-                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "19"))
+        assertResponse(
+            prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreFilterShardSize(1)
+                .setRankBuilder(new RRFRankBuilder(20, 1))
+                .setTrackTotalHits(false)
+                .setSubSearches(
+                    List.of(
+                        new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "9")),
+                        new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "19"))
+                    )
                 )
-            )
-            .setSize(5)
-            .get();
-
-        assertNull(response.getHits().getTotalHits());
-        assertEquals(2, response.getHits().getHits().length);
-        assertEquals(5, response.getSuccessfulShards());
-        assertEquals(3, response.getSkippedShards());
+                .setSize(5),
+            response -> {
+                assertNull(response.getHits().getTotalHits());
+                assertEquals(2, response.getHits().getHits().length);
+                assertEquals(5, response.getSuccessfulShards());
+                assertEquals(3, response.getSkippedShards());
+            }
+        );
 
         // match one shard with one query and do not match the other shard with one query
-        response = prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreFilterShardSize(1)
-            .setRankBuilder(new RRFRankBuilder(20, 1))
-            .setTrackTotalHits(false)
-            .setSubSearches(
-                List.of(
-                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "30")),
-                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "19"))
+        assertResponse(
+            prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreFilterShardSize(1)
+                .setRankBuilder(new RRFRankBuilder(20, 1))
+                .setTrackTotalHits(false)
+                .setSubSearches(
+                    List.of(
+                        new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "30")),
+                        new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "19"))
+                    )
                 )
-            )
-            .setSize(5)
-            .get();
-
-        assertNull(response.getHits().getTotalHits());
-        assertEquals(1, response.getHits().getHits().length);
-        assertEquals(5, response.getSuccessfulShards());
-        assertEquals(4, response.getSkippedShards());
+                .setSize(5),
+            response -> {
+                assertNull(response.getHits().getTotalHits());
+                assertEquals(1, response.getHits().getHits().length);
+                assertEquals(5, response.getSuccessfulShards());
+                assertEquals(4, response.getSkippedShards());
+            }
+        );
 
         // match no shards, but still use one to generate a search response
-        response = prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreFilterShardSize(1)
-            .setRankBuilder(new RRFRankBuilder(20, 1))
-            .setTrackTotalHits(false)
-            .setSubSearches(
-                List.of(
-                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "30")),
-                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "40"))
+        assertResponse(
+            prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreFilterShardSize(1)
+                .setRankBuilder(new RRFRankBuilder(20, 1))
+                .setTrackTotalHits(false)
+                .setSubSearches(
+                    List.of(
+                        new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "30")),
+                        new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "40"))
+                    )
                 )
-            )
-            .setSize(5)
-            .get();
-
-        assertNull(response.getHits().getTotalHits());
-        assertEquals(0, response.getHits().getHits().length);
-        assertEquals(5, response.getSuccessfulShards());
-        assertEquals(4, response.getSkippedShards());
+                .setSize(5),
+            response -> {
+                assertNull(response.getHits().getTotalHits());
+                assertEquals(0, response.getHits().getHits().length);
+                assertEquals(5, response.getSuccessfulShards());
+                assertEquals(4, response.getSkippedShards());
+            }
+        );
 
         // match the same shard for both queries
-        response = prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreFilterShardSize(1)
-            .setRankBuilder(new RRFRankBuilder(20, 1))
-            .setTrackTotalHits(false)
-            .setSubSearches(
-                List.of(
-                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "15")),
-                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "16"))
+        assertResponse(
+            prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreFilterShardSize(1)
+                .setRankBuilder(new RRFRankBuilder(20, 1))
+                .setTrackTotalHits(false)
+                .setSubSearches(
+                    List.of(
+                        new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "15")),
+                        new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "16"))
+                    )
                 )
-            )
-            .setSize(5)
-            .get();
-
-        assertNull(response.getHits().getTotalHits());
-        assertEquals(2, response.getHits().getHits().length);
-        assertEquals(5, response.getSuccessfulShards());
-        assertEquals(4, response.getSkippedShards());
+                .setSize(5),
+            response -> {
+                assertNull(response.getHits().getTotalHits());
+                assertEquals(2, response.getHits().getHits().length);
+                assertEquals(5, response.getSuccessfulShards());
+                assertEquals(4, response.getSkippedShards());
+            }
+        );
 
         // match one shard with the exact same query
-        response = prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreFilterShardSize(1)
-            .setRankBuilder(new RRFRankBuilder(20, 1))
-            .setTrackTotalHits(false)
-            .setSubSearches(
-                List.of(
-                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "8")),
-                    new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "8"))
+        assertResponse(
+            prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreFilterShardSize(1)
+                .setRankBuilder(new RRFRankBuilder(20, 1))
+                .setTrackTotalHits(false)
+                .setSubSearches(
+                    List.of(
+                        new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "8")),
+                        new SubSearchSourceBuilder(new SkipShardPlugin.SkipShardQueryBuilder(shardA, shardB, "value", "8"))
+                    )
                 )
-            )
-            .setSize(5)
-            .get();
-
-        assertNull(response.getHits().getTotalHits());
-        assertEquals(1, response.getHits().getHits().length);
-        assertEquals(5, response.getSuccessfulShards());
-        assertEquals(4, response.getSkippedShards());
+                .setSize(5),
+            response -> {
+                assertNull(response.getHits().getTotalHits());
+                assertEquals(1, response.getHits().getHits().length);
+                assertEquals(5, response.getSuccessfulShards());
+                assertEquals(4, response.getSkippedShards());
+            }
+        );
     }
 }

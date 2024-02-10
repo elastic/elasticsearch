@@ -25,6 +25,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -152,7 +153,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         expectThrows(
             MasterNotDiscoveredException.class,
             () -> assertThat(
-                clusterAdmin().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().getMasterNodeId(),
+                clusterAdmin().prepareState().setMasterNodeTimeout("100ms").get().getState().nodes().getMasterNodeId(),
                 nullValue()
             )
         );
@@ -229,8 +230,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             .cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureGreen();
@@ -244,7 +244,8 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap(
                 "verifyaccess-fs",

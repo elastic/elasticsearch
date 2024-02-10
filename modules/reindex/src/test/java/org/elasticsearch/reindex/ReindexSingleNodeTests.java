@@ -9,7 +9,6 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
@@ -30,7 +29,7 @@ public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
     public void testDeprecatedSort() {
         int max = between(2, 20);
         for (int i = 0; i < max; i++) {
-            client().prepareIndex("source").setId(Integer.toString(i)).setSource("foo", i).get();
+            prepareIndex("source").setId(Integer.toString(i)).setSource("foo", i).get();
         }
 
         indicesAdmin().prepareRefresh("source").get();
@@ -38,11 +37,9 @@ public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
 
         // Copy a subset of the docs sorted
         int subsetSize = randomIntBetween(1, max - 1);
-        ReindexRequestBuilder copy = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
-            .destination("dest")
-            .refresh(true);
+        ReindexRequestBuilder copy = new ReindexRequestBuilder(client()).source("source").destination("dest").refresh(true);
         copy.maxDocs(subsetSize);
-        copy.request().addSortField("foo", SortOrder.DESC);
+        copy.source().addSort("foo", SortOrder.DESC);
         assertThat(copy.get(), matcher().created(subsetSize));
 
         assertHitCount(client().prepareSearch("dest").setSize(0), subsetSize);

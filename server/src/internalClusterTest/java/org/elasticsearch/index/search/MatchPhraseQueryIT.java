@@ -55,8 +55,8 @@ public class MatchPhraseQueryIT extends ESIntegTestCase {
 
     private List<IndexRequestBuilder> getIndexRequests() {
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex(INDEX).setSource("name", "the beatles"));
-        requests.add(client().prepareIndex(INDEX).setSource("name", "led zeppelin"));
+        requests.add(prepareIndex(INDEX).setSource("name", "the beatles"));
+        requests.add(prepareIndex(INDEX).setSource("name", "led zeppelin"));
         return requests;
     }
 }

@@ -41,6 +41,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -76,7 +78,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         }
     }
 
-    public void testScriptScoresNested() throws IOException {
+    public void testScriptScoresNested() throws Exception {
         createIndex(INDEX);
         index(INDEX, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
@@ -84,39 +86,46 @@ public class FunctionScoreIT extends ESIntegTestCase {
         Script scriptOne = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "1", Collections.emptyMap());
         Script scriptTwo = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
-        SearchResponse response = client().search(
-            new SearchRequest(new String[] {}).source(
-                searchSource().query(
-                    functionScoreQuery(
-                        functionScoreQuery(functionScoreQuery(scriptFunction(scriptOne)), scriptFunction(scriptTwo)),
-                        scriptFunction(scriptTwo)
+        assertNoFailuresAndResponse(
+            client().search(
+                new SearchRequest(new String[] {}).source(
+                    searchSource().query(
+                        functionScoreQuery(
+                            functionScoreQuery(functionScoreQuery(scriptFunction(scriptOne)), scriptFunction(scriptTwo)),
+                            scriptFunction(scriptTwo)
+                        )
                     )
                 )
-            )
-        ).actionGet();
-        assertNoFailures(response);
-        assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
+            ),
+            response -> assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f))
+        );
     }
 
-    public void testScriptScoresWithAgg() throws IOException {
+    public void testScriptScoresWithAgg() throws Exception {
         createIndex(INDEX);
         index(INDEX, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
-        SearchResponse response = client().search(
-            new SearchRequest(new String[] {}).source(
-                searchSource().query(functionScoreQuery(scriptFunction(script))).aggregation(terms("score_agg").script(script))
-            )
-        ).actionGet();
-        assertNoFailures(response);
-        assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
-        assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getKeyAsString(), equalTo("1.0"));
-        assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
+        assertNoFailuresAndResponse(
+            client().search(
+                new SearchRequest(new String[] {}).source(
+                    searchSource().query(functionScoreQuery(scriptFunction(script))).aggregation(terms("score_agg").script(script))
+                )
+            ),
+            response -> {
+                assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
+                assertThat(
+                    ((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getKeyAsString(),
+                    equalTo("1.0")
+                );
+                assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
+            }
+        );
     }
 
-    public void testMinScoreFunctionScoreBasic() throws IOException {
+    public void testMinScoreFunctionScoreBasic() throws Exception {
         float score = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, ESTestCase::randomFloat);
         float minScore = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, ESTestCase::randomFloat);
         index(
@@ -130,34 +139,42 @@ public class FunctionScoreIT extends ESIntegTestCase {
         ensureYellow();
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['random_score']", Collections.emptyMap());
-        SearchResponse searchResponse = client().search(
-            new SearchRequest(new String[] {}).source(
-                searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore))
-            )
-        ).actionGet();
-        if (score < minScore) {
-            assertThat(searchResponse.getHits().getTotalHits().value, is(0L));
-        } else {
-            assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
-        }
-
-        searchResponse = client().search(
-            new SearchRequest(new String[] {}).source(
-                searchSource().query(
-                    functionScoreQuery(
-                        new MatchAllQueryBuilder(),
-                        new FilterFunctionBuilder[] {
-                            new FilterFunctionBuilder(scriptFunction(script)),
-                            new FilterFunctionBuilder(scriptFunction(script)) }
-                    ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
+        assertResponse(
+            client().search(
+                new SearchRequest(new String[] {}).source(
+                    searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore))
                 )
-            )
-        ).actionGet();
-        if (score < minScore) {
-            assertThat(searchResponse.getHits().getTotalHits().value, is(0L));
-        } else {
-            assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
-        }
+            ),
+            response -> {
+                if (score < minScore) {
+                    assertThat(response.getHits().getTotalHits().value, is(0L));
+                } else {
+                    assertThat(response.getHits().getTotalHits().value, is(1L));
+                }
+            }
+        );
+
+        assertResponse(
+            client().search(
+                new SearchRequest(new String[] {}).source(
+                    searchSource().query(
+                        functionScoreQuery(
+                            new MatchAllQueryBuilder(),
+                            new FilterFunctionBuilder[] {
+                                new FilterFunctionBuilder(scriptFunction(script)),
+                                new FilterFunctionBuilder(scriptFunction(script)) }
+                        ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
+                    )
+                )
+            ),
+            response -> {
+                if (score < minScore) {
+                    assertThat(response.getHits().getTotalHits().value, is(0L));
+                } else {
+                    assertThat(response.getHits().getTotalHits().value, is(1L));
+                }
+            }
+        );
     }
 
     public void testMinScoreFunctionScoreManyDocsAndRandomMinScore() throws IOException, ExecutionException, InterruptedException {
@@ -166,7 +183,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         int scoreOffset = randomIntBetween(0, 2 * numDocs);
         int minScore = randomIntBetween(0, 2 * numDocs);
         for (int i = 0; i < numDocs; i++) {
-            docs.add(client().prepareIndex(INDEX).setId(Integer.toString(i)).setSource("num", i + scoreOffset));
+            docs.add(prepareIndex(INDEX).setId(Integer.toString(i)).setSource("num", i + scoreOffset));
         }
         indexRandom(true, docs);
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return (doc['num'].value)", Collections.emptyMap());
@@ -178,26 +195,33 @@ public class FunctionScoreIT extends ESIntegTestCase {
             numMatchingDocs = numDocs;
         }
 
-        SearchResponse searchResponse = client().search(
-            new SearchRequest(new String[] {}).source(
-                searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)).size(numDocs)
-            )
-        ).actionGet();
-        assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
+        final int finalNumMatchingDocs = numMatchingDocs;
 
-        searchResponse = client().search(
-            new SearchRequest(new String[] {}).source(
-                searchSource().query(
-                    functionScoreQuery(
-                        new MatchAllQueryBuilder(),
-                        new FilterFunctionBuilder[] {
-                            new FilterFunctionBuilder(scriptFunction(script)),
-                            new FilterFunctionBuilder(scriptFunction(script)) }
-                    ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
-                ).size(numDocs)
-            )
-        ).actionGet();
-        assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
+        assertResponse(
+            client().search(
+                new SearchRequest(new String[] {}).source(
+                    searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)).size(numDocs)
+                )
+            ),
+            response -> assertMinScoreSearchResponses(numDocs, response, finalNumMatchingDocs)
+        );
+
+        assertResponse(
+            client().search(
+                new SearchRequest(new String[] {}).source(
+                    searchSource().query(
+                        functionScoreQuery(
+                            new MatchAllQueryBuilder(),
+                            new FilterFunctionBuilder[] {
+                                new FilterFunctionBuilder(scriptFunction(script)),
+                                new FilterFunctionBuilder(scriptFunction(script)) }
+                        ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
+                    ).size(numDocs)
+                )
+            ),
+            response -> assertMinScoreSearchResponses(numDocs, response, finalNumMatchingDocs)
+        );
+
     }
 
     protected void assertMinScoreSearchResponses(int numDocs, SearchResponse searchResponse, int numMatchingDocs) {
@@ -216,35 +240,38 @@ public class FunctionScoreIT extends ESIntegTestCase {
         index("test", "1", jsonBuilder().startObject().field("text", "test text").endObject());
         refresh();
 
-        SearchResponse termQuery = client().search(
-            new SearchRequest(new String[] {}).source(searchSource().explain(true).query(termQuery("text", "text")))
-        ).get();
-        assertNoFailures(termQuery);
-        assertThat(termQuery.getHits().getTotalHits().value, equalTo(1L));
-        float termQueryScore = termQuery.getHits().getAt(0).getScore();
-
+        float[] termQueryScore = new float[1];
+        assertNoFailuresAndResponse(
+            client().search(new SearchRequest(new String[] {}).source(searchSource().explain(true).query(termQuery("text", "text")))),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                termQueryScore[0] = response.getHits().getAt(0).getScore();
+            }
+        );
         for (CombineFunction combineFunction : CombineFunction.values()) {
-            testMinScoreApplied(combineFunction, termQueryScore);
+            testMinScoreApplied(combineFunction, termQueryScore[0]);
         }
     }
 
     protected void testMinScoreApplied(CombineFunction boostMode, float expectedScore) throws InterruptedException, ExecutionException {
-        SearchResponse response = client().search(
-            new SearchRequest(new String[] {}).source(
-                searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(0.1f))
-            )
-        ).get();
-        assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
-
-        response = client().search(
-            new SearchRequest(new String[] {}).source(
-                searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(2f))
-            )
-        ).get();
-
-        assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+        assertNoFailuresAndResponse(
+            client().search(
+                new SearchRequest(new String[] {}).source(
+                    searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(0.1f))
+                )
+            ),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
+            }
+        );
+        assertNoFailuresAndResponse(
+            client().search(
+                new SearchRequest(new String[] {}).source(
+                    searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(2f))
+                )
+            ),
+            response -> assertThat(response.getHits().getTotalHits().value, equalTo(0L))
+        );
     }
 }

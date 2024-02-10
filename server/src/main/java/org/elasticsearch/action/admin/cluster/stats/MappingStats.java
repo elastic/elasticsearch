@@ -87,13 +87,17 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                         stats = fieldTypes.computeIfAbsent(type, DenseVectorFieldStats::new);
                         boolean indexed = fieldMapping.containsKey("index") ? (boolean) fieldMapping.get("index") : false;
                         if (indexed) {
-                            ((DenseVectorFieldStats) stats).indexedVectorCount += count;
-                            int dims = (int) fieldMapping.get("dims");
-                            if (dims < ((DenseVectorFieldStats) stats).indexedVectorDimMin) {
-                                ((DenseVectorFieldStats) stats).indexedVectorDimMin = dims;
-                            }
-                            if (dims > ((DenseVectorFieldStats) stats).indexedVectorDimMax) {
-                                ((DenseVectorFieldStats) stats).indexedVectorDimMax = dims;
+                            DenseVectorFieldStats vStats = (DenseVectorFieldStats) stats;
+                            vStats.indexedVectorCount += count;
+                            Object obj = fieldMapping.get("dims");
+                            if (obj != null) {
+                                int dims = (int) obj;
+                                if (vStats.indexedVectorDimMin == DenseVectorFieldStats.UNSET || dims < vStats.indexedVectorDimMin) {
+                                    vStats.indexedVectorDimMin = dims;
+                                }
+                                if (vStats.indexedVectorDimMin == DenseVectorFieldStats.UNSET || dims > vStats.indexedVectorDimMax) {
+                                    vStats.indexedVectorDimMax = dims;
+                                }
                             }
                         }
                     } else {

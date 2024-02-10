@@ -87,7 +87,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
         assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
         indexRandom(
             randomBoolean(),
-            IntStream.range(0, 10).mapToObj(i -> client().prepareIndex(indexName).setSource()).collect(Collectors.toList())
+            IntStream.range(0, 10).mapToObj(i -> prepareIndex(indexName).setSource()).collect(Collectors.toList())
         );
 
         final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);

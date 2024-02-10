@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -256,19 +255,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 : "expected channels size to be == " + connectionProfile.getNumConnections() + " but was: [" + channels.size() + "]";
             typeMapping = new EnumMap<>(TransportRequestOptions.Type.class);
             for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile.getHandles()) {
-                for (TransportRequestOptions.Type type : handle.getTypes())
+                for (TransportRequestOptions.Type type : handle.getTypes()) {
                     typeMapping.put(type, handle);
+                }
             }
             version = handshakeVersion;
             compress = connectionProfile.getCompressionEnabled();
             compressionScheme = connectionProfile.getCompressionScheme();
-        }
-
-        @Override
-        public Version getVersion() {
-            // TODO: this should be the below, but in some cases the node version does not match the passed-in version.
-            // return node.getVersion();
-            return Version.fromId(version.id());
         }
 
         @Override
@@ -758,19 +751,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             } else if (e instanceof HeaderValidationException headerValidationException) {
                 Header header = headerValidationException.header;
                 if (channel.isOpen()) {
-                    try {
-                        outboundHandler.sendErrorResponse(
-                            header.getVersion(),
-                            channel,
-                            header.getRequestId(),
-                            header.getActionName(),
-                            ResponseStatsConsumer.NONE,
-                            headerValidationException.validationException
-                        );
-                    } catch (IOException inner) {
-                        inner.addSuppressed(headerValidationException.validationException);
-                        logger.warn(() -> "Failed to send error message back to client for validation failure", inner);
-                    }
+                    outboundHandler.sendErrorResponse(
+                        header.getVersion(),
+                        channel,
+                        header.getRequestId(),
+                        header.getActionName(),
+                        ResponseStatsConsumer.NONE,
+                        headerValidationException.validationException
+                    );
                 }
             } else {
                 logger.warn(() -> "exception caught on transport layer [" + channel + "], closing connection", e);

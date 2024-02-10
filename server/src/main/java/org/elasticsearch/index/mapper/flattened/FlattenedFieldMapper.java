@@ -113,10 +113,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public static final int DEPTH_LIMIT = 20;
     }
 
-    private static FlattenedFieldMapper toType(FieldMapper in) {
-        return (FlattenedFieldMapper) in;
-    }
-
     private static Builder builder(Mapper in) {
         return ((FlattenedFieldMapper) in).builder;
     }

@@ -134,7 +134,9 @@ public class SharedBytes extends AbstractRefCounted {
         if (usableSpace > fileSize) {
             return p;
         } else {
-            throw new IOException("Not enough free space for cache file of size [" + fileSize + "] in path [" + path + "]");
+            throw new IOException(
+                "Not enough free space [" + usableSpace + "] for cache file of size [" + fileSize + "] in path [" + path + "]"
+            );
         }
     }
 

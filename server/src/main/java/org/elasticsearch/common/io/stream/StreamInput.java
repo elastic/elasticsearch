@@ -120,6 +120,17 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads the same bytes returned by {@link #readReleasableBytesReference()} but does not retain a reference to these bytes.
+     * The returned {@link BytesReference} thus only contains valid content as long as the underlying buffer has not been released.
+     * This method should be preferred over {@link #readReleasableBytesReference()} when the returned reference is known to not be used
+     * past the lifetime of the underlying buffer as it requires fewer allocations and does not require a potentially costly reference
+     * count change.
+     */
+    public BytesReference readSlicedBytesReference() throws IOException {
+        return readBytesReference();
+    }
+
+    /**
      * Checks if this {@link InputStream} supports {@link #readAllToReleasableBytesReference()}.
      */
     public boolean supportReadAllToReleasableBytesReference() {
@@ -364,7 +375,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     public Text readText() throws IOException {
-        // use StringAndBytes so we can cache the string if its ever converted to it
+        // use StringAndBytes so we can cache the string if it's ever converted to it
         int length = readInt();
         return new Text(readBytesReference(length));
     }
@@ -525,13 +536,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     public SecureString readSecureString() throws IOException {
-        BytesReference bytesRef = readBytesReference();
-        byte[] bytes = BytesReference.toBytes(bytesRef);
-        try {
-            return new SecureString(CharArrays.utf8BytesToChars(bytes));
-        } finally {
-            Arrays.fill(bytes, (byte) 0);
+        BytesReference bytesRef = readSlicedBytesReference();
+        final char[] chars;
+        if (bytesRef.hasArray()) {
+            chars = CharArrays.utf8BytesToChars(bytesRef.array(), bytesRef.arrayOffset(), bytesRef.length());
+        } else {
+            chars = CharArrays.utf8BytesToChars(BytesReference.toBytes(bytesRef));
         }
+        return new SecureString(chars);
     }
 
     public final float readFloat() throws IOException {
@@ -694,7 +706,7 @@ public abstract class StreamInput extends InputStream {
      */
     @Nullable
     @SuppressWarnings("unchecked")
-    public Map<String, Object> readMap() throws IOException {
+    public Map<String, Object> readGenericMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
     }
 
@@ -1271,8 +1283,8 @@ public abstract class StreamInput extends InputStream {
         if (arraySize < 0) {
             throwNegative(arraySize);
         }
-        // lets do a sanity check that if we are reading an array size that is bigger that the remaining bytes we can safely
-        // throw an exception instead of allocating the array based on the size. A simple corrutpted byte can make a node go OOM
+        // let's do a sanity check that if we are reading an array size that is bigger that the remaining bytes we can safely
+        // throw an exception instead of allocating the array based on the size. A simple corrupted byte can make a node go OOM
         // if the size is large and for perf reasons we allocate arrays ahead of time
         ensureCanReadBytes(arraySize);
         return arraySize;
@@ -1287,7 +1299,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * This method throws an {@link EOFException} if the given number of bytes can not be read from the this stream. This method might
+     * This method throws an {@link EOFException} if the given number of bytes can not be read from the stream. This method might
      * be a no-op depending on the underlying implementation if the information of the remaining bytes is not present.
      */
     protected abstract void ensureCanReadBytes(int length) throws EOFException;

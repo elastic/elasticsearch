@@ -1,0 +1,5 @@
+pr: 104122
+summary: Consider currently refreshing data in the memory usage of refresh
+area: Engine
+type: bug
+issues: []

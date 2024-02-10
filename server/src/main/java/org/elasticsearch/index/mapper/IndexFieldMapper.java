@@ -80,42 +80,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // TODO build a constant block directly
-            BytesRef bytes = new BytesRef(blContext.indexName());
-            return context -> new BlockDocValuesReader() {
-                private int docId;
-
-                @Override
-                public int docID() {
-                    return docId;
-                }
-
-                @Override
-                public BlockLoader.BytesRefBuilder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
-                    return factory.bytesRefs(expectedCount);
-                }
-
-                @Override
-                public BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
-                    try (BlockLoader.BytesRefBuilder builder = builder(factory, docs.count())) {
-                        for (int i = 0; i < docs.count(); i++) {
-                            builder.appendBytesRef(bytes);
-                        }
-                        return builder.build();
-                    }
-                }
-
-                @Override
-                public void readValuesFromSingleDoc(int docId, BlockLoader.Builder builder) {
-                    this.docId = docId;
-                    ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(bytes);
-                }
-
-                @Override
-                public String toString() {
-                    return "Index";
-                }
-            };
+            return BlockLoader.constantBytes(new BytesRef(blContext.indexName()));
         }
 
         @Override

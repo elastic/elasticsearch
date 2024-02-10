@@ -22,6 +22,7 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -31,7 +32,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
-import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
@@ -249,8 +249,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
     private void doTestGeometry(Geometry geometry, GeoShapeValues.GeoShapeValue expectedLabelPosition, boolean fallbackToCentroid)
         throws IOException {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject().field("name", "TestPosition").field("location", WellKnownText.toWKT(geometry)).endObject()
             )
@@ -309,8 +308,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
     }
 
     public void testNullShape() throws Exception {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("name", "TestPosition").nullField("location").endObject())
             .get();
 

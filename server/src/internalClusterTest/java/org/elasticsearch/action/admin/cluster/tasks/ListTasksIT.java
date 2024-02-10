@@ -56,7 +56,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
 
         ActionRequestValidationException ex = expectThrows(
             ActionRequestValidationException.class,
-            () -> clusterAdmin().prepareListTasks().setDescriptions("*").get()
+            clusterAdmin().prepareListTasks().setDescriptions("*")
         );
         assertThat(ex.getMessage(), containsString("matching on descriptions is not available when [detailed] is false"));
 
@@ -142,10 +142,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         return List.of(TestPlugin.class);
     }
 
-    private static final ActionType<ActionResponse.Empty> TEST_ACTION = new ActionType<>(
-        TestTransportAction.NAME,
-        in -> ActionResponse.Empty.INSTANCE
-    );
+    private static final ActionType<ActionResponse.Empty> TEST_ACTION = new ActionType<>(TestTransportAction.NAME);
 
     public static class TestPlugin extends Plugin implements ActionPlugin {
         volatile CyclicBarrier barrier;

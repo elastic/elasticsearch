@@ -18,6 +18,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
@@ -175,8 +176,12 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             // Check that we can search the fulfilling cluster from the querying cluster after license upgrade to trial.
             final Response response = performRequestWithRemoteSearchUser(searchRequest);
             assertOK(response);
-            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            assertSearchResultContainsIndices(searchResponse, REMOTE_INDEX_NAME);
+            final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
+            try {
+                assertSearchResultContainsIndices(searchResponse, REMOTE_INDEX_NAME);
+            } finally {
+                searchResponse.decRef();
+            }
 
             // Check that the feature is tracked on both QC and FC.
             assertFeatureTracked(client());

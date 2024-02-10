@@ -6,11 +6,17 @@ experimental[]
 
 Deletes an {infer} model deployment.
 
+IMPORTANT: The {infer} APIs enable you to use certain services, such as ELSER,
+OpenAI, or Hugging Face, in your cluster. This is not the same feature that you
+can use on an ML node with custom {ml} models. If you want to train and use your
+own model, use the <<ml-df-trained-models-apis>>.
+
 
 [discrete]
 [[delete-inference-api-request]]
 ==== {api-request-title}
 
+`DELETE /_inference/<model_id>`
 `DELETE /_inference/<task_type>/<model_id>`
 
 [discrete]
@@ -29,7 +35,7 @@ Deletes an {infer} model deployment.
 The unique identifier of the {infer} model to delete.
 
 <task_type>::
-(Required, string)
+(Optional, string)
 The type of {infer} task that the model performs.
 
 
@@ -37,7 +43,7 @@ The type of {infer} task that the model performs.
 [[delete-inference-api-example]]
 ==== {api-examples-title}
 
-The following API call deletes the `my-elser-model` {infer} model that can 
+The following API call deletes the `my-elser-model` {infer} model that can
 perform `sparse_embedding` tasks.
 
 

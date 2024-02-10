@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -38,7 +36,21 @@ public class MvCount extends AbstractMultivalueFunction {
         Source source,
         @Param(
             name = "v",
-            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long" }
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" }
         ) Expression v
     ) {
         super(source, v);
@@ -82,11 +94,8 @@ public class MvCount extends AbstractMultivalueFunction {
     }
 
     private static class Evaluator extends AbstractEvaluator {
-        private final DriverContext driverContext;
-
         protected Evaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
-            super(field);
-            this.driverContext = driverContext;
+            super(driverContext, field);
         }
 
         @Override
@@ -95,46 +104,38 @@ public class MvCount extends AbstractMultivalueFunction {
         }
 
         @Override
-        protected Block.Ref evalNullable(Block.Ref ref) {
-            try (ref; IntBlock.Builder builder = IntBlock.newBlockBuilder(ref.block().getPositionCount(), driverContext.blockFactory())) {
-                for (int p = 0; p < ref.block().getPositionCount(); p++) {
-                    int valueCount = ref.block().getValueCount(p);
+        protected Block evalNullable(Block block) {
+            try (var builder = driverContext.blockFactory().newIntBlockBuilder(block.getPositionCount())) {
+                for (int p = 0; p < block.getPositionCount(); p++) {
+                    int valueCount = block.getValueCount(p);
                     if (valueCount == 0) {
                         builder.appendNull();
                         continue;
                     }
                     builder.appendInt(valueCount);
                 }
-                return Block.Ref.floating(builder.build());
+                return builder.build();
             }
         }
 
         @Override
-        protected Block.Ref evalNotNullable(Block.Ref ref) {
-            try (
-                ref;
-                IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(
-                    ref.block().getPositionCount(),
-                    driverContext.blockFactory()
-                )
-            ) {
-                for (int p = 0; p < ref.block().getPositionCount(); p++) {
-                    builder.appendInt(ref.block().getValueCount(p));
+        protected Block evalNotNullable(Block block) {
+            try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(block.getPositionCount())) {
+                for (int p = 0; p < block.getPositionCount(); p++) {
+                    builder.appendInt(block.getValueCount(p));
                 }
-                return Block.Ref.floating(builder.build().asBlock());
+                return builder.build().asBlock();
             }
         }
 
         @Override
-        protected Block.Ref evalSingleValuedNullable(Block.Ref ref) {
+        protected Block evalSingleValuedNullable(Block ref) {
             return evalNullable(ref);
         }
 
         @Override
-        protected Block.Ref evalSingleValuedNotNullable(Block.Ref ref) {
-            try (ref) {
-                return Block.Ref.floating(driverContext.blockFactory().newConstantIntBlockWith(1, ref.block().getPositionCount()));
-            }
+        protected Block evalSingleValuedNotNullable(Block ref) {
+            return driverContext.blockFactory().newConstantIntBlockWith(1, ref.getPositionCount());
         }
     }
 }

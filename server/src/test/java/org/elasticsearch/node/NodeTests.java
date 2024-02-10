@@ -8,6 +8,7 @@
 package org.elasticsearch.node;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
@@ -63,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -302,6 +304,7 @@ public class NodeTests extends ESTestCase {
     }
 
     public void testCloseOnLeakedIndexReaderReference() throws Exception {
+        assumeFalse("AwaitsFix https://github.com/elastic/elasticsearch/issues/105236", Constants.MAC_OS_X);
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
@@ -317,6 +320,7 @@ public class NodeTests extends ESTestCase {
     }
 
     public void testCloseOnLeakedStoreReference() throws Exception {
+        assumeFalse("AwaitsFix https://github.com/elastic/elasticsearch/issues/105236", Constants.MAC_OS_X);
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
@@ -329,6 +333,13 @@ public class NodeTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(10L, TimeUnit.SECONDS));
         shard.store().decRef();
         assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
+    }
+
+    public void testStartOnClosedTransport() throws IOException {
+        try (Node node = new MockNode(baseSettings().build(), basePlugins())) {
+            node.prepareForClose();
+            expectThrows(AssertionError.class, node::start);    // this would be IllegalStateException in a real Node with assertions off
+        }
     }
 
     public void testCreateWithCircuitBreakerPlugins() throws IOException {
@@ -366,8 +377,8 @@ public class NodeTests extends ESTestCase {
         Settings.Builder settings = baseSettings();
         try (Node node = new MockNode(settings.build(), basePlugins())) {
             final TransportService transportService = node.injector().getInstance(TransportService.class);
-            final List<String> taskHeaders = transportService.getTaskManager().getTaskHeaders();
-            assertThat(taskHeaders, containsInAnyOrder(Task.HEADERS_TO_COPY.toArray(new String[] {})));
+            final Set<String> taskHeaders = transportService.getTaskManager().getTaskHeaders();
+            assertThat(taskHeaders, containsInAnyOrder(Task.HEADERS_TO_COPY.toArray()));
         }
     }
 

@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -43,7 +43,8 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.junit.After;
 import org.junit.Before;
 
@@ -59,6 +60,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -135,18 +137,17 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutLifecycleAction) {
+            if (action == ILMActions.PUT) {
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(PutLifecycleAction.class));
-                assertThat(request, instanceOf(PutLifecycleAction.Request.class));
-                final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
+                assertThat(request, instanceOf(PutLifecycleRequest.class));
+                final PutLifecycleRequest putRequest = (PutLifecycleRequest) request;
                 assertThat(putRequest.getPolicy().getName(), equalTo("profiling-60-days"));
                 assertNotNull(listener);
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -173,13 +174,13 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutIndexTemplateAction) {
+            } else if (action == TransportPutIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should not be re-put");
             } else {
                 fail("client called with unexpected request: " + request.toString());
@@ -209,13 +210,13 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutIndexTemplateAction) {
+            } else if (action == TransportPutIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should not be re-put");
             } else {
                 fail("client called with unexpected request: " + request.toString());
@@ -263,17 +264,16 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutIndexTemplateAction) {
+            } else if (action == TransportPutIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(PutLifecycleAction.class));
-                assertThat(request, instanceOf(PutLifecycleAction.Request.class));
-                final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
+                assertThat(request, instanceOf(PutLifecycleRequest.class));
+                final PutLifecycleRequest putRequest = (PutLifecycleRequest) request;
                 assertThat(putRequest.getPolicy().getName(), equalTo("profiling-60-days"));
                 assertNotNull(listener);
                 return AcknowledgedResponse.TRUE;
@@ -400,18 +400,19 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         if (action instanceof PutComponentTemplateAction) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutLifecycleAction) {
+        } else if (action == ILMActions.PUT) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutComposableIndexTemplateAction) {
+        } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
             calledTimes.incrementAndGet();
-            assertThat(action, instanceOf(PutComposableIndexTemplateAction.class));
-            assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
-            final PutComposableIndexTemplateAction.Request putRequest = ((PutComposableIndexTemplateAction.Request) request);
+            assertThat(action, sameInstance(TransportPutComposableIndexTemplateAction.TYPE));
+            assertThat(request, instanceOf(TransportPutComposableIndexTemplateAction.Request.class));
+            final TransportPutComposableIndexTemplateAction.Request putRequest =
+                ((TransportPutComposableIndexTemplateAction.Request) request);
             assertThat(putRequest.indexTemplate().version(), equalTo((long) ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutIndexTemplateAction) {
+        } else if (action == TransportPutIndexTemplateAction.TYPE) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else {

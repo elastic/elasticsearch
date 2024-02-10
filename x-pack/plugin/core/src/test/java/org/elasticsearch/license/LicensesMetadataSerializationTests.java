@@ -121,6 +121,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         assertThat(metadataFromXContent.getLicense(), equalTo(LicensesMetadata.LICENSE_TOMBSTONE));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103093")
     public void testLicenseTombstoneWithUsedTrialFromXContext() throws Exception {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();

@@ -1,0 +1,5 @@
+pr: 103903
+summary: Account for reserved disk size
+area: Allocation
+type: enhancement
+issues: []

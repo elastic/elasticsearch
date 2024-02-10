@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 import org.junit.Before;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -60,6 +61,8 @@ import java.util.Set;
 import java.util.function.LongSupplier;
 
 import static java.lang.Math.min;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_JVM_SIZE_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD;
@@ -71,7 +74,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -977,7 +979,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                     ByteSizeValue.ofGb(5).getBytes() - PER_NODE_OVERHEAD
                 )
             );
-            assertThat(result.isEmpty(), is(false));
+            assertThat(result, isPresent());
             MlMemoryAutoscalingCapacity deciderResult = result.get();
             // Four times due to 25% ML memory
             assertThat(deciderResult.nodeSize().getBytes(), equalTo(4 * ByteSizeValue.ofGb(1).getBytes()));
@@ -1012,7 +1014,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                     ByteSizeValue.ofGb(1).getBytes() - PER_NODE_OVERHEAD
                 )
             );
-            assertThat(result.isEmpty(), is(false));
+            assertThat(result, isPresent());
             MlMemoryAutoscalingCapacity deciderResult = result.get();
             // Four times due to 25% ML memory
             assertThat(deciderResult.nodeSize().getBytes(), equalTo(4 * ByteSizeValue.ofMb(100).getBytes()));
@@ -1047,7 +1049,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                     ByteSizeValue.ofMb(100).getBytes() - PER_NODE_OVERHEAD
                 )
             );
-            assertThat(result.isEmpty(), is(true));
+            assertThat(result, isEmpty());
         }
     }
 
@@ -1209,7 +1211,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
 
         Collection<DiscoveryNode> mlNodesInCluster = clusterState.getNodes().getNodes().values();
         Optional<NativeMemoryCapacity> nativeMemoryCapacity = decider.calculateFutureAvailableCapacity(mlNodesInCluster, clusterState);
-        assertThat(nativeMemoryCapacity.isEmpty(), is(false));
+        assertThat(nativeMemoryCapacity, isPresent());
         assertThat(nativeMemoryCapacity.get().getNodeMlNativeMemoryRequirementExcludingOverhead(), greaterThanOrEqualTo(TEST_JOB_SIZE));
         assertThat(
             nativeMemoryCapacity.get().getNodeMlNativeMemoryRequirementExcludingOverhead(),
@@ -1406,7 +1408,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         if (jobState != null) {
             builder.updateTaskState(
                 MlTasks.dataFrameAnalyticsTaskId(jobId),
-                new DataFrameAnalyticsTaskState(jobState, builder.getLastAllocationId(), null)
+                new DataFrameAnalyticsTaskState(jobState, builder.getLastAllocationId(), null, Instant.now())
             );
         }
     }
@@ -1419,7 +1421,10 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
         );
         if (jobState != null) {
-            builder.updateTaskState(MlTasks.jobTaskId(jobId), new JobTaskState(jobState, builder.getLastAllocationId(), null));
+            builder.updateTaskState(
+                MlTasks.jobTaskId(jobId),
+                new JobTaskState(jobState, builder.getLastAllocationId(), null, Instant.now())
+            );
         }
     }
 

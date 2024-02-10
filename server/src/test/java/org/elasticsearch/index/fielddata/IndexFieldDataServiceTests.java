@@ -43,8 +43,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.ArgumentMatchers;
 
 import java.util.Arrays;
@@ -59,6 +57,7 @@ import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.INTEGE
 import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.SHORT;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -294,25 +293,17 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     }
 
     private void doTestRequireDocValues(MappedFieldType ft) {
-        ThreadPool threadPool = new TestThreadPool("random_threadpool_name");
-        try {
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
-            IndexFieldDataService ifds = new IndexFieldDataService(
-                IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
-                cache,
-                null
+        Settings settings = Settings.EMPTY;
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, null);
+        IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", settings), cache, null);
+        if (ft.hasDocValues()) {
+            ifds.getForField(ft, FieldDataContext.noRuntimeFields("test")); // no exception
+        } else {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ifds.getForField(ft, FieldDataContext.noRuntimeFields("test"))
             );
-            if (ft.hasDocValues()) {
-                ifds.getForField(ft, FieldDataContext.noRuntimeFields("test")); // no exception
-            } else {
-                IllegalArgumentException e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> ifds.getForField(ft, FieldDataContext.noRuntimeFields("test"))
-                );
-                assertThat(e.getMessage(), containsString("doc values"));
-            }
-        } finally {
-            threadPool.shutdown();
+            assertThat(e.getMessage(), containsString("doc values"));
         }
     }
 
@@ -359,5 +350,20 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap()));
+    }
+
+    public void testFieldDataCacheExpire() {
+        {
+            Settings settings = Settings.EMPTY;
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
+            });
+            assertThat(cache.getCache().getExpireAfterAccessNanos(), equalTo(3_600_000_000_000L));
+        }
+        {
+            Settings settings = Settings.builder().put(IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_EXPIRE.getKey(), "5s").build();
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
+            });
+            assertThat(cache.getCache().getExpireAfterAccessNanos(), equalTo(5_000_000_000L));
+        }
     }
 }

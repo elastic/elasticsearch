@@ -11,6 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 
+/**
+ * Builds the resulting {@link BytesRefBlock} for some column in a top-n.
+ * This class is generated. Edit {@code X-ResultBuilder.java.st} instead.
+ */
 class ResultBuilderForBytesRef implements ResultBuilder {
     private final BytesRefBlock.Builder builder;
 
@@ -28,7 +32,7 @@ class ResultBuilderForBytesRef implements ResultBuilder {
     ResultBuilderForBytesRef(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         this.encoder = encoder;
         this.inKey = inKey;
-        this.builder = BytesRefBlock.newBlockBuilder(initialSize, blockFactory);
+        this.builder = blockFactory.newBytesRefBlockBuilder(initialSize);
     }
 
     @Override

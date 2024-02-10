@@ -10,8 +10,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.KnnByteVectorQuery;
-import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -37,6 +35,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -80,7 +79,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         for (int i = 0; i < vector.length; i++) {
             vector[i] = elementType().equals(DenseVectorFieldMapper.ElementType.BYTE) ? randomByte() : randomFloat();
         }
-        int numCands = randomIntBetween(1, 1000);
+        int numCands = randomIntBetween(DEFAULT_SIZE, 1000);
         KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(fieldName, vector, numCands, randomBoolean() ? null : randomFloat());
         if (randomBoolean()) {
             List<QueryBuilder> filters = new ArrayList<>();
@@ -101,13 +100,13 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             Query knnQuery = ((VectorSimilarityQuery) query).getInnerKnnQuery();
             assertThat(((VectorSimilarityQuery) query).getSimilarity(), equalTo(queryBuilder.getVectorSimilarity()));
             switch (elementType()) {
-                case FLOAT -> assertTrue(knnQuery instanceof KnnFloatVectorQuery);
-                case BYTE -> assertTrue(knnQuery instanceof KnnByteVectorQuery);
+                case FLOAT -> assertTrue(knnQuery instanceof ESKnnFloatVectorQuery);
+                case BYTE -> assertTrue(knnQuery instanceof ESKnnByteVectorQuery);
             }
         } else {
             switch (elementType()) {
-                case FLOAT -> assertTrue(query instanceof KnnFloatVectorQuery);
-                case BYTE -> assertTrue(query instanceof KnnByteVectorQuery);
+                case FLOAT -> assertTrue(query instanceof ESKnnFloatVectorQuery);
+                case BYTE -> assertTrue(query instanceof ESKnnByteVectorQuery);
             }
         }
 
@@ -119,13 +118,13 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
         // The field should always be resolved to the concrete field
         Query knnVectorQueryBuilt = switch (elementType()) {
-            case BYTE -> new KnnByteVectorQuery(
+            case BYTE -> new ESKnnByteVectorQuery(
                 VECTOR_FIELD,
                 getByteQueryVector(queryBuilder.queryVector()),
                 queryBuilder.numCands(),
                 filterQuery
             );
-            case FLOAT -> new KnnFloatVectorQuery(VECTOR_FIELD, queryBuilder.queryVector(), queryBuilder.numCands(), filterQuery);
+            case FLOAT -> new ESKnnFloatVectorQuery(VECTOR_FIELD, queryBuilder.queryVector(), queryBuilder.numCands(), filterQuery);
         };
         if (query instanceof VectorSimilarityQuery vectorSimilarityQuery) {
             query = vectorSimilarityQuery.getInnerKnnQuery();
@@ -221,7 +220,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         TransportVersion differentQueryVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_8_2_0,
-            TransportVersions.KNN_AS_QUERY_ADDED
+            TransportVersions.V_8_12_0
         );
         Float similarity = differentQueryVersion.before(TransportVersions.V_8_8_0) ? null : query.getVectorSimilarity();
         KnnVectorQueryBuilder queryOlderVersion = new KnnVectorQueryBuilder(

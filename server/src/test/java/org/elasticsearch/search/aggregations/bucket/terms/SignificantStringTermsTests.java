@@ -68,11 +68,6 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
     }
 
     @Override
-    protected Class<ParsedSignificantStringTerms> implementationClass() {
-        return ParsedSignificantStringTerms.class;
-    }
-
-    @Override
     protected InternalSignificantTerms<?, ?> mutateInstance(InternalSignificantTerms<?, ?> instance) {
         if (instance instanceof SignificantStringTerms stringTerms) {
             String name = stringTerms.getName();

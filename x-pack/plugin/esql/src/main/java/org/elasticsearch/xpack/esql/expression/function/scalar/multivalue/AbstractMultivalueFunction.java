@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
@@ -54,8 +55,8 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
      * Base evaluator that can handle both nulls- and no-nulls-containing blocks.
      */
     public abstract static class AbstractEvaluator extends AbstractNullableEvaluator {
-        protected AbstractEvaluator(EvalOperator.ExpressionEvaluator field) {
-            super(field);
+        protected AbstractEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
+            super(driverContext, field);
         }
 
         /**
@@ -64,30 +65,37 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
          * that it's producing an "array vector" because it only ever emits single
          * valued fields and no null values. Building an array vector directly is
          * generally faster than building it via a {@link Block.Builder}.
+         *
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
-        protected abstract Block.Ref evalNotNullable(Block.Ref fieldVal);
+        protected abstract Block evalNotNullable(Block fieldVal);
 
         /**
-         * Called to evaluate single valued fields when the target block does not
-         * have null values.
+         * Called to evaluate single valued fields when the target block does not have null values.
+         *
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
-        protected Block.Ref evalSingleValuedNotNullable(Block.Ref fieldRef) {
+        protected Block evalSingleValuedNotNullable(Block fieldRef) {
+            fieldRef.incRef();
             return fieldRef;
         }
 
         @Override
-        public final Block.Ref eval(Page page) {
-            Block.Ref ref = field.eval(page);
-            if (ref.block().mayHaveMultivaluedFields() == false) {
-                if (ref.block().mayHaveNulls()) {
-                    return evalSingleValuedNullable(ref);
+        public final Block eval(Page page) {
+            try (Block block = field.eval(page)) {
+                if (block.mayHaveMultivaluedFields()) {
+                    if (block.mayHaveNulls()) {
+                        return evalNullable(block);
+                    } else {
+                        return evalNotNullable(block);
+                    }
                 }
-                return evalSingleValuedNotNullable(ref);
+                if (block.mayHaveNulls()) {
+                    return evalSingleValuedNullable(block);
+                } else {
+                    return evalSingleValuedNotNullable(block);
+                }
             }
-            if (ref.block().mayHaveNulls()) {
-                return evalNullable(ref);
-            }
-            return evalNotNullable(ref);
         }
     }
 
@@ -95,9 +103,11 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
      * Base evaluator that can handle evaluator-checked exceptions; i.e. for expressions that can be evaluated to null.
      */
     public abstract static class AbstractNullableEvaluator implements EvalOperator.ExpressionEvaluator {
+        protected final DriverContext driverContext;
         protected final EvalOperator.ExpressionEvaluator field;
 
-        protected AbstractNullableEvaluator(EvalOperator.ExpressionEvaluator field) {
+        protected AbstractNullableEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
+            this.driverContext = driverContext;
             this.field = field;
         }
 
@@ -105,21 +115,28 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
 
         /**
          * Called when evaluating a {@link Block} that contains null values.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
-        protected abstract Block.Ref evalNullable(Block.Ref fieldVal);
+        protected abstract Block evalNullable(Block fieldVal);
 
         /**
-         * Called to evaluate single valued fields when the target block has null
-         * values.
+         * Called to evaluate single valued fields when the target block has null values.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
-        protected Block.Ref evalSingleValuedNullable(Block.Ref fieldRef) {
+        protected Block evalSingleValuedNullable(Block fieldRef) {
+            fieldRef.incRef();
             return fieldRef;
         }
 
         @Override
-        public Block.Ref eval(Page page) {
-            Block.Ref ref = field.eval(page);
-            return ref.block().mayHaveMultivaluedFields() ? evalNullable(ref) : evalSingleValuedNullable(ref);
+        public Block eval(Page page) {
+            try (Block block = field.eval(page)) {
+                if (block.mayHaveMultivaluedFields()) {
+                    return evalNullable(block);
+                } else {
+                    return evalSingleValuedNullable(block);
+                }
+            }
         }
 
         @Override

@@ -23,9 +23,8 @@ import java.util.Objects;
 
 public class StatelessPrimaryRelocationAction {
 
-    public static final ActionType<ActionResponse.Empty> INSTANCE = new ActionType<>(
-        "internal:index/shard/recovery/stateless_primary_relocation",
-        in -> ActionResponse.Empty.INSTANCE
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(
+        "internal:index/shard/recovery/stateless_primary_relocation"
     );
 
     public static class Request extends ActionRequest {
@@ -50,7 +49,7 @@ public class StatelessPrimaryRelocationAction {
             shardId = new ShardId(in);
             targetNode = new DiscoveryNode(in);
             targetAllocationId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 clusterStateVersion = in.readVLong();
             } else {
                 clusterStateVersion = 0L; // temporary bwc: do not wait for cluster state to be applied
@@ -69,7 +68,7 @@ public class StatelessPrimaryRelocationAction {
             shardId.writeTo(out);
             targetNode.writeTo(out);
             out.writeString(targetAllocationId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 out.writeVLong(clusterStateVersion);
             } // temporary bwc: just omit it, the receiver doesn't wait for a cluster state anyway
         }

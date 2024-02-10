@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -39,6 +40,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     NodesReloadSecureSettingsRequest.NodeRequest,
     NodesReloadSecureSettingsResponse.NodeResponse> {
 
+    public static final ActionType<NodesReloadSecureSettingsResponse> TYPE = new ActionType<>("cluster:admin/nodes/reload_secure_settings");
+
     private static final Logger logger = LogManager.getLogger(TransportNodesReloadSecureSettingsAction.class);
 
     private final Environment environment;
@@ -54,7 +57,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         PluginsService pluginService
     ) {
         super(
-            NodesReloadSecureSettingsAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
@@ -91,7 +94,6 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         ActionListener<NodesReloadSecureSettingsResponse> listener
     ) {
         if (request.hasPassword() && isNodeLocal(request) == false && isNodeTransportTLSEnabled() == false) {
-            request.close();
             listener.onFailure(
                 new ElasticsearchException(
                     "Secure settings cannot be updated cluster wide when TLS for the transport layer"
@@ -99,16 +101,15 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                 )
             );
         } else {
-            super.doExecute(task, request, ActionListener.runBefore(listener, request::close));
+            super.doExecute(task, request, listener);
         }
     }
 
     @Override
     protected NodesReloadSecureSettingsResponse.NodeResponse nodeOperation(
-        NodesReloadSecureSettingsRequest.NodeRequest nodeReloadRequest,
+        NodesReloadSecureSettingsRequest.NodeRequest request,
         Task task
     ) {
-        final NodesReloadSecureSettingsRequest request = nodeReloadRequest.request;
         // We default to using an empty string as the keystore password so that we mimic pre 7.3 API behavior
         try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configFile())) {
             // reread keystore from config file
@@ -122,6 +123,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             keystore.decrypt(request.hasPassword() ? request.getSecureSettingsPassword().getChars() : new char[0]);
             // add the keystore to the original node settings object
             final Settings settingsWithKeystore = Settings.builder().put(environment.settings(), false).setSecureSettings(keystore).build();
+            clusterService.getClusterSettings().validate(settingsWithKeystore, true);
+
             final List<Exception> exceptions = new ArrayList<>();
             // broadcast the new settings object (with the open embedded keystore) to all reloadable plugins
             pluginsService.filterPlugins(ReloadablePlugin.class).forEach(p -> {
@@ -136,8 +139,6 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), null);
         } catch (final Exception e) {
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e);
-        } finally {
-            request.close();
         }
     }
 

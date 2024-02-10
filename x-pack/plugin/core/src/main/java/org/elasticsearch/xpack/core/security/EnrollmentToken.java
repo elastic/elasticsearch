@@ -109,11 +109,14 @@ public class EnrollmentToken {
         if (Strings.isNullOrEmpty(encoded)) {
             throw new IOException("Cannot decode enrollment token from an empty string");
         }
-        final XContentParser jsonParser = JsonXContent.jsonXContent.createParser(
-            XContentParserConfiguration.EMPTY,
-            Base64.getDecoder().decode(encoded)
-        );
-        return EnrollmentToken.PARSER.parse(jsonParser, null);
+        try (
+            XContentParser jsonParser = JsonXContent.jsonXContent.createParser(
+                XContentParserConfiguration.EMPTY,
+                Base64.getDecoder().decode(encoded)
+            )
+        ) {
+            return EnrollmentToken.PARSER.parse(jsonParser, null);
+        }
     }
 
     @Override

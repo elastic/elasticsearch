@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -183,14 +184,14 @@ public class PluginDescriptorTests extends ESTestCase {
 
     public void testReadFromPropertiesModulenameFallback() throws Exception {
         PluginDescriptor info = mockInternalDescriptor("modulename", null);
-        assertThat(info.getModuleName().isPresent(), is(false));
+        assertThat(info.getModuleName(), isEmpty());
         assertThat(info.isModular(), is(false));
         assertThat(info.getExtendedPlugins(), empty());
     }
 
     public void testReadFromPropertiesModulenameEmpty() throws Exception {
         PluginDescriptor info = mockInternalDescriptor("modulename", " ");
-        assertThat(info.getModuleName().isPresent(), is(false));
+        assertThat(info.getModuleName(), isEmpty());
         assertThat(info.isModular(), is(false));
         assertThat(info.getExtendedPlugins(), empty());
     }

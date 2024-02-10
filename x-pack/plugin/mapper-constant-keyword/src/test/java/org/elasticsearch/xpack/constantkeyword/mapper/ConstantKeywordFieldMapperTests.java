@@ -16,11 +16,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -229,24 +228,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
      * for newly created indices that haven't received any documents that
      * contain the field.
      */
-    public void testNullValueBlockLoaderReadValues() throws IOException {
-        testNullBlockLoader(blockReader -> (TestBlock) blockReader.readValues(TestBlock.FACTORY, TestBlock.docs(0)));
-    }
-
-    /**
-     * Test loading blocks when there is no defined value. This is allowed
-     * for newly created indices that haven't received any documents that
-     * contain the field.
-     */
-    public void testNullValueBlockLoaderReadValuesFromSingleDoc() throws IOException {
-        testNullBlockLoader(blockReader -> {
-            TestBlock block = (TestBlock) blockReader.builder(TestBlock.FACTORY, 1);
-            blockReader.readValuesFromSingleDoc(0, block);
-            return block;
-        });
-    }
-
-    private void testNullBlockLoader(CheckedFunction<BlockDocValuesReader, TestBlock, IOException> body) throws IOException {
+    public void testNullValueBlockLoader() throws IOException {
         MapperService mapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("field");
             b.field("type", "constant_keyword");
@@ -259,6 +241,11 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             }
 
             @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
             public SearchLookup lookup() {
                 throw new UnsupportedOperationException();
             }
@@ -267,6 +254,16 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             public Set<String> sourcePaths(String name) {
                 return mapper.mappingLookup().sourcePaths(name);
             }
+
+            @Override
+            public String parentField(String field) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+            }
         });
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
@@ -274,7 +271,18 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                TestBlock block = body.apply(loader.reader(reader.leaves().get(0)));
+                TestBlock block = (TestBlock) loader.columnAtATimeReader(reader.leaves().get(0))
+                    .read(TestBlock.factory(reader.numDocs()), new BlockLoader.Docs() {
+                        @Override
+                        public int count() {
+                            return 1;
+                        }
+
+                        @Override
+                        public int get(int i) {
+                            return 0;
+                        }
+                    });
                 assertThat(block.get(0), nullValue());
             }
         }

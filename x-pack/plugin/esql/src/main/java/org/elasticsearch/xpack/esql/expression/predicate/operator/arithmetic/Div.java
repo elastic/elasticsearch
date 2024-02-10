@@ -34,7 +34,7 @@ public class Div extends EsqlArithmeticOperation implements BinaryComparisonInve
             DivIntsEvaluator.Factory::new,
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
-            (s, lhs, rhs) -> new DivDoublesEvaluator.Factory(lhs, rhs)
+            (s, lhs, rhs) -> new DivDoublesEvaluator.Factory(source, lhs, rhs)
         );
         this.type = type;
     }

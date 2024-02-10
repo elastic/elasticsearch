@@ -146,6 +146,11 @@ When an alert occurs, it is always the same name as the job ID of the associated
 them from generating actions. For more details, refer to
 {kibana-ref}/create-and-manage-rules.html#controlling-rules[Snooze and disable rules].
 
+You can also review how the alerts that are occured correlate with the 
+{anomaly-detect} results in the **Anomaly exloprer** by using the 
+**Anomaly timeline** swimlane and the **Alerts** panel.
+
+
 [[creating-anomaly-jobs-health-rules]]
 == {anomaly-jobs-cap} health rules
 

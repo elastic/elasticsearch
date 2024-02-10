@@ -9,14 +9,13 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -25,6 +24,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -61,7 +61,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         final CorrelatingBackoffPolicy internalPolicy = new CorrelatingBackoffPolicy(backoffPolicy);
         int numberOfAsyncOps = randomIntBetween(600, 700);
         final CountDownLatch latch = new CountDownLatch(numberOfAsyncOps);
-        final Set<Object> responses = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        final Set<Object> responses = ConcurrentCollections.newConcurrentSet();
 
         assertAcked(prepareCreate(INDEX_NAME));
         ensureGreen();
@@ -131,15 +131,16 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
 
         indicesAdmin().refresh(new RefreshRequest()).get();
 
-        SearchResponse results = prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0).get();
-
-        if (rejectedExecutionExpected) {
-            assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));
-        } else if (rejectedAfterAllRetries) {
-            assertThat((int) results.getHits().getTotalHits().value, lessThan(numberOfAsyncOps));
-        } else {
-            assertThat((int) results.getHits().getTotalHits().value, equalTo(numberOfAsyncOps));
-        }
+        final boolean finalRejectedAfterAllRetries = rejectedAfterAllRetries;
+        assertResponse(prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0), results -> {
+            if (rejectedExecutionExpected) {
+                assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));
+            } else if (finalRejectedAfterAllRetries) {
+                assertThat((int) results.getHits().getTotalHits().value, lessThan(numberOfAsyncOps));
+            } else {
+                assertThat((int) results.getHits().getTotalHits().value, equalTo(numberOfAsyncOps));
+            }
+        });
     }
 
     private void assertRetriedCorrectly(CorrelatingBackoffPolicy internalPolicy, Object bulkResponse, Throwable failure) {
@@ -156,9 +157,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
     private static void indexDocs(BulkProcessor processor, int numDocs) {
         for (int i = 1; i <= numDocs; i++) {
             processor.add(
-                client().prepareIndex()
-                    .setIndex(INDEX_NAME)
-                    .setId(Integer.toString(i))
+                prepareIndex(INDEX_NAME).setId(Integer.toString(i))
                     .setSource("field", randomRealisticUnicodeOfLengthBetween(1, 30))
                     .request()
             );

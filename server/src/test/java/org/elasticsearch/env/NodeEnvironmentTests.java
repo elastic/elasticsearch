@@ -42,9 +42,11 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -640,7 +642,16 @@ public class NodeEnvironmentTests extends ESTestCase {
         Path dataPath = tempDir.resolve("data");
         Files.createDirectories(dataPath);
         Path symLinkPath = tempDir.resolve("data_symlink");
-        Files.createSymbolicLink(symLinkPath, dataPath);
+        try {
+            Files.createSymbolicLink(symLinkPath, dataPath);
+        } catch (FileSystemException e) {
+            if (IOUtils.WINDOWS && "A required privilege is not held by the client".equals(e.getReason())) {
+                throw new AssumptionViolatedException("Symlinks on Windows need admin privileges", e);
+            } else {
+                throw e;
+            }
+        }
+
         NodeEnvironment env = newNodeEnvironment(new String[] { symLinkPath.toString() }, "/tmp", Settings.EMPTY);
 
         assertTrue(Files.exists(symLinkPath));

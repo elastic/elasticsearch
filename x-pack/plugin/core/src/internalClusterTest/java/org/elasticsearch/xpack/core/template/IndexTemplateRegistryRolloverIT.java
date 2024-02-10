@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.core.template;
 
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -16,16 +19,21 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.xpack.core.template.RolloverEnabledTestTemplateRegistry.TEST_INDEX_PATTERN;
 import static org.elasticsearch.xpack.core.template.RolloverEnabledTestTemplateRegistry.TEST_INDEX_TEMPLATE_ID;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -67,16 +75,29 @@ public class IndexTemplateRegistryRolloverIT extends ESIntegTestCase {
         assertNumberOfBackingIndices(1);
         registry.incrementVersion();
         registry.clusterChanged(new ClusterChangedEvent(IndexTemplateRegistryRolloverIT.class.getName(), clusterService.state(), state));
+        assertBusy(() -> assertTrue(getDataStream().rolloverOnWrite()));
+        assertNumberOfBackingIndices(1);
+
+        String timestampValue = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+        DocWriteResponse docWriteResponse = client().index(
+            new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
+                .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, timestampValue), XContentType.JSON)
+        ).actionGet();
+        assertThat(docWriteResponse.status().getStatus(), equalTo(201));
         assertBusy(() -> assertNumberOfBackingIndices(2));
     }
 
     private void assertNumberOfBackingIndices(final int expected) {
+        DataStream dataStream = getDataStream();
+        assertThat(dataStream.getIndices(), hasSize(expected));
+        assertThat(dataStream.getWriteIndex().getName(), endsWith(String.valueOf(expected)));
+    }
+
+    private DataStream getDataStream() {
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { TEST_INDEX_PATTERN });
         GetDataStreamAction.Response getDataStreamResponse = client.execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreams = getDataStreamResponse.getDataStreams();
         assertThat(dataStreams, hasSize(1));
-        DataStream dataStream = dataStreams.get(0).getDataStream();
-        assertThat(dataStream.getIndices(), hasSize(expected));
-        assertThat(dataStream.getWriteIndex().getName(), endsWith(String.valueOf(expected)));
+        return dataStreams.get(0).getDataStream();
     }
 }

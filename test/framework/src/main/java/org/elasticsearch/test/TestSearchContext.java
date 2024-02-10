@@ -453,16 +453,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public int[] docIdsToLoad() {
-        return new int[0];
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        return null;
-    }
-
-    @Override
     public DfsSearchResult dfsResult() {
         return null;
     }

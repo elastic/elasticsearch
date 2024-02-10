@@ -35,7 +35,7 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
     public static final String NAME = "cluster:admin/shutdown/get";
 
     public GetShutdownStatusAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

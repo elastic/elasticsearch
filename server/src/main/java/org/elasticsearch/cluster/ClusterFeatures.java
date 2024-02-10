@@ -12,12 +12,14 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -50,24 +52,24 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> Set.copyOf(e.getValue())));
     }
 
-    private Set<String> calculateAllNodeFeatures() {
+    public static Set<String> calculateAllNodeFeatures(Collection<Set<String>> nodeFeatures) {
         if (nodeFeatures.isEmpty()) {
             return Set.of();
         }
 
         Set<String> allNodeFeatures = null;
-        for (Set<String> featureSet : nodeFeatures.values()) {
+        for (Set<String> featureSet : nodeFeatures) {
             if (allNodeFeatures == null) {
                 allNodeFeatures = new HashSet<>(featureSet);
             } else {
                 allNodeFeatures.retainAll(featureSet);
             }
         }
-        return Set.copyOf(allNodeFeatures);
+        return allNodeFeatures;
     }
 
     /**
-     * Returns the features reported by each node in the cluster.
+     * The features reported by each node in the cluster.
      * <p>
      * NOTE: This should not be used directly.
      * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
@@ -77,16 +79,27 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
     }
 
     /**
+     * The features in all nodes in the cluster.
+     * <p>
+     * NOTE: This should not be used directly.
+     * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
+     */
+    public Set<String> allNodeFeatures() {
+        if (allNodeFeatures == null) {
+            allNodeFeatures = Set.copyOf(calculateAllNodeFeatures(nodeFeatures.values()));
+        }
+        return allNodeFeatures;
+    }
+
+    /**
      * {@code true} if {@code feature} is present on all nodes in the cluster.
      * <p>
      * NOTE: This should not be used directly, as it does not read historical features.
      * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
      */
+    @SuppressForbidden(reason = "directly reading cluster features")
     public boolean clusterHasFeature(NodeFeature feature) {
-        if (allNodeFeatures == null) {
-            allNodeFeatures = calculateAllNodeFeatures();
-        }
-        return allNodeFeatures.contains(feature.id());
+        return allNodeFeatures().contains(feature.id());
     }
 
     /**

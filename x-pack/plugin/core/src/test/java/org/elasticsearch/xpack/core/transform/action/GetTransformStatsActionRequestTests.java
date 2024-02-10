@@ -27,7 +27,8 @@ public class GetTransformStatsActionRequestTests extends AbstractWireSerializing
     protected Request createTestInstance() {
         return new Request(
             randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : randomBoolean() ? Metadata.ALL : null,
-            randomBoolean() ? TimeValue.parseTimeValue(randomTimeValue(), "timeout") : null
+            randomBoolean() ? TimeValue.parseTimeValue(randomTimeValue(), "timeout") : null,
+            randomBoolean()
         );
     }
 
@@ -42,7 +43,7 @@ public class GetTransformStatsActionRequestTests extends AbstractWireSerializing
     }
 
     public void testCreateTask() {
-        Request request = new Request("some-transform", null);
+        Request request = new Request("some-transform", null, false);
         Task task = request.createTask(123, "type", "action", TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(task, is(instanceOf(CancellableTask.class)));
         assertThat(task.getDescription(), is(equalTo("get_transform_stats[some-transform]")));

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtAuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.ClientAuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
@@ -104,7 +105,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     ) throws InterruptedException, ExecutionException {
         final ThreadContext tc = createThreadContext(jwt, clientSecret);
         final JwtAuthenticationToken token = (JwtAuthenticationToken) jwtIssuerAndRealm.realm.token(tc);
-        final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = PlainActionFuture.newFuture();
+        final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = new PlainActionFuture<>();
         jwtIssuerAndRealm.realm.authenticate(token, plainActionFuture);
         assertThat(plainActionFuture.get(), notNullValue());
         assertThat(plainActionFuture.get().isAuthenticated(), is(false));
@@ -398,7 +399,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             User authenticatedUser = null;
             realmLoop: for (final JwtRealm candidateJwtRealm : jwtRealmsList) {
                 logger.debug("TRY AUTHC: expected=[" + jwtRealm.name() + "], candidate[" + candidateJwtRealm.name() + "].");
-                final PlainActionFuture<AuthenticationResult<User>> authenticateFuture = PlainActionFuture.newFuture();
+                final PlainActionFuture<AuthenticationResult<User>> authenticateFuture = new PlainActionFuture<>();
                 candidateJwtRealm.authenticate(jwtAuthenticationToken, authenticateFuture);
                 final AuthenticationResult<User> authenticationResult = authenticateFuture.actionGet();
                 logger.debug("Authentication result with realm [{}]: [{}]", candidateJwtRealm.name(), authenticationResult);

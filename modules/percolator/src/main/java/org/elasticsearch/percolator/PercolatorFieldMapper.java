@@ -530,6 +530,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         // as an analyzed string.
         wrapped.setAllowUnmappedFields(false);
         wrapped.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
+        // We need to rewrite queries with name to Lucene NamedQuery to find matched sub-queries of percolator query
+        wrapped.setRewriteToNamedQueries();
         return wrapped;
     }
 

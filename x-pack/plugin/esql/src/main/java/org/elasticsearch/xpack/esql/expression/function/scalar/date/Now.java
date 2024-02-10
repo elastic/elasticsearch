@@ -11,6 +11,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -27,6 +28,7 @@ public class Now extends ConfigurationFunction implements EvaluatorMapper {
 
     private final long now;
 
+    @FunctionInfo(returnType = "date", description = "Returns current date and time.")
     public Now(Source source, Configuration configuration) {
         super(source, List.of(), configuration);
         this.now = configuration.now() == null ? System.currentTimeMillis() : configuration.now().toInstant().toEpochMilli();
@@ -73,7 +75,7 @@ public class Now extends ConfigurationFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return dvrCtx -> new NowEvaluator(now, dvrCtx);
+        return dvrCtx -> new NowEvaluator(source(), now, dvrCtx);
     }
 
     @Override

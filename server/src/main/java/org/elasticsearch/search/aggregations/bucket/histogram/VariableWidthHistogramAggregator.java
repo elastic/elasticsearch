@@ -82,7 +82,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
         private DoubleArray buffer;
         private int bufferSize;
-        private int bufferLimit;
+        private final int bufferLimit;
         private MergeBucketsPhase mergeBucketsPhase;
 
         BufferValuesPhase(int bufferLimit) {
@@ -97,7 +97,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             if (bufferSize < bufferLimit) {
                 // Add to the buffer i.e store the doc in a new bucket
                 buffer = bigArrays().grow(buffer, bufferSize + 1);
-                buffer.set((long) bufferSize, val);
+                buffer.set(bufferSize, val);
                 collectBucket(sub, doc, bufferSize);
                 bufferSize += 1;
             }
@@ -432,7 +432,6 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     // Aggregation parameters
     private final int numBuckets;
     private final int shardSize;
-    private final int bufferLimit;
 
     private CollectionPhase collector;
 
@@ -455,9 +454,8 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.formatter = valuesSourceConfig.format();
         this.shardSize = shardSize;
-        this.bufferLimit = initialBuffer;
 
-        collector = new BufferValuesPhase(this.bufferLimit);
+        collector = new BufferValuesPhase(initialBuffer);
 
         String scoringAgg = subAggsNeedScore();
         String nestedAgg = descendsFromNestedAggregator(parent);
@@ -557,11 +555,11 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             bucketOrdsToCollect[i] = i;
         }
 
-        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+        var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
 
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>(numClusters);
         for (int bucketOrd = 0; bucketOrd < numClusters; bucketOrd++) {
-            buckets.add(collector.buildBucket(bucketOrd, subAggregationResults[bucketOrd]));
+            buckets.add(collector.buildBucket(bucketOrd, subAggregationResults.apply(bucketOrd)));
         }
 
         Function<List<InternalVariableWidthHistogram.Bucket>, InternalAggregation> resultBuilder = bucketsToFormat -> {

@@ -27,6 +27,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
@@ -147,7 +149,15 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             .count();
 
         this.<Map<String, String>>assertAsync(
-            listener -> SchemaUtil.deduceMappings(client, emptyMap(), pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
+            listener -> SchemaUtil.deduceMappings(
+                client,
+                emptyMap(),
+                "my-transform",
+                new SettingsConfig(),
+                pivotConfig,
+                new SourceConfig(new String[] { "source-index" }),
+                listener
+            ),
             mappings -> {
                 assertEquals("Mappings were: " + mappings, numGroupsWithoutScripts + 15, mappings.size());
                 assertEquals("long", mappings.get("max_rating"));
@@ -219,7 +229,15 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             .count();
 
         this.<Map<String, String>>assertAsync(
-            listener -> SchemaUtil.deduceMappings(client, emptyMap(), pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
+            listener -> SchemaUtil.deduceMappings(
+                client,
+                emptyMap(),
+                "my-transform",
+                new SettingsConfig(),
+                pivotConfig,
+                new SourceConfig(new String[] { "source-index" }),
+                listener
+            ),
             mappings -> {
                 assertEquals(numGroupsWithoutScripts + 12, mappings.size());
                 assertEquals("long", mappings.get("filter_1"));

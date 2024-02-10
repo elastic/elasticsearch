@@ -18,7 +18,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 
 public class ClusterFeaturesIT extends ESIntegTestCase {
 
@@ -29,7 +29,7 @@ public class ClusterFeaturesIT extends ESIntegTestCase {
 
         FeatureService service = internalCluster().getCurrentMasterNodeInstance(FeatureService.class);
 
-        assertThat(service.getNodeFeatures(), hasItem(FeatureService.FEATURES_SUPPORTED.id()));
+        assertThat(service.getNodeFeatures(), hasKey(FeatureService.FEATURES_SUPPORTED.id()));
 
         // check the nodes all have a feature in their cluster state (there should always be features_supported)
         var response = clusterAdmin().state(new ClusterStateRequest().clear().nodes(true)).actionGet();

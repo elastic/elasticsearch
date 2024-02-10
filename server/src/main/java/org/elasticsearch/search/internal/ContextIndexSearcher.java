@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -24,6 +22,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -36,9 +35,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.CombinedBitSet;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -53,25 +50,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.RunnableFuture;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
-
-    private static final Logger logger = LogManager.getLogger(ContextIndexSearcher.class);
 
     /**
      * The interval at which we check for search cancellation when we cannot use
@@ -143,7 +132,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int maximumNumberOfSlices,
         int minimumDocsPerSlice
     ) throws IOException {
-        // we need to pass the executor up so it can potentially be used by query rewrite, which does not rely on slicing
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         setSimilarity(similarity);
         setQueryCache(queryCache);
@@ -205,15 +193,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
+        Timer rewriteTimer = null;
         if (profiler != null) {
-            profiler.startRewriteTime();
+            rewriteTimer = profiler.startRewriteTime();
         }
-
         try {
             return super.rewrite(original);
+        } catch (TimeExceededException e) {
+            timeExceeded = true;
+            return new MatchNoDocsQuery("rewrite timed out");
         } finally {
             if (profiler != null) {
-                profiler.stopAndAddRewriteTime();
+                profiler.stopAndAddRewriteTime(rewriteTimer);
             }
         }
     }
@@ -309,10 +300,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
         final C firstCollector = collectorManager.newCollector();
+        // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
+        query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
         final Weight weight;
         try {
-            // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
-            query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
             weight = createWeight(query, firstCollector.scoreMode(), 1);
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
@@ -324,22 +315,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     /**
      * Similar to the lucene implementation, with the following changes made:
-     * 1) it will wait for all threads to finish before returning when an exception is thrown. In that case, subsequent exceptions will be
-     * ignored and the first exception is re-thrown after all tasks are completed.
-     * 2) Tasks are cancelled on exception, as well as on timeout, to prevent needless computation
-     * 3) collection is unconditionally offloaded to the executor when set, even when there is a single slice or the request does not
-     * support concurrent collection. The executor is not set only when concurrent search has been explicitly disabled at the cluster level.
-     * 4) postCollection is performed after each segment is collected. This is needed for aggregations, performed by search worker threads
+     * 1) postCollection is performed after each segment is collected. This is needed for aggregations, performed by search worker threads
      * so it can be parallelized. Also, it needs to happen in the same thread where doc_values are read, as it consumes them and Lucene
      * does not allow consuming them from a different thread.
-     * 5) handles the ES TimeExceededException
+     * 2) handles the ES TimeExceededException
      * */
     private <C extends Collector, T> T search(Weight weight, CollectorManager<C, T> collectorManager, C firstCollector) throws IOException {
-        // the executor will be null only when concurrency is disabled at the cluster level
-        if (getExecutor() == null) {
-            search(leafContexts, weight, firstCollector);
-            return collectorManager.reduce(Collections.singletonList(firstCollector));
-        }
         LeafSlice[] leafSlices = getSlices();
         if (leafSlices.length == 0) {
             assert leafContexts.isEmpty();
@@ -356,92 +337,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
                 }
             }
-            final List<RunnableFuture<C>> listTasks = new ArrayList<>();
+            final List<Callable<C>> listTasks = new ArrayList<>();
             for (int i = 0; i < leafSlices.length; ++i) {
                 final LeafReaderContext[] leaves = leafSlices[i].leaves;
                 final C collector = collectors.get(i);
-                AtomicInteger state = new AtomicInteger(0);
-                RunnableFuture<C> task = new FutureTask<>(() -> {
-                    if (state.compareAndSet(0, 1)) {
-                        // A slice throws exception or times out: cancel all the tasks, to prevent slices that haven't started yet from
-                        // starting and performing needless computation.
-                        // TODO we will also want to cancel tasks that have already started, reusing the timeout mechanism
-                        try {
-                            search(Arrays.asList(leaves), weight, collector);
-                            if (timeExceeded) {
-                                for (Future<?> future : listTasks) {
-                                    FutureUtils.cancel(future);
-                                }
-                            }
-                        } catch (Exception e) {
-                            for (Future<?> future : listTasks) {
-                                FutureUtils.cancel(future);
-                            }
-                            throw e;
-                        }
-                        return collector;
-                    }
-                    throw new CancellationException();
-                }) {
-                    @Override
-                    public boolean cancel(boolean mayInterruptIfRunning) {
-                        /*
-                        Future#get (called down below after submitting all tasks) throws CancellationException for a cancelled task while
-                        it is still running. It's important to make sure that search does not leave any tasks behind when it returns.
-                        Overriding cancel ensures that tasks that are already started are left alone once cancelled, so Future#get will
-                        wait for them to finish instead of throwing CancellationException.
-                        Tasks that are cancelled before they are started won't start (same behaviour as the original implementation).
-                         */
-                        return state.compareAndSet(0, -1);
-                    }
-
-                    @Override
-                    public boolean isCancelled() {
-                        return state.get() == -1;
-                    }
-                };
-                listTasks.add(task);
+                listTasks.add(() -> {
+                    search(Arrays.asList(leaves), weight, collector);
+                    return collector;
+                });
             }
-            logger.trace("Collecting using " + listTasks.size() + " tasks.");
-
-            for (Runnable task : listTasks) {
-                getExecutor().execute(task);
-            }
-            RuntimeException exception = null;
-            final List<C> collectedCollectors = new ArrayList<>();
-            boolean cancellation = false;
-            for (Future<C> future : listTasks) {
-                try {
-                    collectedCollectors.add(future.get());
-                } catch (InterruptedException e) {
-                    if (exception == null) {
-                        exception = new ThreadInterruptedException(e);
-                    } else {
-                        // we ignore further exceptions
-                    }
-                } catch (ExecutionException e) {
-                    if (exception == null) {
-                        if (e.getCause() instanceof CancellationException) {
-                            // thrown by the manual cancellation implemented above - we cancel on exception and we will throw the root cause
-                            cancellation = true;
-                        } else {
-                            if (e.getCause() instanceof RuntimeException runtimeException) {
-                                exception = runtimeException;
-                            } else if (e.getCause() instanceof IOException ioException) {
-                                throw ioException;
-                            } else {
-                                exception = new RuntimeException(e.getCause());
-                            }
-                        }
-                    } else {
-                        // we ignore further exceptions
-                    }
-                }
-            }
-            assert cancellation == false || exception != null || timeExceeded : "cancellation without an exception or timeout?";
-            if (exception != null) {
-                throw exception;
-            }
+            List<C> collectedCollectors = getTaskExecutor().invokeAll(listTasks);
             return collectorManager.reduce(collectedCollectors);
         }
     }
@@ -619,13 +524,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation {
 
-        private final Set<Runnable> runnables = new HashSet<>();
+        private final List<Runnable> runnables = new ArrayList<>();
 
         private Runnable add(Runnable action) {
             Objects.requireNonNull(action, "cancellation runnable should not be null");
-            if (runnables.add(action) == false) {
-                throw new IllegalArgumentException("Cancellation runnable already added");
-            }
+            assert runnables.contains(action) == false : "Cancellation runnable already added";
+            runnables.add(action);
             return action;
         }
 

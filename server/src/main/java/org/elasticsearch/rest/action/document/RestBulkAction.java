@@ -19,7 +19,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -79,7 +79,8 @@ public class RestBulkAction extends BaseRestHandler {
         if (waitForActiveShards != null) {
             bulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
-        Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, null);
+        Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false);
+        boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(
@@ -89,13 +90,14 @@ public class RestBulkAction extends BaseRestHandler {
             defaultFetchSourceContext,
             defaultPipeline,
             defaultRequireAlias,
+            defaultRequireDataStream,
             defaultListExecutedPipelines,
             allowExplicitIndex,
             request.getXContentType(),
             request.getRestApiVersion()
         );
 
-        return channel -> client.bulk(bulkRequest, new RestToXContentListener<>(channel));
+        return channel -> client.bulk(bulkRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 
     @Override

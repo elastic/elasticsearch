@@ -161,26 +161,13 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
     }
 
     public MultiValuesSourceFieldConfig(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            this.fieldName = in.readOptionalString();
-        } else {
-            this.fieldName = in.readString();
-        }
+        this.fieldName = in.readOptionalString();
         this.missing = in.readGenericValue();
         this.script = in.readOptionalWriteable(Script::new);
         this.timeZone = in.readOptionalZoneId();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
-            this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        } else {
-            this.filter = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
-            this.userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
-            this.format = in.readOptionalString();
-        } else {
-            this.userValueTypeHint = null;
-            this.format = null;
-        }
+        this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        this.userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
+        this.format = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             this.includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         } else {
@@ -222,21 +209,13 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            out.writeOptionalString(fieldName);
-        } else {
-            out.writeString(fieldName);
-        }
+        out.writeOptionalString(fieldName);
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(script);
         out.writeOptionalZoneId(timeZone);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
-            out.writeOptionalNamedWriteable(filter);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
-            out.writeOptionalWriteable(userValueTypeHint);
-            out.writeOptionalString(format);
-        }
+        out.writeOptionalNamedWriteable(filter);
+        out.writeOptionalWriteable(userValueTypeHint);
+        out.writeOptionalString(format);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeOptionalWriteable(includeExclude);
         }

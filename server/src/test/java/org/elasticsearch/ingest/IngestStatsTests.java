@@ -71,42 +71,86 @@ public class IngestStatsTests extends ESTestCase {
         );
     }
 
-    public void testProcessorStatsMerge() {
+    public void testProcessorStatsMergeZeroCounts() {
         {
-            var first = Map.of("pipeline-1", randomPipelineProcessorStats());
+            var expected = randomPipelineProcessorStats();
+            var first = Map.of("pipeline-1", expected);
+
+            // merging with an empty map yields the non-empty map
             assertEquals(IngestStats.merge(Map.of(), first), first);
             assertEquals(IngestStats.merge(first, Map.of()), first);
+
+            // it's the same exact reference, in fact
+            assertSame(expected, IngestStats.merge(Map.of(), first).get("pipeline-1"));
+            assertSame(expected, IngestStats.merge(first, Map.of()).get("pipeline-1"));
         }
         {
-            var first = Map.of(
-                "pipeline-1",
-                randomPipelineProcessorStats(),
-                "pipeline-2",
-                randomPipelineProcessorStats(),
-                "pipeline-3",
-                randomPipelineProcessorStats()
+            var expected = randomPipelineProcessorStats();
+            var first = Map.of("pipeline-1", expected);
+            var zero = List.of(
+                new IngestStats.ProcessorStat("proc-1", "type-1", zeroStats()),
+                new IngestStats.ProcessorStat("proc-1", "type-2", zeroStats()),
+                new IngestStats.ProcessorStat("proc-2", "type-1", zeroStats()),
+                new IngestStats.ProcessorStat("proc-3", "type-3", zeroStats())
             );
-            var second = Map.of(
-                "pipeline-2",
-                randomPipelineProcessorStats(),
-                "pipeline-3",
-                randomPipelineProcessorStats(),
-                "pipeline-1",
-                randomPipelineProcessorStats()
-            );
+            var second = Map.of("pipeline-1", zero);
 
-            assertEquals(
-                IngestStats.merge(first, second),
-                Map.of(
-                    "pipeline-1",
-                    expectedPipelineProcessorStats(first.get("pipeline-1"), second.get("pipeline-1")),
-                    "pipeline-2",
-                    expectedPipelineProcessorStats(first.get("pipeline-2"), second.get("pipeline-2")),
-                    "pipeline-3",
-                    expectedPipelineProcessorStats(first.get("pipeline-3"), second.get("pipeline-3"))
-                )
-            );
+            // merging with a zero map yields the non-zero map
+            assertEquals(IngestStats.merge(second, first), first);
+            assertEquals(IngestStats.merge(first, second), first);
+
+            // it's the same exact reference, in fact
+            assertSame(expected, IngestStats.merge(second, first).get("pipeline-1"));
+            assertSame(expected, IngestStats.merge(first, second).get("pipeline-1"));
         }
+    }
+
+    public void testProcessorStatsMerge() {
+        var first = Map.of(
+            "pipeline-1",
+            randomPipelineProcessorStats(),
+            "pipeline-2",
+            randomPipelineProcessorStats(),
+            "pipeline-3",
+            randomPipelineProcessorStats()
+        );
+        var second = Map.of(
+            "pipeline-2",
+            randomPipelineProcessorStats(),
+            "pipeline-3",
+            randomPipelineProcessorStats(),
+            "pipeline-1",
+            randomPipelineProcessorStats()
+        );
+
+        assertEquals(
+            IngestStats.merge(first, second),
+            Map.of(
+                "pipeline-1",
+                expectedPipelineProcessorStats(first.get("pipeline-1"), second.get("pipeline-1")),
+                "pipeline-2",
+                expectedPipelineProcessorStats(first.get("pipeline-2"), second.get("pipeline-2")),
+                "pipeline-3",
+                expectedPipelineProcessorStats(first.get("pipeline-3"), second.get("pipeline-3"))
+            )
+        );
+    }
+
+    public void testProcessorStatsMergeHeterogeneous() {
+        // if a pipeline has heterogeneous *non-zero* stats, then we defer to the one with a smaller total ingest count
+
+        var first = Map.of(
+            "pipeline-1",
+            List.of(
+                new IngestStats.ProcessorStat("name-1", "type-1", new IngestStats.Stats(randomLongBetween(1, 100), 0, 0, 0)),
+                new IngestStats.ProcessorStat("name-2", "type-2", new IngestStats.Stats(randomLongBetween(1, 100), 0, 0, 0))
+            )
+        );
+        var expected = List.of(new IngestStats.ProcessorStat("name-1", "type-1", new IngestStats.Stats(1, 0, 0, 0)));
+        var second = Map.of("pipeline-1", expected);
+
+        assertEquals(second, IngestStats.merge(first, second));
+        assertSame(expected, IngestStats.merge(second, first).get("pipeline-1"));
     }
 
     private static List<IngestStats.ProcessorStat> expectedPipelineProcessorStats(
@@ -117,7 +161,7 @@ public class IngestStatsTests extends ESTestCase {
             new IngestStats.ProcessorStat("proc-1", "type-1", merge(first.get(0).stats(), second.get(0).stats())),
             new IngestStats.ProcessorStat("proc-1", "type-2", merge(first.get(1).stats(), second.get(1).stats())),
             new IngestStats.ProcessorStat("proc-2", "type-1", merge(first.get(2).stats(), second.get(2).stats())),
-            new IngestStats.ProcessorStat("proc-3", "type-4", merge(first.get(3).stats(), second.get(3).stats()))
+            new IngestStats.ProcessorStat("proc-3", "type-3", merge(first.get(3).stats(), second.get(3).stats()))
         );
     }
 
@@ -126,7 +170,7 @@ public class IngestStatsTests extends ESTestCase {
             randomProcessorStat("proc-1", "type-1"),
             randomProcessorStat("proc-1", "type-2"),
             randomProcessorStat("proc-2", "type-1"),
-            randomProcessorStat("proc-3", "type-4")
+            randomProcessorStat("proc-3", "type-3")
         );
     }
 
@@ -215,5 +259,9 @@ public class IngestStatsTests extends ESTestCase {
 
     private static IngestStats.Stats randomStats() {
         return new IngestStats.Stats(randomLong(), randomLong(), randomLong(), randomLong());
+    }
+
+    private static IngestStats.Stats zeroStats() {
+        return new IngestStats.Stats(0, 0, 0, 0);
     }
 }

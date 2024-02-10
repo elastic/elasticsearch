@@ -533,8 +533,7 @@ emp_no:integer |   salary_change:double   |salary_change.int:integer|salary_chan
 
 
 projectAllButConstant
-from employees | eval c = 1 | keep c | limit 2
-;
+from employees | eval c = 1 | keep c | limit 2;
 
 c:i
 1

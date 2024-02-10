@@ -107,7 +107,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return LongScriptBlockDocValuesReader.blockLoader(leafFactory(blContext.lookup()));
+        return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()));
     }
 
     @Override

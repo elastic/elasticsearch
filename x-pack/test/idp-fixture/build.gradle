@@ -1,40 +1,36 @@
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.Architecture
-import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
+import org.elasticsearch.gradle.internal.docker.DockerBuildTask
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.cache-test-fixtures'
 
-dockerCompose {
-  composeAdditionalArgs = ['--compatibility']
+dependencies {
+  testImplementation project(':test:framework')
+
+  api project(':test:fixtures:testcontainer-utils')
+  api "junit:junit:${versions.junit}"
 }
 
-tasks.named("preProcessFixture").configure {
-  file("${testFixturesDir}/shared/oidc").mkdirs()
+tasks.register("deployIdpFixtureDockerImages", DockerBuildTask) {
+    dockerContext.fileValue(file("src/main/resources/idp"))
+    baseImages = ["openjdk:11.0.16-jre"]
+    noCache = BuildParams.isCi()
+    tags = ["docker.elastic.co/elasticsearch-dev/idp-fixture:1.0"]
+    push = BuildParams.isCi()
+    getPlatforms().addAll( Architecture.values().collect{ it.dockerPlatform } )
 }
 
-tasks.register("copyFiles", Sync) {
-  from file("oidc/override.properties.template")
-  into "${buildDir}/config"
-  doLast {
-    file("${buildDir}/config").setReadable(true, false)
-    file("${buildDir}/config/override.properties.template").setReadable(true, false)
-  }
+
+tasks.register("deployOpenLdapFixtureDockerImages", DockerBuildTask) {
+  dockerContext.fileValue(file("src/main/resources/openldap"))
+  baseImages = ["osixia/openldap:1.4.0"]
+  noCache = BuildParams.isCi()
+  tags = ["docker.elastic.co/elasticsearch-dev/openldap-fixture:1.0"]
+  push = BuildParams.isCi()
+  getPlatforms().addAll( Architecture.values().collect{ it.dockerPlatform } )
 }
 
-tasks.named("postProcessFixture").configure {
-  dependsOn "copyFiles"
-  inputs.dir("${testFixturesDir}/shared/oidc")
-  File confTemplate = file("${buildDir}/config/override.properties.template")
-  File confFile = file("${testFixturesDir}/shared/oidc/override.properties")
-  outputs.file(confFile)
-  doLast {
-    assert confTemplate.exists()
-    String confContents = confTemplate.text
-      .replace("\${MAPPED_PORT}", "${ext."test.fixtures.oidc-provider.tcp.8080"}")
-    confFile.text = confContents
-  }
-}
-
-tasks.named('composePull').configure {
-  enabled = false // this task fails due to docker-compose oddities
+tasks.register("deployFixtureDockerImages") {
+  dependsOn tasks.withType(DockerBuildTask)
 }

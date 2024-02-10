@@ -1,7 +1,9 @@
 // Integral types-specific tests
 
-inLongAndInt
+inLongAndInt#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where avg_worked_seconds in (372957040, salary_change.long, 236703986) | where emp_no in (10017, emp_no - 1) | keep emp_no, avg_worked_seconds;
+warning:Line 1:24: evaluation of [avg_worked_seconds in (372957040, salary_change.long, 236703986)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer |avg_worked_seconds:long
 10017          |236703986
@@ -63,7 +65,7 @@ long:long                    |ul:ul
 [501379200000, 520128000000] |[501379200000, 520128000000]
 ;
 
-convertDoubleToUL
+convertDoubleToUL#[skip:-8.11.99, reason:ql exceptions updated in 8.12]
 row d = 123.4 | eval ul = to_ul(d), overflow = to_ul(1e20);
 warning:Line 1:48: evaluation of [to_ul(1e20)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:48: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E20] out of [unsigned_long] range
@@ -120,7 +122,7 @@ int:integer       |long:long
 [5013792, 520128] |[5013792, 520128]
 ;
 
-convertULToLong
+convertULToLong#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
 row ul = [9223372036854775807, 9223372036854775808] | eval long = to_long(ul);
 warning:Line 1:67: evaluation of [to_long(ul)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:67: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range
@@ -161,7 +163,7 @@ str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
 // end::to_long-str-result[]
 ;
 
-convertDoubleToLong
+convertDoubleToLong#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
 row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19);
 warning:Line 1:51: evaluation of [to_long(1e19)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:51: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E19] out of [long] range
@@ -179,7 +181,7 @@ int:integer       |ii:integer
 [5013792, 520128] |[5013792, 520128]
 ;
 
-convertLongToInt
+convertLongToInt#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
 // tag::to_int-long[]
 ROW long = [5013792, 2147483647, 501379200000]
 | EVAL int = TO_INTEGER(long)
@@ -194,11 +196,10 @@ long:long                           |int:integer
 // end::to_int-long-result[]
 ;
 
-convertULToInt
+convertULToInt#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
 row ul = [2147483647, 9223372036854775808] | eval int = to_int(ul);
 warning:Line 1:57: evaluation of [to_int(ul)] failed, treating result as null. Only first 20 failures recorded.
-// UL conversion to int dips into long; not the most efficient, but it's how SQL does it too.
-warning:Line 1:57: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range
+warning:Line 1:57: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [integer] range
 
                     ul:ul        |int:integer
 [2147483647, 9223372036854775808]|2147483647
@@ -219,27 +220,38 @@ tf:boolean     |t2i:integer    |f2i:integer    |tf2i:integer
 ;
 
 convertStringToInt
-row int_str = "2147483647", int_dbl_str = "2147483647.2" | eval is2i = to_integer(int_str), ids2i = to_integer(int_dbl_str), overflow = to_integer("2147483648"), no_number = to_integer("foo");
-warning:Line 1:137: evaluation of [to_integer(\"2147483648\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:137: java.lang.NumberFormatException: For input string: \"2147483648\"
-warning:Line 1:175: evaluation of [to_integer(\"foo\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:175: java.lang.NumberFormatException: For input string: \"foo\"
+row int_str = "2147483647", int_dbl_str = "2147483646.2" | eval is2i = to_integer(int_str), ids2i = to_integer(int_dbl_str);
 
-int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer   |overflow:integer |no_number:integer
-2147483647       |2147483647.2        |2147483647  |2147483647      |null             |null
+int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer
+2147483647       |2147483646.2        |2147483647  |2147483646
 ;
 
-convertDoubleToInt
+convertStringToIntFail#[skip:-8.11.99, reason:double rounding in conversion updated in 8.12]
+row str1 = "2147483647.2", str2 = "2147483648", non = "no number" | eval i1 = to_integer(str1), i2 = to_integer(str2), noi = to_integer(non);
+warning:Line 1:79: evaluation of [to_integer(str1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:79: java.lang.NumberFormatException: For input string: \"2147483647.2\"
+warning:Line 1:102: evaluation of [to_integer(str2)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:102: java.lang.NumberFormatException: For input string: \"2147483648\"
+warning:Line 1:126: evaluation of [to_integer(non)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:126: java.lang.NumberFormatException: For input string: \"no number\"
+
+str1:keyword   |str2:keyword   |non:keyword    |i1:integer     |i2:integer     |noi:integer
+2147483647.2   |2147483648     |no number      |null           |null           |null
+;
+
+convertDoubleToInt#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
 row d = 123.4 | eval d2i = to_integer(d), overflow = to_integer(1e19);
 warning:Line 1:54: evaluation of [to_integer(1e19)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:54: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E19] out of [long] range
+warning:Line 1:54: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E19] out of [integer] range
 
 d:double       |d2i:integer   |overflow:integer
 123.4          |123           |null    
 ;
 
-lessThanMultivalue
+lessThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where salary_change.int < 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warning:Line 1:24: evaluation of [salary_change.int < 1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -250,8 +262,10 @@ emp_no:integer |salary_change.int:integer
 10030          | 0
 ;
 
-greaterThanMultivalue
+greaterThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where salary_change.int > 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warning:Line 1:24: evaluation of [salary_change.int > 1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -262,8 +276,10 @@ emp_no:integer |salary_change.int:integer
 10086          |13
 ;
 
-equalToMultivalue
+equalToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where salary_change.int == 0 | keep emp_no, salary_change.int | sort emp_no;
+warning:Line 1:24: evaluation of [salary_change.int == 0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -273,8 +289,10 @@ emp_no:integer |salary_change.int:integer
 10093          | 0
 ;
 
-equalToOrEqualToMultivalue
+equalToOrEqualToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where salary_change.int == 1 or salary_change.int == 8 | keep emp_no, salary_change.int | sort emp_no;
+warning:Line 1:24: evaluation of [salary_change.int] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries are filtered out
 emp_no:integer |salary_change.int:integer
@@ -282,8 +300,10 @@ emp_no:integer |salary_change.int:integer
 10044          |8
 ;
 
-inMultivalue
+inMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where salary_change.int in (1, 7) | keep emp_no, salary_change.int | sort emp_no;
+warning:Line 1:24: evaluation of [salary_change.int in (1, 7)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries are filtered out
 emp_no:integer |salary_change.int:integer
@@ -291,8 +311,10 @@ emp_no:integer |salary_change.int:integer
 10079          |7
 ;
 
-notLessThanMultivalue
+notLessThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where not(salary_change.int < 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warning:Line 1:24: evaluation of [not(salary_change.int < 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change.int < 1] failed, treating result as null. Only first 20 failures recorded.]
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -303,8 +325,10 @@ emp_no:integer |salary_change.int:integer
 10079          | 7
 ;
 
-notGreaterThanMultivalue
+notGreaterThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where not(salary_change.int > 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warning:Line 1:24: evaluation of [not(salary_change.int > 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change.int > 1] failed, treating result as null. Only first 20 failures recorded.]
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -315,8 +339,10 @@ emp_no:integer |salary_change.int:integer
 10020          | -5
 ;
 
-notEqualToMultivalue
+notEqualToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where not(salary_change.int == 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warning:Line 1:24: evaluation of [not(salary_change.int == 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change.int == 1] failed, treating result as null. Only first 20 failures recorded.]
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -382,6 +408,30 @@ hire_date:date           | salary:integer | bs:double
 1985-11-20T00:00:00.000Z | 74999          | 70000.0
 1985-11-21T00:00:00.000Z | 56371          | 55000.0
 // end::auto_bucket-result[]
+;
+
+docsAutoBucketNumeric
+//tag::docsAutoBucketNumeric[]
+FROM employees
+| EVAL bs = AUTO_BUCKET(salary, 20, 25324, 74999)
+| STATS COUNT(*) by bs
+| SORT bs
+//end::docsAutoBucketNumeric[]
+;
+
+//tag::docsAutoBucketNumeric-result[]
+   COUNT(*):long    |    bs:double
+9              |25000.0        
+9              |30000.0        
+18             |35000.0        
+11             |40000.0        
+11             |45000.0        
+10             |50000.0        
+7              |55000.0        
+9              |60000.0        
+8              |65000.0        
+8              |70000.0        
+//end::docsAutoBucketNumeric-result[]
 ;
 
 cos
@@ -473,7 +523,7 @@ ROW deg = [90, 180, 270]
 [90, 180, 270] | [1.5707963267948966, 3.141592653589793, 4.71238898038469]
 ;
 
-warningWithFromSource
+warningWithFromSource-Ignore
 from employees | sort emp_no | limit 1 | eval x = to_long(emp_no) * 10000000 | eval y = to_int(x) > 1 | keep y;
 warning:Line 1:89: evaluation of [to_int(x)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:89: org.elasticsearch.xpack.ql.InvalidArgumentException: [100010000000] out of [integer] range

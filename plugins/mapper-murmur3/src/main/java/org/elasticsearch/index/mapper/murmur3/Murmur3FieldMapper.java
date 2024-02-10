@@ -8,10 +8,8 @@
 
 package org.elasticsearch.index.mapper.murmur3;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -35,15 +33,6 @@ import java.util.Map;
 public class Murmur3FieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "murmur3";
-
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE;
-        static {
-            FieldType ft = new FieldType();
-            ft.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
-        }
-    }
 
     private static Murmur3FieldMapper toType(FieldMapper in) {
         return (Murmur3FieldMapper) in;

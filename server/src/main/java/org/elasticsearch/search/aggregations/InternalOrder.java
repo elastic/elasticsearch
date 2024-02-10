@@ -72,8 +72,8 @@ public abstract class InternalOrder extends BucketOrder {
         @Override
         public Comparator<Bucket> comparator() {
             return (lhs, rhs) -> {
-                final SortValue l = path.resolveValue(((InternalAggregations) lhs.getAggregations()));
-                final SortValue r = path.resolveValue(((InternalAggregations) rhs.getAggregations()));
+                final SortValue l = path.resolveValue(lhs.getAggregations());
+                final SortValue r = path.resolveValue(rhs.getAggregations());
                 int compareResult = l.compareTo(r);
                 return order == SortOrder.ASC ? compareResult : -compareResult;
             };
@@ -289,7 +289,7 @@ public abstract class InternalOrder extends BucketOrder {
         @Override
         public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
             Comparator<Bucket> comparator = comparator();
-            return (lhs, rhs) -> comparator.compare(lhs, rhs);
+            return comparator::compare;
         }
 
         @Override
@@ -388,7 +388,6 @@ public abstract class InternalOrder extends BucketOrder {
     /**
      * @return compare by {@link Bucket#getKey()} that will be in the bucket once it is reduced
      */
-    @SuppressWarnings("unchecked")
     private static Comparator<DelayedBucket<? extends Bucket>> comparingDelayedKeys() {
         return DelayedBucket::compareKey;
     }

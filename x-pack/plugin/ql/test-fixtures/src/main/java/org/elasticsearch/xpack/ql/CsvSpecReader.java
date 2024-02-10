@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.ql;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 public final class CsvSpecReader {
 
@@ -84,8 +86,50 @@ public final class CsvSpecReader {
         public String query;
         public String earlySchema;
         public String expectedResults;
-        public List<String> expectedWarnings = new ArrayList<>();
+        private final List<String> expectedWarnings = new ArrayList<>();
         public boolean ignoreOrder;
+
+        // The emulated-specific warnings must always trail the non-emulated ones, if these are present. Otherwise, the closing bracket
+        // would need to be changed to a less common sequence (like `]#` maybe).
+        private static final String EMULATED_PREFIX = "#[emulated:";
+
+        /**
+         * Returns the warning headers expected to be added by the test. To declare such a header, use the `warning:definition` format
+         * in the CSV test declaration. The `definition` can use the `EMULATED_PREFIX` string to specify the format of the warning run on
+         * emulated physical operators, if this differs from the format returned by SingleValueQuery.
+         * @param forEmulated if true, the tests are run on emulated physical operators; if false, the test case is for queries executed
+         *                   on a "full stack" ESQL, having data loaded from Lucene.
+         * @return the list of headers that are expected to be returned part of the response.
+         */
+        public List<String> expectedWarnings(boolean forEmulated) {
+            List<String> warnings = new ArrayList<>(expectedWarnings.size());
+            for (String warning : expectedWarnings) {
+                int idx = warning.toLowerCase(Locale.ROOT).indexOf(EMULATED_PREFIX);
+                if (idx >= 0) {
+                    assertTrue("Invalid warning spec: closing delimiter (]) missing: `" + warning + "`", warning.endsWith("]"));
+                    if (forEmulated) {
+                        if (idx + EMULATED_PREFIX.length() < warning.length() - 1) {
+                            warnings.add(warning.substring(idx + EMULATED_PREFIX.length(), warning.length() - 1));
+                        }
+                    } else if (idx > 0) {
+                        warnings.add(warning.substring(0, idx));
+                    } // else: no warnings expected for non-emulated
+                } else {
+                    warnings.add(warning);
+                }
+            }
+            return warnings;
+        }
+
+        /**
+         * Modifies the expected warnings.
+         * In some cases, we modify the query to run against multiple clusters. As a result, the line/column positions
+         * of the expected warnings no longer match the actual warnings. To enable reusing of spec tests, this method
+         * allows adjusting the expected warnings.
+         */
+        public void adjustExpectedWarnings(Function<String, String> updater) {
+            expectedWarnings.replaceAll(updater::apply);
+        }
     }
 
 }

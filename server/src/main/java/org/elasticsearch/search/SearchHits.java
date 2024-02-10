@@ -18,9 +18,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ToXContent;
@@ -76,7 +76,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
             sortFields,
             collapseField,
             collapseValues,
-            hits.length == 0 ? ALWAYS_REFERENCED : LeakTracker.wrap(AbstractRefCounted.plain())
+            hits.length == 0 ? ALWAYS_REFERENCED : LeakTracker.wrap(new SimpleRefCounted())
         );
     }
 

@@ -549,12 +549,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         }
 
         protected Geometry fromBytesRef(BytesRef bytesRef) {
-            try {
-                return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
-            } catch (IllegalArgumentException e) {
-                // TODO: would be better to not rely on exceptions to tell the difference between WKB and WKT
-                return SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString());
-            }
+            return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
         }
 
         protected boolean geometryRelatesGeometry(BytesRef left, Component2D rightComponent2D) throws IOException {

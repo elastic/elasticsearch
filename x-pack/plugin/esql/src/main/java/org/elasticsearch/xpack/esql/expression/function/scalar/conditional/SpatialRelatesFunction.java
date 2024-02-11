@@ -19,6 +19,9 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
@@ -40,10 +43,12 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.apache.lucene.document.ShapeField.QueryRelation.DISJOINT;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -52,6 +57,7 @@ import static org.elasticsearch.xpack.ql.expression.Expressions.name;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.ql.planner.ExpressionTranslators.valueOf;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
@@ -256,6 +262,42 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
     }
 
     public abstract SpatialRelatesFunction withDocValues();
+
+    /**
+     * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
+     */
+    public boolean canPushToSource(Predicate<FieldAttribute> isAggregatable) {
+        // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
+        // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
+        // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change
+        return isPushableFieldAttribute(left(), isAggregatable) && right().foldable()
+            || isPushableFieldAttribute(right(), isAggregatable) && left().foldable();
+    }
+
+    private static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> isAggregatable) {
+        return exp instanceof FieldAttribute fa
+            && fa.getExactInfo().hasExact()
+            && isAggregatable.test(fa)
+            && EsqlDataTypes.isSpatial(fa.dataType());
+    }
+
+    public Geometry makeGeometryFromLiteral(Expression expr) throws IOException, ParseException {
+        Object value = valueOf(expr);
+
+        if (value instanceof BytesRef bytesRef) {
+            if (EsqlDataTypes.isSpatial(expr.dataType())) {
+                return WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            } else {
+                return WellKnownText.fromWKT(GeometryValidator.NOOP, false, bytesRef.utf8ToString());
+            }
+        } else if (value instanceof String string) {
+            return WellKnownText.fromWKT(GeometryValidator.NOOP, false, string);
+        } else {
+            throw new IllegalArgumentException(
+                "Unsupported combination of literal [" + value.getClass().getSimpleName() + "] of type [" + expr.dataType() + "]"
+            );
+        }
+    }
 
     @Override
     public int hashCode() {

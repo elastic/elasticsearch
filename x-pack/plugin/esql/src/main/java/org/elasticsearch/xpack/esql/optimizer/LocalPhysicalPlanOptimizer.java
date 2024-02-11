@@ -271,35 +271,17 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate)
                     && Expressions.foldable(cidrMatch.matches());
             } else if (exp instanceof SpatialRelatesFunction bc) {
-                return isAttributePushable(bc.left(), bc, hasIdenticalDelegate, validSpatial) && bc.right().foldable()
-                    || isAttributePushable(bc.right(), bc, hasIdenticalDelegate, validSpatial) && bc.left().foldable();
+                return bc.canPushToSource(LocalPhysicalPlanOptimizer::isAggregatable);
             }
             return false;
         }
-
-        /**
-         * xpack-spatial limitations:
-         *  - CARTESIAN_* cannot push-down due to ShapeQueryBuilder
-         *  - GEO_SHAPE and CARTESIAN_SHAPE cannot push-down due to LeafShapeFieldData
-         *  // TODO: Move those classes to server, and remove this predicate
-         */
-        private static final Predicate<FieldAttribute> validSpatial = fa -> true;
 
         private static boolean isAttributePushable(
             Expression expression,
             Expression operation,
             Predicate<FieldAttribute> hasIdenticalDelegate
         ) {
-            return isAttributePushable(expression, operation, hasIdenticalDelegate, a -> true);
-        }
-
-        private static boolean isAttributePushable(
-            Expression expression,
-            Expression operation,
-            Predicate<FieldAttribute> hasIdenticalDelegate,
-            Predicate<FieldAttribute> extraAttributeCheck
-        ) {
-            if (isPushableFieldAttribute(expression, hasIdenticalDelegate, extraAttributeCheck)) {
+            if (isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
                 return true;
             }
             if (expression instanceof MetadataAttribute ma && ma.searchable()) {
@@ -361,7 +343,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         private boolean canPushDownOrders(List<Order> orders, Predicate<FieldAttribute> hasIdenticalDelegate) {
             // allow only exact FieldAttributes (no expressions) for sorting
-            return orders.stream().allMatch(o -> isPushableFieldAttribute(o.child(), hasIdenticalDelegate, a -> true));
+            return orders.stream().allMatch(o -> isPushableFieldAttribute(o.child(), hasIdenticalDelegate));
         }
 
         private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {
@@ -464,12 +446,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         return stats.hasIdenticalDelegate(attr.name());
     }
 
-    public static boolean isPushableFieldAttribute(
-        Expression exp,
-        Predicate<FieldAttribute> hasIdenticalDelegate,
-        Predicate<FieldAttribute> extraAttributeCheck
-    ) {
-        if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa) && extraAttributeCheck.test(fa)) {
+    public static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
+        if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
             return fa.dataType() != DataTypes.TEXT || hasIdenticalDelegate.test(fa);
         }
         return false;
@@ -510,6 +488,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     }
                 }
                 if (exec instanceof FilterExec filterExec) {
+                    // Note that ST_CENTROID does not support shapes, but SpatialRelatesFunction does, so when we extend the centroid
+                    // to support shapes, we need to consider loading shape doc-values for both centroid and relates (ST_INTERSECTS)
                     if (filterExec.condition() instanceof SpatialRelatesFunction spatialRelatesFunction) {
                         if (spatialRelatesFunction.hasFieldAttribute(foundAttributes)) {
                             exec = new FilterExec(filterExec.source(), filterExec.child(), spatialRelatesFunction.withDocValues());

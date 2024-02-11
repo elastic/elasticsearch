@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.querydsl.query;
 
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.document.XYShape;
@@ -30,11 +31,13 @@ import org.elasticsearch.lucene.spatial.CartesianShapeDocValuesQuery;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -42,11 +45,11 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 
 public class SpatialRelatesQuery extends Query {
     private final String field;
-    private final ShapeRelation queryRelation;
+    private final ShapeField.QueryRelation queryRelation;
     private final Geometry shape;
     private final DataType dataType;
 
-    public SpatialRelatesQuery(Source source, String field, ShapeRelation queryRelation, Geometry shape, DataType dataType) {
+    public SpatialRelatesQuery(Source source, String field, ShapeField.QueryRelation queryRelation, Geometry shape, DataType dataType) {
         super(source);
         this.field = field;
         this.queryRelation = queryRelation;
@@ -99,6 +102,16 @@ public class SpatialRelatesQuery extends Query {
             && Objects.equals(queryRelation, other.queryRelation)
             && Objects.equals(shape, other.shape)
             && Objects.equals(dataType, other.dataType);
+    }
+
+    public ShapeRelation shapeRelation() {
+        return switch (queryRelation.toString().toLowerCase(Locale.ROOT)) {
+            case "intersects" -> ShapeRelation.INTERSECTS;
+            case "disjoint" -> ShapeRelation.DISJOINT;
+            case "within" -> ShapeRelation.WITHIN;
+            case "contains" -> ShapeRelation.CONTAINS;
+            default -> throw new QlIllegalArgumentException("Unknown shape relation [{}]", queryRelation);
+        };
     }
 
     /**
@@ -160,14 +173,17 @@ public class SpatialRelatesQuery extends Query {
             throw new UnsupportedOperationException("Unimplemented: getName");
         }
 
+        /** Public for testing */
         public String fieldName() {
             return field;
         }
 
+        /** Public for testing */
         public ShapeRelation relation() {
-            return queryRelation;
+            return shapeRelation();
         }
 
+        /** Public for testing */
         public Geometry shape() {
             return shape;
         }
@@ -190,7 +206,7 @@ public class SpatialRelatesQuery extends Query {
                 );
             }
             final GeoShapeQueryable ft = (GeoShapeQueryable) fieldType;
-            return new ConstantScoreQuery(ft.geoShapeQuery(context, fieldType.name(), queryRelation, shape));
+            return new ConstantScoreQuery(ft.geoShapeQuery(context, fieldType.name(), shapeRelation(), shape));
         }
     }
 
@@ -214,12 +230,12 @@ public class SpatialRelatesQuery extends Query {
         private static org.apache.lucene.search.Query pointShapeQuery(
             Geometry geometry,
             String fieldName,
-            ShapeRelation relation,
+            ShapeField.QueryRelation relation,
             SearchExecutionContext context
         ) {
             final boolean hasDocValues = context.getFieldType(fieldName).hasDocValues();
             // only the intersects relation is supported for indexed cartesian point types
-            if (relation != ShapeRelation.INTERSECTS) {
+            if (relation != ShapeField.QueryRelation.INTERSECTS) {
                 throw new QueryShardException(context, relation + " query relation not supported for Field [" + fieldName + "].");
             }
             final Consumer<ShapeType> checker = t -> {
@@ -242,16 +258,13 @@ public class SpatialRelatesQuery extends Query {
         private static org.apache.lucene.search.Query shapeShapeQuery(
             Geometry geometry,
             String fieldName,
-            ShapeRelation relation,
+            ShapeField.QueryRelation relation,
             SearchExecutionContext context
         ) {
             final boolean hasDocValues = context.getFieldType(fieldName).hasDocValues();
             // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0);
-            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(IndexVersions.V_7_5_0)) {
-                throw new QueryShardException(
-                    context,
-                    ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
-                );
+            if (relation == ShapeField.QueryRelation.CONTAINS && context.indexVersionCreated().before(IndexVersions.V_7_5_0)) {
+                throw new QueryShardException(context, relation + " query relation not supported for Field [" + fieldName + "].");
             }
             if (geometry == null || geometry.isEmpty()) {
                 return new MatchNoDocsQuery();
@@ -262,11 +275,11 @@ public class SpatialRelatesQuery extends Query {
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }
-            org.apache.lucene.search.Query query = XYShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+            org.apache.lucene.search.Query query = XYShape.newGeometryQuery(fieldName, relation, luceneGeometries);
             if (hasDocValues) {
                 final org.apache.lucene.search.Query queryDocValues = new CartesianShapeDocValuesQuery(
                     fieldName,
-                    relation.getLuceneRelation(),
+                    relation,
                     luceneGeometries
                 );
                 query = new IndexOrDocValuesQuery(query, queryDocValues);

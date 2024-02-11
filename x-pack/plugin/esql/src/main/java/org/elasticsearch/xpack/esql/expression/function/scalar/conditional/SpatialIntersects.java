@@ -122,7 +122,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                         )
                     );
                     evaluatorMap.put(
-                        SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
+                        SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withDocValues(),
                         new SpatialEvaluatorWithConstantFactory(SpatialIntersectsGeoPointDocValuesAndConstantEvaluator.Factory::new)
                     );
                 }
@@ -156,7 +156,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                         )
                     );
                     evaluatorMap.put(
-                        SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
+                        SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withDocValues(),
                         new SpatialEvaluatorWithConstantFactory(SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator.Factory::new)
                     );
                 }

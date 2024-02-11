@@ -64,7 +64,7 @@ public abstract class TransportDecompressor implements Releasable {
         }
     }
 
-    static TransportDecompressor getDecompressor(Recycler<BytesRef> recycler, BytesReference bytes) {
+    public static TransportDecompressor getDecompressor(Recycler<BytesRef> recycler, BytesReference bytes) {
         if (bytes.length() < Compression.Scheme.HEADER_LENGTH) {
             return null;
         }

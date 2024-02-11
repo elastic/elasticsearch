@@ -383,7 +383,7 @@ public class Netty4Transport extends TcpTransport {
             pipeline.addLast("logging", ESLoggingHandler.INSTANCE);
         }
         pipeline.addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()));
-        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this, getInboundPipeline(ch, isRemoteClusterServerChannel)));
+        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this));
     }
 
     protected InboundPipeline getInboundPipeline(Channel ch, boolean isRemoteClusterServerChannel) {

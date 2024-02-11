@@ -227,6 +227,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         outboundHandler.setSlowLogThreshold(slowLogThreshold);
     }
 
+    public Recycler<BytesRef> recycler() {
+        return recycler;
+    }
+
     /**
      * Only used in tests, see {@link #IGNORE_DESERIALIZATION_ERRORS_SETTING}.
      */

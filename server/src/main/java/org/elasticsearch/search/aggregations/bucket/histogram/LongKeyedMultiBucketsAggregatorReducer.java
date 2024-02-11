@@ -20,10 +20,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- *  Reduces aggregations where buckets are represented by a o long key. It uses a {@link LongObjectPagedHashMap}
+ *  Reduces aggregations where buckets are represented by a long key. It uses a {@link LongObjectPagedHashMap}
  *  to keep track of the different buckets.
  */
-abstract class HistogramMultiBucketsAggregatorReducer<B extends MultiBucketsAggregation.Bucket> implements Releasable {
+abstract class LongKeyedMultiBucketsAggregatorReducer<B extends MultiBucketsAggregation.Bucket> implements Releasable {
 
     private final AggregationReduceContext reduceContext;
     private final int size;
@@ -31,7 +31,7 @@ abstract class HistogramMultiBucketsAggregatorReducer<B extends MultiBucketsAggr
     private final LongObjectPagedHashMap<MultiBucketAggregatorsReducer> bucketsReducer;
     int consumeBucketCount = 0;
 
-    HistogramMultiBucketsAggregatorReducer(AggregationReduceContext reduceContext, int size, long minDocCount) {
+    LongKeyedMultiBucketsAggregatorReducer(AggregationReduceContext reduceContext, int size, long minDocCount) {
         this.reduceContext = reduceContext;
         this.size = size;
         this.minDocCount = minDocCount;
@@ -41,7 +41,7 @@ abstract class HistogramMultiBucketsAggregatorReducer<B extends MultiBucketsAggr
     /**
      * The bucket to reduce with its corresponding long key.
      */
-    public void accept(long key, B bucket) {
+    public final void accept(long key, B bucket) {
         MultiBucketAggregatorsReducer reducer = bucketsReducer.get(key);
         if (reducer == null) {
             reducer = new MultiBucketAggregatorsReducer(reduceContext, size);
@@ -73,7 +73,7 @@ abstract class HistogramMultiBucketsAggregatorReducer<B extends MultiBucketsAggr
     /**
      * Returns the reduced buckets.
      */
-    public List<B> get() {
+    public final List<B> get() {
         reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
         final List<B> reducedBuckets = new ArrayList<>((int) bucketsReducer.size());
         bucketsReducer.iterator().forEachRemaining(entry -> {
@@ -90,7 +90,7 @@ abstract class HistogramMultiBucketsAggregatorReducer<B extends MultiBucketsAggr
     protected abstract B createBucket(long key, long docCount, InternalAggregations aggregations);
 
     @Override
-    public void close() {
+    public final void close() {
         bucketsReducer.iterator().forEachRemaining(r -> Releasables.close(r.value));
         Releasables.close(bucketsReducer);
     }

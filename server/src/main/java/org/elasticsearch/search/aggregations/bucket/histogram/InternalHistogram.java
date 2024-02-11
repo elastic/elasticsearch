@@ -377,7 +377,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
 
-            final HistogramMultiBucketsAggregatorReducer<Bucket> reducer = new HistogramMultiBucketsAggregatorReducer<>(
+            final LongKeyedMultiBucketsAggregatorReducer<Bucket> reducer = new LongKeyedMultiBucketsAggregatorReducer<>(
                 reduceContext,
                 size,
                 minDocCount

@@ -38,6 +38,7 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
@@ -432,24 +433,32 @@ public final class ESLucene99ScalarQuantizedVectorsWriter extends FlatVectorsWri
             RandomVectorScorerSupplier scorerSupplier;
             VectorScorerProvider provider = VectorScorerProvider.getInstanceOrNull();
             assert segmentWriteState.directory instanceof FSDirectory;
-            if (provider != null && segmentWriteState.directory instanceof FSDirectory dir) {
-                var similarity = VectorSimilarityTypeConverter.of(fieldInfo.getVectorSimilarityFunction());
-                var path = dir.getDirectory().resolve(tempQuantizedVectorData.getName());
-                var sc = mergedQuantizationState.getConstantMultiplier();
-                var dim = byteVectorValues.dimension();
-                var maxOrd = docsWithField.cardinality();
-                var scorer = provider.getScalarQuantizedVectorScorer(dim, maxOrd, sc, similarity, path);
-                scorerSupplier = new VectorScorerSupplierAdapter(scorer);
+            var unwrappedDir = FilterDirectory.unwrap(segmentWriteState.directory);
+            if (provider != null) {
+                if (unwrappedDir instanceof FSDirectory dir) {
+                    var similarity = VectorSimilarityTypeConverter.of(fieldInfo.getVectorSimilarityFunction());
+                    var path = dir.getDirectory().resolve(tempQuantizedVectorData.getName());
+                    var sc = mergedQuantizationState.getConstantMultiplier();
+                    var dim = byteVectorValues.dimension();
+                    var maxOrd = docsWithField.cardinality();
+                    var scorer = provider.getScalarQuantizedVectorScorer(dim, maxOrd, sc, similarity, path);
+                    scorerSupplier = new VectorScorerSupplierAdapter(scorer);
+                } else {
+                    var msg = "unexpected dir type: " + segmentWriteState.directory.getClass() +
+                        ", [" + segmentWriteState.directory + "]";
+                    throw new UnsupportedOperationException(msg);
+                }
             } else {
-                scorerSupplier = new ESScalarQuantizedRandomVectorScorerSupplier(
-                    fieldInfo.getVectorSimilarityFunction(),
-                    mergedQuantizationState,
-                    new ESOffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(
-                        fieldInfo.getVectorDimension(),
-                        docsWithField.cardinality(),
-                        quantizationDataInput
-                    )
-                );
+                throw new UnsupportedOperationException("expected provider, but was none");
+//                scorerSupplier = new ESScalarQuantizedRandomVectorScorerSupplier(
+//                    fieldInfo.getVectorSimilarityFunction(),
+//                    mergedQuantizationState,
+//                    new ESOffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(
+//                        fieldInfo.getVectorDimension(),
+//                        docsWithField.cardinality(),
+//                        quantizationDataInput
+//                    )
+//                );
             }
             //
 

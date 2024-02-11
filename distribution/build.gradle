@@ -261,7 +261,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsNativeDarwinAarch64', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsNativeDarwinAarch64', 'libsNativeLinuxAarch64', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -283,6 +283,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     // this is a special circumstance of a jar that is not a dependency of server, but needs to be in the module path
     libs project(':libs:elasticsearch-preallocate')
     libsNativeDarwinAarch64 project(path: ':libs:elasticsearch-vec', configuration: 'darwinAarch64')
+    libsNativeLinuxAarch64 project(path: ':libs:elasticsearch-vec', configuration: 'linuxAarch64')
 
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsCliLauncher project(':distribution:tools:cli-launcher')
@@ -339,6 +340,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from(configurations.libsNativeDarwinAarch64)
        //}
         // else linux-aarch64 ...
+        from(configurations.libsNativeLinuxAarch64)
       }
     }
 

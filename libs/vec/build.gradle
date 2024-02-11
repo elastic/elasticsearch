@@ -84,8 +84,13 @@ tasks.register("generateExtractedHeaders", Exec).configure {
 
 configurations {
   darwinAarch64
+  linuxAarch64
 }
 
 artifacts {
   darwinAarch64(new File(projectDir, "platform/darwin-aarch64"))
+}
+
+artifacts {
+  linuxAarch64(new File(projectDir, "platform/linux-aarch64"))
 }

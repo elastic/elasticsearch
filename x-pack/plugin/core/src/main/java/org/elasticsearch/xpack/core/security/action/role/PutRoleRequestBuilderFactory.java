@@ -8,16 +8,15 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.xpack.core.security.SecurityContext;
 
 import java.util.function.Predicate;
 
 public interface PutRoleRequestBuilderFactory {
-    PutRoleRequestBuilder create(Client client, SecurityContext securityContext, Predicate<String> fileRolesStoreNameChecker);
+    PutRoleRequestBuilder create(Client client, boolean restrictRequest, Predicate<String> fileRolesStoreNameChecker);
 
     class Default implements PutRoleRequestBuilderFactory {
         @Override
-        public PutRoleRequestBuilder create(Client client, SecurityContext securityContext, Predicate<String> fileRolesStoreNameChecker) {
+        public PutRoleRequestBuilder create(Client client, boolean restrictRequest, Predicate<String> fileRolesStoreNameChecker) {
             return new PutRoleRequestBuilder(client);
         }
     }

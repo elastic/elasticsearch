@@ -42,7 +42,7 @@ public class RestPutRoleActionTests extends ESTestCase {
 
         try (var threadPool = createThreadPool()) {
             final var nodeClient = new NoOpNodeClient(threadPool);
-            final RestPutRoleAction action = new RestPutRoleAction(securityDisabledSettings, licenseState, mock(), mock(), mock());
+            final RestPutRoleAction action = new RestPutRoleAction(securityDisabledSettings, licenseState, mock(), mock());
             action.handleRequest(request, channel, nodeClient);
         }
 

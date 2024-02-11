@@ -17,7 +17,6 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
@@ -35,19 +34,16 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
-    private final SecurityContext securityContext;
     private final PutRoleRequestBuilderFactory builderFactory;
     private final FileRolesStore fileRolesStore;
 
     public RestPutRoleAction(
         Settings settings,
         XPackLicenseState licenseState,
-        SecurityContext securityContext,
         PutRoleRequestBuilderFactory builderFactory,
         FileRolesStore fileRolesStore
     ) {
         super(settings, licenseState);
-        this.securityContext = securityContext;
         this.builderFactory = builderFactory;
         this.fileRolesStore = fileRolesStore;
     }
@@ -67,7 +63,8 @@ public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final PutRoleRequestBuilder requestBuilder = builderFactory.create(client, securityContext, fileRolesStore::exists)
+        final boolean restrictRequest = request.hasParam(RestRequest.RESPONSE_RESTRICTED);
+        final PutRoleRequestBuilder requestBuilder = builderFactory.create(client, restrictRequest, fileRolesStore::exists)
             .source(request.param("name"), request.requiredContent(), request.getXContentType())
             .setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {

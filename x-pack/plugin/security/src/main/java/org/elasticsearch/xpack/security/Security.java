@@ -1425,13 +1425,7 @@ public class Security extends Plugin
             new RestPutUserAction(settings, getLicenseState()),
             new RestDeleteUserAction(settings, getLicenseState()),
             new RestGetRolesAction(settings, getLicenseState()),
-            new RestPutRoleAction(
-                settings,
-                getLicenseState(),
-                securityContext.get(),
-                putRoleRequestBuilderFactory.get(),
-                fileRolesStore.get()
-            ),
+            new RestPutRoleAction(settings, getLicenseState(), putRoleRequestBuilderFactory.get(), fileRolesStore.get()),
             new RestDeleteRoleAction(settings, getLicenseState()),
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
             new RestSetEnabledAction(settings, getLicenseState()),

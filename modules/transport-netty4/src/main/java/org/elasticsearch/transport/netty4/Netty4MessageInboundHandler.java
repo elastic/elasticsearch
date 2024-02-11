@@ -78,6 +78,9 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
     private final Predicate<String> requestCanTripBreaker;
 
     private ByteBuf cummulation;
+
+    private ByteBuf readBuffer;
+
     private Header currentHeader;
     private Exception aggregationException;
     private boolean canTripBreaker = true;
@@ -148,19 +151,15 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
     public void doHandleBytes(TcpChannel channel, ByteBuf reference) throws IOException {
         channel.getChannelStats().markAccessed(transport.getThreadPool().relativeTimeInMillis());
         transport.getStatsTracker().markBytesRead(reference.readableBytes());
-        cummulation = ByteToMessageDecoder.MERGE_CUMULATOR.cumulate(
+        readBuffer = ByteToMessageDecoder.MERGE_CUMULATOR.cumulate(
             NettyAllocator.getAllocator(),
-            cummulation == null ? Unpooled.EMPTY_BUFFER : cummulation,
+            readBuffer == null ? Unpooled.EMPTY_BUFFER : readBuffer,
             reference
         );
-        while (cummulation.readableBytes() > 0) {
-            try {
-                final int bytesDecoded = decode(cummulation, channel);
-                if (bytesDecoded == 0) {
-                    break;
-                }
-            } finally {
-                cummulation.discardReadBytes();
+        while (readBuffer.readableBytes() > 0) {
+            final int bytesDecoded = decode(readBuffer, channel);
+            if (bytesDecoded == 0) {
+                break;
             }
         }
     }
@@ -324,12 +323,8 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
     }
 
     public int internalDecode(ByteBuf byteBuf, TcpChannel channel) throws IOException {
-        final ReleasableBytesReference reference = new ReleasableBytesReference(
-            Netty4Utils.toBytesReference(byteBuf),
-            new ByteBufRefCounted(byteBuf)
-        );
         if (isOnHeader()) {
-            int messageLength = TcpTransport.readMessageLength(reference);
+            int messageLength = TcpTransport.readMessageLength(Netty4Utils.toBytesReference(byteBuf));
             if (messageLength == -1) {
                 return 0;
             } else if (messageLength == 0) {
@@ -337,13 +332,13 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
                 transport.inboundMessage(channel, PING_MESSAGE);
                 return 6;
             } else {
-                int headerBytesToRead = headerBytesToRead(reference, maxHeaderSize);
+                int headerBytesToRead = headerBytesToRead(Netty4Utils.toBytesReference(byteBuf), maxHeaderSize);
                 if (headerBytesToRead == 0) {
                     return 0;
                 } else {
                     totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
 
-                    Header header = readHeader(messageLength, reference, channelType);
+                    Header header = readHeader(messageLength, Netty4Utils.toBytesReference(byteBuf), channelType);
                     bytesConsumed += headerBytesToRead;
                     if (header.isCompressed()) {
                         isCompressed = true;
@@ -359,7 +354,10 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
         } else {
             if (isCompressed && decompressor == null) {
                 // Attempt to initialize decompressor
-                TransportDecompressor decompressor = TransportDecompressor.getDecompressor(transport.recycler(), reference);
+                TransportDecompressor decompressor = TransportDecompressor.getDecompressor(
+                    transport.recycler(),
+                    Netty4Utils.toBytesReference(byteBuf)
+                );
                 if (decompressor == null) {
                     return 0;
                 } else {
@@ -369,17 +367,18 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
                 }
             }
             int remainingToConsume = totalNetworkSize - bytesConsumed;
-            int maxBytesToConsume = Math.min(reference.length(), remainingToConsume);
-            ReleasableBytesReference retainedContent;
+            int maxBytesToConsume = Math.min(byteBuf.readableBytes(), remainingToConsume);
+            ByteBuf retainedContent;
             if (maxBytesToConsume == remainingToConsume) {
-                retainedContent = reference.retainedSlice(0, maxBytesToConsume);
+                retainedContent = byteBuf.readSlice(maxBytesToConsume);
             } else {
-                retainedContent = reference.retain();
+                retainedContent = byteBuf;
             }
 
             int bytesConsumedThisDecode = 0;
             if (decompressor != null) {
-                bytesConsumedThisDecode += decompress(retainedContent);
+                bytesConsumedThisDecode += decompressor.decompress(Netty4Utils.toBytesReference(retainedContent));
+                retainedContent.skipBytes(bytesConsumedThisDecode);
                 bytesConsumed += bytesConsumedThisDecode;
                 ReleasableBytesReference decompressed;
                 while ((decompressed = decompressor.pollDecompressedPage(isDone())) != null) {
@@ -391,7 +390,7 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
             } else {
                 bytesConsumedThisDecode += maxBytesToConsume;
                 bytesConsumed += maxBytesToConsume;
-                forwardFragment(byteBuf);
+                forwardFragment(byteBuf.readSlice(maxBytesToConsume));
             }
             if (isDone()) {
                 endContent(channel);
@@ -428,12 +427,6 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
             } else {
                 return totalHeaderSize;
             }
-        }
-    }
-
-    private int decompress(ReleasableBytesReference content) throws IOException {
-        try (content) {
-            return decompressor.decompress(content);
         }
     }
 

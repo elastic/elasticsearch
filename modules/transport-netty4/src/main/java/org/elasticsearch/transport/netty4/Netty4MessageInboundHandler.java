@@ -313,24 +313,6 @@ public class Netty4MessageInboundHandler extends ChannelInboundHandlerAdapter {
         canTripBreaker = true;
     }
 
-    private void releasePendingBytes(int bytesConsumed) {
-        int bytesToRelease = bytesConsumed;
-        while (bytesToRelease != 0) {
-            ByteBuf reference = pending.pollFirst();
-            try {
-                assert reference != null;
-                if (bytesToRelease < reference.readableBytes()) {
-                    pending.addFirst(reference.retainedSlice(bytesToRelease, reference.readableBytes() - bytesToRelease));
-                    bytesToRelease -= bytesToRelease;
-                } else {
-                    bytesToRelease -= reference.readableBytes();
-                }
-            } finally {
-                reference.release();
-            }
-        }
-    }
-
     public int decode(ByteBuf reference, TcpChannel channel) throws IOException {
         ensureOpen();
         try {

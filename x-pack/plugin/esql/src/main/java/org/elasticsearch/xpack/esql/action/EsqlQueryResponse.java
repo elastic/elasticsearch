@@ -76,7 +76,11 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
      * Build a reader for the response.
      */
     public static Writeable.Reader<EsqlQueryResponse> reader(BlockFactory blockFactory) {
-        return in -> deserialize(new BlockStreamInput(in, blockFactory));
+        return in -> {
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                return deserialize(bsi);
+            }
+        };
     }
 
     static EsqlQueryResponse deserialize(BlockStreamInput in) throws IOException {

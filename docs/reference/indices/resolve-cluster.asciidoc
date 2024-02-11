@@ -112,7 +112,7 @@ deprecated:[7.16.0]
 
 [discrete]
 [[usecases-for-resolve-cluster]]
-=== Examples of why this endpoint is useful before doing a {ccs}.
+=== Advantages of using this endpoint before a {ccs}
 
 You may want to exclude a cluster or index from a search when:
 
@@ -197,10 +197,10 @@ The API returns the following response:
 
 [discrete]
 [[resolve-cluster-api-error-example]]
-==== An example showing potential problems with your search set up
+==== Identifying potential problems with your {ccs}
 
-The following request shows examples of several reasons why you might want
-to change your query to avoid unsuccessful searches.
+The following request shows several examples of how modifying your query can
+prevent search failures.
 
 [source,console]
 --------------------------------------------------
@@ -248,18 +248,22 @@ GET /_resolve/cluster/not-present,clust*:my-index*,oldcluster:*?ignore_unavailab
 --------------------------------------------------
 // TEST[skip: too many illustrative error variations to reproduce]
 
-<1> The local cluster has no index called `not_present` and if you try a search against it
-using the specified `ignore_unavailable=false` param, you will get an "no such index" error.
-Other types of errors can show up here as well, such as security permission errors when your user does
-not have authorization to search the specified index.
-<2> The `cluster_one` remote cluster does not have any indices that match the pattern `my-index*`.
-That could be due to there being no indices present that match the pattern or that the index
-is closed. (You can check this by using the <<indices-resolve-index-api,resolve index>> API.)
-<3> The `cluster_two` remote cluster is not connected (the attempt to connect failed). Since this
-cluster is marked as `skip_unavailable=false`, you should probably exclude this cluster from the
-search by adding `-cluster_two:*` to the search index expression.
-<4> The `oldcluster` remote cluster shows that it has matching_indices, but no version information
-is included. That means that it is running a version older than when the `_resolve/cluster` API
-was added (8.13.0), so you may want to exclude it from your {ccs}. (Note: the endpoint was able to tell
-there were matching indices because it fell back to using the <<indices-resolve-index-api,resolve index>>
-API.)
+<1> The local cluster has no index called `not_present`. Searching against it
+using the specified `ignore_unavailable=false` param will return a "no such
+index" error. Other types of errors can show up here as well, such as security
+permission errors when the user does not have authorization to search the
+specified index.
+<2> The `cluster_one` remote cluster has no indices that match the pattern
+`my-index*`. There may be no indices that match the pattern or the index
+could be closed. (You can check this by using the
+<<indices-resolve-index-api,resolve index>> API.)
+<3> The `cluster_two` remote cluster is not connected (the attempt to connect
+failed). Since this cluster is marked as `skip_unavailable=false`, you should
+probably exclude this cluster from the search by adding `-cluster_two:*` to the
+search index expression.
+<4> The `oldcluster` remote cluster shows that it has matching indices, but no
+version information is included. This indicates that the cluster version predates
+the introduction of the `_resolve/cluster` API in 8.13.0., so you may want to
+exclude it from your {ccs}. (Note: the endpoint was able to tell there were
+matching indices because it fell back to using the <<indices-resolve-index-api,
+resolve index>> API.)

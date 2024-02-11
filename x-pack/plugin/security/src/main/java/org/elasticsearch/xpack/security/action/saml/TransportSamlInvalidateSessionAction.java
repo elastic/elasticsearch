@@ -10,12 +10,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,6 +35,7 @@ import org.opensaml.saml.saml2.core.LogoutResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.findSamlRealms;
@@ -48,6 +50,7 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
     private static final Logger LOGGER = LogManager.getLogger(TransportSamlInvalidateSessionAction.class);
     private final TokenService tokenService;
     private final Realms realms;
+    private final Executor genericExecutor;
 
     @Inject
     public TransportSamlInvalidateSessionAction(
@@ -56,19 +59,27 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
         TokenService tokenService,
         Realms realms
     ) {
+        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(
             SamlInvalidateSessionAction.NAME,
             transportService,
             actionFilters,
             SamlInvalidateSessionRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            transportService.getThreadPool().executor(ThreadPool.Names.SAME)
         );
         this.tokenService = tokenService;
         this.realms = realms;
+        this.genericExecutor = transportService.getThreadPool().generic();
     }
 
     @Override
     protected void doExecute(Task task, SamlInvalidateSessionRequest request, ActionListener<SamlInvalidateSessionResponse> listener) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        genericExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+    }
+
+    private void doExecuteForked(Task task, SamlInvalidateSessionRequest request, ActionListener<SamlInvalidateSessionResponse> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL());
         if (realms.isEmpty()) {
             listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));

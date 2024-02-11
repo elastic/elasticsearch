@@ -387,13 +387,14 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         }));
         assertThat(mapperService.mappingLookup().getMapper("dim"), instanceOf(FieldAliasMapper.class));
         assertThat(mapperService.mappingLookup().getMapper("resource.attributes.dim"), instanceOf(KeywordFieldMapper.class));
-        assertThat(mapperService.mappingLookup().getMapper("another.dim"), instanceOf(FieldAliasMapper.class));
+        assertThat(mapperService.mappingLookup().objectMappers().get("another").getMapper("dim"), instanceOf(FieldAliasMapper.class));
         assertThat(mapperService.mappingLookup().getMapper("attributes.another.dim"), instanceOf(KeywordFieldMapper.class));
     }
 
     public void testAliasMappersCreatesAlias() throws Exception {
         var context = MapperBuilderContext.root(false, false);
         Map<String, Mapper> aliases = new HashMap<>();
+        var objectIntermediates = new HashMap<String, ObjectMapper.Builder>(1);
         new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
             Map.of(
                 "labels",
@@ -407,6 +408,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 )
             ),
             aliases,
+            objectIntermediates,
             context,
             0
         );
@@ -417,6 +419,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testAliasMappersCreatesAliasNested() throws Exception {
         var context = MapperBuilderContext.root(false, false);
         Map<String, Mapper> aliases = new HashMap<>();
+        var objectIntermediates = new HashMap<String, ObjectMapper.Builder>(1);
         new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
             Map.of(
                 "outer",
@@ -440,6 +443,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 )
             ),
             aliases,
+            objectIntermediates,
             context,
             0
         );
@@ -450,6 +454,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testAliasMappersExitsInDeepNesting() throws Exception {
         var context = MapperBuilderContext.root(false, false);
         Map<String, Mapper> aliases = new HashMap<>();
+        var objectIntermediates = new HashMap<String, ObjectMapper.Builder>(1);
         new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
             Map.of(
                 "labels",
@@ -463,6 +468,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 )
             ),
             aliases,
+            objectIntermediates,
             context,
             1_000_000
         );
@@ -472,6 +478,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testAliasMappersCreatesNoAliasForRegularObject() throws Exception {
         var context = MapperBuilderContext.root(false, false);
         Map<String, Mapper> aliases = new HashMap<>();
+        var objectIntermediates = new HashMap<String, ObjectMapper.Builder>(1);
         new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
             Map.of(
                 "labels",
@@ -485,6 +492,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 )
             ),
             aliases,
+            objectIntermediates,
             context,
             0
         );
@@ -494,6 +502,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testAliasMappersConflictingField() throws Exception {
         var context = MapperBuilderContext.root(false, false);
         Map<String, Mapper> aliases = new HashMap<>();
+        var objectIntermediates = new HashMap<String, ObjectMapper.Builder>(1);
         new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
             Map.of(
                 "labels",
@@ -509,6 +518,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context)
             ),
             aliases,
+            objectIntermediates,
             context,
             0
         );

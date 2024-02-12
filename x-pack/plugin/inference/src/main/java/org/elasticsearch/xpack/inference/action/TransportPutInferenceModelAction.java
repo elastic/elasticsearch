@@ -209,12 +209,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
     }
 
-    private static void putAndStartModel(
-        InferenceService service,
-        Model model,
-        ActionListener<PutInferenceModelAction.Response> finalListener
-    ) {
-        SubscribableListener.<Boolean>newForked(listener1 -> service.isModelDownloaded(model, listener1))
+    private void putAndStartModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> finalListener) {
+        SubscribableListener.<Boolean>newForked(listener -> service.isModelDownloaded(model, listener))
             .<Boolean>andThen((listener, isDownloaded) -> {
                 if (isDownloaded == false) {
                     service.putModel(model, listener);
@@ -224,11 +220,11 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             }).<PutInferenceModelAction.Response>andThen((listener, modelDidPut) -> {
                 if (modelDidPut) {
                     if (skipValidationAndStart) {
-                        listener2.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
+                        listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
                     } else {
                         service.start(
                             model,
-                            listener2.delegateFailureAndWrap(
+                            listener.delegateFailureAndWrap(
                                 (l3, ok) -> l3.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()))
                             )
                         );

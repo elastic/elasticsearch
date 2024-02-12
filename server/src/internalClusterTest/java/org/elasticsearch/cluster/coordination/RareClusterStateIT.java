@@ -264,10 +264,10 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         final var primaryNode = internalCluster().startDataOnlyNode();
         assertAcked(prepareCreate("index").setSettings(indexSettings(1, 0)));
+        ensureGreen();
 
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
         final var replicaNode = internalCluster().startDataOnlyNode();
-
         ensureGreen();
 
         // Check routing table to make sure the shard copies are where we need them to be

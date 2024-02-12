@@ -130,6 +130,7 @@ public class TransportVersions {
     public static final TransportVersion FIELD_CAPS_FIELD_HAS_VALUE = def(8_590_00_0);
     public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_CLASS_CLUSTER_ADDED = def(8_591_00_0);
     public static final TransportVersion ML_DIMENSIONS_SET_BY_USER_ADDED = def(8_592_00_0);
+    public static final TransportVersion ADD_FAILURE_STORE_INDICES_OPTIONS = def(8_593_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

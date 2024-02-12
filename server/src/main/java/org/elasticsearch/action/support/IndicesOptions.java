@@ -8,8 +8,11 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
@@ -43,9 +46,16 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * @param generalOptions, applies to all the resolved indices and defines if throttled will be included and if certain type of
  *                        aliases or indices are allowed, or they will throw an error.
  */
-public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, WildcardOptions wildcardOptions, GeneralOptions generalOptions)
-    implements
-        ToXContentFragment {
+public record IndicesOptions(
+    ConcreteTargetOptions concreteTargetOptions,
+    WildcardOptions wildcardOptions,
+    GeneralOptions generalOptions,
+    FailureStoreOptions failureStoreOptions
+) implements ToXContentFragment {
+
+    public IndicesOptions(ConcreteTargetOptions concreteTargetOptions, WildcardOptions wildcardOptions, GeneralOptions generalOptions) {
+        this(concreteTargetOptions, wildcardOptions, generalOptions, FailureStoreOptions.DEFAULT);
+    }
 
     public static IndicesOptions.Builder builder() {
         return new Builder();
@@ -369,6 +379,100 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     }
 
     /**
+     * Applies to all indices already matched and controls the type of indices that will be returned. There are two types, data stream
+     * failure indices (only certain data streams have them) and data stream backing indices or stand-alone indices.
+     * @param includeRegularIndices, when true regular or data stream backing indices will be retrieved.
+     * @param includeFailureIndices, when true data stream failure indices will be included.
+     */
+    public record FailureStoreOptions(boolean includeRegularIndices, boolean includeFailureIndices)
+        implements
+            Writeable,
+            ToXContentFragment {
+
+        public static final String FAILURE_STORE_PARAM = "include_failure_store";
+        public static final String INCLUDE_ALL = "true";
+        public static final String INCLUDE_ONLY_REGULAR_INDICES = "false";
+        public static final String INCLUDE_ONLY_FAILURE_INDICES = "only";
+
+        public static final FailureStoreOptions DEFAULT = new FailureStoreOptions(true, false);
+
+        public static FailureStoreOptions read(StreamInput in) throws IOException {
+            return new FailureStoreOptions(in.readBoolean(), in.readBoolean());
+        }
+
+        public static FailureStoreOptions parseParameters(Object failureStoreValue, FailureStoreOptions defaultOptions) {
+            if (failureStoreValue == null) {
+                return defaultOptions;
+            }
+            FailureStoreOptions.Builder builder = defaultOptions == null
+                ? new FailureStoreOptions.Builder()
+                : new FailureStoreOptions.Builder(defaultOptions);
+            return switch (failureStoreValue.toString()) {
+                case INCLUDE_ALL -> builder.includeBackingIndices(true).includeFailureIndices(true).build();
+                case INCLUDE_ONLY_REGULAR_INDICES -> builder.includeBackingIndices(true).includeFailureIndices(false).build();
+                case INCLUDE_ONLY_FAILURE_INDICES -> builder.includeBackingIndices(false).includeFailureIndices(true).build();
+                default -> throw new IllegalArgumentException("No valid " + FAILURE_STORE_PARAM + " value [" + failureStoreValue + "]");
+            };
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field(FAILURE_STORE_PARAM, displayValue());
+        }
+
+        public String displayValue() {
+            if (includeRegularIndices && includeFailureIndices) {
+                return INCLUDE_ALL;
+            } else if (includeRegularIndices) {
+                return INCLUDE_ONLY_REGULAR_INDICES;
+            }
+            return INCLUDE_ONLY_FAILURE_INDICES;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(includeRegularIndices);
+            out.writeBoolean(includeFailureIndices);
+        }
+
+        public static class Builder {
+            private boolean includeBackingIndices;
+            private boolean includeFailureIndices;
+
+            public Builder() {
+                this(DEFAULT);
+            }
+
+            Builder(FailureStoreOptions options) {
+                includeBackingIndices = options.includeRegularIndices;
+                includeFailureIndices = options.includeFailureIndices;
+            }
+
+            public Builder includeBackingIndices(boolean includeBackingIndices) {
+                this.includeBackingIndices = includeBackingIndices;
+                return this;
+            }
+
+            public Builder includeFailureIndices(boolean includeFailureIndices) {
+                this.includeFailureIndices = includeFailureIndices;
+                return this;
+            }
+
+            public FailureStoreOptions build() {
+                return new FailureStoreOptions(includeBackingIndices, includeFailureIndices);
+            }
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static Builder builder(FailureStoreOptions failureStoreOptions) {
+            return new Builder(failureStoreOptions);
+        }
+    }
+
+    /**
      * This class is maintained for backwards compatibility and performance purposes. We use it for serialisation along with {@link Option}.
      */
     private enum WildcardStates {
@@ -415,7 +519,8 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     public static final IndicesOptions DEFAULT = new IndicesOptions(
         ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT,
-        GeneralOptions.DEFAULT
+        GeneralOptions.DEFAULT,
+        FailureStoreOptions.DEFAULT
     );
 
     public static final IndicesOptions STRICT_EXPAND_OPEN = IndicesOptions.builder()
@@ -429,6 +534,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .resolveAliases(true)
         )
         .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -441,6 +547,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .resolveAliases(true)
         )
         .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -453,6 +560,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .resolveAliases(true)
         )
         .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -465,6 +573,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .resolveAliases(true)
         )
         .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -472,6 +581,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
         )
         .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -484,6 +594,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .resolveAliases(true)
         )
         .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -491,6 +602,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
         )
         .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -503,6 +615,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .resolveAliases(true)
         )
         .generalOptions(GeneralOptions.builder().allowClosedIndices(false).allowAliasToMultipleIndices(true).ignoreThrottled(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -515,6 +628,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .resolveAliases(true)
         )
         .generalOptions(GeneralOptions.builder().allowClosedIndices(false).allowAliasToMultipleIndices(true).ignoreThrottled(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -527,6 +641,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .resolveAliases(true)
         )
         .generalOptions(GeneralOptions.builder().ignoreThrottled(true).allowClosedIndices(false).allowAliasToMultipleIndices(true))
+        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -539,6 +654,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .resolveAliases(true)
         )
         .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(false).allowClosedIndices(false).ignoreThrottled(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
         .build();
     public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -551,6 +667,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .resolveAliases(true)
         )
         .generalOptions(GeneralOptions.builder().allowClosedIndices(false).allowAliasToMultipleIndices(true).ignoreThrottled(false))
+        .failureStoreOptions(FailureStoreOptions.builder().includeBackingIndices(true).includeFailureIndices(false))
         .build();
 
     /**
@@ -628,6 +745,20 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         return generalOptions().ignoreThrottled();
     }
 
+    /**
+     * @return whether regular indices (stand-alone or backing indices) will be included in the response
+     */
+    public boolean includeRegularIndices() {
+        return failureStoreOptions().includeRegularIndices();
+    }
+
+    /**
+     * @return whether failure indices (only supported by certain data streams) will be included in the response
+     */
+    public boolean includeFailureIndices() {
+        return failureStoreOptions().includeFailureIndices();
+    }
+
     public void writeIndicesOptions(StreamOutput out) throws IOException {
         EnumSet<Option> backwardsCompatibleOptions = EnumSet.noneOf(Option.class);
         if (allowNoIndices()) {
@@ -661,6 +792,9 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             states.add(WildcardStates.HIDDEN);
         }
         out.writeEnumSet(states);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS)) {
+            failureStoreOptions.writeTo(out);
+        }
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
@@ -675,12 +809,16 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             .allowAliasToMultipleIndices(options.contains(Option.ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES) == false)
             .ignoreThrottled(options.contains(Option.IGNORE_THROTTLED))
             .build();
+        FailureStoreOptions failureStoreOptions = in.getTransportVersion().onOrAfter(TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS)
+            ? FailureStoreOptions.read(in)
+            : FailureStoreOptions.DEFAULT;
         return new IndicesOptions(
             options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)
                 ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS
                 : ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
             wildcardOptions,
-            generalOptions
+            generalOptions,
+            failureStoreOptions
         );
     }
 
@@ -688,6 +826,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         private ConcreteTargetOptions concreteTargetOptions;
         private WildcardOptions wildcardOptions;
         private GeneralOptions generalOptions;
+        private FailureStoreOptions failureStoreOptions;
 
         Builder() {
             this(DEFAULT);
@@ -697,6 +836,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             concreteTargetOptions = indicesOptions.concreteTargetOptions;
             wildcardOptions = indicesOptions.wildcardOptions;
             generalOptions = indicesOptions.generalOptions;
+            failureStoreOptions = indicesOptions.failureStoreOptions;
         }
 
         public Builder concreteTargetOptions(ConcreteTargetOptions concreteTargetOptions) {
@@ -724,8 +864,18 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             return this;
         }
 
+        public Builder failureStoreOptions(FailureStoreOptions failureStoreOptions) {
+            this.failureStoreOptions = failureStoreOptions;
+            return this;
+        }
+
+        public Builder failureStoreOptions(FailureStoreOptions.Builder failureStoreOptions) {
+            this.failureStoreOptions = failureStoreOptions.build();
+            return this;
+        }
+
         public IndicesOptions build() {
-            return new IndicesOptions(concreteTargetOptions, wildcardOptions, generalOptions);
+            return new IndicesOptions(concreteTargetOptions, wildcardOptions, generalOptions, failureStoreOptions);
         }
     }
 
@@ -827,7 +977,8 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         return new IndicesOptions(
             ignoreUnavailable ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS : ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
             wildcards,
-            generalOptions
+            generalOptions,
+            FailureStoreOptions.DEFAULT
         );
     }
 
@@ -899,6 +1050,9 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         concreteTargetOptions.toXContent(builder, params);
         wildcardOptions.toXContent(builder, params);
         generalOptions.toXContent(builder, params);
+        if (DataStream.isFailureStoreEnabled()) {
+            failureStoreOptions.toXContent(builder, params);
+        }
         return builder;
     }
 
@@ -906,6 +1060,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField(ConcreteTargetOptions.IGNORE_UNAVAILABLE);
     private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField(GeneralOptions.IGNORE_THROTTLED).withAllDeprecated();
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField(WildcardOptions.ALLOW_NO_INDICES);
+    private static final ParseField FAILURE_STORE_FIELD = new ParseField(FailureStoreOptions.FAILURE_STORE_PARAM);
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, null);
@@ -916,6 +1071,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         WildcardOptions.Builder wildcards = defaults == null ? null : WildcardOptions.builder(defaults.wildcardOptions());
         GeneralOptions.Builder generalOptions = GeneralOptions.builder()
             .ignoreThrottled(defaults != null && defaults.generalOptions().ignoreThrottled());
+        FailureStoreOptions failureStoreOptions = defaults == null ? FailureStoreOptions.DEFAULT : defaults.failureStoreOptions();
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
         Token token = parser.currentToken() == Token.START_OBJECT ? parser.currentToken() : parser.nextToken();
@@ -965,11 +1121,14 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                     allowNoIndices = parser.booleanValue();
                 } else if (IGNORE_THROTTLED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     generalOptions.ignoreThrottled(parser.booleanValue());
-                } else {
-                    throw new ElasticsearchParseException(
-                        "could not read indices options. unexpected index option [" + currentFieldName + "]"
-                    );
-                }
+                } else if (DataStream.isFailureStoreEnabled()
+                    && FAILURE_STORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        failureStoreOptions = FailureStoreOptions.parseParameters(parser.text(), failureStoreOptions);
+                    } else {
+                        throw new ElasticsearchParseException(
+                            "could not read indices options. unexpected index option [" + currentFieldName + "]"
+                        );
+                    }
             } else {
                 throw new ElasticsearchParseException("could not read indices options. unexpected object field [" + currentFieldName + "]");
             }
@@ -995,6 +1154,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             .concreteTargetOptions(new ConcreteTargetOptions(ignoreUnavailable))
             .wildcardOptions(wildcards)
             .generalOptions(generalOptions)
+            .failureStoreOptions(failureStoreOptions)
             .build();
     }
 
@@ -1108,6 +1268,9 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             + ignoreAliases()
             + ", ignore_throttled="
             + ignoreThrottled()
+            + (DataStream.isFailureStoreEnabled()
+                ? ", include_regular_indices=" + includeRegularIndices() + ", include_failure_indices=" + includeFailureIndices()
+                : "")
             + ']';
     }
 }

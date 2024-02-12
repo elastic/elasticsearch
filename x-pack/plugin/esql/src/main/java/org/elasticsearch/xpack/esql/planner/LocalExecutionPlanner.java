@@ -79,10 +79,14 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
@@ -163,6 +167,28 @@ public class LocalExecutionPlanner {
             AggregateExec.class,
             a -> a.getMode() == AggregateExec.Mode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
+        if (configuration.pragmas().timeSeriesMode()) {
+            var tsidAttribute = new FieldAttribute(Source.EMPTY, "_tsid", new EsField("_tsid", DataTypes.KEYWORD, Map.of(), true));
+            var timestampAttribute = new FieldAttribute(
+                Source.EMPTY,
+                "@timestamp",
+                new EsField("@timestamp", DataTypes.DATETIME, Map.of(), true)
+            );
+            node = node.transformUp(EsQueryExec.class, source -> {
+                var attrs = new ArrayList<>(source.output());
+                attrs.add(tsidAttribute);
+                attrs.add(timestampAttribute);
+                return new EsQueryExec(
+                    source.source(),
+                    source.index(),
+                    attrs,
+                    source.query(),
+                    source.limit(),
+                    source.sorts(),
+                    source.estimatedRowSize()
+                );
+            });
+        }
 
         PhysicalOperation physicalOperation = plan(node, context);
 

@@ -160,7 +160,7 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.DocumentParsingSupplierPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProviderPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.SettingsExtension;
@@ -1290,7 +1290,7 @@ class NodeConstruction {
     }
 
     private DocumentParsingProvider getDocumentParsingSupplier() {
-        return getSinglePlugin(DocumentParsingSupplierPlugin.class).map(DocumentParsingSupplierPlugin::getDocumentParsingSupplier)
+        return getSinglePlugin(DocumentParsingProviderPlugin.class).map(DocumentParsingProviderPlugin::getDocumentParsingSupplier)
             .orElse(DocumentParsingProvider.EMPTY_INSTANCE);
     }
 

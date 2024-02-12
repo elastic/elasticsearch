@@ -11,7 +11,7 @@ package org.elasticsearch.plugins.internal;
 /**
  * An internal plugin that will return a supplier of DocumentParsingSupplier.
  */
-public interface DocumentParsingSupplierPlugin {
+public interface DocumentParsingProviderPlugin {
 
     /**
      * @return a DocumentParsingSupplier to create instances of observer and reporter of parsing events

@@ -59,8 +59,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.DocumentParsingReporter;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -364,7 +364,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
         } else {
             final IndexRequest request = context.getRequestToExecute();
-            DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver(request.getNormalisedBytesParsed());
+            DocumentSizeObserver documentSizeObserver = documentParsingProvider.newFixedDocumentSizeObserver(
+                request.getNormalisedBytesParsed()
+            );
 
             context.setDocumentSizeObserver(documentSizeObserver);
             final SourceToParse sourceToParse = new SourceToParse(
@@ -472,9 +474,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final BulkItemResponse executionResult = context.getExecutionResult();
         final boolean isFailed = executionResult.isFailed();
         if (isFailed == false && opType != DocWriteRequest.OpType.DELETE) {
-            DocumentParsingReporter documentParsingReporter = documentParsingProvider.getDocumentParsingReporter();
+            DocumentSizeReporter documentSizeReporter = documentParsingProvider.getDocumentParsingReporter();
             DocumentSizeObserver documentSizeObserver = context.getDocumentSizeObserver();
-            documentParsingReporter.onCompleted(docWriteRequest.index(), documentSizeObserver.normalisedBytesParsed());
+            documentSizeReporter.onCompleted(docWriteRequest.index(), documentSizeObserver.normalisedBytesParsed());
         }
         if (isUpdate
             && isFailed

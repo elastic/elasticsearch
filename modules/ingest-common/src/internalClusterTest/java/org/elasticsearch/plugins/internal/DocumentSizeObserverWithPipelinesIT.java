@@ -73,7 +73,7 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
         return List.of(TestDocumentParsingProviderPlugin.class, IngestCommonPlugin.class);
     }
 
-    public static class TestDocumentParsingProviderPlugin extends Plugin implements DocumentParsingSupplierPlugin, IngestPlugin {
+    public static class TestDocumentParsingProviderPlugin extends Plugin implements DocumentParsingProviderPlugin, IngestPlugin {
 
         public TestDocumentParsingProviderPlugin() {}
 
@@ -82,24 +82,24 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
             // returns a static instance, because we want to assert that the wrapping is called only once
             return new DocumentParsingProvider() {
                 @Override
-                public DocumentSizeObserver newDocumentSizeObserver(long normalisedBytesParsed) {
+                public DocumentSizeObserver newFixedDocumentSizeObserver(long normalisedBytesParsed) {
                     return new TestDocumentSizeObserver(normalisedBytesParsed);
                 }
 
                 @Override
-                public DocumentSizeObserver newDocumentSizeObserver() {
+                public DocumentSizeObserver newFixedDocumentSizeObserver() {
                     return new TestDocumentSizeObserver(0L);
                 }
 
                 @Override
-                public DocumentParsingReporter getDocumentParsingReporter() {
-                    return new TestDocumentParsingReporter();
+                public DocumentSizeReporter getDocumentParsingReporter() {
+                    return new TestDocumentSizeReporter();
                 }
             };
         }
     }
 
-    public static class TestDocumentParsingReporter implements DocumentParsingReporter {
+    public static class TestDocumentSizeReporter implements DocumentSizeReporter {
         @Override
         public void onCompleted(String indexName, long normalizedBytesParsed) {
             assertThat(indexName, equalTo(TEST_INDEX_NAME));

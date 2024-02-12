@@ -67,7 +67,7 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         return List.of(TestDocumentParsingProviderPlugin.class);
     }
 
-    public static class TestDocumentParsingProviderPlugin extends Plugin implements DocumentParsingSupplierPlugin, IngestPlugin {
+    public static class TestDocumentParsingProviderPlugin extends Plugin implements DocumentParsingProviderPlugin, IngestPlugin {
 
         public TestDocumentParsingProviderPlugin() {}
 
@@ -76,24 +76,24 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
             return new DocumentParsingProvider() {
 
                 @Override
-                public DocumentSizeObserver newDocumentSizeObserver(long normalisedBytesParsed) {
+                public DocumentSizeObserver newFixedDocumentSizeObserver(long normalisedBytesParsed) {
                     return new TestDocumentSizeObserver();
                 }
 
                 @Override
-                public DocumentSizeObserver newDocumentSizeObserver() {
+                public DocumentSizeObserver newFixedDocumentSizeObserver() {
                     return new TestDocumentSizeObserver();
                 }
 
                 @Override
-                public DocumentParsingReporter getDocumentParsingReporter() {
-                    return new TestDocumentParsingReporter();
+                public DocumentSizeReporter getDocumentParsingReporter() {
+                    return new TestDocumentSizeReporter();
                 }
             };
         }
     }
 
-    public static class TestDocumentParsingReporter implements DocumentParsingReporter {
+    public static class TestDocumentSizeReporter implements DocumentSizeReporter {
 
         @Override
         public void onCompleted(String indexName, long normalizedBytesParsed) {

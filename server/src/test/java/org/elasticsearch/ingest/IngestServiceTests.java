@@ -55,8 +55,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.DocumentParsingReporter;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -1190,7 +1190,7 @@ public class IngestServiceTests extends ESTestCase {
         AtomicInteger parsedValueWasUsed = new AtomicInteger(0);
         DocumentParsingProvider documentParsingProvider = new DocumentParsingProvider() {
             @Override
-            public DocumentSizeObserver newDocumentSizeObserver() {
+            public DocumentSizeObserver newFixedDocumentSizeObserver() {
                 return new DocumentSizeObserver() {
                     @Override
                     public XContentParser wrapParser(XContentParser xContentParser) {
@@ -1207,12 +1207,12 @@ public class IngestServiceTests extends ESTestCase {
             }
 
             @Override
-            public DocumentParsingReporter getDocumentParsingReporter() {
+            public DocumentSizeReporter getDocumentParsingReporter() {
                 return null;
             }
 
             @Override
-            public DocumentSizeObserver newDocumentSizeObserver(long normalisedBytesParsed) {
+            public DocumentSizeObserver newFixedDocumentSizeObserver(long normalisedBytesParsed) {
                 return null;
             }
         };

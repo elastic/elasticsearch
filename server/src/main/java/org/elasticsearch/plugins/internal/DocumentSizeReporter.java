@@ -11,11 +11,11 @@ package org.elasticsearch.plugins.internal;
 /**
  * An interface to allow performing an action when parsing has been completed and successful
  */
-public interface DocumentParsingReporter {
+public interface DocumentSizeReporter {
     /**
      * a default noop implementation
      */
-    DocumentParsingReporter EMPTY_INSTANCE = (indexName, normalizedBytesParsed) -> {};
+    DocumentSizeReporter EMPTY_INSTANCE = (indexName, normalizedBytesParsed) -> {};
 
     /**
      * An action to be performed upon finished parsing.

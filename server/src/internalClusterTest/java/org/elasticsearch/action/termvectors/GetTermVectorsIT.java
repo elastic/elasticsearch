@@ -45,6 +45,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -1047,9 +1048,9 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         // add a doc with a bad long field
         indexRandom(true, prepareIndex("index").setId("1").setSource("{\"field\":\"foo\"}", XContentType.JSON));
 
-        // do a tv request for all fields, _ignored should not be returned as a result of not being stored but just having doc values
+        // do a tv request for all fields, _ignored should be returned
         TermVectorsResponse resp = client().prepareTermVectors("index", "1").setSelectedFields("*").get();
-        assertNull(resp.getFields().terms("_ignored"));
+        assertThat(resp.getFields().terms("_ignored").size(), greaterThan(0L));
     }
 
     public void testWithKeywordAndNormalizer() throws IOException, ExecutionException, InterruptedException {

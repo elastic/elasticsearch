@@ -576,8 +576,10 @@ public class DeploymentManager {
 
                 if (startsCount.get() <= NUM_RESTART_ATTEMPTS) {
                     {
-                        String logAndAuditMessage = "["
+                        String logAndAuditMessage = "Inference process ["
                             + task.getDeploymentId()
+                            + "] failed due to ["
+                            + reason
                             + "] restarting inference process after ["
                             + startsCount.get()
                             + "] starts";

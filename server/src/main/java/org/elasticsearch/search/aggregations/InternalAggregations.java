@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -27,7 +26,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.AbstractList;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -280,20 +278,11 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
             return from(reduced);
         }
         // general case
-        final Map<String, AggregatorReducer> aggByName = new HashMap<>();
-        try {
+        try (AggregatorsReducer reducer = new AggregatorsReducer(context, aggregationsList.size())) {
             for (InternalAggregations aggregations : aggregationsList) {
-                for (InternalAggregation aggregation : aggregations.aggregations) {
-                    AggregatorReducer reducer = aggByName.computeIfAbsent(
-                        aggregation.getName(),
-                        k -> aggregation.getReducer(context.forAgg(aggregation.getName()), aggregationsList.size())
-                    );
-                    reducer.accept(aggregation);
-                }
+                reducer.accept(aggregations);
             }
-            return from(aggByName.values().stream().map(AggregatorReducer::get).toList());
-        } finally {
-            Releasables.close(aggByName.values());
+            return reducer.get();
         }
     }
 

@@ -87,38 +87,11 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
         assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_allocations]"));
     }
 
-    public void testTransportVersionIsCompatibleWithElserModelVersion() {
-        assertTrue(
-            ElserInternalServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
-                TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED
-            )
-        );
-        assertTrue(ElserInternalServiceSettings.transportVersionIsCompatibleWithElserModelVersion(TransportVersions.V_8_11_X));
-
-        assertFalse(ElserInternalServiceSettings.transportVersionIsCompatibleWithElserModelVersion(TransportVersions.V_8_10_X));
-        assertFalse(
-            ElserInternalServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
-                TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME
-            )
-        );
-        assertFalse(
-            ElserInternalServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
-                TransportVersions.UNIVERSAL_PROFILING_LICENSE_ADDED
-            )
-        );
-    }
-
     public void testBwcWrite() throws IOException {
         {
             var settings = new ElserInternalServiceSettings(1, 1, ".elser_model_1");
-            var copy = copyInstance(settings, TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED);
+            var copy = copyInstance(settings, TransportVersions.V_8_12_0);
             assertEquals(settings, copy);
-        }
-        {
-            var settings = new ElserInternalServiceSettings(1, 1, ".elser_model_1");
-            var copy = copyInstance(settings, TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME);
-            assertNotEquals(settings, copy);
-            assertEquals(".elser_model_2", copy.getModelId());
         }
         {
             var settings = new ElserInternalServiceSettings(1, 1, ".elser_model_1");

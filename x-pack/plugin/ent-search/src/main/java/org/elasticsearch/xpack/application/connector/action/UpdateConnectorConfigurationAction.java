@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -44,16 +45,21 @@ public class UpdateConnectorConfigurationAction {
 
         private final String connectorId;
         private final Map<String, ConnectorConfiguration> configuration;
+        private final Map<String, Object> configurationValues;
 
-        public Request(String connectorId, Map<String, ConnectorConfiguration> configuration) {
+        private static final ParseField VALUES_FIELD = new ParseField("values");
+
+        public Request(String connectorId, Map<String, ConnectorConfiguration> configuration, Map<String, Object> configurationValues) {
             this.connectorId = connectorId;
             this.configuration = configuration;
+            this.configurationValues = configurationValues;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.connectorId = in.readString();
             this.configuration = in.readMap(ConnectorConfiguration::new);
+            this.configurationValues = in.readGenericMap();
         }
 
         public String getConnectorId() {
@@ -64,6 +70,10 @@ public class UpdateConnectorConfigurationAction {
             return configuration;
         }
 
+        public Map<String, Object> getConfigurationValues() {
+            return configurationValues;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
@@ -72,8 +82,15 @@ public class UpdateConnectorConfigurationAction {
                 validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
 
-            if (Objects.isNull(configuration)) {
-                validationException = addValidationError("[configuration] cannot be [null].", validationException);
+            if (configuration == null && configurationValues == null) {
+                validationException = addValidationError("[configuration] and [values] cannot both be null.", validationException);
+            }
+
+            if (configuration != null && configurationValues != null) {
+                validationException = addValidationError(
+                    "[configuration] and [values] cannot both be provided in the same request.",
+                    validationException
+                );
             }
 
             return validationException;
@@ -86,7 +103,8 @@ public class UpdateConnectorConfigurationAction {
                 false,
                 ((args, connectorId) -> new UpdateConnectorConfigurationAction.Request(
                     connectorId,
-                    (Map<String, ConnectorConfiguration>) args[0]
+                    (Map<String, ConnectorConfiguration>) args[0],
+                    (Map<String, Object>) args[1]
                 ))
             );
 
@@ -97,6 +115,7 @@ public class UpdateConnectorConfigurationAction {
                 Connector.CONFIGURATION_FIELD,
                 ObjectParser.ValueType.OBJECT
             );
+            PARSER.declareField(optionalConstructorArg(), (p, c) -> p.map(), VALUES_FIELD, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
         }
 
         public static UpdateConnectorConfigurationAction.Request fromXContentBytes(
@@ -121,6 +140,7 @@ public class UpdateConnectorConfigurationAction {
             builder.startObject();
             {
                 builder.field(Connector.CONFIGURATION_FIELD.getPreferredName(), configuration);
+                builder.field(VALUES_FIELD.getPreferredName(), configurationValues);
             }
             builder.endObject();
             return builder;
@@ -131,6 +151,7 @@ public class UpdateConnectorConfigurationAction {
             super.writeTo(out);
             out.writeString(connectorId);
             out.writeMap(configuration, StreamOutput::writeWriteable);
+            out.writeGenericMap(configurationValues);
         }
 
         @Override
@@ -138,12 +159,14 @@ public class UpdateConnectorConfigurationAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(connectorId, request.connectorId) && Objects.equals(configuration, request.configuration);
+            return Objects.equals(connectorId, request.connectorId)
+                && Objects.equals(configuration, request.configuration)
+                && Objects.equals(configurationValues, request.configurationValues);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(connectorId, configuration);
+            return Objects.hash(connectorId, configuration, configurationValues);
         }
     }
 }

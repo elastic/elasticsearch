@@ -12,7 +12,6 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
@@ -246,7 +245,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 );
             }
         }
-        return indices.toArray(new String[0]);
+        return indices.toArray(new String[indices.size()]);
     }
 
     @Override

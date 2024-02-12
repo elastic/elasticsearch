@@ -207,7 +207,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireDataStream = false;
         }
         if (in.getTransportVersion().onOrAfter(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
-            normalisedBytesParsed = in.readVLong();
+            normalisedBytesParsed = in.readZLong();
         }
     }
 
@@ -786,7 +786,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeBoolean(requireDataStream);
         }
         if (out.getTransportVersion().onOrAfter(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
-            out.writeVLong(normalisedBytesParsed);
+            out.writeZLong(normalisedBytesParsed);
         }
     }
 

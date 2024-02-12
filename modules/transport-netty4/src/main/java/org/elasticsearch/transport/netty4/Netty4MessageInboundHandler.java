@@ -17,9 +17,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -186,9 +184,9 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
 
     private InboundMessage finishAggregation(ByteBuf cummulation) throws IOException {
         ensureOpen();
-        final ReleasableBytesReference releasableContent = cummulation == null || cummulation.readableBytes() == 0
+        final ReleasableBytesReference releasableContent = cummulation == null
             ? ReleasableBytesReference.empty()
-            : new ReleasableBytesReference(Netty4Utils.toBytesReference(cummulation.retain()), new ByteBufRefCounted(cummulation));
+            : new ReleasableBytesReference(Netty4Utils.toBytesReference(cummulation), new ByteBufRefCounted(cummulation));
 
         final BreakerControl breakerControl = new BreakerControl(circuitBreaker);
         final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent, breakerControl);
@@ -286,17 +284,13 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
                 byteBuf.skipBytes(6);
                 return 6;
             } else {
-                int headerBytesToRead = headerBytesToRead(Netty4Utils.toBytesReference(byteBuf), maxHeaderSize);
+                int headerBytesToRead = headerBytesToRead(byteBuf, maxHeaderSize);
                 if (headerBytesToRead == 0) {
                     return 0;
                 } else {
                     totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
 
-                    Header header = readHeader(
-                        messageLength,
-                        Netty4Utils.toBytesReference(byteBuf.readSlice(headerBytesToRead)),
-                        channelType
-                    );
+                    Header header = readHeader(messageLength, byteBuf.readSlice(headerBytesToRead), channelType);
                     bytesConsumed += headerBytesToRead;
                     if (header.isCompressed()) {
                         isCompressed = true;
@@ -328,46 +322,47 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
             if (byteBuf.readableBytes() < remainingToConsume) {
                 return 0;
             }
-            ByteBuf retainedContent = byteBuf.readSlice(remainingToConsume);
             int bytesConsumedThisDecode = 0;
             if (decompressor != null) {
+                ByteBuf retainedContent = byteBuf.readSlice(remainingToConsume);
                 bytesConsumedThisDecode += decompressor.decompress(Netty4Utils.toBytesReference(retainedContent));
                 retainedContent.skipBytes(bytesConsumedThisDecode);
                 bytesConsumed += bytesConsumedThisDecode;
                 ReleasableBytesReference decompressed;
-                final ByteBuf dec = NettyAllocator.getAllocator().heapBuffer(decompressor.pages() * PageCacheRecycler.BYTE_PAGE_SIZE);
-                try {
+                int pagesDecompressed = decompressor.pages();
+                if (pagesDecompressed == 0) {
+                    endContent(channel, null);
+                } else {
+                    ByteBuf dec = NettyAllocator.getAllocator().heapBuffer(pagesDecompressed * PageCacheRecycler.BYTE_PAGE_SIZE);
                     while ((decompressed = decompressor.pollDecompressedPage(true)) != null) {
                         dec.writeBytes(decompressed.array(), decompressed.arrayOffset(), decompressed.length());
                         decompressed.decRef();
                     }
                     endContent(channel, dec);
-                } finally {
-                    dec.release();
                 }
             } else {
                 bytesConsumedThisDecode += remainingToConsume;
                 bytesConsumed += remainingToConsume;
-                endContent(channel, retainedContent);
+                endContent(channel, byteBuf.readRetainedSlice(remainingToConsume));
             }
 
             return bytesConsumedThisDecode;
         }
     }
 
-    private static int headerBytesToRead(BytesReference reference, ByteSizeValue maxHeaderSize) throws StreamCorruptedException {
-        if (reference.length() < TcpHeader.BYTES_REQUIRED_FOR_VERSION) {
+    private static int headerBytesToRead(ByteBuf byteBuf, ByteSizeValue maxHeaderSize) throws StreamCorruptedException {
+        if (byteBuf.readableBytes() < TcpHeader.BYTES_REQUIRED_FOR_VERSION) {
             return 0;
         }
 
-        TransportVersion remoteVersion = TransportVersion.fromId(reference.getInt(TcpHeader.VERSION_POSITION));
+        TransportVersion remoteVersion = TransportVersion.fromId(byteBuf.getInt(TcpHeader.VERSION_POSITION));
         int fixedHeaderSize = TcpHeader.headerSize(remoteVersion);
-        if (fixedHeaderSize > reference.length()) {
+        if (fixedHeaderSize > byteBuf.readableBytes()) {
             return 0;
         } else if (remoteVersion.before(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
             return fixedHeaderSize;
         } else {
-            int variableHeaderSize = reference.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
+            int variableHeaderSize = byteBuf.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
             if (variableHeaderSize < 0) {
                 throw new StreamCorruptedException("invalid negative variable header size: " + variableHeaderSize);
             }
@@ -377,7 +372,7 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
                 );
             }
             int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
-            if (totalHeaderSize > reference.length()) {
+            if (totalHeaderSize > byteBuf.readableBytes()) {
                 return 0;
             } else {
                 return totalHeaderSize;
@@ -385,33 +380,30 @@ public class Netty4MessageInboundHandler extends ByteToMessageDecoder {
         }
     }
 
-    private static Header readHeader(int networkMessageSize, BytesReference bytesReference, InboundDecoder.ChannelType channelType)
-        throws IOException {
-        try (StreamInput streamInput = bytesReference.streamInput()) {
-            streamInput.skip(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
-            long requestId = streamInput.readLong();
-            byte status = streamInput.readByte();
-            int remoteVersion = streamInput.readInt();
+    private static Header readHeader(int networkMessageSize, ByteBuf byteBuf, InboundDecoder.ChannelType channelType) throws IOException {
+        byteBuf.skipBytes(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
+        long requestId = byteBuf.readLong();
+        byte status = byteBuf.readByte();
+        int remoteVersion = byteBuf.readInt();
 
-            Header header = new Header(networkMessageSize, requestId, status, TransportVersion.fromId(remoteVersion));
-            if (channelType == InboundDecoder.ChannelType.SERVER && header.isResponse()) {
-                throw new IllegalArgumentException("server channels do not accept inbound responses, only requests, closing channel");
-            } else if (channelType == InboundDecoder.ChannelType.CLIENT && header.isRequest()) {
-                throw new IllegalArgumentException("client channels do not accept inbound requests, only responses, closing channel");
-            }
-            if (header.isHandshake()) {
-                checkHandshakeVersionCompatibility(header.getVersion());
-            } else {
-                checkVersionCompatibility(header.getVersion());
-            }
-
-            if (header.getVersion().onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                // Skip since we already have ensured enough data available
-                streamInput.readInt();
-                header.finishParsingHeader(streamInput);
-            }
-            return header;
+        Header header = new Header(networkMessageSize, requestId, status, TransportVersion.fromId(remoteVersion));
+        if (channelType == InboundDecoder.ChannelType.SERVER && header.isResponse()) {
+            throw new IllegalArgumentException("server channels do not accept inbound responses, only requests, closing channel");
+        } else if (channelType == InboundDecoder.ChannelType.CLIENT && header.isRequest()) {
+            throw new IllegalArgumentException("client channels do not accept inbound requests, only responses, closing channel");
         }
+        if (header.isHandshake()) {
+            checkHandshakeVersionCompatibility(header.getVersion());
+        } else {
+            checkVersionCompatibility(header.getVersion());
+        }
+
+        if (header.getVersion().onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+            // Skip since we already have ensured enough data available
+            byteBuf.readInt();
+            header.finishParsingHeader(Netty4Utils.toBytesReference(byteBuf).streamInput());
+        }
+        return header;
     }
 
     static void checkHandshakeVersionCompatibility(TransportVersion handshakeVersion) {

@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -41,11 +42,13 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
 public class ServerCliTests extends CommandTestCase {
@@ -325,7 +328,12 @@ public class ServerCliTests extends CommandTestCase {
         int exitCode = command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
         assertThat(exitCode, is(ExitCodes.CODE_ERROR));
 
-        assertThat(terminal.getErrorOutput(), startsWith("java.lang.InterruptedException: interrupted while get jvm options"));
+        String[] lines = terminal.getErrorOutput().split(System.lineSeparator());
+        assertThat(List.of(lines), hasSize(greaterThan(10))); // at least decent sized stacktrace
+        assertThat(lines[0], is("java.lang.InterruptedException: interrupted while get jvm options"));
+        assertThat(lines[1], matchesRegex("\\tat org.elasticsearch.server.cli.ServerCliTests.+startServer\\(ServerCliTests.java:\\d+\\)"));
+        assertThat(lines[lines.length - 1], matchesRegex("\tat java.base/java.lang.Thread.run\\(Thread.java:\\d+\\)"));
+
         command.close();
     }
 

@@ -280,9 +280,7 @@ public abstract class Terminal {
         return false;
     }
 
-    public Terminal asJson() {
-        throw new UnsupportedOperationException("Terminal doesn't support JSON output");
-    }
+    public abstract Terminal asJson();
 
     private static class ConsoleTerminal extends Terminal {
         private static final int JDK_VERSION_WITH_IS_TERMINAL = 22;
@@ -313,6 +311,11 @@ public abstract class Terminal {
                 }
             }
             return console;
+        }
+
+        @Override
+        public Terminal asJson() {
+            throw new UnsupportedOperationException("ConsoleTerminal doesn't support JSON output");
         }
 
         @Override

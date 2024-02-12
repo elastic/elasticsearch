@@ -127,11 +127,14 @@ public class JsonPrintWriter extends PrintWriter {
             synchronized (buffer) {
                 singleLineMode = true;
                 try {
+                    write(exception.getMessage());
+                    buffer.append("\",\"error.type\":\"").append(exception.getClass().getName());
+                    buffer.append("\",\"error.stack_trace\":\"");
                     exception.printStackTrace(this);
-                    flush();
                 } finally {
                     singleLineMode = false;
                 }
+                println();
             }
         }
     }

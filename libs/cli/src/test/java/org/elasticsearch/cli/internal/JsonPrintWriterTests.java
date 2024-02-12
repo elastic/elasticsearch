@@ -235,9 +235,11 @@ public class JsonPrintWriterTests extends ESTestCase {
             assertThat(jsonString, endsWith(System.lineSeparator()));
 
             Map<String, Object> fields = createParser(JsonXContent.jsonXContent, jsonString).map(); // un-quoted fields
-            assertThat(fields, hasKey("message"));
+            assertThat(fields.get("message"), is("Something went wrong!"));
+            assertThat(fields.get("error.type"), is("java.lang.RuntimeException"));
+            assertThat(fields, hasKey("error.stack_trace"));
 
-            String[] lines = fields.get("message").toString().split(System.lineSeparator());
+            String[] lines = fields.get("error.stack_trace").toString().split(System.lineSeparator());
             assertThat(lines[0], is("java.lang.RuntimeException: Something went wrong!"));
             assertThat(lines[1], matchesRegex("\tat [a-zA-Z.]+\\.testPrintStacktrace\\(JsonPrintWriterTests.java:\\d+\\)"));
             assertThat(lines[lines.length - 1], matchesRegex("\tat java.base/java.lang.Thread.run\\(Thread.java:\\d+\\)"));

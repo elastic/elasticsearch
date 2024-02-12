@@ -65,6 +65,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.PeerRecoveryNotFound;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
+import org.elasticsearch.ingest.GraphStructureException;
 import org.elasticsearch.ingest.IngestProcessorException;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
@@ -825,6 +826,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(174, AggregationExecutionException.InvalidPath.class);
         ids.put(175, AutoscalingMissedIndicesUpdateException.class);
         ids.put(176, SearchTimeoutException.class);
+        ids.put(177, GraphStructureException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

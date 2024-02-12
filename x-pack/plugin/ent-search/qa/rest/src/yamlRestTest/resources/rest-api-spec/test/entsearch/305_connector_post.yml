@@ -103,3 +103,16 @@ setup:
       connector.post:
         body:
           index_name: search-test
+
+
+---
+"Post connector fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector.post:
+        body:
+          index_name: search-test

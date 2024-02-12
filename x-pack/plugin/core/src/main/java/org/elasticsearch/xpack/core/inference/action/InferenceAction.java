@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -56,6 +57,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             PARSER.declareStringArray(Request.Builder::setInput, INPUT);
             PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), TASK_SETTINGS);
         }
+
+        private static final EnumSet<InputType> validEnumsBeforeUnspecifiedAdded = EnumSet.of(InputType.INGEST, InputType.SEARCH);
+        private static final EnumSet<InputType> validEnumsBeforeClassificationClusteringAdded = EnumSet.range(
+            InputType.INGEST,
+            InputType.UNSPECIFIED
+        );
 
         public static Request parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) {
             Request.Builder builder = PARSER.apply(parser, null);
@@ -152,16 +159,20 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             // in version ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED the input type enum was added, so we only want to write the enum if we're
             // at that version or later
             if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
-                out.writeEnum(getInputTypeToWrite(out.getTransportVersion()));
+                out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
             }
         }
 
-        private InputType getInputTypeToWrite(TransportVersion version) {
-            // in version ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED the UNSPECIFIED value was added, so if we're before that
-            // version other nodes won't know about it, so set it to INGEST instead
-            if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED) && inputType == InputType.UNSPECIFIED) {
+        // default for easier testing
+        static InputType getInputTypeToWrite(InputType inputType, TransportVersion version) {
+            if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED)
+                && validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
                 return InputType.INGEST;
-            }
+            } else if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_CLASS_CLUSTER_ADDED)
+                && validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
+                    return InputType.UNSPECIFIED;
+                }
+
             return inputType;
         }
 

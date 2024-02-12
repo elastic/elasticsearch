@@ -48,7 +48,6 @@ List projects = [
   'rest-api-spec',
   'docs',
   'client:rest',
-  'client:rest-high-level',
   'client:sniffer',
   'client:test',
   'client:client-benchmark-noop-api-plugin',

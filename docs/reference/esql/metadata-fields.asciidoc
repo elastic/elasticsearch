@@ -5,10 +5,10 @@
 <titleabbrev>Metadata fields</titleabbrev>
 ++++
 
-{esql} can access <<mapping-fields, metadata fields>>. The following are currently
-supported:
+{esql} can access <<mapping-fields, metadata fields>>. The currently
+supported ones are:
 
-  * <<mapping-index-field,`_index`>>: the index the document belongs to.
+  * <<mapping-index-field,`_index`>>: the index to which the document belongs.
   The field is of the type <<keyword, keyword>>.
 
   * <<mapping-id-field,`_id`>>: the source document's ID. The field is of the
@@ -17,18 +17,12 @@ supported:
   * `_version`: the source document's version. The field is of the type
   <<number,long>>.
 
-   * <<mapping-source-field,`_source`>>: the original JSON document body 
-  that was passed at index time (or a reconstructed version if 
-  <<synthetic-source, synthetic `_source_`>> is enabled). The field is 
-  loaded as a special `_source` type. This field is not supported by 
-  functions.
-
-To enable access to these fields, the <<esql-from,`FROM`>> source command 
-requires a dedicated directive:
+To enable the access to these fields, the <<esql-from,`FROM`>> source command needs
+to be provided with a dedicated directive:
 
 [source,esql]
 ----
-FROM index [METADATA _index, _id, _source]
+FROM index METADATA _index, _id
 ----
 
 Metadata fields are only available if the source of the data is an index.

@@ -42,8 +42,8 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
         private final BytesReference content;
         private final XContentType contentType;
 
-        public Request(String taskType, String inferenceEntityId, BytesReference content, XContentType contentType) {
-            this.taskType = TaskType.fromStringOrStatusException(taskType);
+        public Request(TaskType taskType, String inferenceEntityId, BytesReference content, XContentType contentType) {
+            this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
             this.content = content;
             this.contentType = contentType;
@@ -137,7 +137,7 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return model.toXContent(builder, params);
+            return model.toFilteredXContent(builder, params);
         }
 
         @Override

@@ -13,9 +13,11 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.AutoBucket;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -70,6 +73,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -78,7 +82,11 @@ import java.util.function.Predicate;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
+import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FOURTH;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
@@ -91,7 +99,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     public LogicalPlan optimize(LogicalPlan verified) {
-        return verified.optimized() ? verified : execute(verified);
+        return verifyOptimized(verified.optimized() ? verified : execute(verified));
     }
 
     @Override
@@ -152,7 +160,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // lastly replace surrogate functions
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
-            new ReplaceAliasingEvalWithProject()
+            new ReplaceAliasingEvalWithProject(),
+            new SkipQueryOnEmptyMappings()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
 
@@ -701,6 +710,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
             return plan.output().isEmpty() ? skipPlan(plan) : plan;
+        }
+    }
+
+    static class SkipQueryOnEmptyMappings extends OptimizerRules.OptimizerRule<EsRelation> {
+
+        @Override
+        protected LogicalPlan rule(EsRelation plan) {
+            return plan.index().concreteIndices().isEmpty() ? new LocalRelation(plan.source(), plan.output(), LocalSupplier.EMPTY) : plan;
         }
     }
 
@@ -1517,5 +1534,86 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             }
             return changed.get() ? new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs) : aggregate;
         }
+    }
+
+    /**
+     * Replace aggregations that are duplicated inside an Aggregate with an Eval to avoid duplicated compute.
+     * stats a = min(x), b = min(x), c = count(*), d = count() by g
+     * becomes
+     * stats a = min(x), c = count(*) by g
+     * eval b = a, d = c
+     * keep a, b, c, d, g
+     */
+    static class ReplaceDuplicateAggWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+
+        ReplaceDuplicateAggWithEval() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(Aggregate aggregate) {
+            LogicalPlan plan = aggregate;
+
+            boolean foundDuplicate = false;
+            var aggs = aggregate.aggregates();
+            Map<AggregateFunction, Attribute> seenAggs = Maps.newMapWithExpectedSize(aggs.size());
+            List<NamedExpression> projections = new ArrayList<>();
+            List<NamedExpression> keptAggs = new ArrayList<>(aggs.size());
+
+            for (NamedExpression agg : aggs) {
+                var attr = agg.toAttribute();
+                if (agg instanceof Alias as && as.child() instanceof AggregateFunction af) {
+                    var seen = seenAggs.putIfAbsent(af, attr);
+                    if (seen != null) {
+                        foundDuplicate = true;
+                        projections.add(as.replaceChild(seen));
+                    }
+                    // otherwise keep the agg in place
+                    else {
+                        keptAggs.add(agg);
+                        projections.add(attr);
+                    }
+                } else {
+                    keptAggs.add(agg);
+                    projections.add(attr);
+                }
+            }
+
+            // at least one duplicate found - add the projection (to keep the output in place)
+            if (foundDuplicate) {
+                var source = aggregate.source();
+                var newAggregate = new Aggregate(source, aggregate.child(), aggregate.groupings(), keptAggs);
+                plan = new Project(source, newAggregate, projections);
+            }
+
+            return plan;
+        }
+    }
+
+    /**
+     * Verify that a {@link LogicalPlan} can be executed.
+     *
+     * @param plan The logical plan to be verified.
+     * @throws VerificationException if the plan is invalid.
+     */
+    LogicalPlan verifyOptimized(LogicalPlan plan) throws VerificationException {
+        Set<Failure> failures = new LinkedHashSet<>();
+        plan.forEachUp(p -> {
+            p.forEachExpression(AutoBucket.class, e -> {
+                Expression.TypeResolution resolution = isFoldable(e.from(), e.sourceText(), THIRD);
+                if (resolution.unresolved()) {
+                    failures.add(fail(e, resolution.message()));
+                }
+                resolution = isFoldable(e.to(), e.sourceText(), FOURTH);
+                if (resolution.unresolved()) {
+                    failures.add(fail(e, resolution.message()));
+                }
+            });
+        });
+        if (failures.isEmpty() == false) {
+            throw new VerificationException(failures);
+        }
+
+        return plan;
     }
 }

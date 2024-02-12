@@ -67,6 +67,10 @@ precedence.
 `false`. The API only supports this parameter for CBOR, JSON, SMILE, and YAML
 responses. See <<esql-rest-columnar>>.
 
+`locale`::
+(Optional, string) Returns results (especially dates) formatted per the conventions of the locale.
+For syntax, refer to <<esql-locale-param>>.
+
 `params`::
 (Optional, array) Values for parameters in the `query`. For syntax, refer to
 <<esql-rest-params>>.

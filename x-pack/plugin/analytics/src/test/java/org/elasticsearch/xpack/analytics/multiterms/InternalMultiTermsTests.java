@@ -365,7 +365,7 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             mock(AggregationBuilder.class)
         );
 
-        InternalMultiTerms result = (InternalMultiTerms) terms1.reduce(List.of(terms1, terms2), context);
+        InternalMultiTerms result = (InternalMultiTerms) InternalAggregationTestCase.reduce(List.of(terms1, terms2), context);
         assertThat(result.buckets, hasSize(3));
         assertThat(result.buckets.get(0).getKeyAsString(), equalTo("4|9.223372036854776E18|4.0"));
         assertThat(result.buckets.get(0).getDocCount(), equalTo(3L));

@@ -311,6 +311,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
         throw new IllegalArgumentException("bogus numeric type [" + type + "]");
     }
+
     public static List<TestCaseSupplier> forBinaryComparisonWithWidening(
         NumericTypeTestConfigs<Boolean> typeStuff,
         String lhsName,

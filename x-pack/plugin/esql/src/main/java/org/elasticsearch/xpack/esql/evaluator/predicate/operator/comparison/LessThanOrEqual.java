@@ -37,6 +37,7 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<B
         Map.entry(DataTypes.VERSION, LessThanOrEqualKeywordsEvaluator.Factory::new),
         Map.entry(DataTypes.IP, LessThanOrEqualKeywordsEvaluator.Factory::new)
     );
+
     public LessThanOrEqual(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.LTE, zoneId, evaluatorMap);
     }

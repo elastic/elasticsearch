@@ -38,6 +38,7 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<BinaryCo
         Map.entry(DataTypes.VERSION, LessThanKeywordsEvaluator.Factory::new),
         Map.entry(DataTypes.IP, LessThanKeywordsEvaluator.Factory::new)
     );
+
     public LessThan(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.LT, zoneId, evaluatorMap);
     }
@@ -53,10 +54,7 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<BinaryCo
     }
 
     @Override
-    protected LessThan replaceChildren(
-        Expression newLeft,
-        Expression newRight
-    ) {
+    protected LessThan replaceChildren(Expression newLeft, Expression newRight) {
         return new LessThan(source(), newLeft, newRight, zoneId());
     }
 

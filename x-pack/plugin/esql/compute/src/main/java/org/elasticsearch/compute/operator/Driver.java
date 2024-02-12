@@ -49,6 +49,22 @@ public class Driver implements Releasable, Describable {
     public static final TimeValue DEFAULT_STATUS_INTERVAL = TimeValue.timeValueSeconds(1);
 
     private final String sessionId;
+
+    /**
+     * The wall clock time when this driver was created in milliseconds since epoch.
+     * Compared to {@link #startNanos} this is less accurate and is measured by a
+     * timer that can go backwards. This is only useful for presenting times to a
+     * user, like over the status API.
+     */
+    private final long startTime;
+
+    /**
+     * The time when this driver was created in nanos. This time is relative to
+     * some arbitrary point - imagine its program startup. The timer that generates
+     * this is monotonically increasing so even if NTP or something changes the
+     * clock it won't change. As such, this is only useful for measuring durations.
+     */
+    private final long startNanos;
     private final DriverContext driverContext;
     private final Supplier<String> description;
     private final List<Operator> activeOperators;
@@ -68,6 +84,17 @@ public class Driver implements Releasable, Describable {
      * have passed.
      */
     private final AtomicReference<DriverStatus> status;
+
+    /**
+     * The time this driver has been running on a CPU. Doesn't include async or
+     * waiting time.
+     */
+    private long cpuNanos;
+
+    /**
+     * The time this driver finished or {@code -1} if it is still running.
+     */
+    private long finishNanos = -1;
 
     /**
      * Creates a new driver with a chain of operators.
@@ -90,6 +117,8 @@ public class Driver implements Releasable, Describable {
         Releasable releasable
     ) {
         this.sessionId = sessionId;
+        this.startTime = System.currentTimeMillis();
+        this.startNanos = System.nanoTime();
         this.driverContext = driverContext;
         this.description = description;
         this.activeOperators = new ArrayList<>();
@@ -99,7 +128,7 @@ public class Driver implements Releasable, Describable {
         this.statusNanos = statusInterval.nanos();
         this.releasable = releasable;
         this.status = new AtomicReference<>(
-            new DriverStatus(sessionId, System.currentTimeMillis(), DriverStatus.Status.QUEUED, List.of(), List.of())
+            new DriverStatus(sessionId, startTime, System.currentTimeMillis(), cpuNanos, DriverStatus.Status.QUEUED, List.of(), List.of())
         );
     }
 
@@ -138,6 +167,7 @@ public class Driver implements Releasable, Describable {
         while (isFinished() == false) {
             SubscribableListener<Void> fut = runSingleLoopIteration();
             if (fut.isDone() == false) {
+                cpuNanos = System.nanoTime() - startTime;
                 status.set(updateStatus(DriverStatus.Status.ASYNC));
                 return fut;
             }
@@ -146,15 +176,19 @@ public class Driver implements Releasable, Describable {
             }
             long now = System.nanoTime();
             if (now > nextStatus) {
+                cpuNanos = now - startTime;
                 status.set(updateStatus(DriverStatus.Status.RUNNING));
                 nextStatus = now + statusNanos;
             }
             iter++;
             if (now - startTime > maxTimeNanos) {
+                cpuNanos = now - startTime;
                 break;
             }
         }
         if (isFinished()) {
+            finishNanos = System.nanoTime();
+            cpuNanos = finishNanos - startTime;
             status.set(updateStatus(DriverStatus.Status.DONE));
             driverContext.finish();
             Releasables.close(releasable, driverContext.getSnapshot());
@@ -180,6 +214,7 @@ public class Driver implements Releasable, Describable {
      * Abort the driver and wait for it to finish
      */
     public void abort(Exception reason, ActionListener<Void> listener) {
+        finishNanos = System.nanoTime();
         completionListener.addListener(listener);
         if (started.compareAndSet(false, true)) {
             drainAndCloseOperators(reason);
@@ -391,13 +426,23 @@ public class Driver implements Releasable, Describable {
     }
 
     /**
+     * Build a "profile" of this driver's operations after it's been completed.
+     * This doesn't make sense to call before the driver is done.
+     */
+    public DriverProfile profile() {
+        return new DriverProfile(finishNanos - startNanos, cpuNanos, status().completedOperators());
+    }
+
+    /**
      * Update the status.
      * @param status the status of the overall driver request
      */
     private DriverStatus updateStatus(DriverStatus.Status status) {
         return new DriverStatus(
             sessionId,
+            startTime,
             System.currentTimeMillis(),
+            cpuNanos,
             status,
             statusOfCompletedOperators,
             activeOperators.stream().map(op -> new DriverStatus.OperatorStatus(op.toString(), op.status())).toList()

@@ -7,12 +7,14 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -24,6 +26,11 @@ import java.util.Objects;
 public abstract class AbstractPageMappingOperator implements Operator {
     private Page prev;
     private boolean finished = false;
+
+    /**
+     * Number of milliseconds this operation has run.
+     */
+    private long processNanos;
 
     /**
      * Count of pages that have been processed by this operator.
@@ -64,19 +71,21 @@ public abstract class AbstractPageMappingOperator implements Operator {
         if (prev.getPositionCount() == 0) {
             return prev;
         }
-        pagesProcessed++;
+        long start = System.nanoTime();
         Page p = process(prev);
+        pagesProcessed++;
+        processNanos += System.nanoTime() - start;
         prev = null;
         return p;
     }
 
     @Override
     public final Status status() {
-        return status(pagesProcessed);
+        return status(processNanos, pagesProcessed);
     }
 
-    protected Status status(int pagesProcessed) {
-        return new Status(pagesProcessed);
+    protected Status status(long processNanos, int pagesProcessed) {
+        return new Status(processNanos, pagesProcessed);
     }
 
     @Override
@@ -93,18 +102,24 @@ public abstract class AbstractPageMappingOperator implements Operator {
             Status::new
         );
 
+        private final long processNanos;
         private final int pagesProcessed;
 
-        public Status(int pagesProcessed) {
+        public Status(long processNanos, int pagesProcessed) {
+            this.processNanos = processNanos;
             this.pagesProcessed = pagesProcessed;
         }
 
         protected Status(StreamInput in) throws IOException {
+            processNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
             pagesProcessed = in.readVInt();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+                out.writeVLong(processNanos);
+            }
             out.writeVInt(pagesProcessed);
         }
 
@@ -117,11 +132,23 @@ public abstract class AbstractPageMappingOperator implements Operator {
             return pagesProcessed;
         }
 
+        public long processNanos() {
+            return processNanos;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("pages_processed", pagesProcessed);
+            innerToXContent(builder);
             return builder.endObject();
+        }
+
+        protected final XContentBuilder innerToXContent(XContentBuilder builder) throws IOException {
+            builder.field("process_nanos", processNanos);
+            if (builder.humanReadable()) {
+                builder.field("process_time", TimeValue.timeValueNanos(processNanos));
+            }
+            return builder.field("pages_processed", pagesProcessed);
         }
 
         @Override
@@ -129,12 +156,12 @@ public abstract class AbstractPageMappingOperator implements Operator {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
-            return pagesProcessed == status.pagesProcessed;
+            return processNanos == status.processNanos && pagesProcessed == status.pagesProcessed;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pagesProcessed);
+            return Objects.hash(processNanos, pagesProcessed);
         }
 
         @Override

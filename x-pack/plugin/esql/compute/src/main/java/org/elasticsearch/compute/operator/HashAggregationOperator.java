@@ -7,6 +7,10 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -17,10 +21,14 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
@@ -61,6 +69,10 @@ public class HashAggregationOperator implements Operator {
 
     private final DriverContext driverContext;
 
+    private long hashNanos;
+    private long aggregationNanos;
+    private int pagesProcessed;
+
     @SuppressWarnings("this-escape")
     public HashAggregationOperator(
         List<GroupingAggregator.Factory> aggregators,
@@ -99,26 +111,46 @@ public class HashAggregationOperator implements Operator {
                 prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
             }
 
-            blockHash.add(wrapPage(page), new GroupingAggregatorFunction.AddInput() {
+            class AddInput implements GroupingAggregatorFunction.AddInput {
+                long hashStart = System.nanoTime();
+                long aggStart;
+
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
                     IntVector groupIdsVector = groupIds.asVector();
                     if (groupIdsVector != null) {
                         add(positionOffset, groupIdsVector);
                     } else {
+                        start();
                         for (GroupingAggregatorFunction.AddInput p : prepared) {
                             p.add(positionOffset, groupIds);
                         }
+                        end();
                     }
                 }
 
                 @Override
                 public void add(int positionOffset, IntVector groupIds) {
+                    start();
                     for (GroupingAggregatorFunction.AddInput p : prepared) {
                         p.add(positionOffset, groupIds);
                     }
+                    end();
                 }
-            });
+
+                private void start() {
+                    aggStart = System.nanoTime();
+                    hashNanos += aggStart - hashStart;
+                }
+
+                private void end() {
+                    hashStart = System.nanoTime();
+                    aggregationNanos += hashStart - aggStart;
+                }
+            }
+            AddInput add = new AddInput();
+            blockHash.add(wrapPage(page), add);
+            hashNanos += add.hashStart - System.nanoTime();
         } finally {
             page.releaseBlocks();
         }
@@ -178,6 +210,11 @@ public class HashAggregationOperator implements Operator {
         Releasables.close(blockHash, () -> Releasables.close(aggregators));
     }
 
+    @Override
+    public Operator.Status status() {
+        return new Status(hashNanos, aggregationNanos, pagesProcessed);
+    }
+
     protected static void checkState(boolean condition, String msg) {
         if (condition == false) {
             throw new IllegalArgumentException(msg);
@@ -196,5 +233,87 @@ public class HashAggregationOperator implements Operator {
         sb.append("aggregators=").append(aggregators);
         sb.append("]");
         return sb.toString();
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "hashagg",
+            Status::new
+        );
+
+        private final long hashNanos;
+        private final long aggregationNanos;
+        private final int pagesProcessed;
+
+        public Status(long hashNanos, long aggregationNanos, int pagesProcessed) {
+            this.hashNanos = hashNanos;
+            this.aggregationNanos = aggregationNanos;
+            this.pagesProcessed = pagesProcessed;
+        }
+
+        protected Status(StreamInput in) throws IOException {
+            hashNanos = in.readVLong();
+            aggregationNanos = in.readVLong();
+            pagesProcessed = in.readVInt();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(hashNanos);
+            out.writeVLong(aggregationNanos);
+            out.writeVInt(pagesProcessed);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        public long hashNanos() {
+            return hashNanos;
+        }
+
+        public long aggregationNanos() {
+            return aggregationNanos;
+        }
+
+        public int pagesProcessed() {
+            return pagesProcessed;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("hash_nanos", hashNanos);
+            if (builder.humanReadable()) {
+                builder.field("hash_time", TimeValue.timeValueNanos(hashNanos));
+            }
+            builder.field("aggregation_nanos", aggregationNanos);
+            if (builder.humanReadable()) {
+                builder.field("aggregation_time", TimeValue.timeValueNanos(aggregationNanos));
+            }
+            builder.field("pages_processed", pagesProcessed);
+            return builder.endObject();
+
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return hashNanos == status.hashNanos && aggregationNanos == status.aggregationNanos && pagesProcessed == status.pagesProcessed;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(hashNanos, aggregationNanos, pagesProcessed);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
     }
 }

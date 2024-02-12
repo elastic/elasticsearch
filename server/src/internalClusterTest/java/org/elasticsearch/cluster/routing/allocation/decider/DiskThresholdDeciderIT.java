@@ -114,7 +114,11 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             if (allowRelocations.get() == false) {
-                assertThat(numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING), equalTo(0));
+                assertThat(
+                    "Expects no relocating shards but got: " + event.state().getRoutingNodes(),
+                    numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING),
+                    equalTo(0)
+                );
             }
         });
 
@@ -156,6 +160,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, new ContainsExactlyOneOf<>(shardSizes.getSmallestShardIds()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105331")
     public void testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleShards() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -173,7 +178,11 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             if (allowRelocations.get() == false) {
-                assertThat(numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING), equalTo(0));
+                assertThat(
+                    "Expects no relocating shards but got: " + event.state().getRoutingNodes(),
+                    numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING),
+                    equalTo(0)
+                );
             }
         });
 

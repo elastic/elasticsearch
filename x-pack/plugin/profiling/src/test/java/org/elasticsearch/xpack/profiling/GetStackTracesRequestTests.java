@@ -66,7 +66,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
         //tag::noformat
             .startObject()
                 .field("sample_size", 2000)
-                .field("indices", "my-traces")
+                .field("indices", new String[] {"my-traces"})
                 .field("stacktrace_ids_field", "stacktraces")
                 .startObject("query")
                     .startObject("range")
@@ -83,7 +83,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             request.parseXContent(content);
 
             assertEquals(2000, request.getSampleSize());
-            assertEquals("my-traces", request.getIndices());
+            assertArrayEquals(new String[] { "my-traces" }, request.getIndices());
             assertEquals("stacktraces", request.getStackTraceIdsField());
             // a basic check suffices here
             assertEquals("@timestamp", ((RangeQueryBuilder) request.getQuery()).fieldName());
@@ -169,6 +169,78 @@ public class GetStackTracesRequestTests extends ESTestCase {
         }
     }
 
+    public void testParseXContentCustomIndexNoArray() throws IOException {
+        try (XContentParser content = createParser(XContentFactory.jsonBuilder()
+        //tag::noformat
+                .startObject()
+                    .field("sample_size", 2000)
+                    .field("indices", "my-traces")
+                    .field("stacktrace_ids_field", "stacktraces")
+                    .startObject("query")
+                        .startObject("range")
+                            .startObject("@timestamp")
+                                .field("gte", "2022-10-05")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            //end::noformat
+        )) {
+
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            ParsingException ex = expectThrows(ParsingException.class, () -> request.parseXContent(content));
+            assertEquals("Unknown key for a VALUE_STRING in [indices].", ex.getMessage());
+        }
+    }
+
+    public void testParseXContentCustomIndexNullValues() throws IOException {
+        try (XContentParser content = createParser(XContentFactory.jsonBuilder()
+        //tag::noformat
+                .startObject()
+                    .field("sample_size", 2000)
+                    .field("indices", new String[] {"my-traces", null})
+                    .field("stacktrace_ids_field", "stacktraces")
+                    .startObject("query")
+                        .startObject("range")
+                            .startObject("@timestamp")
+                                .field("gte", "2022-10-05")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            //end::noformat
+        )) {
+
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            ParsingException ex = expectThrows(ParsingException.class, () -> request.parseXContent(content));
+            assertEquals("Expected [VALUE_STRING] but found [VALUE_NULL] in [indices].", ex.getMessage());
+        }
+    }
+
+    public void testParseXContentCustomIndexInvalidTypes() throws IOException {
+        try (XContentParser content = createParser(XContentFactory.jsonBuilder()
+        //tag::noformat
+                .startObject()
+                    .field("sample_size", 2000)
+                    .field("indices", new int[] {1, 2, 3})
+                    .field("stacktrace_ids_field", "stacktraces")
+                    .startObject("query")
+                        .startObject("range")
+                            .startObject("@timestamp")
+                                .field("gte", "2022-10-05")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            //end::noformat
+        )) {
+
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            ParsingException ex = expectThrows(ParsingException.class, () -> request.parseXContent(content));
+            assertEquals("Expected [VALUE_STRING] but found [VALUE_NUMBER] in [indices].", ex.getMessage());
+        }
+    }
+
     public void testValidateWrongSampleSize() {
         GetStackTracesRequest request = new GetStackTracesRequest(
             randomIntBetween(Integer.MIN_VALUE, 0),
@@ -196,7 +268,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             1.0d,
             1.0d,
             null,
-            randomAlphaOfLength(7),
+            new String[] { randomAlphaOfLength(7) },
             randomAlphaOfLength(3),
             null,
             null,
@@ -234,7 +306,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             1.0d,
             1.0d,
             null,
-            randomAlphaOfLength(5),
+            new String[] { randomAlphaOfLength(5) },
             randomFrom("", null),
             null,
             null,
@@ -255,7 +327,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             1.0d,
             1.0d,
             null,
-            customIndex,
+            new String[] { customIndex },
             randomAlphaOfLength(3),
             null,
             null,

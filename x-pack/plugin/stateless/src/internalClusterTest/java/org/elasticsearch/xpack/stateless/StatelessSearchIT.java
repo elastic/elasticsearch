@@ -20,9 +20,13 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
+import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
@@ -43,6 +47,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
@@ -50,7 +55,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -65,6 +72,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesRequestCacheUtils;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -100,12 +108,14 @@ import static co.elastic.elasticsearch.stateless.Stateless.CLEAR_BLOB_CACHE_ACTI
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -113,6 +123,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -128,6 +139,18 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
         public TestStateless(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        public Collection<Object> createComponents(PluginServices services) {
+            final Collection<Object> components = super.createComponents(services);
+            components.add(
+                new PluginComponentBinding<>(
+                    StatelessCommitService.class,
+                    components.stream().filter(c -> c instanceof TestStatelessCommitService).findFirst().orElseThrow()
+                )
+            );
+            return components;
         }
 
         @Override
@@ -154,8 +177,50 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             };
         }
 
+        @Override
+        protected StatelessCommitService createStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            Client client,
+            StatelessCommitCleaner commitCleaner
+        ) {
+            return new TestStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
+        }
+
         private int getCreatedCommits() {
             return createdCommits.get();
+        }
+    }
+
+    public static class TestStatelessCommitService extends StatelessCommitService {
+
+        private final Map<ShardId, AtomicInteger> invocationCounters = ConcurrentCollections.newConcurrentMap();
+        private final AtomicReference<CountDownLatch> onCommitCreationLatch = new AtomicReference<>();
+
+        public TestStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            Client client,
+            StatelessCommitCleaner commitCleaner
+        ) {
+            super(settings, objectStoreService, clusterService, client, commitCleaner);
+        }
+
+        @Override
+        public void onCommitCreation(StatelessCommitRef reference) {
+            final CountDownLatch latch = onCommitCreationLatch.get();
+            if (latch != null) {
+                safeAwait(latch);
+            }
+            super.onCommitCreation(reference);
+        }
+
+        @Override
+        public void setMaxGenerationToUploadDueToFlush(ShardId shardId, long generation) {
+            invocationCounters.computeIfAbsent(shardId, k -> new AtomicInteger(0)).incrementAndGet();
+            super.setMaxGenerationToUploadDueToFlush(shardId, generation);
         }
     }
 
@@ -319,6 +384,164 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 equalTo((getNumberOfCreatedCommits() - beginningNumberOfCreatedCommits) * numReplicas)
             );
         });
+    }
+
+    public void testDifferentiateForFlushByRefresh() {
+        final String indexNode = startIndexNode();
+        startSearchNode();
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final var indicesService = internalCluster().getInstance(IndicesService.class, indexNode);
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        final var indexShard = indexService.getShard(shardId.id());
+        final var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        final var statelessCommitService = indexEngine.getStatelessCommitService();
+
+        final long initialGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+        assertThat(statelessCommitService.getMaxGenerationToUploadDueToFlush(shardId), equalTo(initialGeneration));
+
+        // External refresh does not change the max generation to upload
+        logger.info("--> external refresh");
+        indexDocs(indexName, randomIntBetween(1, 100));
+        client().admin().indices().prepareRefresh().get(TimeValue.timeValueSeconds(10));
+        final long externalRefreshedGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+        assertThat(externalRefreshedGeneration, greaterThan(initialGeneration));
+        assertThat(statelessCommitService.getMaxGenerationToUploadDueToFlush(shardId), equalTo(initialGeneration));
+
+        // Scheduled refresh does not change the max generation to upload
+        logger.info("--> external refresh");
+        indexDocs(indexName, randomIntBetween(1, 100));
+        final PlainActionFuture<Engine.RefreshResult> future = new PlainActionFuture<>();
+        indexEngine.maybeRefresh("test", future);
+        future.actionGet(TimeValue.timeValueSeconds(10));
+        final long scheduledRefreshedGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+        assertThat(scheduledRefreshedGeneration, greaterThan(externalRefreshedGeneration));
+        assertThat(statelessCommitService.getMaxGenerationToUploadDueToFlush(shardId), equalTo(initialGeneration));
+
+        // Refresh by RTG does not change max generation to upload
+        logger.info("--> refresh by RTG");
+        indexDocs(indexName, randomIntBetween(1, 100));
+        assertTrue(isUnsafe(indexEngine.getLiveVersionMap()));
+        client().prepareGet(indexName, "does-not-exist").setRealtime(true).get(TimeValue.timeValueSeconds(10));
+        final long rtgRefreshedGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+        assertThat(rtgRefreshedGeneration, greaterThan(scheduledRefreshedGeneration));
+        assertThat(statelessCommitService.getMaxGenerationToUploadDueToFlush(shardId), equalTo(initialGeneration));
+
+        // Flush updates the max generation
+        logger.info("--> flush");
+        indexDocs(indexName, randomIntBetween(1, 100));
+        client().admin().indices().prepareFlush().setForce(randomBoolean()).get(TimeValue.timeValueSeconds(10));
+
+        final long flushGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+        assertThat(flushGeneration, greaterThan(rtgRefreshedGeneration));
+        assertThat(statelessCommitService.getMaxGenerationToUploadDueToFlush(shardId), equalTo(flushGeneration));
+    }
+
+    public void testRefreshWillSetMaxUploadGenForFlushThatDoesNotWait() throws InterruptedException {
+        final String indexNode = startIndexNode();
+        startSearchNode();
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final var indicesService = internalCluster().getInstance(IndicesService.class, indexNode);
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        final var indexShard = indexService.getShard(shardId.id());
+        final var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        final var statelessCommitService = (TestStatelessCommitService) indexEngine.getStatelessCommitService();
+        final long initialGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+
+        indexDocs(indexName, randomIntBetween(1, 100));
+
+        final var latch = new CountDownLatch(1);
+        statelessCommitService.onCommitCreationLatch.set(latch);
+
+        // A thread simulates scheduled refresh. It will be blocked inside the flush lock
+        final Thread refreshThread = new Thread(() -> { indexEngine.maybeRefresh("test", ActionListener.noop()); });
+        refreshThread.start();
+
+        // A flush that does not force nor wait, it will return immediately.
+        client().admin().indices().prepareFlush().setForce(false).setWaitIfOngoing(false).get(TimeValue.timeValueSeconds(10));
+        // The flush sets a flag to notify the thread that holds flush lock to set max upload gen. But does not do it on its own.
+        assertThat(statelessCommitService.getMaxGenerationToUploadDueToFlush(shardId), equalTo(initialGeneration));
+
+        // Unblock the refresh thread which should see the upload flag and set max upload gen accordingly
+        latch.countDown();
+        refreshThread.join();
+        assertThat(statelessCommitService.getMaxGenerationToUploadDueToFlush(shardId), equalTo(initialGeneration + 1));
+    }
+
+    public void testConcurrentFlushAndMultipleRefreshesWillSetMaxUploadGenOnlyOnce() throws InterruptedException {
+        final String indexNode = startIndexNode();
+        startSearchNode();
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final var indicesService = internalCluster().getInstance(IndicesService.class, indexNode);
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        final var indexShard = indexService.getShard(shardId.id());
+        final var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        final var statelessCommitService = (TestStatelessCommitService) indexEngine.getStatelessCommitService();
+
+        final long initialGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+        assertThat(statelessCommitService.getMaxGenerationToUploadDueToFlush(shardId), equalTo(initialGeneration));
+
+        // A flusher
+        final Runnable flusher = () -> {
+            safeSleep(randomLongBetween(0, 50));
+            final boolean force = randomBoolean();
+            client().admin()
+                .indices()
+                .prepareFlush()
+                .setForce(force)
+                .setWaitIfOngoing(force || randomBoolean())
+                .get(TimeValue.timeValueSeconds(10));
+        };
+
+        // Simulate scheduled refreshes
+        final Runnable scheduledRefresher = () -> {
+            safeSleep(randomLongBetween(0, 50));
+            indexEngine.maybeRefresh("test", ActionListener.noop());
+        };
+
+        final Runnable externalRefresher = () -> {
+            safeSleep(randomLongBetween(0, 50));
+            indexEngine.externalRefresh("test", ActionListener.noop());
+        };
+
+        final Runnable rtgRefresher = () -> {
+            safeSleep(randomLongBetween(0, 50));
+            client().prepareGet(indexName, "does-not-exist").setRealtime(true).get(TimeValue.timeValueSeconds(10));
+        };
+
+        long previousGeneration = initialGeneration;
+        final int numberOfRuns = between(1, 5);
+        for (int i = 0; i < numberOfRuns; i++) {
+            final int count = statelessCommitService.invocationCounters.get(shardId).get();
+            final List<Thread> threads = List.of(
+                new Thread(flusher),
+                new Thread(scheduledRefresher),
+                new Thread(randomFrom(scheduledRefresher, externalRefresher, rtgRefresher))
+            );
+            indexDocs(indexName, randomIntBetween(1, 100));
+            threads.forEach(Thread::start);
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            final long generation = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+            assertThat(generation, greaterThan(previousGeneration));
+            // Exactly one generation is marked for upload
+            final long maxGenerationToUploadDueToFlush = statelessCommitService.getMaxGenerationToUploadDueToFlush(shardId);
+            assertThat(maxGenerationToUploadDueToFlush, allOf(greaterThan(previousGeneration), lessThanOrEqualTo(generation)));
+            assertThat(statelessCommitService.invocationCounters.get(shardId).get(), equalTo(count + 1));
+            previousGeneration = generation;
+        }
     }
 
     public void testRefreshNoFastRefresh() throws Exception {

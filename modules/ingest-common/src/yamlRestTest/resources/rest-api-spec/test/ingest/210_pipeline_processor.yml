@@ -103,13 +103,13 @@ teardown:
 - match: { acknowledged: true }
 
 - do:
-    catch: /pipeline_graph_structure_exception/
+    catch: /graph_structure_exception/
     index:
       index: test
       id: "1"
       pipeline: "outer"
       body: {}
-- match: { error.root_cause.0.type: "pipeline_graph_structure_exception" }
+- match: { error.root_cause.0.type: "graph_structure_exception" }
 - match: { error.root_cause.0.reason: "Cycle detected for pipeline: outer" }
 
 ---

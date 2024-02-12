@@ -66,7 +66,8 @@ public class Loggers {
         List<String> errors = null;
         for (String key : settings.keySet()) {
             if (LOG_LEVEL_SETTING.match(key)) {
-                Level level = Level.getLevel(settings.get(key));
+                String value = settings.get(key);
+                Level level = value == null ? null : Level.valueOf(value);
                 if (level != null) {
                     String logger = key.substring("logger.".length());
                     if (isLevelPermitted(logger, level)) {

@@ -374,7 +374,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             // We wait on purpose to make sure that the document is not indexed because the shard operation is stalled
             // and not just because it takes time to replicate the indexing request to the replica
             Thread.sleep(100);
-            assertFalse(dynamicMappingsFuture.isDone());
+            assertFalse(docIndexResponseFuture.isDone());
             assertFalse(dynamicMappingsFuture.isDone());
         } finally {
             // Now make sure the indexing request finishes successfully

@@ -193,7 +193,13 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             List<Item> identifiedPinnedDocs = pinnedDocsSupplier != null ? pinnedDocsSupplier.get() : null;
             if ((identifiedPinnedIds != null && identifiedPinnedIds.isEmpty())
                 && (identifiedPinnedDocs != null && identifiedPinnedDocs.isEmpty())) {
-                return organicQuery.rewrite(queryRewriteContext);
+                QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
+                if (organicQuery.equals(newOrganicQuery)) {
+                    return newOrganicQuery;
+                }
+                return new RuleQueryBuilder(newOrganicQuery, matchCriteria, rulesetId, null, null, pinnedIdsSupplier, pinnedDocsSupplier)
+                    .boost(this.boost)
+                    .queryName(this.queryName);
             } else if (identifiedPinnedIds != null && identifiedPinnedIds.isEmpty() == false) {
                 return new PinnedQueryBuilder(organicQuery, identifiedPinnedIds.toArray(new String[0]));
             } else if (identifiedPinnedDocs != null) {

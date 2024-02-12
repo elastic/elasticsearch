@@ -181,6 +181,6 @@ public final class Sets {
     public static <E> Set<E> addToCopy(Set<E> set, E... elements) {
         final var res = new HashSet<>(set);
         Collections.addAll(res, elements);
-        return Collections.unmodifiableSet(res);
+        return (Set<E>) Set.of(res.toArray());
     }
 }

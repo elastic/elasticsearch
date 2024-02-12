@@ -570,6 +570,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         commitState.addListenerForUploadedGeneration(generation, listener);
     }
 
+    public void setMaxGenerationToUploadDueToFlush(ShardId shardId, long generation) {
+        final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        commitState.setMaxGenerationToUploadDueToFlush(generation);
+    }
+
+    public long getMaxGenerationToUploadDueToFlush(ShardId shardId) {
+        final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        return commitState.getMaxGenerationToUploadDueToFlush();
+    }
+
     /**
      * @param commit the commit that was uploaded
      * @param filesToRetain the individual files (not blobs) that are still necessary to be able to access, including
@@ -636,6 +646,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          */
         private final AtomicLong generationNotified = new AtomicLong(-1);
         private volatile long maxGenerationToUpload = Long.MAX_VALUE;
+        private final AtomicLong maxGenerationToUploadDueToFlush = new AtomicLong(-1);
         private volatile State state = State.RUNNING;
         private volatile boolean isDeleted;
         // map generations to compound commit blob instances
@@ -1219,6 +1230,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     state = State.RUNNING;
                 }
             }
+        }
+
+        private void setMaxGenerationToUploadDueToFlush(long generation) {
+            maxGenerationToUploadDueToFlush.updateAndGet(v -> Math.max(v, generation));
+        }
+
+        public long getMaxGenerationToUploadDueToFlush() {
+            return maxGenerationToUploadDueToFlush.get();
         }
 
         /**

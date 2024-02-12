@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -58,6 +59,8 @@ import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 public class IndexEngine extends InternalEngine {
 
     public static final String TRANSLOG_RECOVERY_START_FILE = "translog_recovery_start_file";
+    // A flag for whether the flush call is originated from a refresh
+    private static final ThreadLocal<Boolean> IS_FLUSH_BY_REFRESH = ThreadLocal.withInitial(() -> false);
 
     private final TranslogReplicator translogReplicator;
     private final StatelessCommitService statelessCommitService;
@@ -71,6 +74,7 @@ public class IndexEngine extends InternalEngine {
     private final NavigableMap<Long, Long> openReadersPerGeneration = new ConcurrentSkipListMap<>();
 
     private final LongConsumer closedReadersForGenerationConsumer;
+    private final AtomicBoolean ongoingFlushMustUpload = new AtomicBoolean(false);
 
     public IndexEngine(
         EngineConfig engineConfig,
@@ -173,12 +177,44 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+        // A regular flush, i.e. not converted from refresh, must trigger to a commit generation to be uploaded
+        // (by increase maxGenerationToUploadDueToFlush).
+        // We set ongoingFlushMustUpload to true so that if this thread does not flush on its own (because the
+        // flush lock is held by another thread and this thread does not wait for it), some other concurrent
+        // flushing thread will promise to do it.
+        // This protocol does not care exactly which thread ends up doing the job. It could be any of the concurrent
+        // flush threads including this one. The setMaxGenerationToUploadDueToFlush method will be called
+        // exactly once to a generation processed by one of the threads.
+        // If the flush thread errors before ongoingFlushMustUpload can be cleared, the next flush will handle it.
+        // Note the behaviour is still same if we just check `IS_FLUSH_BY_REFRESH.get() == false`.
+        // However this may in some cases trigger more than one uploads, e.g. another thread may see the flag and
+        // trigger upload immediately while this thread creates a new commit and should also upload.
+        if (IS_FLUSH_BY_REFRESH.get() == false && force == false && waitIfOngoing == false) {
+            logger.trace("flush for {}", shardId);
+            ongoingFlushMustUpload.set(true);
+        } else {
+            logger.trace("flush-by-refresh for {}", shardId);
+        }
+        super.flushHoldingLock(force, waitIfOngoing, listener);
+    }
+
+    @Override
     protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
         // We must fetch the max uploaded translog file BEFORE performing the commit. Since all of those operations were written to
         // Lucene at this point, it is safe to start with the next file. The flush thread synchronously kicks of the commit upload
         // process, so for now we just store the start file as a thread local.
         translogStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
         super.commitIndexWriter(writer, translog);
+    }
+
+    @Override
+    protected void afterFlush(long generation) {
+        assert isFlushLockIsHeldByCurrentThread() == false;
+        if (ongoingFlushMustUpload.compareAndSet(true, false) || IS_FLUSH_BY_REFRESH.get() == false) {
+            logger.trace("flush sets max generation of {} to generation [{}]", shardId, generation);
+            statelessCommitService.setMaxGenerationToUploadDueToFlush(shardId, generation);
+        }
     }
 
     @Override
@@ -189,8 +225,13 @@ public class IndexEngine extends InternalEngine {
     @Override
     protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
         if (source.equals(REAL_TIME_GET_REFRESH_SOURCE) || source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
-            // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
-            flush(true, true);
+            try {
+                IS_FLUSH_BY_REFRESH.set(true);
+                // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
+                flush(true, true);
+            } finally {
+                IS_FLUSH_BY_REFRESH.set(false);
+            }
         }
         // TODO: could we avoid this refresh if we have flushed above?
         return super.refreshInternalSearcher(source, block);
@@ -218,19 +259,24 @@ public class IndexEngine extends InternalEngine {
         if (fastRefresh) {
             super.maybeRefresh(source, listener);
         } else {
-            Thread originalThread = Thread.currentThread();
-            // Maybe refresh is called on scheduled periodic refreshes and needs to flush so that the search shards received the data.
-            flush(false, false, listener.delegateFailure((l, flushResult) -> {
-                ActionRunnable<RefreshResult> refreshRunnable = new ActionRunnable<>(listener) {
+            try {
+                IS_FLUSH_BY_REFRESH.set(true);
+                Thread originalThread = Thread.currentThread();
+                // Maybe refresh is called on scheduled periodic refreshes and needs to flush so that the search shards received the data.
+                flush(false, false, listener.delegateFailure((l, flushResult) -> {
+                    ActionRunnable<RefreshResult> refreshRunnable = new ActionRunnable<>(listener) {
 
-                    @Override
-                    protected void doRun() {
-                        IndexEngine.super.maybeRefresh(source, listener);
-                    }
-                };
+                        @Override
+                        protected void doRun() {
+                            IndexEngine.super.maybeRefresh(source, listener);
+                        }
+                    };
 
-                dispatchRefreshRunnable(originalThread, refreshRunnable);
-            }));
+                    dispatchRefreshRunnable(originalThread, refreshRunnable);
+                }));
+            } finally {
+                IS_FLUSH_BY_REFRESH.set(false);
+            }
         }
 
     }
@@ -239,17 +285,22 @@ public class IndexEngine extends InternalEngine {
         if (fastRefresh) {
             IndexEngine.super.externalRefresh(request.source(), request.listener());
         } else {
-            Thread originalThread = Thread.currentThread();
-            flush(true, true, request.listener().delegateFailure((l, flushResult) -> {
-                ActionRunnable<RefreshResult> refreshRunnable = new ActionRunnable<>(l) {
+            try {
+                IS_FLUSH_BY_REFRESH.set(true);
+                Thread originalThread = Thread.currentThread();
+                flush(true, true, request.listener().delegateFailure((l, flushResult) -> {
+                    ActionRunnable<RefreshResult> refreshRunnable = new ActionRunnable<>(l) {
 
-                    @Override
-                    protected void doRun() {
-                        IndexEngine.super.externalRefresh(request.source(), listener);
-                    }
-                };
-                dispatchRefreshRunnable(originalThread, refreshRunnable);
-            }));
+                        @Override
+                        protected void doRun() {
+                            IndexEngine.super.externalRefresh(request.source(), listener);
+                        }
+                    };
+                    dispatchRefreshRunnable(originalThread, refreshRunnable);
+                }));
+            } finally {
+                IS_FLUSH_BY_REFRESH.set(false);
+            }
         }
 
     }

@@ -11,7 +11,9 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
+
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class ByteBufferStreamInput extends StreamInput {
 
@@ -129,7 +131,7 @@ public class ByteBufferStreamInput extends StreamInput {
             final int length = calculateByteLengthOfChars(bytes, chars, start, limit);
             if (length >= 0) {
                 buffer.position(length + start - buffer.arrayOffset());
-                return new String(bytes, start, length, StandardCharsets.UTF_8);
+                return new String(bytes, start, length, chars == length ? ISO_8859_1 : UTF_8);
             }
         }
         return doReadString(chars);

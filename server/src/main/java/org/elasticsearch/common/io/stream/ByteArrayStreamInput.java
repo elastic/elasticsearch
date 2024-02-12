@@ -12,7 +12,9 @@ import org.apache.lucene.util.BytesRef;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Resettable {@link StreamInput} that wraps a byte array. It is heavily inspired in Lucene's
@@ -37,7 +39,7 @@ public final class ByteArrayStreamInput extends StreamInput {
         final int chars = readArraySize();
         int length = calculateByteLengthOfChars(bytes, chars, pos, limit);
         if (length >= 0) {
-            String str = new String(bytes, pos, length, StandardCharsets.UTF_8);
+            String str = new String(bytes, pos, length, chars == length ? ISO_8859_1 : UTF_8);
             pos += length;
             return str;
         }

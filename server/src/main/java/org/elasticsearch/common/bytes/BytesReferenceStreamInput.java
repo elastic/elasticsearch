@@ -16,8 +16,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
+
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * A StreamInput that reads off a {@link BytesRefIterator}. This is used to provide
@@ -96,7 +98,7 @@ class BytesReferenceStreamInput extends StreamInput {
             final int length = calculateByteLengthOfChars(bytes, chars, start, limit);
             if (length >= 0) {
                 slice.position(length + start - slice.arrayOffset());
-                return new String(bytes, start, length, StandardCharsets.UTF_8);
+                return new String(bytes, start, length, chars == length ? ISO_8859_1 : UTF_8);
             }
         }
         return doReadString(chars);

@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -239,41 +238,38 @@ public class InternalMatrixStats extends InternalAggregation {
 
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
-        final List<InternalMatrixStats> aggregations = new ArrayList<>(size);
         return new AggregatorReducer() {
+            private RunningStats runningStats;
+
             @Override
             public void accept(InternalAggregation aggregation) {
-                // TODO: probably can be done in without collecting the aggregators
                 final InternalMatrixStats internalMatrixStats = (InternalMatrixStats) aggregation;
                 if (internalMatrixStats.stats != null) {
-                    aggregations.add(internalMatrixStats);
+                    if (runningStats == null) {
+                        runningStats = new RunningStats();
+                    }
+                    final Set<String> missingFields = runningStats.missingFieldNames(internalMatrixStats.stats);
+                    if (missingFields.isEmpty() == false) {
+                        throw new IllegalArgumentException(
+                            "Aggregation ["
+                                + internalMatrixStats.getName()
+                                + "] all fields must exist in all indices, but some indices are missing these fields ["
+                                + String.join(", ", new TreeSet<>(missingFields))
+                                + "]"
+                        );
+                    }
+                    runningStats.merge(internalMatrixStats.stats);
                 }
             }
 
             @Override
             public InternalAggregation get() {
                 // return empty result iff all stats are null
-                if (aggregations.isEmpty()) {
+                if (runningStats == null) {
                     return new InternalMatrixStats(name, 0, null, new MatrixStatsResults(), getMetadata());
                 }
-
-                RunningStats runningStats = new RunningStats();
-                for (InternalMatrixStats agg : aggregations) {
-                    final Set<String> missingFields = runningStats.missingFieldNames(agg.stats);
-                    if (missingFields.isEmpty() == false) {
-                        throw new IllegalArgumentException(
-                            "Aggregation ["
-                                + agg.getName()
-                                + "] all fields must exist in all indices, but some indices are missing these fields ["
-                                + String.join(", ", new TreeSet<>(missingFields))
-                                + "]"
-                        );
-                    }
-                    runningStats.merge(agg.stats);
-                }
-
                 if (reduceContext.isFinalReduce()) {
-                    MatrixStatsResults matrixStatsResults = new MatrixStatsResults(runningStats);
+                    final MatrixStatsResults matrixStatsResults = new MatrixStatsResults(runningStats);
                     return new InternalMatrixStats(name, matrixStatsResults.getDocCount(), runningStats, matrixStatsResults, getMetadata());
                 }
                 return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());

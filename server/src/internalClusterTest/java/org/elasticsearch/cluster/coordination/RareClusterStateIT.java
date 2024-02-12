@@ -47,7 +47,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -129,21 +128,23 @@ public class RareClusterStateIT extends ESIntegTestCase {
     }
 
     public void testDeleteCreateInOneBulk() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        String dataNode = internalCluster().startDataOnlyNode();
+        final var master = internalCluster().startMasterOnlyNode();
+        final var masterClusterService = internalCluster().clusterService(master);
+
+        final var dataNode = internalCluster().startDataOnlyNode();
+        final var dataNodeClusterService = internalCluster().clusterService(dataNode);
+
         assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("2").get().isTimedOut());
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen("test");
 
-        final var masterClusterService = internalCluster().clusterService(internalCluster().getMasterName());
-        final var dataNodeClusterService = internalCluster().clusterService(dataNode);
-
         final var originalIndexUuid = masterClusterService.state().metadata().index("test").getIndexUUID();
-        final var uuidChangedListener = ClusterServiceUtils.addTemporaryStateListener(dataNodeClusterService, cs -> {
-            // NB throws a NPE which fails the test if the data node sees the intermediate state with the index deleted
-            return originalIndexUuid.equals(cs.metadata().index("test").getIndexUUID()) == false
-                && cs.routingTable().index("test").allShardsActive();
-        });
+        final var uuidChangedListener = ClusterServiceUtils.addTemporaryStateListener(
+            dataNodeClusterService,
+            cs -> originalIndexUuid.equals(cs.metadata().index("test").getIndexUUID()) == false
+                // NB throws a NPE which fails the test if the data node sees the intermediate state with the index deleted
+                && cs.routingTable().index("test").allShardsActive()
+        );
 
         logger.info("--> indexing a doc");
         indexDoc("test", "1");
@@ -202,46 +203,20 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // but the change might not be on the node that performed the indexing
         // operation yet
 
-        final List<String> nodeNames = internalCluster().startNodes(2);
-        assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("2").get().isTimedOut());
+        final var master = internalCluster().startMasterOnlyNode();
+        final var primaryNode = internalCluster().startDataOnlyNode();
 
-        final String master = internalCluster().getMasterName();
-        assertThat(nodeNames, hasItem(master));
-        String otherNode = null;
-        for (String node : nodeNames) {
-            if (node.equals(master) == false) {
-                otherNode = node;
-                break;
-            }
-        }
-        assertNotNull(otherNode);
-
-        // Don't allocate the shard on the master node
-        assertAcked(prepareCreate("index").setSettings(indexSettings(1, 0).put("index.routing.allocation.exclude._name", master)).get());
+        assertAcked(prepareCreate("index").setSettings(indexSettings(1, 0)).get());
         ensureGreen();
 
-        // Check routing tables
-        ClusterState state = clusterAdmin().prepareState().get().getState();
-        assertEquals(master, state.nodes().getMasterNode().getName());
-        List<ShardRouting> shards = state.routingTable().allShards("index");
-        assertThat(shards, hasSize(1));
-        for (ShardRouting shard : shards) {
-            if (shard.primary()) {
-                // primary must not be on the master node
-                assertFalse(state.nodes().getMasterNodeId().equals(shard.currentNodeId()));
-            } else {
-                fail(); // only primaries
-            }
-        }
-
         // Block cluster state processing where our shard is
-        final var primaryNodeTransportService = MockTransportService.getInstance(otherNode);
+        final var primaryNodeTransportService = MockTransportService.getInstance(primaryNode);
         primaryNodeTransportService.addRequestHandlingBehavior(
             PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
             (handler, request, channel, task) -> channel.sendResponse(new IllegalStateException("cluster state updates blocked"))
         );
 
-        ActionFuture<DocWriteResponse> docIndexResponseFuture;
+        final ActionFuture<DocWriteResponse> docIndexResponseFuture;
         try {
             // Add a new mapping...
             assertFalse(indicesAdmin().preparePutMapping("index").setSource("field", "type=long").get().isAcknowledged());
@@ -280,59 +255,36 @@ public class RareClusterStateIT extends ESIntegTestCase {
     }
 
     public void testDelayedMappingPropagationOnReplica() throws Exception {
-        // This is essentially the same thing as testDelayedMappingPropagationOnPrimary
-        // but for replicas
-        // Here we want to test that everything goes well if the mappings that
-        // are needed for a document are not available on the replica at the
-        // time of indexing it
-        final List<String> nodeNames = internalCluster().startNodes(2);
-        assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("2").get().isTimedOut());
+        // This is essentially the same thing as testDelayedMappingPropagationOnPrimary but for replicas
+        // Here we want to test that everything goes well if the mappings that are needed for a document are not available on the replica
+        // at the time of indexing it
 
-        final String master = internalCluster().getMasterName();
-        assertThat(nodeNames, hasItem(master));
-        String otherNode = null;
-        for (String node : nodeNames) {
-            if (node.equals(master) == false) {
-                otherNode = node;
-                break;
-            }
-        }
-        assertNotNull(otherNode);
-
+        final var master = internalCluster().startMasterOnlyNode();
         final var masterClusterService = internalCluster().clusterService(master);
 
-        // Force allocation of the primary on the master node by first only allocating on the master
-        // and then allowing all nodes so that the replica gets allocated on the other node
-        prepareCreate("index").setSettings(indexSettings(1, 1).put("index.routing.allocation.include._name", master)).get();
-        safeAwait(
-            ClusterServiceUtils.addTemporaryStateListener(
-                masterClusterService,
-                cs -> cs.routingTable().index("index").allPrimaryShardsActive()
-            )
-        );
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", ""), "index");
+        final var primaryNode = internalCluster().startDataOnlyNode();
+        assertAcked(prepareCreate("index").setSettings(indexSettings(1, 0)));
+
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        final var replicaNode = internalCluster().startDataOnlyNode();
+
         ensureGreen();
 
-        // Check routing tables
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        // Check routing table to make sure the shard copies are where we need them to be
+        final var state = masterClusterService.state();
         assertEquals(master, state.nodes().getMasterNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(2));
         for (ShardRouting shard : shards) {
             assertTrue(shard.active());
-            if (shard.primary()) {
-                // primary must be on the master
-                assertEquals(state.nodes().getMasterNodeId(), shard.currentNodeId());
-            } else {
-                assertNotEquals(state.nodes().getMasterNodeId(), shard.currentNodeId());
-            }
+            assertEquals(shard.primary() ? primaryNode : replicaNode, state.nodes().get(shard.currentNodeId()).getName());
         }
 
-        final var indexService = internalCluster().getInstance(IndicesService.class, master)
+        final var primaryIndexService = internalCluster().getInstance(IndicesService.class, primaryNode)
             .indexServiceSafe(state.metadata().index("index").getIndex());
 
         // Block cluster state processing on the replica
-        final var replicaNodeTransportService = MockTransportService.getInstance(otherNode);
+        final var replicaNodeTransportService = MockTransportService.getInstance(replicaNode);
         replicaNodeTransportService.addRequestHandlingBehavior(
             PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
             (handler, request, channel, task) -> channel.sendResponse(new IllegalStateException("cluster state updates blocked"))
@@ -343,9 +295,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
             // Add a new mapping...
             assertFalse(indicesAdmin().preparePutMapping("index").setSource("field", "type=long").get().isAcknowledged());
 
-            // ...and check mappings are available on master
+            // ...and check mappings are available on the primary
             {
-                DocumentMapper mapper = indexService.mapperService().documentMapper();
+                DocumentMapper mapper = primaryIndexService.mapperService().documentMapper();
                 assertNotNull(mapper);
                 assertNotNull(mapper.mappers().getMapper("field"));
             }
@@ -361,9 +313,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
             // if the dynamic mapping update is not applied on the replica yet.
             dynamicMappingsFuture = prepareIndex("index").setId("2").setSource("field2", 42).execute();
 
-            // ...and wait for second mapping to be available on master
+            // ...and wait for second mapping to be available on the primary
             assertBusy(() -> {
-                DocumentMapper mapper = indexService.mapperService().documentMapper();
+                DocumentMapper mapper = primaryIndexService.mapperService().documentMapper();
                 assertNotNull(mapper);
                 assertNotNull(mapper.mappers().getMapper("field2"));
             });

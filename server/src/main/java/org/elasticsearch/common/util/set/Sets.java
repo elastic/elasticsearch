@@ -141,7 +141,7 @@ public final class Sets {
      *
      * @param set1 the first set
      * @param set2 the second set
-     * @return unmodifiable intersection of the two sets
+     * @return the unmodifiable intersection of the two sets
      */
     public static <T> Set<T> intersection(Set<T> set1, Set<T> set2) {
         final Set<T> left;
@@ -175,7 +175,7 @@ public final class Sets {
      *
      * @param set      set to copy
      * @param elements elements to add
-     * @return unmodifiable copy of the input set with the extra elements added
+     * @return the unmodifiable copy of the input set with the extra elements added
      */
     @SuppressWarnings("unchecked")
     public static <E> Set<E> addToCopy(Set<E> set, E... elements) {

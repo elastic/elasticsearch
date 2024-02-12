@@ -20,6 +20,7 @@ import java.net.UnknownHostException;
 import java.util.List;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.common.logging.Loggers.checkRestrictedLoggers;
 import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -36,13 +37,15 @@ public class LoggersTests extends ESTestCase {
             for (String suffix : List.of("", ".xyz")) {
                 String logger = restricted + suffix;
                 for (Level level : List.of(Level.ALL, Level.TRACE, Level.DEBUG)) {
-                    List<String> errors = Loggers.checkRestrictedLoggers(Settings.builder().put("logger." + logger, level).build());
+                    List<String> errors = checkRestrictedLoggers(Settings.builder().put("logger." + logger, level).build());
                     assertThat(errors, contains("Level [" + level + "] is not permitted for logger [" + logger + "]"));
                 }
                 for (Level level : List.of(Level.ERROR, Level.WARN, Level.INFO)) {
-                    List<String> errors = Loggers.checkRestrictedLoggers(Settings.builder().put("logger." + logger, level).build());
-                    assertThat(errors, hasSize(0));
+                    assertThat(checkRestrictedLoggers(Settings.builder().put("logger." + logger, level).build()), hasSize(0));
                 }
+
+                assertThat(checkRestrictedLoggers(Settings.builder().put("logger." + logger, "INVALID").build()), hasSize(0));
+                assertThat(checkRestrictedLoggers(Settings.builder().put("logger." + logger, (String) null).build()), hasSize(0));
             }
         }
     }

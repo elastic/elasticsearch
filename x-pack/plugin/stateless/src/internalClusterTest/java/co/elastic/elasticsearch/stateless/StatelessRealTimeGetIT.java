@@ -591,16 +591,35 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         assertBusy(() -> assertThat(sentNewCommitNotificationsForIndex.get(), greaterThan(0)));
     }
 
-    public void testRealTimeGetAndMGetFailsWhenPromotableIsUnassigned() throws Exception {
+    // Tests that if the shard is unassigned the RTG request fails since there is no available shard to route the request to.
+    public void testRealTimeGetAndMGetFailsWhenShardIsUnassigned() throws Exception {
         startMasterOnlyNode();
         var indexNode = startIndexNode();
-        startSearchNode();
+        var searchNode = startSearchNode();
         final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
+                .build()
+        );
         ensureGreen(indexName);
-        internalCluster().stopNode(indexNode);
-        // Wait until the shard is unassigned, otherwise we get a NodeNotConnectedException.
-        assertBusy(() -> assertTrue(clusterService().state().routingTable().shardRoutingTable(indexName, 0).primaryShard().unassigned()));
+        var indicesService = internalCluster().getInstance(IndicesService.class, indexNode);
+        var indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
+        var indexShard = indexService.getShard(0);
+        indexShard.failShard("test", new Exception("test"));
+        // Wait until the search node sees the state where the shard is unassigned, otherwise we get a NodeNotConnectedException.
+        assertBusy(
+            () -> assertTrue(
+                internalCluster().clusterService(searchNode)
+                    .state()
+                    .routingTable()
+                    .shardRoutingTable(indexName, 0)
+                    .primaryShard()
+                    .unassigned()
+            )
+        );
+        // The expected NoShardAvailableActionException happens on the search node
         if (randomBoolean()) {
             var response = client().prepareMultiGet().addIds(indexName, "non-existing").setRealtime(true).get(timeValueSeconds(10));
             assertEquals(response.getResponses().length, 1);

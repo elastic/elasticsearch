@@ -548,28 +548,18 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
 
         protected boolean geometryRelatesGeometry(BytesRef left, BytesRef right) throws IOException {
             Geometry rightGeom = fromBytesRef(right);
-            if (rightGeom instanceof Point point) {
-                Geometry leftGeom = fromBytesRef(left);
-                return pointRelatesGeometry(point, leftGeom);
-            } else {
-                // Convert one of the geometries to a doc-values byte array, and then visit the other geometry as a Component2D
-                Component2D rightComponent2D = makeComponent2D(rightGeom);
-                return geometryRelatesGeometry(left, rightComponent2D);
-            }
+            Component2D rightComponent2D = makeComponent2D(rightGeom);
+            return geometryRelatesGeometry(left, rightComponent2D);
         }
 
-        protected Geometry fromBytesRef(BytesRef bytesRef) {
+        private Geometry fromBytesRef(BytesRef bytesRef) {
             return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
         }
 
         protected boolean geometryRelatesGeometry(BytesRef left, Component2D rightComponent2D) throws IOException {
             Geometry leftGeom = fromBytesRef(left);
-            if (leftGeom instanceof Point point) {
-                return geometryRelatesPoint(rightComponent2D, point);
-            } else {
-                // We already have a Component2D for the right geometry, so we need to convert the left geometry to a doc-values byte array
-                return geometryRelatesGeometry(asGeometryDocValueReader(coordinateEncoder, shapeIndexer, leftGeom), rightComponent2D);
-            }
+            // We already have a Component2D for the right geometry, so we need to convert the left geometry to a doc-values byte array
+            return geometryRelatesGeometry(asGeometryDocValueReader(coordinateEncoder, shapeIndexer, leftGeom), rightComponent2D);
         }
 
         protected boolean geometryRelatesGeometry(GeometryDocValueReader reader, Component2D rightComponent2D) throws IOException {
@@ -579,13 +569,9 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         }
 
         protected boolean pointRelatesGeometry(long encoded, Geometry geometry) {
-            if (geometry instanceof Point point) {
-                long other = spatialCoordinateType.pointAsLong(point.getX(), point.getY());
-                return pointRelatesPoint(encoded, other);
-            } else {
-                Point point = spatialCoordinateType.longAsPoint(encoded);
-                return pointRelatesGeometry(point, geometry);
-            }
+            // This code path exists for doc-values points, and we could consider re-using the point class to reduce garbage creation
+            Point point = spatialCoordinateType.longAsPoint(encoded);
+            return pointRelatesGeometry(point, geometry);
         }
 
         protected boolean pointRelatesGeometry(long encoded, Component2D component2D) {
@@ -598,19 +584,8 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
         }
 
         protected boolean pointRelatesGeometry(Point leftPoint, Geometry geometry) {
-            if (geometry instanceof Point rightPoint) {
-                long leftEncoded = spatialCoordinateType.pointAsLong(leftPoint.getX(), leftPoint.getY());
-                long rightEncoded = spatialCoordinateType.pointAsLong(rightPoint.getX(), rightPoint.getY());
-                return pointRelatesPoint(leftEncoded, rightEncoded);
-            } else {
-                Component2D component2D = makeComponent2D(geometry);
-                return geometryRelatesPoint(component2D, leftPoint);
-            }
-        }
-
-        private boolean pointRelatesPoint(long left, long right) {
-            boolean intersects = left == right;
-            return queryRelation == DISJOINT ? intersects == false : intersects;
+            Component2D component2D = makeComponent2D(geometry);
+            return geometryRelatesPoint(component2D, leftPoint);
         }
 
         private boolean geometryRelatesPoint(Component2D component2D, Point point) {

@@ -59,8 +59,9 @@ public class ManyNestedPipelinesIT extends ESIntegTestCase {
 
     public void testIngestManyPipelines() {
         String index = "index";
-        DocWriteResponse response =
-            prepareIndex(index).setSource(Map.of("foo", "bar")).setPipeline(MANY_PIPELINES_PREFIX + "pipeline_0").get();
+        DocWriteResponse response = prepareIndex(index).setSource(Map.of("foo", "bar"))
+            .setPipeline(MANY_PIPELINES_PREFIX + "pipeline_0")
+            .get();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
         GetResponse getREsponse = client().prepareGet(index, response.getId()).get();
         assertThat(getREsponse.getSource().get("foo"), equalTo("baz"));

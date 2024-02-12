@@ -31,6 +31,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
+import static org.elasticsearch.core.Strings.format;
+
 final class OutboundHandler {
 
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
@@ -126,7 +128,7 @@ final class OutboundHandler {
         final Compression.Scheme compressionScheme,
         final boolean isHandshake,
         final ResponseStatsConsumer responseStatsConsumer
-    ) throws IOException {
+    ) {
         TransportVersion version = TransportVersion.min(this.version, transportVersion);
         OutboundMessage.Response message = new OutboundMessage.Response(
             threadPool.getThreadContext(),
@@ -137,13 +139,25 @@ final class OutboundHandler {
             compressionScheme
         );
         response.mustIncRef();
-        sendMessage(channel, message, responseStatsConsumer, () -> {
-            try {
-                messageListener.onResponseSent(requestId, action, response);
-            } finally {
-                response.decRef();
+        try {
+            sendMessage(channel, message, responseStatsConsumer, () -> {
+                try {
+                    messageListener.onResponseSent(requestId, action, response);
+                } finally {
+                    response.decRef();
+                }
+            });
+        } catch (Exception ex) {
+            if (isHandshake) {
+                logger.error(
+                    () -> format("Failed to send handshake response version [%s] received on [%s], closing channel", version, channel),
+                    ex
+                );
+                channel.close();
+            } else {
+                sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
             }
-        });
+        }
     }
 
     /**
@@ -156,11 +170,17 @@ final class OutboundHandler {
         final String action,
         final ResponseStatsConsumer responseStatsConsumer,
         final Exception error
-    ) throws IOException {
+    ) {
         TransportVersion version = TransportVersion.min(this.version, transportVersion);
         RemoteTransportException tx = new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId, false, null);
-        sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
+        try {
+            sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
+        } catch (Exception sendException) {
+            sendException.addSuppressed(error);
+            logger.error(() -> format("Failed to send error response on channel [%s], closing channel", channel), sendException);
+            channel.close();
+        }
     }
 
     private void sendMessage(

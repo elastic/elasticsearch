@@ -393,9 +393,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
 
     public void testAliasMappersCreatesAlias() throws Exception {
         var context = MapperBuilderContext.root(false, false);
-        Map<String, Mapper> aliases = new HashMap<>();
-        var objectIntermediates = new HashMap<String, ObjectMapper.Builder>(1);
-        new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
+        Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
             Map.of(
                 "labels",
                 new PassThroughObjectMapper(
@@ -407,10 +405,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     Explicit.EXPLICIT_FALSE
                 )
             ),
-            aliases,
-            objectIntermediates,
-            context,
-            0
+            context
         );
         assertEquals(1, aliases.size());
         assertThat(aliases.get("host"), instanceOf(FieldAliasMapper.class));
@@ -418,9 +413,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
 
     public void testAliasMappersCreatesAliasNested() throws Exception {
         var context = MapperBuilderContext.root(false, false);
-        Map<String, Mapper> aliases = new HashMap<>();
-        var objectIntermediates = new HashMap<String, ObjectMapper.Builder>(1);
-        new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
+        Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
             Map.of(
                 "outer",
                 new ObjectMapper(
@@ -442,10 +435,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     )
                 )
             ),
-            aliases,
-            objectIntermediates,
-            context,
-            0
+            context
         );
         assertEquals(1, aliases.size());
         assertThat(aliases.get("host"), instanceOf(FieldAliasMapper.class));
@@ -477,9 +467,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
 
     public void testAliasMappersCreatesNoAliasForRegularObject() throws Exception {
         var context = MapperBuilderContext.root(false, false);
-        Map<String, Mapper> aliases = new HashMap<>();
-        var objectIntermediates = new HashMap<String, ObjectMapper.Builder>(1);
-        new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
+        Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
             Map.of(
                 "labels",
                 new ObjectMapper(
@@ -491,19 +479,14 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     Map.of("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context))
                 )
             ),
-            aliases,
-            objectIntermediates,
-            context,
-            0
+            context
         );
         assertTrue(aliases.isEmpty());
     }
 
     public void testAliasMappersConflictingField() throws Exception {
         var context = MapperBuilderContext.root(false, false);
-        Map<String, Mapper> aliases = new HashMap<>();
-        var objectIntermediates = new HashMap<String, ObjectMapper.Builder>(1);
-        new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
+        Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
             Map.of(
                 "labels",
                 new PassThroughObjectMapper(
@@ -517,10 +500,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 "host",
                 new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context)
             ),
-            aliases,
-            objectIntermediates,
-            context,
-            0
+            context
         );
         assertTrue(aliases.isEmpty());
     }

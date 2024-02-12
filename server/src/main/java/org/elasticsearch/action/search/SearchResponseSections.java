@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -71,12 +71,7 @@ public class SearchResponseSections implements RefCounted {
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
-        refCounted = hits.getHits().length > 0 ? LeakTracker.wrap(new AbstractRefCounted() {
-            @Override
-            protected void closeInternal() {
-                hits.decRef();
-            }
-        }) : ALWAYS_REFERENCED;
+        refCounted = hits.getHits().length > 0 ? LeakTracker.wrap(new SimpleRefCounted()) : ALWAYS_REFERENCED;
     }
 
     public final SearchHits hits() {
@@ -112,7 +107,11 @@ public class SearchResponseSections implements RefCounted {
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        if (refCounted.decRef()) {
+            hits.decRef();
+            return true;
+        }
+        return false;
     }
 
     @Override

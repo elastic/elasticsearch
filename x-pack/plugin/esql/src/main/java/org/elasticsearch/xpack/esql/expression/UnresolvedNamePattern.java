@@ -32,11 +32,14 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
 
     private final CharacterRunAutomaton automaton;
     private final String pattern;
+    // string representation without backquotes
+    private final String name;
 
-    public UnresolvedNamePattern(Source source, CharacterRunAutomaton automaton, String patternString) {
+    public UnresolvedNamePattern(Source source, CharacterRunAutomaton automaton, String patternString, String name) {
         super(source, emptyList());
         this.automaton = automaton;
         this.pattern = patternString;
+        this.name = name;
     }
 
     public boolean match(String string) {
@@ -45,7 +48,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
 
     @Override
     public String name() {
-        return pattern;
+        return name;
     }
 
     public String pattern() {
@@ -59,7 +62,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
 
     @Override
     protected NodeInfo<UnresolvedNamePattern> info() {
-        return NodeInfo.create(this, UnresolvedNamePattern::new, automaton, pattern);
+        return NodeInfo.create(this, UnresolvedNamePattern::new, automaton, pattern, name);
     }
 
     @Override
@@ -71,7 +74,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
         String msg = "No matches found for pattern [" + pattern + "]";
         if (CollectionUtils.isEmpty(potentialMatches) == false) {
             msg += ", did you mean to match "
-                + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]" : "any of " + potentialMatches.toString())
+                + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]" : "any of " + potentialMatches)
                 + "?";
         }
         return msg;

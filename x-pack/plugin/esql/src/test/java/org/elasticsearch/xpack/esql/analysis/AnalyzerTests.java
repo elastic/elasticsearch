@@ -270,6 +270,13 @@ public class AnalyzerTests extends ESTestCase {
             """, "a", "a`", "ab*cd", "abc*de", "a`b*");
     }
 
+    public void testRenameBacktickPlusPattern() {
+        assertProjection("""
+            row a = 0, `a*` = 1, `ab*` = 2, `ab*cd` = 3, `abc*de` = 4
+            | rename `ab*` as `xx*`
+            """, "a", "a*", "xx*", "ab*cd", "abc*de");
+    }
+
     public void testNoProjection() {
         assertProjection("""
             from test

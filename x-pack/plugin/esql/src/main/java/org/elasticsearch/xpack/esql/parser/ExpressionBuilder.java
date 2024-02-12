@@ -226,7 +226,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         var src = source(ctx);
-        StringBuilder sb = new StringBuilder();
+        StringBuilder patternString = new StringBuilder();
+        StringBuilder nameString = new StringBuilder();
         var patterns = ctx.identifierPattern();
 
         // check special wildcard case
@@ -247,7 +248,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             var patternContext = patterns.get(i);
             String name;
             if (i > 0) {
-                sb.append(".");
+                patternString.append(".");
+                nameString.append(".");
                 objects.add(".");
             }
             for (var idContext : patternContext.idPattern()) {
@@ -255,7 +257,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 // a wildcard that matches can only appear in an unquoted section
                 if (idContext.UNQUOTED_ID_PATTERN() != null) {
                     name = idContext.UNQUOTED_ID_PATTERN().getText();
-                    sb.append(name);
+                    patternString.append(name);
+                    nameString.append(name);
                     // loop the string itself to extract any * and make them an automaton directly
                     // the code is somewhat messy but doesn't invoke the full blown Regex engine either
                     if (Regex.isSimpleMatchPattern(name)) {
@@ -295,8 +298,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 // quoted - definitely no pattern
                 else {
                     var quoted = idContext.QUOTED_IDENTIFIER();
-                    sb.append(quoted.getText());
-                    objects.add(unquoteIdentifier(quoted, null));
+                    patternString.append(quoted.getText());
+                    var unquotedString = unquoteIdentifier(quoted, null);
+                    objects.add(unquotedString);
+                    nameString.append(unquotedString);
                 }
             }
         }
@@ -310,7 +315,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 list.add(o instanceof Automaton a ? a : Automata.makeString(o.toString()));
             }
             // use the fast run variant
-            result = new UnresolvedNamePattern(src, new CharacterRunAutomaton(Operations.concatenate(list)), sb.toString());
+            result = new UnresolvedNamePattern(
+                src,
+                new CharacterRunAutomaton(Operations.concatenate(list)),
+                patternString.toString(),
+                nameString.toString()
+            );
         } else {
             result = new UnresolvedAttribute(src, Strings.collectionToDelimitedString(objects, ""));
         }
@@ -476,8 +486,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Source src = source(ctx);
         NamedExpression newName = visitQualifiedNamePattern(ctx.newName);
         NamedExpression oldName = visitQualifiedNamePattern(ctx.oldName);
-        if (newName.name().contains(WILDCARD) || oldName.name().contains(WILDCARD)) {
-            throw new ParsingException(src, "Using wildcards (*) in renaming projections is not allowed [{}]", src.text());
+        if (newName instanceof UnresolvedNamePattern || oldName instanceof UnresolvedNamePattern) {
+            throw new ParsingException(src, "Using wildcards (*) in RENAME is not allowed [{}]", src.text());
         }
 
         return new Alias(src, newName.name(), oldName);

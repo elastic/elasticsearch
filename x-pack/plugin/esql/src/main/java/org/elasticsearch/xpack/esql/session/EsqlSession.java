@@ -267,14 +267,14 @@ public class EsqlSession {
                 references.addAll(p.references());
                 // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
-                    var ua = new UnresolvedAttribute(up.source(), up.pattern());
+                    var ua = new UnresolvedAttribute(up.source(), up.name());
                     references.add(ua);
                     if (p instanceof Keep) {
                         keepCommandReferences.add(ua);
                         keepMatches.add(up::match);
                     }
                 });
-                if (p instanceof Keep keep) {
+                if (p instanceof Keep) {
                     keepCommandReferences.addAll(p.references());
                 }
             }

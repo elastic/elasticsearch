@@ -593,10 +593,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testForbidWildcardProjectRename() {
-        assertParsingException(
-            () -> renameExpression("b* AS a*"),
-            "line 1:18: Using wildcards (*) in renaming projections is not allowed [b* AS a*]"
-        );
+        assertParsingException(() -> renameExpression("b* AS a*"), "line 1:18: Using wildcards (*) in RENAME is not allowed [b* AS a*]");
     }
 
     public void testSimplifyInWithSingleElementList() {

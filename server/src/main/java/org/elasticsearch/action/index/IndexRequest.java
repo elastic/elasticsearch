@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -24,6 +23,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -758,7 +758,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeMap(dynamicTemplates, StreamOutput::writeString);
         } else {
             if (dynamicTemplates.isEmpty() == false) {
-                throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later");
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "[dynamic_templates] parameter requires all nodes on %s or later",
+                        TransportVersions.V_7_13_0.toReleaseVersion()
+                    )
+                );
             }
         }
         if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {

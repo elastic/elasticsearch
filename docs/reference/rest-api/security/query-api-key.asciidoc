@@ -196,7 +196,7 @@ Name of the API key.
 Creation time of the API key in milliseconds.
 
 `expiration`::
-Expiration time of the API key in milliseconds. This is `null` if the key does not expire.
+Expiration time of the API key in milliseconds. This is `null` if the key was not configured to expire.
 
 `invalidated`::
 Indicates whether the API key is invalidated. If `true`, the key is invalidated.

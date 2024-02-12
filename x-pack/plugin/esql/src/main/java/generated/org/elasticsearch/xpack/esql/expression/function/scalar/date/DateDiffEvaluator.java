@@ -145,7 +145,7 @@ public final class DateDiffEvaluator implements EvalOperator.ExpressionEvaluator
     Releasables.closeExpectNoException(unit, startTimestamp, endTimestamp);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory unit;

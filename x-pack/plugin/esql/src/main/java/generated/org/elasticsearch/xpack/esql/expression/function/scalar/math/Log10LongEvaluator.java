@@ -97,7 +97,7 @@ public final class Log10LongEvaluator implements EvalOperator.ExpressionEvaluato
     Releasables.closeExpectNoException(val);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory val;

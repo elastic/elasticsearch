@@ -146,7 +146,7 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
     Releasables.closeExpectNoException(str, regex, newStr);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory str;

@@ -12,6 +12,40 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EqualsBoolsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EqualsDoublesEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EqualsGeometriesEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EqualsIntsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EqualsKeywordsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EqualsLongsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanDoublesEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanIntsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanKeywordsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanLongsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqualDoublesEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqualIntsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqualKeywordsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqualLongsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanDoublesEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanIntsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanKeywordsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanLongsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqualDoublesEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqualIntsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqualKeywordsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqualLongsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEqualsBoolsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEqualsDoublesEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEqualsGeometriesEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEqualsIntsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEqualsKeywordsEvaluator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEqualsLongsEvaluator;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -25,54 +59,54 @@ import static org.elasticsearch.xpack.esql.evaluator.EvalMapper.toEvaluator;
 
 public abstract class ComparisonMapper<T extends BinaryComparison> extends ExpressionMapper<T> {
     public static final ExpressionMapper<?> EQUALS = new ComparisonMapper<Equals>(
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsIntsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsLongsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsDoublesEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsKeywordsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsBoolsEvaluator.Factory::new,
+        EqualsIntsEvaluator.Factory::new,
+        EqualsLongsEvaluator.Factory::new,
+        EqualsDoublesEvaluator.Factory::new,
+        EqualsKeywordsEvaluator.Factory::new,
+        EqualsBoolsEvaluator.Factory::new,
         (s, l, r, t) -> new EqualsGeometriesEvaluator.Factory(s, l, r)
     ) {
     };
 
     public static final ExpressionMapper<?> NOT_EQUALS = new ComparisonMapper<NotEquals>(
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEqualsIntsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEqualsLongsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEqualsDoublesEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEqualsKeywordsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEqualsBoolsEvaluator.Factory::new,
+        NotEqualsIntsEvaluator.Factory::new,
+        NotEqualsLongsEvaluator.Factory::new,
+        NotEqualsDoublesEvaluator.Factory::new,
+        NotEqualsKeywordsEvaluator.Factory::new,
+        NotEqualsBoolsEvaluator.Factory::new,
         (s, l, r, t) -> new NotEqualsGeometriesEvaluator.Factory(s, l, r)
     ) {
     };
 
     public static final ExpressionMapper<?> GREATER_THAN = new ComparisonMapper<GreaterThan>(
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanIntsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanLongsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanDoublesEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanKeywordsEvaluator.Factory::new
+        GreaterThanIntsEvaluator.Factory::new,
+        GreaterThanLongsEvaluator.Factory::new,
+        GreaterThanDoublesEvaluator.Factory::new,
+        GreaterThanKeywordsEvaluator.Factory::new
     ) {
     };
 
     public static final ExpressionMapper<?> GREATER_THAN_OR_EQUAL = new ComparisonMapper<GreaterThanOrEqual>(
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqualIntsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqualLongsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqualDoublesEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqualKeywordsEvaluator.Factory::new
+        GreaterThanOrEqualIntsEvaluator.Factory::new,
+        GreaterThanOrEqualLongsEvaluator.Factory::new,
+        GreaterThanOrEqualDoublesEvaluator.Factory::new,
+        GreaterThanOrEqualKeywordsEvaluator.Factory::new
     ) {
     };
 
     public static final ExpressionMapper<?> LESS_THAN = new ComparisonMapper<LessThan>(
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanIntsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanLongsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanDoublesEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanKeywordsEvaluator.Factory::new
+        LessThanIntsEvaluator.Factory::new,
+        LessThanLongsEvaluator.Factory::new,
+        LessThanDoublesEvaluator.Factory::new,
+        LessThanKeywordsEvaluator.Factory::new
     ) {
     };
 
     public static final ExpressionMapper<?> LESS_THAN_OR_EQUAL = new ComparisonMapper<LessThanOrEqual>(
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqualIntsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqualLongsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqualDoublesEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqualKeywordsEvaluator.Factory::new
+        LessThanOrEqualIntsEvaluator.Factory::new,
+        LessThanOrEqualLongsEvaluator.Factory::new,
+        LessThanOrEqualDoublesEvaluator.Factory::new,
+        LessThanOrEqualKeywordsEvaluator.Factory::new
     ) {
     };
 

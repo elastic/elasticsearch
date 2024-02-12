@@ -116,7 +116,7 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
     Releasables.closeExpectNoException(base, exponent);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory base;

@@ -11,6 +11,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.regex.RegexMatchEvaluator;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.AbstractStringPattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;

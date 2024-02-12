@@ -119,7 +119,7 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
     Releasables.closeExpectNoException(str, length);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final Function<DriverContext, BytesRef> out;

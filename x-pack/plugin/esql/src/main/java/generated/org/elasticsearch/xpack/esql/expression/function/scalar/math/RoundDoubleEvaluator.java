@@ -107,7 +107,7 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
     Releasables.closeExpectNoException(val, decimals);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory val;

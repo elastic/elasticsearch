@@ -96,7 +96,7 @@ public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
     Releasables.closeExpectNoException(val);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory val;

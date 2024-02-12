@@ -267,7 +267,7 @@ public class EvaluatorImplementer {
     private TypeSpec factory() {
         TypeSpec.Builder builder = TypeSpec.classBuilder("Factory");
         builder.addSuperinterface(EXPRESSION_EVALUATOR_FACTORY);
-        builder.addModifiers(Modifier.STATIC);
+        builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC);
 
         builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
         processFunction.args.stream().forEach(a -> a.declareFactoryField(builder));

@@ -87,7 +87,7 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
     Releasables.closeExpectNoException(v);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory v;

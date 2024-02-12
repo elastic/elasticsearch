@@ -93,7 +93,7 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
     Releasables.closeExpectNoException(value);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory value;

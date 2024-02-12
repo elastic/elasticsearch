@@ -113,7 +113,7 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
     Releasables.closeExpectNoException(str, prefix);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory str;

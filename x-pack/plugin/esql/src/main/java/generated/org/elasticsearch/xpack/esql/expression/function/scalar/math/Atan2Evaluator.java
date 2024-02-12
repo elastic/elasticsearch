@@ -105,7 +105,7 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
     Releasables.closeExpectNoException(y, x);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory y;

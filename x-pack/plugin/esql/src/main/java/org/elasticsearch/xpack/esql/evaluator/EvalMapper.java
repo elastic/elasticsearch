@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Comp
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEqualsMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RegexMapper;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.logical.NotEvaluator;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -155,11 +156,7 @@ public final class EvalMapper {
         @Override
         public ExpressionEvaluator.Factory map(Not not, Layout layout) {
             var expEval = toEvaluator(not.field(), layout);
-            return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
-                not.source(),
-                expEval.get(dvrCtx),
-                dvrCtx
-            );
+            return dvrCtx -> new NotEvaluator(not.source(), expEval.get(dvrCtx), dvrCtx);
         }
     }
 

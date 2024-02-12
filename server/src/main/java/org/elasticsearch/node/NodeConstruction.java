@@ -98,6 +98,9 @@ import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
+import org.elasticsearch.health.node.tracker.DiskHealthTracker;
+import org.elasticsearch.health.node.tracker.HealthTracker;
+import org.elasticsearch.health.node.tracker.RepositoriesHealthTracker;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -123,6 +126,8 @@ import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
@@ -141,6 +146,7 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
+import org.elasticsearch.plugins.InferenceRegistryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -1015,7 +1021,8 @@ class NodeConstruction {
                 transportService,
                 featureService,
                 threadPool,
-                telemetryProvider
+                telemetryProvider,
+                repositoryService
             )
         );
 
@@ -1090,6 +1097,18 @@ class NodeConstruction {
             );
         }
 
+        // Register noop versions of inference services if Inference plugin is not available
+        Optional<InferenceRegistryPlugin> inferenceRegistryPlugin = getSinglePlugin(InferenceRegistryPlugin.class);
+        modules.bindToInstance(
+            InferenceServiceRegistry.class,
+            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getInferenceServiceRegistry)
+                .orElse(new InferenceServiceRegistry.NoopInferenceServiceRegistry())
+        );
+        modules.bindToInstance(
+            ModelRegistry.class,
+            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getModelRegistry).orElse(new ModelRegistry.NoopModelRegistry())
+        );
+
         injector = modules.createInjector();
 
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
@@ -1156,7 +1175,8 @@ class NodeConstruction {
         TransportService transportService,
         FeatureService featureService,
         ThreadPool threadPool,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        RepositoriesService repositoriesService
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1188,13 +1208,18 @@ class NodeConstruction {
             telemetryProvider
         );
         HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, featureService, settings);
+
+        List<HealthTracker<?>> healthTrackers = List.of(
+            new DiskHealthTracker(nodeService, clusterService),
+            new RepositoriesHealthTracker(repositoriesService)
+        );
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
             settings,
             clusterService,
-            nodeService,
             threadPool,
             client,
-            featureService
+            featureService,
+            healthTrackers
         );
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
 

@@ -97,11 +97,13 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivilegesViolation;
+import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -121,7 +123,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
@@ -142,7 +143,9 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -967,8 +970,8 @@ public class SecurityTests extends ESTestCase {
         final PlainActionFuture<ActionResponse.Empty> value = new PlainActionFuture<>();
         final Client mockedClient = mock(Client.class);
 
-        final Realms mockedRealms = mock(Realms.class);
-        when(mockedRealms.stream()).thenReturn(Stream.of());
+        final JwtRealm mockedJwtRealm = mock(JwtRealm.class);
+        final List<ReloadableSecurityComponent> reloadableComponents = List.of(mockedJwtRealm);
 
         doAnswer((inv) -> {
             @SuppressWarnings("unchecked")
@@ -984,8 +987,8 @@ public class SecurityTests extends ESTestCase {
             }
 
             @Override
-            protected Realms getRealms() {
-                return mockedRealms;
+            protected List<ReloadableSecurityComponent> getReloadableSecurityComponents() {
+                return reloadableComponents;
             }
         };
 
@@ -993,14 +996,16 @@ public class SecurityTests extends ESTestCase {
         security.reload(inputSettings);
 
         verify(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
-        verify(mockedRealms).stream();
+        verify(mockedJwtRealm).reload(same(inputSettings));
     }
 
-    public void testReloadWithFailures() {
+    public void testReloadWithFailures() throws Exception {
         final Settings settings = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir()).build();
 
         final boolean failRemoteClusterCredentialsReload = randomBoolean();
         final Client mockedClient = mock(Client.class);
+        final JwtRealm mockedJwtRealm = mock(JwtRealm.class);
+        final List<ReloadableSecurityComponent> reloadableComponents = List.of(mockedJwtRealm);
         if (failRemoteClusterCredentialsReload) {
             doAnswer((inv) -> {
                 @SuppressWarnings("unchecked")
@@ -1017,12 +1022,9 @@ public class SecurityTests extends ESTestCase {
             }).when(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
         }
 
-        final Realms mockedRealms = mock(Realms.class);
         final boolean failRealmsReload = (false == failRemoteClusterCredentialsReload) || randomBoolean();
         if (failRealmsReload) {
-            when(mockedRealms.stream()).thenThrow(new RuntimeException("failed jwt realms reload"));
-        } else {
-            when(mockedRealms.stream()).thenReturn(Stream.of());
+            doThrow(new RuntimeException("failed jwt realms reload")).when(mockedJwtRealm).reload(any());
         }
         security = new Security(settings, Collections.emptyList()) {
             @Override
@@ -1031,8 +1033,8 @@ public class SecurityTests extends ESTestCase {
             }
 
             @Override
-            protected Realms getRealms() {
-                return mockedRealms;
+            protected List<ReloadableSecurityComponent> getReloadableSecurityComponents() {
+                return reloadableComponents;
             }
         };
 
@@ -1050,7 +1052,7 @@ public class SecurityTests extends ESTestCase {
         }
         // Verify both called despite failure
         verify(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
-        verify(mockedRealms).stream();
+        verify(mockedJwtRealm).reload(same(inputSettings));
     }
 
     public void testLoadNoExtensions() throws Exception {

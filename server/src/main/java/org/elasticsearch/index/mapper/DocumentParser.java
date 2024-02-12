@@ -514,7 +514,11 @@ public final class DocumentParser {
 
             }
             if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME) {
-                context.addDynamicMapper(dynamicObjectMapper);
+                if (context.addDynamicMapper(dynamicObjectMapper) == false) {
+                    failIfMatchesRoutingPath(context, currentFieldName);
+                    context.parser().skipChildren();
+                    return;
+                }
             }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);
@@ -556,7 +560,10 @@ public final class DocumentParser {
                 parseNonDynamicArray(context, currentFieldName, currentFieldName);
             } else {
                 if (parsesArrayValue(objectMapperFromTemplate)) {
-                    context.addDynamicMapper(objectMapperFromTemplate);
+                    if (context.addDynamicMapper(objectMapperFromTemplate) == false) {
+                        context.parser().skipChildren();
+                        return;
+                    }
                     context.path().add(currentFieldName);
                     parseObjectOrField(context, objectMapperFromTemplate);
                     context.path().remove();
@@ -674,7 +681,9 @@ public final class DocumentParser {
             failIfMatchesRoutingPath(context, currentFieldName);
             return;
         }
-        context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName);
+        if (context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName) == false) {
+            failIfMatchesRoutingPath(context, currentFieldName);
+        }
     }
 
     private static void ensureNotStrict(DocumentParserContext context, String currentFieldName) {

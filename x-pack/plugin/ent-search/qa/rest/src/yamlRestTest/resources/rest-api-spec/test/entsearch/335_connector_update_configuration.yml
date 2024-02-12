@@ -185,7 +185,6 @@ setup:
                 - field: some_field
                   value: 31
               display: numeric
-              label: Very important field
 
 ---
 "Update Connector Configuration - Unknown field type":
@@ -240,3 +239,26 @@ setup:
                 - constraint: 0
                   type: unknown_constraint
               value: 123
+
+---
+"Update Connector Configuration - Crawler configuration":
+  - do:
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration:
+            nextSyncConfig:
+              label: nextSyncConfig
+              value:
+                max_crawl_depth: 3
+                sitemap_discovery_disabled: false
+                seed_urls:
+                  - https://elastic.co/
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { configuration.nextSyncConfig.value.max_crawl_depth: 3 }

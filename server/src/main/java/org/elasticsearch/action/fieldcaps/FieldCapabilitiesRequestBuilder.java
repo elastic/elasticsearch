@@ -32,6 +32,11 @@ public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldC
         return this;
     }
 
+    public FieldCapabilitiesRequestBuilder setincludeEmptyFields(boolean includeEmptyFields) {
+        request().includeEmptyFields(includeEmptyFields);
+        return this;
+    }
+
     public FieldCapabilitiesRequestBuilder setIndexFilter(QueryBuilder indexFilter) {
         request().indexFilter(indexFilter);
         return this;

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtracto
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 
 public interface DataExtractorFactory {
+
     DataExtractor newExtractor(long start, long end);
 
     /**
@@ -61,7 +62,7 @@ public interface DataExtractorFactory {
         ActionListener<DataExtractorFactory> factoryHandler = ActionListener.wrap(
             factory -> listener.onResponse(
                 datafeed.getChunkingConfig().isEnabled()
-                    ? new ChunkedDataExtractorFactory(client, datafeed, extraFilters, job, xContentRegistry, factory, timingStatsReporter)
+                    ? new ChunkedDataExtractorFactory(datafeed, job, xContentRegistry, factory)
                     : factory
             ),
             listener::onFailure

@@ -245,7 +245,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 );
             }
         }
-        return indices.toArray(new String[indices.size()]);
+        return indices.toArray(new String[0]);
     }
 
     @Override

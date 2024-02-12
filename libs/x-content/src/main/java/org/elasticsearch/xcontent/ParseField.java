@@ -33,13 +33,13 @@ public class ParseField {
     private final SerializableString serializableName;
 
     private ParseField(
-        String name,
+        SerializableString serializableName,
         Predicate<RestApiVersion> forRestApiVersion,
         String[] deprecatedNames,
         boolean fullyDeprecated,
         String allReplacedWith
     ) {
-        this.serializableName = SerializableString.of(name);
+        this.serializableName = serializableName;
         this.fullyDeprecated = fullyDeprecated;
         this.allReplacedWith = allReplacedWith;
         if (deprecatedNames == null || deprecatedNames.length == 0) {
@@ -52,7 +52,7 @@ public class ParseField {
         this.forRestApiVersion = forRestApiVersion;
 
         Set<String> names = new HashSet<>();
-        names.add(name);
+        names.add(serializableName.stringValue());
         Collections.addAll(names, this.deprecatedNames);
         this.allNames = names.toArray(new String[names.size()]);
     }
@@ -65,7 +65,7 @@ public class ParseField {
      *                        accepted when strict matching is used.
      */
     public ParseField(String name, String... deprecatedNames) {
-        this(name, RestApiVersion.onOrAfter(RestApiVersion.minimumSupported()), deprecatedNames, false, null);
+        this(SerializableString.of(name), RestApiVersion.onOrAfter(RestApiVersion.minimumSupported()), deprecatedNames, false, null);
     }
 
     /**
@@ -96,7 +96,7 @@ public class ParseField {
      */
     public ParseField withDeprecation(String... deprecatedNamesOverride) {
         return new ParseField(
-            this.serializableName.stringValue(),
+            this.serializableName,
             this.forRestApiVersion,
             deprecatedNamesOverride,
             this.fullyDeprecated,
@@ -110,7 +110,7 @@ public class ParseField {
      */
     public ParseField forRestApiVersion(Predicate<RestApiVersion> forRestApiVersionOverride) {
         return new ParseField(
-            this.serializableName.stringValue(),
+            this.serializableName,
             forRestApiVersionOverride,
             this.deprecatedNames,
             this.fullyDeprecated,
@@ -131,7 +131,7 @@ public class ParseField {
      */
     public ParseField withAllDeprecated(String allReplacedWithOverride) {
         return new ParseField(
-            this.serializableName.stringValue(),
+            this.serializableName,
             this.forRestApiVersion,
             getAllNamesIncludedDeprecated(),
             this.fullyDeprecated,
@@ -143,13 +143,7 @@ public class ParseField {
      * Return a new ParseField where all field names are deprecated with no replacement
      */
     public ParseField withAllDeprecated() {
-        return new ParseField(
-            this.serializableName.stringValue(),
-            this.forRestApiVersion,
-            getAllNamesIncludedDeprecated(),
-            true,
-            this.allReplacedWith
-        );
+        return new ParseField(this.serializableName, this.forRestApiVersion, getAllNamesIncludedDeprecated(), true, this.allReplacedWith);
     }
 
     /**

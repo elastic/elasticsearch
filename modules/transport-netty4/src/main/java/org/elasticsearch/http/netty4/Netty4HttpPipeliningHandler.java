@@ -247,6 +247,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         final PromiseCombiner combiner = continuation.combiner();
         assert currentChunkedWrite == null;
         final var responseBody = continuation.body();
+        assert responseBody.isDone() == false : "response with continuations must have at least one (possibly-empty) chunk in each part";
         currentChunkedWrite = new ChunkedWrite(combiner, promise, responseBody);
         // NB "writable" means there's space in the downstream ChannelOutboundBuffer, we aren't trying to saturate the physical channel.
         while (ctx.channel().isWritable()) {

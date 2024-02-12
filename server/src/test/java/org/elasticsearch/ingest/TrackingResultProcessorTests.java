@@ -703,7 +703,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         Exception[] holder = new Exception[1];
         trackingProcessor.execute(ingestDocument, (result, e) -> holder[0] = e);
         IngestProcessorException exception = (IngestProcessorException) holder[0];
-        assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(exception.getCause(), instanceOf(GraphStructureException.class));
         assertThat(exception.getMessage(), containsString("Cycle detected for pipeline: pipeline1"));
     }
 

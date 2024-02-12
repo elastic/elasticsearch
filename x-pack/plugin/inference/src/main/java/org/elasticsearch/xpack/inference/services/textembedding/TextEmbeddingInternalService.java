@@ -316,8 +316,7 @@ public class TextEmbeddingInternalService implements InferenceService {
                 putRequest,
                 ActionListener.wrap(response -> listener.onResponse(Boolean.TRUE), e -> {
                     if (e instanceof ElasticsearchStatusException esException
-                        && esException.getMessage()
-                            .contains("the model id is the same as the deployment id of a current model deployment")) {
+                        && esException.getMessage().contains(PutTrainedModelAction.MODEL_ALREADY_EXISTS_ERROR_MESSAGE_FRAGMENT)) {
                         listener.onResponse(Boolean.TRUE);
                     } else {
                         listener.onFailure(e);
@@ -336,6 +335,38 @@ public class TextEmbeddingInternalService implements InferenceService {
                 )
             );
             return;
+        }
+    }
+
+    @Override
+    public void isModelDownloaded(Model model, ActionListener<Boolean> listener) {
+        ActionListener<GetTrainedModelsAction.Response> getModelsResponseListener = listener.delegateFailure((delegate, response) -> {
+            if (response.getResources().count() < 1) {
+                delegate.onResponse(Boolean.FALSE);
+            } else {
+                delegate.onResponse(Boolean.TRUE);
+            }
+        });
+
+        // TODO move modelId to TextEmbeddingModel to avoid checking for these model subtypes
+        if (model instanceof TextEmbeddingModel == false) {
+            listener.onFailure(notTextEmbeddingModelException(model));
+        } else if (model instanceof MultilingualE5SmallModel e5Model) {
+            String modelId = e5Model.getServiceSettings().getModelId();
+            GetTrainedModelsAction.Request getRequest = new GetTrainedModelsAction.Request(modelId);
+            executeAsyncWithOrigin(client, INFERENCE_ORIGIN, GetTrainedModelsAction.INSTANCE, getRequest, getModelsResponseListener);
+        } else if (model instanceof CustomElandModel elandModel) {
+            String modelId = elandModel.getServiceSettings().getModelId();
+            GetTrainedModelsAction.Request getRequest = new GetTrainedModelsAction.Request(modelId);
+            executeAsyncWithOrigin(client, INFERENCE_ORIGIN, GetTrainedModelsAction.INSTANCE, getRequest, getModelsResponseListener);
+        } else {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "Unable to determine supported model for ["
+                        + model.getConfigurations().getInferenceEntityId()
+                        + "] please verify the request and submit a bug report if necessary."
+                )
+            );
         }
     }
 

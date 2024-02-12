@@ -81,6 +81,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.MODEL_ALREADY_EXISTS_ERROR_MESSAGE_FRAGMENT;
 
 public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Request, Response> {
 
@@ -230,8 +231,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         if (TrainedModelAssignmentMetadata.fromState(state).hasDeployment(trainedModelConfig.getModelId())) {
             finalResponseListener.onFailure(
                 ExceptionsHelper.badRequestException(
-                    // The inference service depends on this error message to determine if the model is already downloaded
-                    "Cannot create model [{}] the model id is the same as the deployment id of a current model deployment",
+                    "Cannot create model [{}]" + MODEL_ALREADY_EXISTS_ERROR_MESSAGE_FRAGMENT,
                     config.getModelId()
                 )
             );

@@ -207,19 +207,26 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         Model model,
         ActionListener<PutInferenceModelAction.Response> finalListener
     ) {
-        SubscribableListener.<Boolean>newForked((listener1) -> { service.putModel(model, listener1); }).<
-            PutInferenceModelAction.Response>andThen((listener2, modelDidPut) -> {
+        SubscribableListener.<Boolean>newForked(listener1 -> service.isModelDownloaded(model, listener1))
+            .<Boolean>andThen((listener, isDownloaded) -> {
+                if (isDownloaded == false) {
+                    service.putModel(model, listener);
+                } else {
+                    listener.onResponse(true);
+                }
+            }).<PutInferenceModelAction.Response>andThen((listener, modelDidPut) -> {
                 if (modelDidPut) {
                     service.start(
                         model,
-                        listener2.delegateFailureAndWrap(
+                        listener.delegateFailureAndWrap(
                             (l3, ok) -> l3.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()))
                         )
                     );
                 } else {
                     logger.warn("Failed to put model [{}]", model.getInferenceEntityId());
                 }
-            }).addListener(finalListener);
+            })
+            .addListener(finalListener);
     }
 
     private Map<String, Object> requestToMap(PutInferenceModelAction.Request request) throws IOException {

@@ -38,11 +38,11 @@ public class RestPutRoleActionTests extends ESTestCase {
             .withParams(Map.of("name", "dice"))
             .withContent(new BytesArray("{ }"), XContentType.JSON)
             .build();
+        final RestPutRoleAction action = new RestPutRoleAction(securityDisabledSettings, licenseState, mock(), mock());
         final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
 
         try (var threadPool = createThreadPool()) {
             final var nodeClient = new NoOpNodeClient(threadPool);
-            final RestPutRoleAction action = new RestPutRoleAction(securityDisabledSettings, licenseState, mock(), mock());
             action.handleRequest(request, channel, nodeClient);
         }
 

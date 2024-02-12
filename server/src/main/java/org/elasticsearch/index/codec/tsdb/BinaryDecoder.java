@@ -44,9 +44,9 @@ final class BinaryDecoder {
 
     }
 
-    BytesRef decode(int docNumber) throws IOException {
-        int blockId = docNumber >> docsPerChunkShift;
-        int docInBlockId = docNumber % docsPerChunk;
+    BytesRef decode(int docId) throws IOException {
+        int blockId = docId >> docsPerChunkShift;
+        int docInBlockId = docId % docsPerChunk;
         assert docInBlockId < docsPerChunk;
 
         // already read and uncompressed?
@@ -56,6 +56,8 @@ final class BinaryDecoder {
             compressedData.seek(blockStartOffset);
 
             uncompressedBlockLength = 0;
+
+            int docsPerChunk = compressedData.readVInt();
 
             int onlyLength = -1;
             for (int i = 0; i < docsPerChunk; i++) {

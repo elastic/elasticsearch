@@ -154,7 +154,12 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
             final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
             return new SparseBinaryDocValues(disi) {
-                BinaryDecoder decoder = new BinaryDecoder(addresses, data.clone(), entry.maxUncompressedChunkSize, entry.docsPerChunkShift);
+                final BinaryDecoder decoder = new BinaryDecoder(
+                    addresses,
+                    data.clone(),
+                    entry.maxUncompressedChunkSize,
+                    entry.docsPerChunkShift
+                );
 
                 @Override
                 public BytesRef binaryValue() throws IOException {

@@ -16,6 +16,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.elasticsearch.core.IOUtils;
@@ -66,13 +67,15 @@ final class CompressedBinaryBlockWriter implements Closeable {
         }
     }
 
-    void addDoc(int doc, BytesRef v) throws IOException {
+    void addDoc(BytesRef v) throws IOException {
         docLengths[numDocsInCurrentBlock] = v.length;
         block = ArrayUtil.grow(block, uncompressedBlockLength + v.length);
         System.arraycopy(v.bytes, v.offset, block, uncompressedBlockLength, v.length);
         uncompressedBlockLength += v.length;
         numDocsInCurrentBlock++;
-        if (numDocsInCurrentBlock == ES87TSDBDocValuesFormat.BINARY_DOCS_PER_COMPRESSED_BLOCK) {
+        long blockSize = RamUsageEstimator.sizeOf(block);
+        if (blockSize >= ES87TSDBDocValuesFormat.MAX_COMPRESSED_BLOCK_SIZE
+            || numDocsInCurrentBlock == ES87TSDBDocValuesFormat.BINARY_DOCS_PER_COMPRESSED_BLOCK) {
             flushData();
         }
     }
@@ -82,10 +85,10 @@ final class CompressedBinaryBlockWriter implements Closeable {
             // Write offset to this block to temporary offsets file
             totalChunks++;
             long thisBlockStartPointer = data.getFilePointer();
-
+            data.writeVInt(numDocsInCurrentBlock);
             // Optimisation - check if all lengths are same
             boolean allLengthsSame = true;
-            for (int i = 1; i < ES87TSDBDocValuesFormat.BINARY_DOCS_PER_COMPRESSED_BLOCK; i++) {
+            for (int i = 1; i < numDocsInCurrentBlock; i++) {
                 if (docLengths[i] != docLengths[i - 1]) {
                     allLengthsSame = false;
                     break;
@@ -96,7 +99,7 @@ final class CompressedBinaryBlockWriter implements Closeable {
                 int onlyOneLength = (docLengths[0] << 1) | 1;
                 data.writeVInt(onlyOneLength);
             } else {
-                for (int i = 0; i < ES87TSDBDocValuesFormat.BINARY_DOCS_PER_COMPRESSED_BLOCK; i++) {
+                for (int i = 0; i < numDocsInCurrentBlock; i++) {
                     if (i == 0) {
                         // Write first value shifted and steal a bit to indicate other lengths are to follow
                         int multipleLengths = (docLengths[0] << 1);

@@ -207,7 +207,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 numDocsWithField++;
                 BytesRef v = values.binaryValue();
-                blockWriter.addDoc(doc, v);
+                blockWriter.addDoc(v);
                 int length = v.length;
                 minLength = Math.min(length, minLength);
                 maxLength = Math.max(length, maxLength);

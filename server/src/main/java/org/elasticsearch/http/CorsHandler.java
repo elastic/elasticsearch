@@ -39,6 +39,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -340,7 +341,7 @@ public class CorsHandler {
             private final boolean anyOrigin;
             private boolean allowCredentials = false;
             long maxAge;
-            private final Set<RestRequest.Method> requestMethods = new HashSet<>();
+            private final Set<RestRequest.Method> requestMethods = EnumSet.noneOf(RestRequest.Method.class);
             private final Set<String> requestHeaders = new HashSet<>();
             private final Set<String> accessControlExposeHeaders = new HashSet<>();
 

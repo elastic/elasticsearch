@@ -148,10 +148,10 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         licenseChecker.requireSupportedLicense();
         GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder(request);
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
-        if (request.getIndices() == null) {
-            searchProfilingEvents(submitTask, client, request, submitListener, responseBuilder);
-        } else {
+        if (request.isUserProvidedIndices()) {
             searchGenericEvents(submitTask, client, request, submitListener, responseBuilder);
+        } else {
+            searchProfilingEvents(submitTask, client, request, submitListener, responseBuilder);
         }
     }
 
@@ -604,6 +604,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 hostMetadata,
                 responseBuilder.getRequestedDuration(),
                 responseBuilder.getAWSCostFactor(),
+                responseBuilder.getAzureCostFactor(),
                 responseBuilder.getCustomCostPerCoreHour()
             );
             Map<String, TraceEvent> events = responseBuilder.getStackTraceEvents();

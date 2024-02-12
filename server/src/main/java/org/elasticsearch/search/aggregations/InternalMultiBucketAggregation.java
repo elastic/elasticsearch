@@ -37,7 +37,7 @@ public abstract class InternalMultiBucketAggregation<
      * buckets is plenty fast to fail this quickly in pathological cases and
      * plenty large to keep the overhead minimal.
      */
-    protected static final int REPORT_EMPTY_EVERY = 10_000;
+    public static final int REPORT_EMPTY_EVERY = 10_000;
 
     public InternalMultiBucketAggregation(String name, Map<String, Object> metadata) {
         super(name, metadata);
@@ -71,12 +71,6 @@ public abstract class InternalMultiBucketAggregation<
      * @return the new bucket
      */
     public abstract B createBucket(InternalAggregations aggregations, B prototype);
-
-    /**
-     * Reduce a list of same-keyed buckets (from multiple shards) to a single bucket. This
-     * requires all buckets to have the same key.
-     */
-    protected abstract B reduceBucket(List<B> buckets, AggregationReduceContext context);
 
     /** Helps to lazily construct the aggregation list for reduction */
     protected static class BucketAggregationList<B extends Bucket> extends AbstractList<InternalAggregations> {

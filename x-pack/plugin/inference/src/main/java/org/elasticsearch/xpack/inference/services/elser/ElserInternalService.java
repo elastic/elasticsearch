@@ -386,6 +386,6 @@ public class ElserInternalService implements InferenceService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 }

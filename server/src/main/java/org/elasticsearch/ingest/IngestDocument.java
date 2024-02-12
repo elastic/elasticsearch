@@ -62,8 +62,8 @@ public final class IngestDocument {
      */
     private final DelegatingMapView templateModel;
 
-    // Contains all pipelines that have been executed for this document
-    private final Set<String> executedPipelines = new LinkedHashSet<>();
+    // Contains all pipelines that have been executed for this document, non-private for unit testing
+    final Set<String> executedPipelines = new LinkedHashSet<>();
 
     /**
      * An ordered set of the values of the _index that have been used for this document.
@@ -91,7 +91,7 @@ public final class IngestDocument {
     }
 
     // note: these rest of these constructors deal with the data-centric view of the IngestDocument, not the execution-centric view.
-    // For example, the copy constructor doesn't populate the `executedPipelines` or `indexHistory` (as well as some other fields),
+    // For example, the copy constructor doesn't populate the `indexHistory` (as well as some other fields),
     // because those fields are execution-centric.
 
     /**
@@ -104,6 +104,7 @@ public final class IngestDocument {
             new IngestCtxMap(deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource())), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
+        this.executedPipelines.addAll(other.executedPipelines);
     }
 
     /**

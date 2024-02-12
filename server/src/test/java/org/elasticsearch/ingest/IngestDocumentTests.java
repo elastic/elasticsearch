@@ -1029,6 +1029,7 @@ public class IngestDocumentTests extends ESTestCase {
 
         assertThat(copy.getSourceAndMetadata().get("beforeClockChange"), equalTo(original.getSourceAndMetadata().get("beforeClockChange")));
         assertThat(copy.getSourceAndMetadata().get("afterClockChange"), equalTo(original.getSourceAndMetadata().get("afterClockChange")));
+        assertThat(copy.executedPipelines, equalTo(original.executedPipelines));
     }
 
     public void testSetInvalidSourceField() throws Exception {

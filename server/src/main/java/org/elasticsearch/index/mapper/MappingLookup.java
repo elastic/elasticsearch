@@ -55,6 +55,7 @@ public final class MappingLookup {
     private final List<FieldMapper> indexTimeScriptMappers;
     private final Mapping mapping;
     private final Set<String> completionFields;
+    private final int totalFieldsCount;
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
@@ -127,6 +128,7 @@ public final class MappingLookup {
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers
     ) {
+        this.totalFieldsCount = mapping.getRoot().getTotalFieldsCount();
         this.mapping = mapping;
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
@@ -223,6 +225,14 @@ public final class MappingLookup {
      * Returns the total number of fields defined in the mappings, including field mappers, object mappers as well as runtime fields.
      */
     public long getTotalFieldsCount() {
+        return totalFieldsCount;
+    }
+
+    /**
+     * Returns the total number of mappers defined in the mappings, including field mappers and their sub-fields
+     * (which are not explicitly defined in the mappings), multi-fields, object mappers, runtime fields and metadata field mappers.
+     */
+    public long getTotalMapperCount() {
         return fieldMappers.size() + objectMappers.size() + runtimeFieldMappersCount;
     }
 
@@ -286,7 +296,7 @@ public final class MappingLookup {
     }
 
     long remainingFieldsUntilLimit(long mappingTotalFieldsLimit) {
-        return mappingTotalFieldsLimit - getTotalFieldsCount() + mapping.getSortedMetadataMappers().length;
+        return mappingTotalFieldsLimit - totalFieldsCount;
     }
 
     private void checkDimensionFieldLimit(long limit) {

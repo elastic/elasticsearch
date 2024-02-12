@@ -68,6 +68,7 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
             assertThat(getStackTracesRequest.getSampleSize(), is(10_000));
             assertThat(getStackTracesRequest.getRequestedDuration(), is(3_600.0d));
             assertThat(getStackTracesRequest.getAwsCostFactor(), is(1.0d));
+            assertThat(getStackTracesRequest.getAzureCostFactor(), is(1.1d));
             assertThat(getStackTracesRequest.getCustomCO2PerKWH(), is(0.005d));
             assertThat(getStackTracesRequest.getCustomDatacenterPUE(), is(1.5d));
             assertThat(getStackTracesRequest.getCustomPerCoreWattX86(), is(7.5d));
@@ -99,6 +100,7 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
                               "sample_size": 10000,
                               "requested_duration": 3600,
                               "aws_cost_factor": 1.0,
+                              "azure_cost_factor": 1.1,
                               "co2_per_kwh": 0.005,
                               "datacenter_pue": 1.5,
                               "per_core_watt_x86": 7.5,

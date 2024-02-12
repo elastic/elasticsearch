@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValue
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -106,33 +108,44 @@ public final class InternalItemSetMapReduceAggregation<
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext aggReduceContext) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext aggReduceContext, int size) {
+        return new AggregatorReducer() {
 
-        Stream<MapFinalContext> contexts = aggregations.stream().map(agg -> {
-            assert agg.getClass().equals(InternalItemSetMapReduceAggregation.class);
+            final List<InternalItemSetMapReduceAggregation<MapContext, MapFinalContext, ReduceContext, Result>> aggregations =
+                new ArrayList<>(size);
+
+            @Override
             @SuppressWarnings("unchecked")
-            MapFinalContext context = ((InternalItemSetMapReduceAggregation<MapContext, MapFinalContext, ReduceContext, Result>) agg)
-                .getMapFinalContext();
-            return context;
-        }).filter(c -> c != null);
-
-        if (aggReduceContext.isFinalReduce()) {
-            // we can use the reduce context big arrays, because we finalize here
-            try (ReduceContext reduceContext = mapReducer.reduceInit(aggReduceContext.bigArrays())) {
-                mapReducer.reduce(contexts, reduceContext, aggReduceContext.isCanceled());
-                mapReduceResult = mapReducer.reduceFinalize(reduceContext, fields, aggReduceContext.isCanceled());
-            } catch (IOException e) {
-                throw new AggregationExecutionException("Final reduction failed", e);
+            public void accept(InternalAggregation aggregation) {
+                assert aggregation.getClass().equals(InternalItemSetMapReduceAggregation.class);
+                aggregations.add((InternalItemSetMapReduceAggregation<MapContext, MapFinalContext, ReduceContext, Result>) aggregation);
             }
 
-            return new InternalItemSetMapReduceAggregation<>(name, metadata, mapReducer, null, mapReduceResult, fields, profiling);
-        }
-        // else: combine
-        // can't use the bigarray from the agg reduce context, because we don't finalize it here
-        ReduceContext newMapReduceContext = mapReducer.reduceInit(bigArraysForMapReduce);
-        MapFinalContext newMapFinalContext = mapReducer.combine(contexts, newMapReduceContext, aggReduceContext.isCanceled());
+            @Override
+            public InternalAggregation get() {
+                Stream<MapFinalContext> contexts = aggregations.stream()
+                    .map(InternalItemSetMapReduceAggregation::getMapFinalContext)
+                    .filter(Objects::nonNull);
 
-        return new InternalItemSetMapReduceAggregation<>(name, metadata, mapReducer, newMapFinalContext, null, fields, profiling);
+                if (aggReduceContext.isFinalReduce()) {
+                    // we can use the reduce context big arrays, because we finalize here
+                    try (ReduceContext reduceContext = mapReducer.reduceInit(aggReduceContext.bigArrays())) {
+                        mapReducer.reduce(contexts, reduceContext, aggReduceContext.isCanceled());
+                        mapReduceResult = mapReducer.reduceFinalize(reduceContext, fields, aggReduceContext.isCanceled());
+                    } catch (IOException e) {
+                        throw new AggregationExecutionException("Final reduction failed", e);
+                    }
+
+                    return new InternalItemSetMapReduceAggregation<>(name, metadata, mapReducer, null, mapReduceResult, fields, profiling);
+                }
+                // else: combine
+                // can't use the bigarray from the agg reduce context, because we don't finalize it here
+                ReduceContext newMapReduceContext = mapReducer.reduceInit(bigArraysForMapReduce);
+                MapFinalContext newMapFinalContext = mapReducer.combine(contexts, newMapReduceContext, aggReduceContext.isCanceled());
+
+                return new InternalItemSetMapReduceAggregation<>(name, metadata, mapReducer, newMapFinalContext, null, fields, profiling);
+            }
+        };
     }
 
     @Override

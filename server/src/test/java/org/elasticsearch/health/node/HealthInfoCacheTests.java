@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.health.node.HealthInfoTests.randomDslHealthInfo;
+import static org.elasticsearch.health.node.HealthInfoTests.randomRepoHealthInfo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -46,11 +47,13 @@ public class HealthInfoCacheTests extends ESTestCase {
     public void testAddHealthInfo() {
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
         DataStreamLifecycleHealthInfo latestDslHealthInfo = randomDslHealthInfo();
-        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, latestDslHealthInfo);
-        healthInfoCache.updateNodeHealth(node2.getId(), RED, null);
+        var repoHealthInfo = randomRepoHealthInfo();
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, latestDslHealthInfo, repoHealthInfo);
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null);
 
         Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
-        healthInfoCache.updateNodeHealth(node1.getId(), RED, null);
+        // Ensure that HealthInfoCache#getHealthInfo() returns a copy of the health info.
+        healthInfoCache.updateNodeHealth(node1.getId(), RED, null, null);
 
         assertThat(diskHealthInfo.get(node1.getId()), equalTo(GREEN));
         assertThat(diskHealthInfo.get(node2.getId()), equalTo(RED));
@@ -60,9 +63,10 @@ public class HealthInfoCacheTests extends ESTestCase {
 
     public void testRemoveNodeFromTheCluster() {
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
-        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null);
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null);
         DataStreamLifecycleHealthInfo latestDslHealthInfo = randomDslHealthInfo();
-        healthInfoCache.updateNodeHealth(node2.getId(), RED, latestDslHealthInfo);
+        var repoHealthInfo = randomRepoHealthInfo();
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, latestDslHealthInfo, repoHealthInfo);
 
         ClusterState previous = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
         ClusterState current = ClusterStateCreationUtils.state(node1, node1, node1, new DiscoveryNode[] { node1 });
@@ -78,8 +82,8 @@ public class HealthInfoCacheTests extends ESTestCase {
 
     public void testNotAHealthNode() {
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
-        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, randomDslHealthInfo());
-        healthInfoCache.updateNodeHealth(node2.getId(), RED, null);
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, randomDslHealthInfo(), randomRepoHealthInfo());
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null);
 
         ClusterState previous = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
         ClusterState current = ClusterStateCreationUtils.state(node1, node1, node2, allNodes);
@@ -88,5 +92,7 @@ public class HealthInfoCacheTests extends ESTestCase {
         Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
         assertThat(diskHealthInfo.isEmpty(), equalTo(true));
         assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(nullValue()));
+        Map<String, RepositoriesHealthInfo> repoHealthInfo = healthInfoCache.getHealthInfo().repositoriesInfoByNode();
+        assertThat(repoHealthInfo.isEmpty(), equalTo(true));
     }
 }

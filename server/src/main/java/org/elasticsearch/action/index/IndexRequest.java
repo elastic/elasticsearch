@@ -9,19 +9,21 @@
 package org.elasticsearch.action.index;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -111,6 +113,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private boolean requireDataStream;
 
     /**
+     * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
+     */
+    private boolean writeToFailureStore = false;
+
+    /**
      * This indicates whether the response to this request ought to list the ingest pipelines that were executed on the document
      */
     private boolean listExecutedPipelines;
@@ -183,7 +190,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
             pipelinesHaveRun = in.readBoolean();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.listExecutedPipelines = in.readBoolean();
             if (listExecutedPipelines) {
                 List<String> possiblyImmutableExecutedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
@@ -477,6 +484,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * </p>
      */
     public IndexRequest source(XContentType xContentType, Object... source) {
+        return source(getXContentBuilder(xContentType, source));
+    }
+
+    /**
+     * Returns an XContentBuilder for the given xContentType and source array
+     * <p>
+     * <b>Note: the number of objects passed to this method as varargs must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
+     */
+    public static XContentBuilder getXContentBuilder(XContentType xContentType, Object... source) {
         if (source.length % 2 != 0) {
             throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
         }
@@ -489,11 +508,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             builder.startObject();
-            for (int i = 0; i < source.length; i++) {
-                builder.field(source[i++].toString(), source[i]);
+            // This for loop increments by 2 because the source array contains adjacent key/value pairs:
+            for (int i = 0; i < source.length; i = i + 2) {
+                String field = source[i].toString();
+                Object value = source[i + 1];
+                builder.field(field, value);
             }
             builder.endObject();
-            return source(builder);
+            return builder;
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate", e);
         }
@@ -736,13 +758,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeMap(dynamicTemplates, StreamOutput::writeString);
         } else {
             if (dynamicTemplates.isEmpty() == false) {
-                throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later");
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "[dynamic_templates] parameter requires all nodes on %s or later",
+                        TransportVersions.V_7_13_0.toReleaseVersion()
+                    )
+                );
             }
         }
         if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
             out.writeBoolean(pipelinesHaveRun);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(listExecutedPipelines);
             if (listExecutedPipelines) {
                 out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
@@ -821,7 +848,25 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
-        return ia.getWriteIndex(this, metadata);
+        if (DataStream.isFailureStoreEnabled() && writeToFailureStore) {
+            if (ia.isDataStreamRelated() == false) {
+                throw new ElasticsearchException(
+                    "Attempting to write a document to a failure store but the targeted index is not a data stream"
+                );
+            }
+            // Resolve write index and get parent data stream to handle the case of dealing with an alias
+            String defaultWriteIndexName = ia.getWriteIndex().getName();
+            DataStream dataStream = metadata.getIndicesLookup().get(defaultWriteIndexName).getParentDataStream();
+            if (dataStream.getFailureIndices().size() < 1) {
+                throw new ElasticsearchException(
+                    "Attempting to write a document to a failure store but the target data stream does not have one enabled"
+                );
+            }
+            return dataStream.getFailureIndices().get(dataStream.getFailureIndices().size() - 1);
+        } else {
+            // Resolve as normal
+            return ia.getWriteIndex(this, metadata);
+        }
     }
 
     @Override
@@ -831,6 +876,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public IndexRequest setRequireAlias(boolean requireAlias) {
         this.requireAlias = requireAlias;
+        return this;
+    }
+
+    public boolean isWriteToFailureStore() {
+        return writeToFailureStore;
+    }
+
+    public IndexRequest setWriteToFailureStore(boolean writeToFailureStore) {
+        this.writeToFailureStore = writeToFailureStore;
         return this;
     }
 

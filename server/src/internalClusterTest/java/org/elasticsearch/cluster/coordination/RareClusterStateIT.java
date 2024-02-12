@@ -141,9 +141,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
         final var originalIndexUuid = masterClusterService.state().metadata().index("test").getIndexUUID();
         final var uuidChangedListener = ClusterServiceUtils.addTemporaryStateListener(
             dataNodeClusterService,
-            cs -> originalIndexUuid.equals(cs.metadata().index("test").getIndexUUID()) == false
+            clusterState -> originalIndexUuid.equals(clusterState.metadata().index("test").getIndexUUID()) == false
                 // NB throws a NPE which fails the test if the data node sees the intermediate state with the index deleted
-                && cs.routingTable().index("test").allShardsActive()
+                && clusterState.routingTable().index("test").allShardsActive()
         );
 
         logger.info("--> indexing a doc");

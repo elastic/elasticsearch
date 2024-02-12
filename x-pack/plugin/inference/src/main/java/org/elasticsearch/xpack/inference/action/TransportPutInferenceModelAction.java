@@ -210,30 +210,31 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     }
 
     private void putAndStartModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> finalListener) {
-        SubscribableListener.<Boolean>newForked(listener -> service.isModelDownloaded(model, listener))
-            .<Boolean>andThen((listener, isDownloaded) -> {
-                if (isDownloaded == false) {
-                    service.putModel(model, listener);
+        SubscribableListener.<Boolean>newForked(listener -> {
+            var errorCatchingListener = ActionListener.<Boolean>wrap(listener::onResponse, e -> { listener.onResponse(false); });
+            service.isModelDownloaded(model, errorCatchingListener);
+        }).<Boolean>andThen((listener, isDownloaded) -> {
+            if (isDownloaded == false) {
+                service.putModel(model, listener);
+            } else {
+                listener.onResponse(true);
+            }
+        }).<PutInferenceModelAction.Response>andThen((listener, modelDidPut) -> {
+            if (modelDidPut) {
+                if (skipValidationAndStart) {
+                    listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
                 } else {
-                    listener.onResponse(true);
+                    service.start(
+                        model,
+                        listener.delegateFailureAndWrap(
+                            (l3, ok) -> l3.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()))
+                        )
+                    );
                 }
-            }).<PutInferenceModelAction.Response>andThen((listener, modelDidPut) -> {
-                if (modelDidPut) {
-                    if (skipValidationAndStart) {
-                        listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
-                    } else {
-                        service.start(
-                            model,
-                            listener.delegateFailureAndWrap(
-                                (l3, ok) -> l3.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()))
-                            )
-                        );
-                    }
-                } else {
-                    logger.warn("Failed to put model [{}]", model.getInferenceEntityId());
-                }
-            })
-            .addListener(finalListener);
+            } else {
+                logger.warn("Failed to put model [{}]", model.getInferenceEntityId());
+            }
+        }).addListener(finalListener);
     }
 
     private Map<String, Object> requestToMap(PutInferenceModelAction.Request request) throws IOException {

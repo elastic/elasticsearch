@@ -348,15 +348,11 @@ public class TextEmbeddingInternalService implements InferenceService {
             }
         });
 
-        // TODO move modelId to TextEmbeddingModel to avoid checking for these model subtypes
         if (model instanceof TextEmbeddingModel == false) {
             listener.onFailure(notTextEmbeddingModelException(model));
-        } else if (model instanceof MultilingualE5SmallModel e5Model) {
-            String modelId = e5Model.getServiceSettings().getModelId();
-            GetTrainedModelsAction.Request getRequest = new GetTrainedModelsAction.Request(modelId);
-            executeAsyncWithOrigin(client, INFERENCE_ORIGIN, GetTrainedModelsAction.INSTANCE, getRequest, getModelsResponseListener);
-        } else if (model instanceof CustomElandModel elandModel) {
-            String modelId = elandModel.getServiceSettings().getModelId();
+        } else if (model.getServiceSettings() instanceof InternalServiceSettings internalServiceSettings) {
+            String modelId = internalServiceSettings.getModelId();
+            System.out.println("9909 modelId: " + modelId);
             GetTrainedModelsAction.Request getRequest = new GetTrainedModelsAction.Request(modelId);
             executeAsyncWithOrigin(client, INFERENCE_ORIGIN, GetTrainedModelsAction.INSTANCE, getRequest, getModelsResponseListener);
         } else {

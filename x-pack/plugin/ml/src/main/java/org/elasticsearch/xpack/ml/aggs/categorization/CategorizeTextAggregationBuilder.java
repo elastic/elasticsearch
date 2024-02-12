@@ -123,7 +123,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
                 "["
                     + NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + ALGORITHM_CHANGED_VERSION
+                    + ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                     + "] or higher and others have a version before this",
                 RestStatus.BAD_REQUEST
             );
@@ -280,7 +280,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
                 "["
                     + NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + ALGORITHM_CHANGED_VERSION
+                    + ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                     + "] or higher and others have a version before this",
                 RestStatus.BAD_REQUEST
             );

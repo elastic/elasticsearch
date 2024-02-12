@@ -14,7 +14,7 @@ package org.elasticsearch.plugins.internal;
 public interface DocumentParsingProvider {
     DocumentParsingProvider EMPTY_INSTANCE = new DocumentParsingProvider() {
         @Override
-        public DocumentSizeObserver newFixedDocumentSizeObserver() {
+        public DocumentSizeObserver newDocumentSizeObserver() {
             return DocumentSizeObserver.EMPTY_INSTANCE;
         }
 
@@ -24,7 +24,7 @@ public interface DocumentParsingProvider {
         }
 
         @Override
-        public DocumentSizeObserver newFixedDocumentSizeObserver(long normalisedBytesParsed) {
+        public DocumentSizeObserver newDocumentSizeObserver(long normalisedBytesParsed) {
             return DocumentSizeObserver.EMPTY_INSTANCE;
         }
     };
@@ -32,12 +32,12 @@ public interface DocumentParsingProvider {
     /**
      * @return a new 'empty' observer to use when observing parsing
      */
-    DocumentSizeObserver newFixedDocumentSizeObserver();
+    DocumentSizeObserver newDocumentSizeObserver();
 
     /**
-     * @return an observer with a fixed observed value.
+     * @return an observer with a previously observed value (fixed to this value, not continuing) or a new 'empty' observer.
      */
-    DocumentSizeObserver newFixedDocumentSizeObserver(long normalisedBytesParsed);
+    DocumentSizeObserver newDocumentSizeObserver(long normalisedBytesParsed);
 
     /**
      * @return an instance of a reporter to use when parsing has been completed and indexing successful

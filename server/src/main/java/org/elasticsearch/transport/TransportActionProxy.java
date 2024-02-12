@@ -18,7 +18,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -63,20 +62,12 @@ public final class TransportActionProxy {
 
                 @Override
                 public void handleResponse(TransportResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+                    channel.sendResponse(response);
                 }
 
                 @Override
                 public void handleException(TransportException exp) {
-                    try {
-                        channel.sendResponse(exp);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+                    channel.sendResponse(exp);
                 }
 
                 @Override

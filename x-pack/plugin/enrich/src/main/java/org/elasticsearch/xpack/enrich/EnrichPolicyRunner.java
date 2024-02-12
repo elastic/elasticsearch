@@ -47,6 +47,7 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -419,12 +420,18 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private static boolean isIndexableField(MapperService mapperService, String field, String type, Map<String, Object> properties) {
-        properties = new HashMap<>(properties);
-        properties.put("index", false);
+    static boolean isIndexableField(MapperService mapperService, String field, String type, Map<String, Object> properties) {
+        var withIndexParameter = new HashMap<>(properties);
+        withIndexParameter.put("index", false);
         Mapper.TypeParser parser = mapperService.getMapperRegistry().getMapperParser(type, IndexVersion.current());
-        parser.parse(field, properties, mapperService.parserContext());
-        return properties.containsKey("index") == false;
+        try {
+            parser.parse(field, withIndexParameter, mapperService.parserContext());
+            return withIndexParameter.containsKey("index") == false;
+        } catch (MapperParsingException e) {
+            // hitting the mapper parsing exception means this field doesn't accept `index:false`.
+            assert e.getMessage().contains("unknown parameter [index]") : e;
+            return false;
+        }
     }
 
     private void prepareAndCreateEnrichIndex(List<Map<String, Object>> mappings) {

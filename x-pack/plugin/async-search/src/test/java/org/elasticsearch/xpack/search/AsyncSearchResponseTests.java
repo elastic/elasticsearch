@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchResponse;
@@ -47,6 +48,7 @@ import java.util.UUID;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.async.GetAsyncResultRequestTests.randomSearchId;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104838")
 public class AsyncSearchResponseTests extends ESTestCase {
     private final SearchResponse searchResponse = randomSearchResponse(randomBoolean());
     private NamedWriteableRegistry namedWriteableRegistry;

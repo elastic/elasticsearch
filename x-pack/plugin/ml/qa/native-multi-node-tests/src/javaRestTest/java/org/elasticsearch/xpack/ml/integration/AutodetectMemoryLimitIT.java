@@ -181,6 +181,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105347")
     public void testManyDistinctOverFields() throws Exception {
         Detector.Builder detector = new Detector.Builder("sum", "value");
         detector.setOverFieldName("user");

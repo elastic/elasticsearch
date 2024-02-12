@@ -789,7 +789,7 @@ public class ProfileService {
     void maybeIncrementDifferentiatorAndCreateNewProfile(Subject subject, ProfileDocument profileDocument, ActionListener<Profile> listener)
         throws IOException {
         final String uid = profileDocument.uid();
-        final int index = uid.lastIndexOf("_");
+        final int index = uid.lastIndexOf('_');
         if (index == -1) {
             listener.onFailure(new ElasticsearchException("profile uid [{}] does not contain any underscore character", uid));
             return;

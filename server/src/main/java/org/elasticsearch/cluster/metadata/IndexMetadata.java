@@ -1276,8 +1276,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         INDEX_DOWNSAMPLE_INTERVAL_KEY,
         "",
         Property.IndexScope,
-        Property.InternalIndex,
-        Property.PrivateIndex
+        Property.InternalIndex
     );
 
     // LIFECYCLE_NAME is here an as optimization, see LifecycleSettings.LIFECYCLE_NAME and

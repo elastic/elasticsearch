@@ -46,7 +46,6 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -822,10 +821,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // same as above, but DO NOT expand wildcards
         IndexNameExpressionResolver.Context context_no_expand = new IndexNameExpressionResolver.Context(
             state,
-            new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-            ),
+            IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build(),
             randomFrom(SystemIndexAccessLevel.values())
         );
         IndexNotFoundException infe_no_expand = expectThrows(
@@ -867,10 +863,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // same as above, but DO NOT expand wildcards
         IndexNameExpressionResolver.Context context_no_expand = new IndexNameExpressionResolver.Context(
             state,
-            new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-            ),
+            IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build(),
             randomFrom(SystemIndexAccessLevel.values())
         );
         IndexNotFoundException infe_no_expand = expectThrows(
@@ -2000,10 +1993,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             // same delete request but with request options that DO NOT expand wildcards
             DeleteIndexRequest request = new DeleteIndexRequest("does_not_exist").indicesOptions(
-                new IndicesOptions(
-                    EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                    randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-                )
+                IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build()
             );
             IndexNotFoundException infe = expectThrows(
                 IndexNotFoundException.class,
@@ -2302,8 +2292,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             Index[] indices = indexNameExpressionResolver.concreteIndices(
                 state,
                 new IndicesOptions(
-                    EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_THROTTLED),
-                    EnumSet.of(IndicesOptions.WildcardStates.OPEN)
+                    IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
+                    IndicesOptions.WildcardOptions.DEFAULT,
+                    IndicesOptions.GeneralOptions.builder().ignoreThrottled(true).build()
                 ),
                 "ind*",
                 "test-index"
@@ -2315,10 +2306,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(
                 state,
-                new IndicesOptions(
-                    EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                    EnumSet.of(IndicesOptions.WildcardStates.OPEN, IndicesOptions.WildcardStates.CLOSED)
-                ),
+                IndicesOptions.builder().wildcardOptions(IndicesOptions.WildcardOptions.builder().matchClosed(true)).build(),
                 "ind*",
                 "test-index"
             );
@@ -2604,10 +2592,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // Ignore data streams,allow no indices and expand wildcards
-            IndicesOptions indicesOptions = randomFrom(
-                IndicesOptions.STRICT_EXPAND_OPEN,
-                new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES), EnumSet.of(IndicesOptions.WildcardStates.OPEN))
-            );
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream")
@@ -2616,10 +2601,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // Ignore data streams and DO NOT expand wildcards
-            IndicesOptions indicesOptions = new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream")
@@ -2628,19 +2610,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // Ignore data streams, allow no indices and ignore unavailable
-            IndicesOptions indicesOptions = new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE),
-                EnumSet.of(IndicesOptions.WildcardStates.OPEN)
-            );
+            IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN;
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream");
             assertThat(result.length, equalTo(0));
         }
         {
             // Ignore data streams, allow no indices, ignore unavailable and DO NOT expand wildcards
-            IndicesOptions indicesOptions = new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE),
-                randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder()
+                .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                .wildcardOptions(doNotExpandWildcards())
+                .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream");
             assertThat(result.length, equalTo(0));
         }
@@ -2651,19 +2630,15 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but don't expand wildcards
-            IndicesOptions indicesOptions = new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, true);
             assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis)));
         }
         {
             // Ignore data streams
-            IndicesOptions indicesOptions = new IndicesOptions(
-                EnumSet.noneOf(IndicesOptions.Option.class),
-                EnumSet.of(IndicesOptions.WildcardStates.OPEN)
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder()
+                .wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(false).build())
+                .build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", true, false)
@@ -2672,10 +2647,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but don't expand wildcards
-            IndicesOptions indicesOptions = new IndicesOptions(
-                EnumSet.noneOf(IndicesOptions.Option.class),
-                EnumSet.noneOf(IndicesOptions.WildcardStates.class)
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards(false)).build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", true, false)
@@ -2693,10 +2665,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but don't expand wildcards
-            IndicesOptions indicesOptions = new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false)
@@ -2705,10 +2674,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // Ignore data streams, allow no indices and ignore unavailable
-            IndicesOptions indicesOptions = new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE),
-                EnumSet.of(IndicesOptions.WildcardStates.OPEN)
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder()
+                .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                .build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false)
@@ -2717,10 +2685,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but don't expand wildcards
-            IndicesOptions indicesOptions = new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE),
-                randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder()
+                .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                .wildcardOptions(doNotExpandWildcards())
+                .build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false)
@@ -2760,35 +2728,23 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
-            IndicesOptions indicesOptions = randomFrom(
-                IndicesOptions.STRICT_EXPAND_OPEN,
-                new IndicesOptions(
-                    EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                    randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-                )
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder()
+                .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(randomBoolean()))
+                .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias1);
             assertThat(result, arrayContainingInAnyOrder(index1.getIndex(), index2.getIndex(), index3.getIndex(), index4.getIndex()));
         }
         {
-            IndicesOptions indicesOptions = randomFrom(
-                IndicesOptions.STRICT_EXPAND_OPEN,
-                new IndicesOptions(
-                    EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                    randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-                )
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder()
+                .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(randomBoolean()))
+                .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias2);
             assertThat(result, arrayContainingInAnyOrder(index3.getIndex(), index4.getIndex()));
         }
         {
-            IndicesOptions indicesOptions = randomFrom(
-                IndicesOptions.STRICT_EXPAND_OPEN,
-                new IndicesOptions(
-                    EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                    randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-                )
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder()
+                .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(randomBoolean()))
+                .build();
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias3);
             assertThat(result, arrayContainingInAnyOrder(index5.getIndex(), index6.getIndex()));
         }
@@ -2802,10 +2758,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but DO NOT expand wildcards
-            IndicesOptions indicesOptions = new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, dataStreamAlias1)
@@ -2822,10 +2775,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but DO NOT expand wildcards
-            IndicesOptions indicesOptions = new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, dataStreamAlias2)
@@ -2842,10 +2792,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but DO NOT expand wildcards
-            IndicesOptions indicesOptions = new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Exception e = expectThrows(
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, dataStreamAlias3)
@@ -2880,10 +2827,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // same as above but DO NOT expand wildcards
-            IndicesOptions indicesOptions = new IndicesOptions(
-                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                randomFrom(EnumSet.noneOf(IndicesOptions.WildcardStates.class), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
-            );
+            IndicesOptions indicesOptions = IndicesOptions.builder().wildcardOptions(doNotExpandWildcards()).build();
             Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, dataStreamAlias1, false, true);
             assertThat(result, notNullValue());
             assertThat(result.getName(), backingIndexEqualTo(dataStream2, 2));
@@ -3289,4 +3233,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         return IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0).put(additionalSettings));
     }
 
+    private static IndicesOptions.WildcardOptions doNotExpandWildcards() {
+        return doNotExpandWildcards(true);
+    }
+
+    private static IndicesOptions.WildcardOptions doNotExpandWildcards(boolean lenient) {
+        return IndicesOptions.WildcardOptions.builder()
+            .matchOpen(false)
+            .matchClosed(false)
+            .includeHidden(randomBoolean())
+            .allowEmptyExpressions(lenient)
+            .build();
+    }
 }

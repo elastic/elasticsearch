@@ -148,10 +148,10 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         licenseChecker.requireSupportedLicense();
         GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder(request);
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
-        if (request.getIndices() == null) {
-            searchProfilingEvents(submitTask, client, request, submitListener, responseBuilder);
-        } else {
+        if (request.isUserProvidedIndices()) {
             searchGenericEvents(submitTask, client, request, submitListener, responseBuilder);
+        } else {
+            searchProfilingEvents(submitTask, client, request, submitListener, responseBuilder);
         }
     }
 
@@ -567,8 +567,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                         StackTrace stacktrace = StackTrace.fromSource(trace.getResponse().getSource());
                         // Guard against concurrent access and ensure we only handle each item once
                         if (stackTracePerId.putIfAbsent(id, stacktrace) == null) {
-                            totalFrames.addAndGet(stacktrace.frameIds.size());
-                            stackFrameIds.addAll(stacktrace.frameIds);
+                            totalFrames.addAndGet(stacktrace.frameIds.length);
+                            stackFrameIds.addAll(List.of(stacktrace.frameIds));
                             stacktrace.forNativeAndKernelFrames(e -> executableIds.add(e));
                         }
                     }
@@ -604,6 +604,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 hostMetadata,
                 responseBuilder.getRequestedDuration(),
                 responseBuilder.getAWSCostFactor(),
+                responseBuilder.getAzureCostFactor(),
                 responseBuilder.getCustomCostPerCoreHour()
             );
             Map<String, TraceEvent> events = responseBuilder.getStackTraceEvents();

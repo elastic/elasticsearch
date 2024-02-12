@@ -317,7 +317,7 @@ public class ObjectMapper extends Mapper {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
                     Mapper.Builder fieldBuilder;
-                    if (objBuilder.subobjects.value() == false || type.equals(FieldAliasMapper.CONTENT_TYPE)) {
+                    if (objBuilder.subobjects.value() == false) {
                         fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
                     } else {
                         String[] fieldNameParts = fieldName.split("\\.");

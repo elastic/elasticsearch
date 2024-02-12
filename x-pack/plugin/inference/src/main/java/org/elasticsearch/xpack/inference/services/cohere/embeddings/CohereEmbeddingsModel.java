@@ -31,13 +31,14 @@ public class CohereEmbeddingsModel extends CohereModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secrets
+        @Nullable Map<String, Object> secrets,
+        boolean logDeprecations
     ) {
         this(
             modelId,
             taskType,
             service,
-            CohereEmbeddingsServiceSettings.fromMap(serviceSettings),
+            CohereEmbeddingsServiceSettings.fromMap(serviceSettings, logDeprecations),
             CohereEmbeddingsTaskSettings.fromMap(taskSettings),
             DefaultSecretSettings.fromMap(secrets)
         );

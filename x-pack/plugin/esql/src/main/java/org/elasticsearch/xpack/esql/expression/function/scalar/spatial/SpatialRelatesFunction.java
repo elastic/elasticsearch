@@ -19,9 +19,6 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
-import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
@@ -43,7 +40,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -186,18 +182,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
      * When both left and right sides are constants, we convert the left to a doc-values byte array and the right to a Component2D.
      */
     protected static Component2D asLuceneComponent2D(SpatialCrsTypes crsType, Expression expression) {
-        Object result = expression.fold();
-        if (result instanceof String string) {
-            return asLuceneComponent2D(crsType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(string));
-        } else if (result instanceof BytesRef bytesRef) {
-            if (expression.dataType() == KEYWORD) {
-                return asLuceneComponent2D(crsType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString()));
-            } else {
-                return asLuceneComponent2D(crsType, SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef));
-            }
-        } else {
-            throw new IllegalArgumentException("Invalid spatial constant string: " + result);
-        }
+        return asLuceneComponent2D(crsType, makeGeometryFromLiteral(expression));
     }
 
     private static Component2D asLuceneComponent2D(SpatialCrsTypes crsType, Geometry geometry) {
@@ -215,21 +200,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
      * When both left and right sides are constants, we convert the left to a doc-values byte array and the right to a Component2D.
      */
     private static GeometryDocValueReader asGeometryDocValueReader(SpatialCrsTypes crsType, Expression expression) throws IOException {
-        Object result = expression.fold();
-        if (result instanceof String string) {
-            return asGeometryDocValueReader(crsType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(string));
-        } else if (result instanceof BytesRef bytesRef) {
-            if (expression.dataType() == KEYWORD) {
-                return asGeometryDocValueReader(crsType, SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString()));
-            } else {
-                return asGeometryDocValueReader(crsType, SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef));
-            }
-        } else {
-            throw new IllegalArgumentException("Invalid spatial constant string: " + result);
-        }
-    }
-
-    private static GeometryDocValueReader asGeometryDocValueReader(SpatialCrsTypes crsType, Geometry geometry) throws IOException {
+        Geometry geometry = makeGeometryFromLiteral(expression);
         if (crsType == SpatialCrsTypes.GEO) {
             return asGeometryDocValueReader(
                 CoordinateEncoder.GEO,
@@ -291,17 +262,17 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction implem
             && EsqlDataTypes.isSpatial(fa.dataType());
     }
 
-    public Geometry makeGeometryFromLiteral(Expression expr) throws IOException, ParseException {
+    public static Geometry makeGeometryFromLiteral(Expression expr) {
         Object value = valueOf(expr);
 
         if (value instanceof BytesRef bytesRef) {
             if (EsqlDataTypes.isSpatial(expr.dataType())) {
-                return WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
             } else {
-                return WellKnownText.fromWKT(GeometryValidator.NOOP, false, bytesRef.utf8ToString());
+                return SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(bytesRef.utf8ToString());
             }
         } else if (value instanceof String string) {
-            return WellKnownText.fromWKT(GeometryValidator.NOOP, false, string);
+            return SpatialCoordinateTypes.UNSPECIFIED.wktToGeometry(string);
         } else {
             throw new IllegalArgumentException(
                 "Unsupported combination of literal [" + value.getClass().getSimpleName() + "] of type [" + expr.dataType() + "]"

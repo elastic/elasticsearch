@@ -46,10 +46,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.versionfield.Version;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.text.ParseException;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -408,9 +406,9 @@ public final class EsqlExpressionTranslators {
             String name = handler.nameOf(attribute);
 
             try {
-                Geometry shape = bc.makeGeometryFromLiteral(constantExpression);
+                Geometry shape = SpatialRelatesFunction.makeGeometryFromLiteral(constantExpression);
                 return new SpatialRelatesQuery(bc.source(), name, bc.queryRelation(), shape, attribute.dataType());
-            } catch (IOException | ParseException e) {
+            } catch (IllegalArgumentException e) {
                 throw new QlIllegalArgumentException(e.getMessage(), e);
             }
         }

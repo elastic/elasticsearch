@@ -92,8 +92,8 @@ want to use a different API key, delete the {infer} model and recreate it with
 the same name and the updated API key.
 
 `embedding_type`::
-(Required, string)
-Specifies the types of embeddings you want to get back.
+(Optional, string)
+Specifies the types of embeddings you want to get back. Defaults to `float`.
 Valid values are:
   * `float`: use it for the default float embeddings.
   * `int8`: use it for signed int8 embeddings.
@@ -177,8 +177,10 @@ Settings to configure the {infer} task. These settings are specific to the
 (optional, string)
 For `cohere` service only. Specifies the type of input passed to the model.
 Valid values are:
+  * `classification`: use it for embeddings passed through a text classifier.
+  * `clusterning`: use it for the embeddings run through a clustering algorithm.
   * `ingest`: use it for storing document embeddings in a vector database.
-  * `search`: use it for stroing embeddings of search queries run against a 
+  * `search`: use it for storing embeddings of search queries run against a 
   vector data base to find relevant documents.
 
 `model`:::

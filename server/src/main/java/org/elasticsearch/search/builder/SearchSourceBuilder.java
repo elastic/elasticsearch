@@ -731,7 +731,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     public SearchSourceBuilder aggregationsBuilder(AggregatorFactories.Builder aggregations) {
         if (this.aggregations != null) {
-            throw new IllegalStateException("cannot override aggregation build [");
+            throw new IllegalStateException("cannot override aggregations builder");
         }
         this.aggregations = aggregations;
         return this;

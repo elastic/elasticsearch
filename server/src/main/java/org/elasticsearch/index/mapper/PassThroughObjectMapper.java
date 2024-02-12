@@ -60,7 +60,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
                 context.buildFullName(name),
                 enabled,
                 dynamic,
-                buildMappers(context.createChildContext(name, dynamic)),
+                buildMappers(context.createChildContext(name, timeSeriesDimensionSubFields.value(), dynamic)),
                 timeSeriesDimensionSubFields
             );
         }

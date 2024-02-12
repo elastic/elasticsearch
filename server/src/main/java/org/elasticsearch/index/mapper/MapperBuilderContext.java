@@ -58,10 +58,26 @@ public class MapperBuilderContext {
      * @return a new MapperBuilderContext with this context as its parent
      */
     public MapperBuilderContext createChildContext(String name, @Nullable ObjectMapper.Dynamic dynamic) {
+        return createChildContext(name, this.parentObjectContainsDimensions, dynamic);
+    }
+
+    /**
+     * Creates a new MapperBuilderContext that is a child of this context
+     *
+     * @param name    the name of the child context
+     * @param dynamic strategy for handling dynamic mappings in this context
+     * @param parentObjectContainsDimensions whether the parent object contains dimensions
+     * @return a new MapperBuilderContext with this context as its parent
+     */
+    public MapperBuilderContext createChildContext(
+        String name,
+        boolean parentObjectContainsDimensions,
+        @Nullable ObjectMapper.Dynamic dynamic
+    ) {
         return new MapperBuilderContext(
             buildFullName(name),
-            isSourceSynthetic,
-            isDataStream,
+            this.isSourceSynthetic,
+            this.isDataStream,
             parentObjectContainsDimensions,
             getDynamic(dynamic)
         );

@@ -141,7 +141,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
     Releasables.closeExpectNoException(ip, () -> Releasables.close(cidrs));
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory ip;

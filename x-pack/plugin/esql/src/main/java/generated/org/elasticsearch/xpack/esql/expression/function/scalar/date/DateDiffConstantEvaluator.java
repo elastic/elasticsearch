@@ -123,7 +123,7 @@ public final class DateDiffConstantEvaluator implements EvalOperator.ExpressionE
     Releasables.closeExpectNoException(startTimestamp, endTimestamp);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final DateDiff.Part datePartFieldUnit;

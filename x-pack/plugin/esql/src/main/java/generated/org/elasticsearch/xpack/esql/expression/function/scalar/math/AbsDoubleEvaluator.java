@@ -85,7 +85,7 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
     Releasables.closeExpectNoException(fieldVal);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory fieldVal;

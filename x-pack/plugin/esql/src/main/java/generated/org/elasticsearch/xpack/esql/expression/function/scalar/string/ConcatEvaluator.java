@@ -121,7 +121,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
     Releasables.closeExpectNoException(scratch, () -> Releasables.close(values));
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;

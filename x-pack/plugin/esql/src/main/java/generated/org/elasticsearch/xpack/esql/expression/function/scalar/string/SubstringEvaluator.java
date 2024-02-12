@@ -133,7 +133,7 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
     Releasables.closeExpectNoException(str, start, length);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory str;

@@ -365,6 +365,8 @@ public abstract class Terminal {
                 out == System.err ? "ERROR" : "INFO",
                 "log.logger",
                 out == System.err ? "stderr" : "stdout",
+                "ecs.version",
+                "1.2.0",
                 "service.name",
                 "ES_ECS",
                 "event.dataset",

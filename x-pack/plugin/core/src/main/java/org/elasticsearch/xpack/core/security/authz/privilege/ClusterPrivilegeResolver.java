@@ -467,7 +467,6 @@ public class ClusterPrivilegeResolver {
      * Sorts the collection of privileges from least-privilege to most-privilege (to the extent possible),
      * returning them in a sorted map keyed by name.
      */
-    // TODO maybe avoid public visibility
     public static SortedMap<String, NamedClusterPrivilege> sortByAccessLevel(Collection<NamedClusterPrivilege> privileges) {
         // How many other privileges does this privilege imply. Those with a higher count are considered to be a higher privilege
         final Map<String, Long> impliesCount = Maps.newMapWithExpectedSize(privileges.size());

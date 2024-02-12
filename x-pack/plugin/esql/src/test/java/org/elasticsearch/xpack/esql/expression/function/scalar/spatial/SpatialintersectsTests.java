@@ -206,7 +206,7 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
         String left = (leftType == KEYWORD) ? "String" : "Source";
         String right = (rightType == KEYWORD) ? "String" : "Source";
         if (left.equals("String") && right.equals("String")) {
-            return makeEvaluatorName("", left, right, "0", "1");
+            return makeEvaluatorName(crsType, left, right, "0", "1");
         } else if (left.equals("String")) {
             return makeEvaluatorName(crsType, right, left, "1", "0");
         } else {

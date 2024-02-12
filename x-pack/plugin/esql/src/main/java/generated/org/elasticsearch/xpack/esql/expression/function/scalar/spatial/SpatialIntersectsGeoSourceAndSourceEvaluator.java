@@ -2,7 +2,7 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
+package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import java.io.IOException;
 import java.lang.IllegalArgumentException;
@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialIntersects}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialIntersectsCartesianStringAndStringEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class SpatialIntersectsGeoSourceAndSourceEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator leftValue;
@@ -33,7 +33,7 @@ public final class SpatialIntersectsCartesianStringAndStringEvaluator implements
 
   private final DriverContext driverContext;
 
-  public SpatialIntersectsCartesianStringAndStringEvaluator(Source source,
+  public SpatialIntersectsGeoSourceAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
       DriverContext driverContext) {
     this.warnings = new Warnings(source);
@@ -88,7 +88,7 @@ public final class SpatialIntersectsCartesianStringAndStringEvaluator implements
           continue position;
         }
         try {
-          result.appendBoolean(SpatialIntersects.processCartesianStringAndString(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch)));
+          result.appendBoolean(SpatialIntersects.processGeoSourceAndSource(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch)));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -105,7 +105,7 @@ public final class SpatialIntersectsCartesianStringAndStringEvaluator implements
       BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(SpatialIntersects.processCartesianStringAndString(leftValueVector.getBytesRef(p, leftValueScratch), rightValueVector.getBytesRef(p, rightValueScratch)));
+          result.appendBoolean(SpatialIntersects.processGeoSourceAndSource(leftValueVector.getBytesRef(p, leftValueScratch), rightValueVector.getBytesRef(p, rightValueScratch)));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -117,7 +117,7 @@ public final class SpatialIntersectsCartesianStringAndStringEvaluator implements
 
   @Override
   public String toString() {
-    return "SpatialIntersectsCartesianStringAndStringEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+    return "SpatialIntersectsGeoSourceAndSourceEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
   }
 
   @Override
@@ -140,13 +140,13 @@ public final class SpatialIntersectsCartesianStringAndStringEvaluator implements
     }
 
     @Override
-    public SpatialIntersectsCartesianStringAndStringEvaluator get(DriverContext context) {
-      return new SpatialIntersectsCartesianStringAndStringEvaluator(source, leftValue.get(context), rightValue.get(context), context);
+    public SpatialIntersectsGeoSourceAndSourceEvaluator get(DriverContext context) {
+      return new SpatialIntersectsGeoSourceAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "SpatialIntersectsCartesianStringAndStringEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+      return "SpatialIntersectsGeoSourceAndSourceEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
     }
   }
 }

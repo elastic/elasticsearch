@@ -2,16 +2,18 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
+package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
+import java.io.IOException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.geo.Component2D;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -23,7 +25,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialIntersects}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class SpatialIntersectsGeoSourceAndConstantEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator leftValue;
@@ -32,7 +34,7 @@ public final class SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator 
 
   private final DriverContext driverContext;
 
-  public SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator(Source source,
+  public SpatialIntersectsGeoSourceAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, Component2D rightValue,
       DriverContext driverContext) {
     this.warnings = new Warnings(source);
@@ -43,8 +45,8 @@ public final class SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator 
 
   @Override
   public Block eval(Page page) {
-    try (LongBlock leftValueBlock = (LongBlock) leftValue.eval(page)) {
-      LongVector leftValueVector = leftValueBlock.asVector();
+    try (BytesRefBlock leftValueBlock = (BytesRefBlock) leftValue.eval(page)) {
+      BytesRefVector leftValueVector = leftValueBlock.asVector();
       if (leftValueVector == null) {
         return eval(page.getPositionCount(), leftValueBlock);
       }
@@ -52,8 +54,9 @@ public final class SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator 
     }
   }
 
-  public BooleanBlock eval(int positionCount, LongBlock leftValueBlock) {
+  public BooleanBlock eval(int positionCount, BytesRefBlock leftValueBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef leftValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (leftValueBlock.isNull(p)) {
           result.appendNull();
@@ -67,8 +70,8 @@ public final class SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator 
           continue position;
         }
         try {
-          result.appendBoolean(SpatialIntersects.processCartesianPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValue));
-        } catch (IllegalArgumentException e) {
+          result.appendBoolean(SpatialIntersects.processGeoSourceAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValue));
+        } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
         }
@@ -77,12 +80,13 @@ public final class SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator 
     }
   }
 
-  public BooleanBlock eval(int positionCount, LongVector leftValueVector) {
+  public BooleanBlock eval(int positionCount, BytesRefVector leftValueVector) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef leftValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(SpatialIntersects.processCartesianPointDocValuesAndConstant(leftValueVector.getLong(p), rightValue));
-        } catch (IllegalArgumentException e) {
+          result.appendBoolean(SpatialIntersects.processGeoSourceAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), rightValue));
+        } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
         }
@@ -93,7 +97,7 @@ public final class SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator 
 
   @Override
   public String toString() {
-    return "SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+    return "SpatialIntersectsGeoSourceAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
   }
 
   @Override
@@ -116,13 +120,13 @@ public final class SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator 
     }
 
     @Override
-    public SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator get(DriverContext context) {
-      return new SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator(source, leftValue.get(context), rightValue, context);
+    public SpatialIntersectsGeoSourceAndConstantEvaluator get(DriverContext context) {
+      return new SpatialIntersectsGeoSourceAndConstantEvaluator(source, leftValue.get(context), rightValue, context);
     }
 
     @Override
     public String toString() {
-      return "SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+      return "SpatialIntersectsGeoSourceAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
     }
   }
 }

@@ -2,14 +2,16 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
+package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import org.apache.lucene.geo.Component2D;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -23,17 +25,17 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialIntersects}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialIntersectsGeoPointDocValuesAndConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class SpatialIntersectsCartesianPointDocValuesAndStringEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator leftValue;
 
-  private final Component2D rightValue;
+  private final EvalOperator.ExpressionEvaluator rightValue;
 
   private final DriverContext driverContext;
 
-  public SpatialIntersectsGeoPointDocValuesAndConstantEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator leftValue, Component2D rightValue,
+  public SpatialIntersectsCartesianPointDocValuesAndStringEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
       DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.leftValue = leftValue;
@@ -44,16 +46,24 @@ public final class SpatialIntersectsGeoPointDocValuesAndConstantEvaluator implem
   @Override
   public Block eval(Page page) {
     try (LongBlock leftValueBlock = (LongBlock) leftValue.eval(page)) {
-      LongVector leftValueVector = leftValueBlock.asVector();
-      if (leftValueVector == null) {
-        return eval(page.getPositionCount(), leftValueBlock);
+      try (BytesRefBlock rightValueBlock = (BytesRefBlock) rightValue.eval(page)) {
+        LongVector leftValueVector = leftValueBlock.asVector();
+        if (leftValueVector == null) {
+          return eval(page.getPositionCount(), leftValueBlock, rightValueBlock);
+        }
+        BytesRefVector rightValueVector = rightValueBlock.asVector();
+        if (rightValueVector == null) {
+          return eval(page.getPositionCount(), leftValueBlock, rightValueBlock);
+        }
+        return eval(page.getPositionCount(), leftValueVector, rightValueVector);
       }
-      return eval(page.getPositionCount(), leftValueVector);
     }
   }
 
-  public BooleanBlock eval(int positionCount, LongBlock leftValueBlock) {
+  public BooleanBlock eval(int positionCount, LongBlock leftValueBlock,
+      BytesRefBlock rightValueBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (leftValueBlock.isNull(p)) {
           result.appendNull();
@@ -66,8 +76,19 @@ public final class SpatialIntersectsGeoPointDocValuesAndConstantEvaluator implem
           result.appendNull();
           continue position;
         }
+        if (rightValueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (rightValueBlock.getValueCount(p) != 1) {
+          if (rightValueBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
         try {
-          result.appendBoolean(SpatialIntersects.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValue));
+          result.appendBoolean(SpatialIntersects.processCartesianPointDocValuesAndString(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch)));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -77,11 +98,13 @@ public final class SpatialIntersectsGeoPointDocValuesAndConstantEvaluator implem
     }
   }
 
-  public BooleanBlock eval(int positionCount, LongVector leftValueVector) {
+  public BooleanBlock eval(int positionCount, LongVector leftValueVector,
+      BytesRefVector rightValueVector) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(SpatialIntersects.processGeoPointDocValuesAndConstant(leftValueVector.getLong(p), rightValue));
+          result.appendBoolean(SpatialIntersects.processCartesianPointDocValuesAndString(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch)));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -93,12 +116,12 @@ public final class SpatialIntersectsGeoPointDocValuesAndConstantEvaluator implem
 
   @Override
   public String toString() {
-    return "SpatialIntersectsGeoPointDocValuesAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+    return "SpatialIntersectsCartesianPointDocValuesAndStringEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(leftValue);
+    Releasables.closeExpectNoException(leftValue, rightValue);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -106,23 +129,23 @@ public final class SpatialIntersectsGeoPointDocValuesAndConstantEvaluator implem
 
     private final EvalOperator.ExpressionEvaluator.Factory leftValue;
 
-    private final Component2D rightValue;
+    private final EvalOperator.ExpressionEvaluator.Factory rightValue;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
-        Component2D rightValue) {
+        EvalOperator.ExpressionEvaluator.Factory rightValue) {
       this.source = source;
       this.leftValue = leftValue;
       this.rightValue = rightValue;
     }
 
     @Override
-    public SpatialIntersectsGeoPointDocValuesAndConstantEvaluator get(DriverContext context) {
-      return new SpatialIntersectsGeoPointDocValuesAndConstantEvaluator(source, leftValue.get(context), rightValue, context);
+    public SpatialIntersectsCartesianPointDocValuesAndStringEvaluator get(DriverContext context) {
+      return new SpatialIntersectsCartesianPointDocValuesAndStringEvaluator(source, leftValue.get(context), rightValue.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "SpatialIntersectsGeoPointDocValuesAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+      return "SpatialIntersectsCartesianPointDocValuesAndStringEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
     }
   }
 }

@@ -2,13 +2,12 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
+package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import java.io.IOException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -25,17 +24,17 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialIntersects}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialIntersectsGeoStringAndConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class SpatialIntersectsCartesianSourceAndStringEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator leftValue;
 
-  private final Component2D rightValue;
+  private final EvalOperator.ExpressionEvaluator rightValue;
 
   private final DriverContext driverContext;
 
-  public SpatialIntersectsGeoStringAndConstantEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator leftValue, Component2D rightValue,
+  public SpatialIntersectsCartesianSourceAndStringEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
       DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.leftValue = leftValue;
@@ -46,17 +45,25 @@ public final class SpatialIntersectsGeoStringAndConstantEvaluator implements Eva
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock leftValueBlock = (BytesRefBlock) leftValue.eval(page)) {
-      BytesRefVector leftValueVector = leftValueBlock.asVector();
-      if (leftValueVector == null) {
-        return eval(page.getPositionCount(), leftValueBlock);
+      try (BytesRefBlock rightValueBlock = (BytesRefBlock) rightValue.eval(page)) {
+        BytesRefVector leftValueVector = leftValueBlock.asVector();
+        if (leftValueVector == null) {
+          return eval(page.getPositionCount(), leftValueBlock, rightValueBlock);
+        }
+        BytesRefVector rightValueVector = rightValueBlock.asVector();
+        if (rightValueVector == null) {
+          return eval(page.getPositionCount(), leftValueBlock, rightValueBlock);
+        }
+        return eval(page.getPositionCount(), leftValueVector, rightValueVector);
       }
-      return eval(page.getPositionCount(), leftValueVector);
     }
   }
 
-  public BooleanBlock eval(int positionCount, BytesRefBlock leftValueBlock) {
+  public BooleanBlock eval(int positionCount, BytesRefBlock leftValueBlock,
+      BytesRefBlock rightValueBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef leftValueScratch = new BytesRef();
+      BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (leftValueBlock.isNull(p)) {
           result.appendNull();
@@ -69,8 +76,19 @@ public final class SpatialIntersectsGeoStringAndConstantEvaluator implements Eva
           result.appendNull();
           continue position;
         }
+        if (rightValueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (rightValueBlock.getValueCount(p) != 1) {
+          if (rightValueBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
         try {
-          result.appendBoolean(SpatialIntersects.processGeoStringAndConstant(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValue));
+          result.appendBoolean(SpatialIntersects.processCartesianSourceAndString(leftValueBlock.getBytesRef(leftValueBlock.getFirstValueIndex(p), leftValueScratch), rightValueBlock.getBytesRef(rightValueBlock.getFirstValueIndex(p), rightValueScratch)));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -80,12 +98,14 @@ public final class SpatialIntersectsGeoStringAndConstantEvaluator implements Eva
     }
   }
 
-  public BooleanBlock eval(int positionCount, BytesRefVector leftValueVector) {
+  public BooleanBlock eval(int positionCount, BytesRefVector leftValueVector,
+      BytesRefVector rightValueVector) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef leftValueScratch = new BytesRef();
+      BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(SpatialIntersects.processGeoStringAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), rightValue));
+          result.appendBoolean(SpatialIntersects.processCartesianSourceAndString(leftValueVector.getBytesRef(p, leftValueScratch), rightValueVector.getBytesRef(p, rightValueScratch)));
         } catch (IllegalArgumentException | IOException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -97,12 +117,12 @@ public final class SpatialIntersectsGeoStringAndConstantEvaluator implements Eva
 
   @Override
   public String toString() {
-    return "SpatialIntersectsGeoStringAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+    return "SpatialIntersectsCartesianSourceAndStringEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(leftValue);
+    Releasables.closeExpectNoException(leftValue, rightValue);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -110,23 +130,23 @@ public final class SpatialIntersectsGeoStringAndConstantEvaluator implements Eva
 
     private final EvalOperator.ExpressionEvaluator.Factory leftValue;
 
-    private final Component2D rightValue;
+    private final EvalOperator.ExpressionEvaluator.Factory rightValue;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
-        Component2D rightValue) {
+        EvalOperator.ExpressionEvaluator.Factory rightValue) {
       this.source = source;
       this.leftValue = leftValue;
       this.rightValue = rightValue;
     }
 
     @Override
-    public SpatialIntersectsGeoStringAndConstantEvaluator get(DriverContext context) {
-      return new SpatialIntersectsGeoStringAndConstantEvaluator(source, leftValue.get(context), rightValue, context);
+    public SpatialIntersectsCartesianSourceAndStringEvaluator get(DriverContext context) {
+      return new SpatialIntersectsCartesianSourceAndStringEvaluator(source, leftValue.get(context), rightValue.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "SpatialIntersectsGeoStringAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+      return "SpatialIntersectsCartesianSourceAndStringEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
     }
   }
 }

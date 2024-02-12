@@ -9,7 +9,6 @@ package org.elasticsearch.action.index;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -232,10 +231,7 @@ public class IndexRequestTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(ver);
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> indexRequest.writeTo(out));
-            assertThat(
-                error.getMessage(),
-                equalTo("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later")
-            );
+            assertThat(error.getMessage(), equalTo("[dynamic_templates] parameter requires all nodes on 7.13.0 or later"));
         }
         // new version
         {

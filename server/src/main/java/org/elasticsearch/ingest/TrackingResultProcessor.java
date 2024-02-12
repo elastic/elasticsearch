@@ -16,8 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.ingest.IngestDocument.PIPELINE_CYCLE_ERROR_MESSAGE;
-
 /**
  * Processor to be used within Simulate API to keep track of processors executed in pipeline.
  */
@@ -89,9 +87,7 @@ public final class TrackingResultProcessor implements Processor {
             }
             ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
                 // special handling for pipeline cycle errors
-                if (e instanceof ElasticsearchException
-                    && e.getCause() instanceof IllegalStateException
-                    && e.getCause().getMessage().startsWith(PIPELINE_CYCLE_ERROR_MESSAGE)) {
+                if (e instanceof ElasticsearchException && e.getCause() instanceof GraphStructureException) {
                     if (ignoreFailure) {
                         processorResultList.add(
                             new SimulateProcessorResult(

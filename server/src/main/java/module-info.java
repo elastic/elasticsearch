@@ -358,7 +358,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.query;
     exports org.elasticsearch.search.rank;
     exports org.elasticsearch.search.rescore;
-    exports org.elasticsearch.search.retriever;
     exports org.elasticsearch.search.runtime;
     exports org.elasticsearch.search.searchafter;
     exports org.elasticsearch.search.slice;
@@ -415,8 +414,7 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.service.TransportFeatures,
             org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures,
-            org.elasticsearch.indices.IndicesFeatures,
-            org.elasticsearch.search.retriever.RetrieversFeatures;
+            org.elasticsearch.indices.IndicesFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;

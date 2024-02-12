@@ -1,0 +1,5 @@
+pr: 105391
+summary: Move `MlConfigVersion.getMinMlConfigVersion` call under try-catch block
+area: Machine Learning
+type: bug
+issues: []
